@@ -1,76 +1,66 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Battle/BattleEngine.h"
+#include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
 namespace
 {
-	template <typename IdType>
-	IdType MakeReplayNumericId(const uint64 Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(Value, Id));
-		return Id;
-	}
-
-	template <typename IdType>
-	IdType MakeReplayDefinitionId(const TCHAR* Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(FName(Value), Id));
-		return Id;
-	}
+	using BattleTest::MakeActiveSlotId;
+	using BattleTest::MakeDefinitionId;
+	using BattleTest::MakeNumericId;
+	using BattleTest::MakePartySlotId;
 
 	FBattleSetupInput MakeReplayInput(const bool bReverseInsertion)
 	{
 		FBattleSetupInput Input;
-		Input.BattleId = MakeReplayNumericId<FBattleId>(900);
-		Input.SettingsReference = {MakeReplayDefinitionId<FDefinitionId>(TEXT("Settings.Casual")), 1};
-		Input.CatalogReference = {MakeReplayDefinitionId<FDefinitionId>(TEXT("Catalog.Replay")), 3};
+		Input.BattleId = MakeNumericId<FBattleId>(900);
+		Input.SettingsReference = {MakeDefinitionId<FDefinitionId>(TEXT("Settings.Casual")), 1};
+		Input.CatalogReference = {MakeDefinitionId<FDefinitionId>(TEXT("Catalog.Replay")), 3};
 		Input.EncounterKind = EBattleEncounterKind::Trainer;
 		Input.Format = EBattleFormat::Single;
 		Input.CaptureCapacity = {4, 50};
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
 		FBattleTrainerSetup Player;
-		Player.TrainerId = MakeReplayNumericId<FTrainerId>(1);
+		Player.TrainerId = MakeNumericId<FTrainerId>(1);
 		Player.Side = EBattleSide::Player;
 		Player.Role = EBattleTrainerRole::Player;
 		Player.Controller = EBattleDecisionController::Human;
-		Player.SelectorProfileId = MakeReplayDefinitionId<FDefinitionId>(TEXT("Selector.Player"));
+		Player.SelectorProfileId = MakeDefinitionId<FDefinitionId>(TEXT("Selector.Player"));
 
 		FBattleTrainerSetup Opponent;
-		Opponent.TrainerId = MakeReplayNumericId<FTrainerId>(2);
+		Opponent.TrainerId = MakeNumericId<FTrainerId>(2);
 		Opponent.Side = EBattleSide::Opponent;
 		Opponent.Role = EBattleTrainerRole::Opponent;
 		Opponent.Controller = EBattleDecisionController::EnemyAI;
-		Opponent.SelectorProfileId = MakeReplayDefinitionId<FDefinitionId>(TEXT("Selector.Opponent"));
+		Opponent.SelectorProfileId = MakeDefinitionId<FDefinitionId>(TEXT("Selector.Opponent"));
 
 		FBattlePartyEntrySetup PlayerParty;
 		PlayerParty.TrainerId = Player.TrainerId;
-		PlayerParty.BattlerId = MakeReplayNumericId<FBattlerId>(11);
-		PlayerParty.SourcePokemonId = MakeReplayNumericId<FSourcePokemonId>(111);
-		check(FPartySlotId::TryCreate(0, PlayerParty.PartySlotId));
-		PlayerParty.SpeciesFormId = MakeReplayDefinitionId<FSpeciesFormId>(TEXT("Species.Charizard"));
+		PlayerParty.BattlerId = MakeNumericId<FBattlerId>(11);
+		PlayerParty.SourcePokemonId = MakeNumericId<FSourcePokemonId>(111);
+		PlayerParty.PartySlotId = MakePartySlotId(0);
+		PlayerParty.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(TEXT("Species.Charizard"));
 		PlayerParty.Level = 50;
 		PlayerParty.Stats = {200, 100, 100, 100, 100, 100};
 		PlayerParty.CurrentHP = 200;
-		PlayerParty.AbilityId = MakeReplayDefinitionId<FAbilityId>(TEXT("Ability.Blaze"));
+		PlayerParty.AbilityId = MakeDefinitionId<FAbilityId>(TEXT("Ability.Blaze"));
 
 		FBattlePartyEntrySetup OpponentParty = PlayerParty;
 		OpponentParty.TrainerId = Opponent.TrainerId;
-		OpponentParty.BattlerId = MakeReplayNumericId<FBattlerId>(21);
-		OpponentParty.SourcePokemonId = MakeReplayNumericId<FSourcePokemonId>(211);
-		OpponentParty.SpeciesFormId = MakeReplayDefinitionId<FSpeciesFormId>(TEXT("Species.Venusaur"));
-		OpponentParty.AbilityId = MakeReplayDefinitionId<FAbilityId>(TEXT("Ability.Overgrow"));
+		OpponentParty.BattlerId = MakeNumericId<FBattlerId>(21);
+		OpponentParty.SourcePokemonId = MakeNumericId<FSourcePokemonId>(211);
+		OpponentParty.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(TEXT("Species.Venusaur"));
+		OpponentParty.AbilityId = MakeDefinitionId<FAbilityId>(TEXT("Ability.Overgrow"));
 
 		FBattleActiveAssignment PlayerActive;
-		check(FActiveSlotId::TryCreate(EBattleSide::Player, EBattlePosition::Left, PlayerActive.ActiveSlotId));
+		PlayerActive.ActiveSlotId = MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left);
 		PlayerActive.TrainerId = Player.TrainerId;
 		PlayerActive.BattlerId = PlayerParty.BattlerId;
 
 		FBattleActiveAssignment OpponentActive;
-		check(FActiveSlotId::TryCreate(EBattleSide::Opponent, EBattlePosition::Left, OpponentActive.ActiveSlotId));
+		OpponentActive.ActiveSlotId = MakeActiveSlotId(EBattleSide::Opponent, EBattlePosition::Left);
 		OpponentActive.TrainerId = Opponent.TrainerId;
 		OpponentActive.BattlerId = OpponentParty.BattlerId;
 

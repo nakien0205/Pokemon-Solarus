@@ -1,25 +1,15 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Battle/BattleSetup.h"
+#include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
 namespace
 {
-	template <typename IdType>
-	IdType MakeNumericId(const uint64 Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(Value, Id));
-		return Id;
-	}
-
-	template <typename IdType>
-	IdType MakeDefinitionId(const TCHAR* Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(FName(Value), Id));
-		return Id;
-	}
+	using BattleTest::MakeActiveSlotId;
+	using BattleTest::MakeDefinitionId;
+	using BattleTest::MakeNumericId;
+	using BattleTest::MakePartySlotId;
 
 	FBattleSnapshotReference MakeReference(const TCHAR* Value)
 	{
@@ -58,7 +48,7 @@ namespace
 		Entry.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
 		Entry.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
 		Entry.SourcePokemonId = MakeNumericId<FSourcePokemonId>(SourceValue);
-		check(FPartySlotId::TryCreate(PartyIndex, Entry.PartySlotId));
+		Entry.PartySlotId = MakePartySlotId(PartyIndex);
 		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
 		Entry.Level = 50;
 		Entry.Stats = {200, 100, 100, 100, 100, 100};
@@ -81,7 +71,7 @@ namespace
 		const uint64 BattlerValue)
 	{
 		FBattleActiveAssignment Assignment;
-		check(FActiveSlotId::TryCreate(Side, Position, Assignment.ActiveSlotId));
+		Assignment.ActiveSlotId = MakeActiveSlotId(Side, Position);
 		Assignment.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
 		Assignment.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
 		return Assignment;

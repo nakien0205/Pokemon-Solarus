@@ -1,80 +1,70 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Battle/BattleEngine.h"
+#include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
 namespace
 {
-	template <typename IdType>
-	IdType NumericId(const uint64 Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(Value, Id));
-		return Id;
-	}
-
-	template <typename IdType>
-	IdType DefinitionId(const TCHAR* Value)
-	{
-		IdType Id;
-		check(IdType::TryCreate(FName(Value), Id));
-		return Id;
-	}
+	using BattleTest::MakeActiveSlotId;
+	using BattleTest::MakeDefinitionId;
+	using BattleTest::MakeNumericId;
+	using BattleTest::MakePartySlotId;
 
 	FBattleSetup MakeEngineSetup()
 	{
 		FBattleSetupInput Input;
-		Input.BattleId = NumericId<FBattleId>(500);
-		Input.SettingsReference = {DefinitionId<FDefinitionId>(TEXT("Settings.Casual")), 1};
-		Input.CatalogReference = {DefinitionId<FDefinitionId>(TEXT("Catalog.Contract")), 1};
+		Input.BattleId = MakeNumericId<FBattleId>(500);
+		Input.SettingsReference = {MakeDefinitionId<FDefinitionId>(TEXT("Settings.Casual")), 1};
+		Input.CatalogReference = {MakeDefinitionId<FDefinitionId>(TEXT("Catalog.Contract")), 1};
 		Input.EncounterKind = EBattleEncounterKind::Trainer;
 		Input.Format = EBattleFormat::Single;
 		Input.CaptureCapacity = {4, 100};
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
 		FBattleTrainerSetup Player;
-		Player.TrainerId = NumericId<FTrainerId>(1);
+		Player.TrainerId = MakeNumericId<FTrainerId>(1);
 		Player.Side = EBattleSide::Player;
 		Player.Role = EBattleTrainerRole::Player;
 		Player.Controller = EBattleDecisionController::Human;
-		Player.SelectorProfileId = DefinitionId<FDefinitionId>(TEXT("Selector.Player"));
+		Player.SelectorProfileId = MakeDefinitionId<FDefinitionId>(TEXT("Selector.Player"));
 		Input.Trainers.Add(Player);
 
 		FBattleTrainerSetup Opponent;
-		Opponent.TrainerId = NumericId<FTrainerId>(2);
+		Opponent.TrainerId = MakeNumericId<FTrainerId>(2);
 		Opponent.Side = EBattleSide::Opponent;
 		Opponent.Role = EBattleTrainerRole::Opponent;
 		Opponent.Controller = EBattleDecisionController::EnemyAI;
-		Opponent.SelectorProfileId = DefinitionId<FDefinitionId>(TEXT("Selector.Opponent"));
+		Opponent.SelectorProfileId = MakeDefinitionId<FDefinitionId>(TEXT("Selector.Opponent"));
 		Input.Trainers.Add(Opponent);
 
 		auto AddParty = [&Input](const uint64 TrainerValue, const uint64 BattlerValue, const uint64 SourceValue, const TCHAR* Species)
 		{
 			FBattlePartyEntrySetup Entry;
-			Entry.TrainerId = NumericId<FTrainerId>(TrainerValue);
-			Entry.BattlerId = NumericId<FBattlerId>(BattlerValue);
-			Entry.SourcePokemonId = NumericId<FSourcePokemonId>(SourceValue);
-			check(FPartySlotId::TryCreate(0, Entry.PartySlotId));
-			Entry.SpeciesFormId = DefinitionId<FSpeciesFormId>(Species);
+			Entry.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
+			Entry.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
+			Entry.SourcePokemonId = MakeNumericId<FSourcePokemonId>(SourceValue);
+			Entry.PartySlotId = MakePartySlotId(0);
+			Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(Species);
 			Entry.Level = 50;
 			Entry.Stats = {200, 100, 100, 100, 100, 100};
 			Entry.CurrentHP = 200;
-			Entry.AbilityId = DefinitionId<FAbilityId>(TEXT("Ability.Test"));
+			Entry.AbilityId = MakeDefinitionId<FAbilityId>(TEXT("Ability.Test"));
 			Input.PartyEntries.Add(Entry);
 		};
 		AddParty(1, 11, 111, TEXT("Species.Charizard"));
 		AddParty(2, 21, 211, TEXT("Species.Venusaur"));
 
 		FBattleActiveAssignment PlayerActive;
-		check(FActiveSlotId::TryCreate(EBattleSide::Player, EBattlePosition::Left, PlayerActive.ActiveSlotId));
-		PlayerActive.TrainerId = NumericId<FTrainerId>(1);
-		PlayerActive.BattlerId = NumericId<FBattlerId>(11);
+		PlayerActive.ActiveSlotId = MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left);
+		PlayerActive.TrainerId = MakeNumericId<FTrainerId>(1);
+		PlayerActive.BattlerId = MakeNumericId<FBattlerId>(11);
 		Input.StartingActive.Add(PlayerActive);
 
 		FBattleActiveAssignment OpponentActive;
-		check(FActiveSlotId::TryCreate(EBattleSide::Opponent, EBattlePosition::Left, OpponentActive.ActiveSlotId));
-		OpponentActive.TrainerId = NumericId<FTrainerId>(2);
-		OpponentActive.BattlerId = NumericId<FBattlerId>(21);
+		OpponentActive.ActiveSlotId = MakeActiveSlotId(EBattleSide::Opponent, EBattlePosition::Left);
+		OpponentActive.TrainerId = MakeNumericId<FTrainerId>(2);
+		OpponentActive.BattlerId = MakeNumericId<FBattlerId>(21);
 		Input.StartingActive.Add(OpponentActive);
 
 		FBattleSetup Setup;
@@ -88,9 +78,9 @@ namespace
 		FBattleDecisionRequestSpec Spec;
 		Spec.StateVersion = StateVersion;
 		Spec.RequestKind = EBattleDecisionRequestKind::Action;
-		Spec.DecisionOwnerTrainerId = NumericId<FTrainerId>(1);
-		Spec.ActingBattlerId = NumericId<FBattlerId>(11);
-		check(FActiveSlotId::TryCreate(EBattleSide::Player, EBattlePosition::Left, Spec.ActingSlotId));
+		Spec.DecisionOwnerTrainerId = MakeNumericId<FTrainerId>(1);
+		Spec.ActingBattlerId = MakeNumericId<FBattlerId>(11);
+		Spec.ActingSlotId = MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left);
 		Spec.LegalActionKinds.Add(EBattleActionKind::ScriptedEnd);
 
 		FBattleDecisionRequest Request;
@@ -105,8 +95,8 @@ namespace
 		check(FBattleDecision::TryCreateSimpleAction(
 			StateVersion,
 			EBattleDecisionRequestKind::Action,
-			NumericId<FTrainerId>(1),
-			NumericId<FBattlerId>(11),
+			MakeNumericId<FTrainerId>(1),
+			MakeNumericId<FBattlerId>(11),
 			EBattleActionKind::ScriptedEnd,
 			Decision));
 		return Decision;
@@ -152,8 +142,11 @@ bool FBattleC01BDecisionRejectionTest::RunTest(const FString& Parameters)
 			false,
 			Engine,
 			CreationRejection));
+	TestTrue(TEXT("Engine creation produces a valid initial turn ID"), Engine->GetSnapshot().GetTurnId().IsValid());
 
 	const FBattleResolution Stale = Engine->SubmitDecision(MakeScriptedDecision(2));
+	TestTrue(TEXT("A rejected operation still produces a valid resolution"), Stale.IsValid());
+	TestTrue(TEXT("A rejected operation receives a valid resolution ID"), Stale.GetResolutionId().IsValid());
 	TestFalse(TEXT("A stale decision is rejected"), Stale.WasAccepted());
 	TestEqual(TEXT("The stale reason is stable"), Stale.GetRejection().Reason, EBattleRejectionReason::StaleStateVersion);
 	TestEqual(TEXT("A stale decision does not change state version"), Engine->GetSnapshot().GetStateVersion(), 1ULL);
@@ -163,8 +156,8 @@ bool FBattleC01BDecisionRejectionTest::RunTest(const FString& Parameters)
 	check(FBattleDecision::TryCreateSimpleAction(
 		1,
 		EBattleDecisionRequestKind::Action,
-		NumericId<FTrainerId>(1),
-		NumericId<FBattlerId>(11),
+		MakeNumericId<FTrainerId>(1),
+		MakeNumericId<FBattlerId>(11),
 		EBattleActionKind::Abandon,
 		Illegal));
 	const FBattleResolution IllegalResult = Engine->SubmitDecision(Illegal);
@@ -192,6 +185,8 @@ bool FBattleC01BSyntheticDecisionTest::RunTest(const FString& Parameters)
 		Rejection));
 
 	const FBattleResolution Resolution = Engine->SubmitDecision(MakeScriptedDecision(1));
+	TestTrue(TEXT("The accepted operation produces a valid resolution"), Resolution.IsValid());
+	TestTrue(TEXT("The accepted operation receives a valid resolution ID"), Resolution.GetResolutionId().IsValid());
 	TestTrue(TEXT("The matching synthetic decision is accepted"), Resolution.WasAccepted());
 	TestEqual(TEXT("An accepted action advances state exactly once"), Resolution.GetAfterStateVersion(), 2ULL);
 	TestEqual(TEXT("The synthetic trace has six ordered events"), Resolution.GetEvents().Num(), 6);
@@ -202,6 +197,11 @@ bool FBattleC01BSyntheticDecisionTest::RunTest(const FString& Parameters)
 			Resolution.GetEvents()[Index].GetEventOrdinal(),
 			static_cast<uint64>(Index + 1));
 		TestTrue(TEXT("Every accepted-action event carries the same action ID"), Resolution.GetEvents()[Index].GetActionId().IsValid());
+		TestTrue(TEXT("Every accepted-action event is valid"), Resolution.GetEvents()[Index].IsValid());
+		TestTrue(TEXT("Every accepted-action event carries a valid turn ID"), Resolution.GetEvents()[Index].GetTurnId().IsValid());
+		TestTrue(
+			TEXT("Every accepted-action event carries the operation resolution ID"),
+			Resolution.GetEvents()[Index].GetResolutionId() == Resolution.GetResolutionId());
 	}
 	TestEqual(TEXT("The final event ends the battle"), Resolution.GetEvents().Last().GetType(), EBattleEventType::BattleEnded);
 	TestEqual(TEXT("The engine is terminal"), Engine->GetSnapshot().GetPhase(), EBattlePhase::Terminal);
@@ -234,7 +234,7 @@ bool FBattleC01BStatRefreshTest::RunTest(const FString& Parameters)
 	FBattleBetweenActionsStatRefresh Refresh;
 	Refresh.StateVersion = 1;
 	Refresh.OpponentRemovalCheckpointEventOrdinal = 1;
-	Refresh.BattlerId = NumericId<FBattlerId>(11);
+	Refresh.BattlerId = MakeNumericId<FBattlerId>(11);
 	Refresh.NewLevel = 51;
 	Refresh.NewStats = {204, 104, 103, 105, 103, 102};
 	Refresh.NewCurrentHP = 204;
@@ -267,14 +267,14 @@ bool FBattleC01BEventOrderingTest::RunTest(const FString& Parameters)
 {
 	FBattleEventSpec FirstSpec;
 	FirstSpec.EventOrdinal = 10;
-	FirstSpec.BattleId = NumericId<FBattleId>(1);
-	FirstSpec.TurnId = NumericId<FTurnId>(1);
-	FirstSpec.ActionId = NumericId<FActionId>(1);
-	FirstSpec.ResolutionId = NumericId<FResolutionId>(1);
+	FirstSpec.BattleId = MakeNumericId<FBattleId>(1);
+	FirstSpec.TurnId = MakeNumericId<FTurnId>(1);
+	FirstSpec.ActionId = MakeNumericId<FActionId>(1);
+	FirstSpec.ResolutionId = MakeNumericId<FResolutionId>(1);
 	FirstSpec.Type = EBattleEventType::Damage;
 	FirstSpec.Cause = EBattleEventCause::Move;
-	FirstSpec.Source.BattlerId = NumericId<FBattlerId>(11);
-	FirstSpec.Targets.Add({NumericId<FTrainerId>(2), NumericId<FBattlerId>(21), FActiveSlotId()});
+	FirstSpec.Source.BattlerId = MakeNumericId<FBattlerId>(11);
+	FirstSpec.Targets.Add({MakeNumericId<FTrainerId>(2), MakeNumericId<FBattlerId>(21), FActiveSlotId()});
 	FirstSpec.SimultaneousGroupId = 42;
 	FirstSpec.HitIndex = 1;
 	FirstSpec.HitCount = 2;
@@ -288,7 +288,7 @@ bool FBattleC01BEventOrderingTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("The second hit event is valid"), FBattleEvent::TryCreate(SecondSpec, Second));
 
 	FBattleResolutionSpec ResolutionSpec;
-	ResolutionSpec.ResolutionId = NumericId<FResolutionId>(1);
+	ResolutionSpec.ResolutionId = MakeNumericId<FResolutionId>(1);
 	ResolutionSpec.BeforeStateVersion = 1;
 	ResolutionSpec.AfterStateVersion = 2;
 	ResolutionSpec.bAccepted = true;
@@ -321,7 +321,7 @@ bool FBattleC01BSnapshotImmutabilityTest::RunTest(const FString& Parameters)
 		Rejection));
 
 	const FBattleSnapshot Before = Engine->GetSnapshot();
-	const FBattlePartyEntrySetup* BeforeBattler = Before.FindBattler(NumericId<FBattlerId>(11));
+	const FBattlePartyEntrySetup* BeforeBattler = Before.FindBattler(MakeNumericId<FBattlerId>(11));
 	check(BeforeBattler != nullptr);
 	const int32 BeforeHP = BeforeBattler->CurrentHP;
 	const FBattleResolution Resolution = Engine->SubmitDecision(MakeScriptedDecision(1));
@@ -329,7 +329,7 @@ bool FBattleC01BSnapshotImmutabilityTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("The old snapshot keeps its original version"), Before.GetStateVersion(), 1ULL);
 	TestEqual(TEXT("The old snapshot keeps its original phase"), Before.GetPhase(), EBattlePhase::Selecting);
-	TestEqual(TEXT("The old snapshot keeps its deep-copied battler facts"), Before.FindBattler(NumericId<FBattlerId>(11))->CurrentHP, BeforeHP);
+	TestEqual(TEXT("The old snapshot keeps its deep-copied battler facts"), Before.FindBattler(MakeNumericId<FBattlerId>(11))->CurrentHP, BeforeHP);
 	TestEqual(TEXT("A new snapshot observes the advanced version"), Engine->GetSnapshot().GetStateVersion(), 2ULL);
 	return true;
 }

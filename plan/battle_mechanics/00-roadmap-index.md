@@ -286,6 +286,14 @@ rules plus explicit Solarus exceptions. The finished core supports:
 This roadmap does not promise a bespoke implementation of every canonical
 move, Ability, item, or content-specific exception.
 
+## Governing Scope Rule
+
+The reusable full-core roadmap governs battle-core architecture. Implementation
+remains package-limited: each session implements only its current package and
+must not add later-package behavior or speculative public interfaces. The
+first-battle GDD continues to bound presentation and shipped content; this
+roadmap does not authorize unrelated game systems.
+
 ## Scope Boundary
 
 Included:

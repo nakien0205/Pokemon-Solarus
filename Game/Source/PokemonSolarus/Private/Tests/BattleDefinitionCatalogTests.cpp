@@ -1,19 +1,13 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Battle/BattleDefinitionCatalog.h"
+#include "BattleTestFactories.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
 
 namespace
 {
-	template <typename IdType>
-	IdType MakeDefinitionId(const TCHAR* Name)
-	{
-		IdType Id;
-		const bool bCreated = IdType::TryCreate(FName(Name), Id);
-		check(bCreated);
-		return Id;
-	}
+	using BattleTest::MakeDefinitionId;
 
 	TArray<FBattleTypeChartEntry> MakeCompleteNeutralChart()
 	{

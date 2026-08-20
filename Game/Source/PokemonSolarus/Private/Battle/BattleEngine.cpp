@@ -28,7 +28,9 @@ namespace
 	FResolutionId TakeResolutionId(FBattleEngineState& State)
 	{
 		FResolutionId Id;
-		check(State.NextResolutionId > 0 && FResolutionId::TryCreate(State.NextResolutionId, Id));
+		const bool bCreated = State.NextResolutionId > 0
+			&& FResolutionId::TryCreate(State.NextResolutionId, Id);
+		check(bCreated);
 		++State.NextResolutionId;
 		return Id;
 	}
@@ -36,7 +38,9 @@ namespace
 	FActionId TakeActionId(FBattleEngineState& State)
 	{
 		FActionId Id;
-		check(State.NextActionId > 0 && FActionId::TryCreate(State.NextActionId, Id));
+		const bool bCreated = State.NextActionId > 0
+			&& FActionId::TryCreate(State.NextActionId, Id);
+		check(bCreated);
 		++State.NextActionId;
 		return Id;
 	}
@@ -112,7 +116,8 @@ namespace
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 
 		FBattleEvent Event;
-		check(FBattleEvent::TryCreate(Spec, Event));
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
 		++State.NextEventOrdinal;
 		return Event;
 	}
@@ -143,7 +148,8 @@ namespace
 			Source));
 
 		FBattleResolution Resolution;
-		check(FBattleResolution::TryCreate(Spec, Resolution));
+		const bool bCreated = FBattleResolution::TryCreate(Spec, Resolution);
+		check(bCreated);
 		State.Resolutions.Add(Resolution);
 		return Resolution;
 	}
@@ -188,13 +194,18 @@ bool FBattleEngine::TryCreate(
 
 	TUniquePtr<FBattleEngineState> NewState = MakeUnique<FBattleEngineState>();
 	NewState->Setup = Setup;
-	check(FTurnId::TryCreate(1, NewState->TurnId));
+	if (!FTurnId::TryCreate(1, NewState->TurnId))
+	{
+		OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+		return false;
+	}
 	NewState->Random = MoveTemp(Random);
 	CopySetupState(Setup, *NewState);
 	OutEngine = TUniquePtr<FBattleEngine>(new FBattleEngine(MoveTemp(NewState)));
 	return true;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
 bool FBattleEngine::TryCreateForContractFixture(
 	const FBattleSetup& Setup,
 	TUniquePtr<IBattleRandom>&& Random,
@@ -240,6 +251,7 @@ bool FBattleEngine::TryCreateForContractFixture(
 	}
 	return true;
 }
+#endif // WITH_DEV_AUTOMATION_TESTS
 
 FBattleSnapshot FBattleEngine::GetSnapshot() const
 {
@@ -373,7 +385,8 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 	ResolutionSpec.bAccepted = true;
 	ResolutionSpec.Events = MoveTemp(Events);
 	FBattleResolution Resolution;
-	check(FBattleResolution::TryCreate(ResolutionSpec, Resolution));
+	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+	check(bResolutionCreated);
 	State->Resolutions.Add(Resolution);
 	return Resolution;
 }
@@ -475,7 +488,8 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	EventSpec.NumericAfter = Refresh.NewLevel;
 	EventSpec.NumericDelta = Refresh.NewLevel - PreviousLevel;
 	EventSpec.Visibility = Event.GetVisibility();
-	check(FBattleEvent::TryCreate(EventSpec, Event));
+	const bool bEventCreated = FBattleEvent::TryCreate(EventSpec, Event);
+	check(bEventCreated);
 
 	FBattleResolutionSpec ResolutionSpec;
 	ResolutionSpec.ResolutionId = ResolutionId;
@@ -484,7 +498,8 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	ResolutionSpec.bAccepted = true;
 	ResolutionSpec.Events.Add(Event);
 	FBattleResolution Resolution;
-	check(FBattleResolution::TryCreate(ResolutionSpec, Resolution));
+	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+	check(bResolutionCreated);
 	State->Resolutions.Add(Resolution);
 	return Resolution;
 }

@@ -156,6 +156,36 @@ bool FBattleC02BTypeChartProductsAndValidationTest::RunTest(const FString& Param
 	TestEqual(TEXT("Two resistances preserve the exact denominator"), Effectiveness.Denominator, 4);
 
 	TestTrue(
+		TEXT("Fire against Water and Flying can be queried"),
+		Chart.TryGetDualEffectiveness(
+			EPokemonType::Fire,
+			EPokemonType::Water,
+			EPokemonType::Flying,
+			Effectiveness));
+	TestEqual(TEXT("Resistance and neutral produce one half"), Effectiveness.Numerator, 1);
+	TestEqual(TEXT("One-half product preserves denominator two"), Effectiveness.Denominator, 2);
+
+	TestTrue(
+		TEXT("Fire against Water and Grass can be queried"),
+		Chart.TryGetDualEffectiveness(
+			EPokemonType::Fire,
+			EPokemonType::Water,
+			EPokemonType::Grass,
+			Effectiveness));
+	TestEqual(TEXT("Resistance and weakness cancel to neutral"), Effectiveness.Numerator, 1);
+	TestEqual(TEXT("Neutral product has denominator one"), Effectiveness.Denominator, 1);
+
+	TestTrue(
+		TEXT("Fire against Grass and Flying can be queried"),
+		Chart.TryGetDualEffectiveness(
+			EPokemonType::Fire,
+			EPokemonType::Grass,
+			EPokemonType::Flying,
+			Effectiveness));
+	TestEqual(TEXT("Weakness and neutral produce two times"), Effectiveness.Numerator, 2);
+	TestEqual(TEXT("Two-times product has denominator one"), Effectiveness.Denominator, 1);
+
+	TestTrue(
 		TEXT("Normal against Rock and Ghost can be queried"),
 		Chart.TryGetDualEffectiveness(
 			EPokemonType::Normal,

@@ -3,7 +3,9 @@
 #include "CoreMinimal.h"
 #include "Battle/BattleReplay.h"
 
+#if WITH_DEV_AUTOMATION_TESTS
 class FBattleEngineContractFixture;
+#endif
 class FBattleEngineState;
 
 /** The only mutable-state owner in the plain-C++ battle core. */
@@ -48,10 +50,13 @@ public:
 	[[nodiscard]] FBattleReplayRecord ExportReplayRecord() const;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
 	friend class FBattleEngineContractFixture;
+#endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);
 
+#if WITH_DEV_AUTOMATION_TESTS
 	[[nodiscard]] static bool TryCreateForContractFixture(
 		const FBattleSetup& Setup,
 		TUniquePtr<IBattleRandom>&& Random,
@@ -59,6 +64,7 @@ private:
 		bool bSeedOpponentRemovalCheckpoint,
 		TUniquePtr<FBattleEngine>& OutEngine,
 		FBattleRejection& OutRejection);
+#endif
 
 	TUniquePtr<FBattleEngineState> State;
 };

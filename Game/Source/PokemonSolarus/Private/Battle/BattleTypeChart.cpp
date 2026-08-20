@@ -1,21 +1,5 @@
 #include "Battle/BattleTypeChart.h"
 
-namespace
-{
-	int32 GreatestCommonDivisor(int32 Left, int32 Right)
-	{
-		Left = FMath::Abs(Left);
-		Right = FMath::Abs(Right);
-		while (Right != 0)
-		{
-			const int32 Remainder = Left % Right;
-			Left = Right;
-			Right = Remainder;
-		}
-		return Left == 0 ? 1 : Left;
-	}
-}
-
 bool FBattleTypeChart::TryCreate(
 	const TConstArrayView<FBattleTypeChartEntry> Entries,
 	FBattleTypeChart& OutChart,
@@ -98,29 +82,20 @@ bool FBattleTypeChart::TryGetDualEffectiveness(
 	FBattleTypeEffectiveness& OutEffectiveness) const
 {
 	OutEffectiveness = FBattleTypeEffectiveness();
-	if (FirstDefendingType == SecondDefendingType)
+	if (!bValid
+		|| !IsKnownType(AttackingType)
+		|| !IsKnownType(FirstDefendingType)
+		|| !IsKnownType(SecondDefendingType)
+		|| FirstDefendingType == SecondDefendingType)
 	{
 		return false;
 	}
 
-	FBattleTypeEffectiveness First;
-	FBattleTypeEffectiveness Second;
-	if (!TryGetEffectiveness(AttackingType, FirstDefendingType, First)
-		|| !TryGetEffectiveness(AttackingType, SecondDefendingType, Second))
-	{
-		return false;
-	}
-
-	if (First.IsImmune() || Second.IsImmune())
-	{
-		OutEffectiveness = {0, 1};
-		return true;
-	}
-
-	const int32 ProductNumerator = First.Numerator * Second.Numerator;
-	const int32 ProductDenominator = First.Denominator * Second.Denominator;
-	const int32 Divisor = GreatestCommonDivisor(ProductNumerator, ProductDenominator);
-	OutEffectiveness = {ProductNumerator / Divisor, ProductDenominator / Divisor};
+	const uint8 FirstQuarterUnits = QuarterUnits[ToIndex(AttackingType, FirstDefendingType)];
+	const uint8 SecondQuarterUnits = QuarterUnits[ToIndex(AttackingType, SecondDefendingType)];
+	const uint8 ProductQuarterUnits = static_cast<uint8>(
+		(static_cast<uint16>(FirstQuarterUnits) * static_cast<uint16>(SecondQuarterUnits)) / 4);
+	OutEffectiveness = DecodeQuarterUnits(ProductQuarterUnits);
 	return true;
 }
 
@@ -158,12 +133,16 @@ FBattleTypeEffectiveness FBattleTypeChart::DecodeQuarterUnits(const uint8 Quarte
 	{
 	case 0:
 		return {0, 1};
+	case 1:
+		return {1, 4};
 	case 2:
 		return {1, 2};
 	case 4:
 		return {1, 1};
 	case 8:
 		return {2, 1};
+	case 16:
+		return {4, 1};
 	default:
 		return {};
 	}

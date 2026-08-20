@@ -2,6 +2,7 @@
 
 #include "Battle/BattleDataTableAdapter.h"
 #include "Battle/BattleDataTableRows.h"
+#include "BattleTestFactories.h"
 #include "Engine/DataTable.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectGlobals.h"
@@ -157,13 +158,7 @@ namespace
 		return Tables;
 	}
 
-	template <typename IdType>
-	IdType MakeDefinitionId(const TCHAR* Name)
-	{
-		IdType Id;
-		check(IdType::TryCreate(FName(Name), Id));
-		return Id;
-	}
+	using BattleTest::MakeDefinitionId;
 
 	bool ContainsDiagnosticCode(
 		const TArray<FBattleCatalogDiagnostic>& Diagnostics,
