@@ -8,11 +8,6 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
-docs/
-design/
-src/
-plan/
-production/
 # === Claude Code Local ===
 .claude/settings.local.json
 CLAUDE.local.md
@@ -192,3 +187,4 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+Game/Content/Art/

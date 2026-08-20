@@ -74,9 +74,84 @@ class PokemonSpriteFolderImportTests(unittest.TestCase):
                     "replace_existing": True,
                     "project_directory_override": None,
                     "source_output_root_override": None,
+                    "appearance": "default",
                 },
             )
             self.assertEqual(result, expected_result)
+
+    def test_folder_import_infers_shiny_female_from_folder_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory) / "shiny-female"
+            folder.mkdir()
+            (folder / "bulbasaur_front.gif").touch()
+
+            with patch.object(
+                IMPORTER,
+                "import_pokemon_gifs",
+                return_value=[],
+            ) as import_many:
+                IMPORTER.import_pokemon_gif_folder(str(folder))
+
+            self.assertEqual(
+                import_many.call_args.kwargs["appearance"],
+                "shiny-female",
+            )
+
+    def test_explicit_appearance_overrides_folder_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory) / "default"
+            folder.mkdir()
+            (folder / "bulbasaur_front.gif").touch()
+
+            with patch.object(
+                IMPORTER,
+                "import_pokemon_gifs",
+                return_value=[],
+            ) as import_many:
+                IMPORTER.import_pokemon_gif_folder(
+                    str(folder),
+                    appearance="female",
+                )
+
+            self.assertEqual(import_many.call_args.kwargs["appearance"], "female")
+
+    def test_variant_destination_path_preserves_default_layout(self) -> None:
+        expected_paths = {
+            "Default": "/Game/Art/Pokemon/Bulbasaur/Front",
+            "Female": "/Game/Art/Pokemon/Bulbasaur/Female/Front",
+            "Shiny": "/Game/Art/Pokemon/Bulbasaur/Shiny/Front",
+            "ShinyFemale": (
+                "/Game/Art/Pokemon/Bulbasaur/ShinyFemale/Front"
+            ),
+        }
+        for appearance, expected_path in expected_paths.items():
+            with self.subTest(appearance=appearance):
+                self.assertEqual(
+                    IMPORTER._build_destination_path(
+                        "/Game/Art/Pokemon",
+                        "Bulbasaur",
+                        appearance,
+                        "Front",
+                    ),
+                    expected_path,
+                )
+
+    def test_folder_import_rejects_an_unknown_explicit_appearance(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory)
+            (folder / "bulbasaur_front.gif").touch()
+
+            with patch.object(IMPORTER, "import_pokemon_gifs") as import_many:
+                with self.assertRaisesRegex(
+                    IMPORTER.PokemonSpriteImportError,
+                    "appearance must be one of",
+                ):
+                    IMPORTER.import_pokemon_gif_folder(
+                        str(folder),
+                        appearance="shadow",
+                    )
+
+            import_many.assert_not_called()
 
     def test_folder_import_rejects_all_invalid_gif_names_before_import(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -1,0 +1,259 @@
+{
+  "appearance": "Female",
+  "atlas_columns": 5,
+  "atlas_height": 208,
+  "atlas_rows": 4,
+  "atlas_width": 240,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 7250,
+  "flipbook_name": "FB_Staravia_Female_Back_Idle",
+  "frame_height": 52,
+  "frame_width": 48,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 58,
+  "key_frames": [
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 16
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Staravia",
+  "source_file": "staravia_back.gif",
+  "source_frame_count": 115,
+  "source_sha256": "1e8644e123835e8fa72353ed8298f83c74e2827462417c549e5e5b51cf23b72b",
+  "sprite_name_prefix": "SPR_Staravia_Female_Back_Idle",
+  "texture_name": "T_Staravia_Female_Back_Idle_Sheet",
+  "unique_sprite_count": 17,
+  "view": "Back"
+}

@@ -1,0 +1,519 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 6,
+  "atlas_height": 518,
+  "atlas_rows": 7,
+  "atlas_width": 444,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 12950,
+  "flipbook_name": "FB_Beartic_Back_Idle",
+  "frame_height": 74,
+  "frame_width": 74,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 123,
+  "key_frames": [
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 8,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 8,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 8,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 8,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 8,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Beartic",
+  "source_file": "beartic_back.gif",
+  "source_frame_count": 224,
+  "source_sha256": "a67ffccb249fa554b896d6b4aa58215479cda5d5dd1c8851679528f30de7966c",
+  "sprite_name_prefix": "SPR_Beartic_Back_Idle",
+  "texture_name": "T_Beartic_Back_Idle_Sheet",
+  "unique_sprite_count": 38,
+  "view": "Back"
+}

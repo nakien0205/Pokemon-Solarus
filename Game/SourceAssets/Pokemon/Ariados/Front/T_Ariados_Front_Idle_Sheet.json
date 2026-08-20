@@ -1,0 +1,175 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 4,
+  "atlas_height": 204,
+  "atlas_rows": 4,
+  "atlas_width": 256,
+  "base_frame_duration_ms": 100,
+  "duration_ms": 5500,
+  "flipbook_name": "FB_Ariados_Front_Idle",
+  "frame_height": 51,
+  "frame_width": 64,
+  "frames_per_second": 10.0,
+  "has_transparency": true,
+  "key_frame_count": 37,
+  "key_frames": [
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Ariados",
+  "source_file": "ariados_front.gif",
+  "source_frame_count": 51,
+  "source_sha256": "76355bb941cfd4b56e6742ce0625ed5936f0db8bbfb2c085d257cc2e07591c2c",
+  "sprite_name_prefix": "SPR_Ariados_Front_Idle",
+  "texture_name": "T_Ariados_Front_Idle_Sheet",
+  "unique_sprite_count": 14,
+  "view": "Front"
+}

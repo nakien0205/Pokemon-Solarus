@@ -1,0 +1,215 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Battle/BattleIdentifiers.h"
+#include "Battle/BattleSetupTypes.h"
+
+/** Kind of selector response currently requested by the core. */
+enum class EBattleDecisionRequestKind : uint8
+{
+	Action = 0,
+	MandatoryReplacement = 1,
+	ShiftResponse = 2,
+	Scripted = 3
+};
+
+/** Stable rejection reason. Presentation chooses any display text later. */
+enum class EBattleRejectionReason : uint8
+{
+	None = 0,
+	InvalidSetup = 1,
+	InvalidDecision = 2,
+	StaleStateVersion = 3,
+	NoPendingDecision = 4,
+	WrongDecisionOwner = 5,
+	WrongActingBattler = 6,
+	WrongRequestKind = 7,
+	IllegalAction = 8,
+	IllegalMove = 9,
+	IllegalSwitch = 10,
+	IllegalItem = 11,
+	IllegalTarget = 12,
+	TerminalState = 13,
+	InvalidCheckpoint = 14,
+	RefreshNotAllowed = 15,
+	SerializationFailure = 16
+};
+
+/** Typed rejection details with optional involved identities and no display string. */
+struct POKEMONSOLARUS_API FBattleRejection
+{
+	EBattleRejectionReason Reason = EBattleRejectionReason::None;
+	FTrainerId TrainerId;
+	FBattlerId BattlerId;
+	FActionId ActionId;
+	FMoveId MoveId;
+	FItemId ItemId;
+	FPartySlotId PartySlotId;
+	FActiveSlotId ActiveSlotId;
+
+	/** Returns whether this record describes a rejection. */
+	[[nodiscard]] bool IsRejected() const
+	{
+		return Reason != EBattleRejectionReason::None;
+	}
+};
+
+/** Mutable input used to construct a canonical decision request. */
+struct POKEMONSOLARUS_API FBattleDecisionRequestSpec
+{
+	uint64 StateVersion = 0;
+	EBattleDecisionRequestKind RequestKind = EBattleDecisionRequestKind::Action;
+	FTrainerId DecisionOwnerTrainerId;
+	FBattlerId ActingBattlerId;
+	FActiveSlotId ActingSlotId;
+	TArray<EBattleActionKind> LegalActionKinds;
+	TArray<FMoveId> LegalMoveIds;
+	TArray<FPartySlotId> LegalSwitchPartySlots;
+	TArray<FItemId> LegalItemIds;
+	TArray<FActiveSlotId> LegalActiveTargets;
+	TArray<FPartySlotId> LegalPartyTargets;
+};
+
+class FBattleDecision;
+
+/** Immutable-by-interface legal-option request tied to one exact state version. */
+class POKEMONSOLARUS_API FBattleDecisionRequest
+{
+public:
+	/** Creates an invalid request. */
+	FBattleDecisionRequest() = default;
+
+	/** Validates and canonicalizes a request atomically. */
+	[[nodiscard]] static bool TryCreate(
+		const FBattleDecisionRequestSpec& Spec,
+		FBattleDecisionRequest& OutRequest,
+		FBattleRejection& OutRejection);
+
+	/** Returns whether this request contains valid owner, actor, and options. */
+	[[nodiscard]] bool IsValid() const
+	{
+		return bValid;
+	}
+
+	/** Returns the exact state version selectors must echo. */
+	[[nodiscard]] uint64 GetStateVersion() const { return StateVersion; }
+	/** Returns the requested response family. */
+	[[nodiscard]] EBattleDecisionRequestKind GetRequestKind() const { return RequestKind; }
+	/** Returns the Trainer who must answer. */
+	[[nodiscard]] FTrainerId GetDecisionOwnerTrainerId() const { return DecisionOwnerTrainerId; }
+	/** Returns the battler whose choice is requested. */
+	[[nodiscard]] FBattlerId GetActingBattlerId() const { return ActingBattlerId; }
+	/** Returns the battler's current structural active slot. */
+	[[nodiscard]] FActiveSlotId GetActingSlotId() const { return ActingSlotId; }
+	/** Returns canonical legal action families. */
+	[[nodiscard]] TConstArrayView<EBattleActionKind> GetLegalActionKinds() const { return LegalActionKinds; }
+	/** Returns canonical legal move IDs. */
+	[[nodiscard]] TConstArrayView<FMoveId> GetLegalMoveIds() const { return LegalMoveIds; }
+	/** Returns canonical legal switch destinations. */
+	[[nodiscard]] TConstArrayView<FPartySlotId> GetLegalSwitchPartySlots() const { return LegalSwitchPartySlots; }
+	/** Returns canonical legal item IDs. */
+	[[nodiscard]] TConstArrayView<FItemId> GetLegalItemIds() const { return LegalItemIds; }
+	/** Returns canonical legal active targets. */
+	[[nodiscard]] TConstArrayView<FActiveSlotId> GetLegalActiveTargets() const { return LegalActiveTargets; }
+	/** Returns canonical legal party targets. */
+	[[nodiscard]] TConstArrayView<FPartySlotId> GetLegalPartyTargets() const { return LegalPartyTargets; }
+
+	/** Checks one typed decision against this exact request. */
+	[[nodiscard]] bool Allows(const FBattleDecision& Decision, FBattleRejection& OutRejection) const;
+
+private:
+	bool bValid = false;
+	uint64 StateVersion = 0;
+	EBattleDecisionRequestKind RequestKind = EBattleDecisionRequestKind::Action;
+	FTrainerId DecisionOwnerTrainerId;
+	FBattlerId ActingBattlerId;
+	FActiveSlotId ActingSlotId;
+	TArray<EBattleActionKind> LegalActionKinds;
+	TArray<FMoveId> LegalMoveIds;
+	TArray<FPartySlotId> LegalSwitchPartySlots;
+	TArray<FItemId> LegalItemIds;
+	TArray<FActiveSlotId> LegalActiveTargets;
+	TArray<FPartySlotId> LegalPartyTargets;
+};
+
+/** Typed selector response; factories prevent mixing unrelated payload fields. */
+class POKEMONSOLARUS_API FBattleDecision
+{
+public:
+	/** Creates an invalid decision. */
+	FBattleDecision() = default;
+
+	/** Creates Run, WildFlee, ScriptedEnd, or Abandon without an extra payload. */
+	[[nodiscard]] static bool TryCreateSimpleAction(
+		uint64 StateVersion,
+		EBattleDecisionRequestKind RequestKind,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		EBattleActionKind ActionKind,
+		FBattleDecision& OutDecision);
+
+	/** Creates one typed Fight decision. */
+	[[nodiscard]] static bool TryCreateFight(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		FMoveId MoveId,
+		FActiveSlotId Target,
+		FBattleDecision& OutDecision);
+
+	/** Creates one typed switch or mandatory-replacement decision. */
+	[[nodiscard]] static bool TryCreateSwitch(
+		uint64 StateVersion,
+		EBattleDecisionRequestKind RequestKind,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		FPartySlotId PartySlotId,
+		FActiveSlotId Destination,
+		FBattleDecision& OutDecision);
+
+	/** Creates one typed Bag decision with an active target, party target, or both. */
+	[[nodiscard]] static bool TryCreateBag(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		FItemId ItemId,
+		FPartySlotId PartyTarget,
+		FActiveSlotId ActiveTarget,
+		FBattleDecision& OutDecision);
+
+	/** Returns whether one factory produced this object. */
+	[[nodiscard]] bool IsValid() const { return bValid; }
+	/** Returns the echoed state version. */
+	[[nodiscard]] uint64 GetStateVersion() const { return StateVersion; }
+	/** Returns the echoed request family. */
+	[[nodiscard]] EBattleDecisionRequestKind GetRequestKind() const { return RequestKind; }
+	/** Returns the answering Trainer. */
+	[[nodiscard]] FTrainerId GetDecisionOwnerTrainerId() const { return DecisionOwnerTrainerId; }
+	/** Returns the acting battler. */
+	[[nodiscard]] FBattlerId GetActingBattlerId() const { return ActingBattlerId; }
+	/** Returns the selected action family. */
+	[[nodiscard]] EBattleActionKind GetActionKind() const { return ActionKind; }
+	/** Returns the selected move, if Fight. */
+	[[nodiscard]] FMoveId GetMoveId() const { return MoveId; }
+	/** Returns the selected switch/replacement party slot. */
+	[[nodiscard]] FPartySlotId GetSwitchPartySlotId() const { return SwitchPartySlotId; }
+	/** Returns the selected item, if Bag. */
+	[[nodiscard]] FItemId GetItemId() const { return ItemId; }
+	/** Returns the selected item party target, if present. */
+	[[nodiscard]] FPartySlotId GetItemPartyTargetId() const { return ItemPartyTargetId; }
+	/** Returns the selected active target or switch destination, if present. */
+	[[nodiscard]] FActiveSlotId GetActiveTargetId() const { return ActiveTargetId; }
+
+private:
+	bool bValid = false;
+	uint64 StateVersion = 0;
+	EBattleDecisionRequestKind RequestKind = EBattleDecisionRequestKind::Action;
+	FTrainerId DecisionOwnerTrainerId;
+	FBattlerId ActingBattlerId;
+	EBattleActionKind ActionKind = EBattleActionKind::Fight;
+	FMoveId MoveId;
+	FPartySlotId SwitchPartySlotId;
+	FItemId ItemId;
+	FPartySlotId ItemPartyTargetId;
+	FActiveSlotId ActiveTargetId;
+};

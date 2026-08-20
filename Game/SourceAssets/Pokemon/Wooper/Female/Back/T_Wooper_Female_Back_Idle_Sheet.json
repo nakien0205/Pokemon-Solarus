@@ -1,0 +1,223 @@
+{
+  "appearance": "Female",
+  "atlas_columns": 3,
+  "atlas_height": 99,
+  "atlas_rows": 3,
+  "atlas_width": 120,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 5150,
+  "flipbook_name": "FB_Wooper_Female_Back_Idle",
+  "frame_height": 33,
+  "frame_width": 40,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 49,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Wooper",
+  "source_file": "wooper_back.gif",
+  "source_frame_count": 96,
+  "source_sha256": "2e397483293835bfd6837a7b3f3670d7d31b497ceda22b69780887b74bda64f5",
+  "sprite_name_prefix": "SPR_Wooper_Female_Back_Idle",
+  "texture_name": "T_Wooper_Female_Back_Idle_Sheet",
+  "unique_sprite_count": 7,
+  "view": "Back"
+}

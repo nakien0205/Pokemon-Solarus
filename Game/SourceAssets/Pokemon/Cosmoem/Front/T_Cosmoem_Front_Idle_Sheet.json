@@ -1,0 +1,427 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 8,
+  "atlas_height": 672,
+  "atlas_rows": 7,
+  "atlas_width": 768,
+  "base_frame_duration_ms": 100,
+  "duration_ms": 10000,
+  "flipbook_name": "FB_Cosmoem_Front_Idle",
+  "frame_height": 96,
+  "frame_width": 96,
+  "frames_per_second": 10.0,
+  "has_transparency": true,
+  "key_frame_count": 100,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 38
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 39
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 40
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 41
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 42
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 43
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 44
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 45
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 46
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 47
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 48
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 49
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Cosmoem",
+  "source_file": "cosmoem_front.gif",
+  "source_frame_count": 100,
+  "source_sha256": "89d20ee1b7362e1f7ed11a7f8a0461bc4851bf723d18ea2da09e2befe58cdc6f",
+  "sprite_name_prefix": "SPR_Cosmoem_Front_Idle",
+  "texture_name": "T_Cosmoem_Front_Idle_Sheet",
+  "unique_sprite_count": 50,
+  "view": "Front"
+}

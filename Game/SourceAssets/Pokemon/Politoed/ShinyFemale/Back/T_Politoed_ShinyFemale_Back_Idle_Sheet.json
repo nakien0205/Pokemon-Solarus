@@ -1,0 +1,223 @@
+{
+  "appearance": "ShinyFemale",
+  "atlas_columns": 7,
+  "atlas_height": 240,
+  "atlas_rows": 3,
+  "atlas_width": 301,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 4800,
+  "flipbook_name": "FB_Politoed_ShinyFemale_Back_Idle",
+  "frame_height": 80,
+  "frame_width": 43,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 49,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Politoed",
+  "source_file": "politoed_back.gif",
+  "source_frame_count": 96,
+  "source_sha256": "e6ac8f0845267a30ec53f37a9037023ccae4c1c4a82365c64115fc9611940e3d",
+  "sprite_name_prefix": "SPR_Politoed_ShinyFemale_Back_Idle",
+  "texture_name": "T_Politoed_ShinyFemale_Back_Idle_Sheet",
+  "unique_sprite_count": 20,
+  "view": "Back"
+}

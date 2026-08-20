@@ -1,0 +1,411 @@
+{
+  "appearance": "Female",
+  "atlas_columns": 6,
+  "atlas_height": 576,
+  "atlas_rows": 8,
+  "atlas_width": 558,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 4850,
+  "flipbook_name": "FB_Seaking_Female_Back_Idle",
+  "frame_height": 72,
+  "frame_width": 93,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 96,
+  "key_frames": [
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 38
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 39
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 40
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 41
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 42
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 43
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 44
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 45
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 46
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 47
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 38
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 39
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 40
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 41
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 42
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 43
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 44
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 45
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 46
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 47
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Seaking",
+  "source_file": "seaking_back.gif",
+  "source_frame_count": 97,
+  "source_sha256": "16aaa85c9744c6b75857b26da64a729d69c26fda23303c3dce3990bbc5c533f8",
+  "sprite_name_prefix": "SPR_Seaking_Female_Back_Idle",
+  "texture_name": "T_Seaking_Female_Back_Idle_Sheet",
+  "unique_sprite_count": 48,
+  "view": "Back"
+}

@@ -1,0 +1,227 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 4,
+  "atlas_height": 220,
+  "atlas_rows": 5,
+  "atlas_width": 176,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 4050,
+  "flipbook_name": "FB_CherrimSunshine_Front_Idle",
+  "frame_height": 44,
+  "frame_width": 44,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 50,
+  "key_frames": [
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 18
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "CherrimSunshine",
+  "source_file": "cherrim-sunshine_front.gif",
+  "source_frame_count": 80,
+  "source_sha256": "c30b7af542a0689154ba5ce0bd2fd599d590b5a79bb3467c2448f9fa26b11442",
+  "sprite_name_prefix": "SPR_CherrimSunshine_Front_Idle",
+  "texture_name": "T_CherrimSunshine_Front_Idle_Sheet",
+  "unique_sprite_count": 19,
+  "view": "Front"
+}

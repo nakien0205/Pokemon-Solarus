@@ -1,0 +1,423 @@
+{
+  "appearance": "Female",
+  "atlas_columns": 7,
+  "atlas_height": 490,
+  "atlas_rows": 7,
+  "atlas_width": 441,
+  "base_frame_duration_ms": 50,
+  "duration_ms": 8350,
+  "flipbook_name": "FB_FrillishMale_Female_Back_Idle",
+  "frame_height": 70,
+  "frame_width": 63,
+  "frames_per_second": 20.0,
+  "has_transparency": true,
+  "key_frame_count": 99,
+  "key_frames": [
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 34
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 35
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 36
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 37
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 38
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 39
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 40
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 41
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 42
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 43
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 44
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 45
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 46
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 47
+    },
+    {
+      "frame_run": 4,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 24
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "FrillishMale",
+  "source_file": "frillish-male_back.gif",
+  "source_frame_count": 164,
+  "source_sha256": "88f8c9a693d913ab0ca98fdfccb309e32dafcd90eedb3f5143d8fe6acbd64b73",
+  "sprite_name_prefix": "SPR_FrillishMale_Female_Back_Idle",
+  "texture_name": "T_FrillishMale_Female_Back_Idle_Sheet",
+  "unique_sprite_count": 48,
+  "view": "Back"
+}

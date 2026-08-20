@@ -25,6 +25,12 @@ MANIFEST_VERSION = 1
 DEFAULT_FRAME_DURATION_MS = 100
 MAX_TEXTURE_SIZE = 8192
 VALID_VIEWS = {"front": "Front", "back": "Back"}
+VALID_APPEARANCES = {
+    "default": "Default",
+    "female": "Female",
+    "shiny": "Shiny",
+    "shiny-female": "ShinyFemale",
+}
 KNOWN_NAME_CORRECTIONS = {
     # The current downloaded files use this common misspelling.
     "venasaur": "Venusaur",
@@ -47,6 +53,16 @@ class ConversionResult:
     manifest_path: Path
     manifest: dict[str, Any]
     reused_existing_output: bool
+
+
+def normalize_appearance(appearance: str) -> str:
+    """Return the canonical folder/name label for a supported appearance."""
+
+    appearance_key = appearance.strip().casefold()
+    if appearance_key not in VALID_APPEARANCES:
+        choices = ", ".join(VALID_APPEARANCES)
+        raise GifConversionError(f"appearance must be one of: {choices}.")
+    return VALID_APPEARANCES[appearance_key]
 
 
 def _pascal_case(value: str) -> str:
@@ -164,6 +180,9 @@ def _read_existing_result(
         manifest.get("manifest_version") == MANIFEST_VERSION
         and manifest.get("source_sha256") == source_sha256
     ):
+        # Version 1 default manifests created before appearance support remain
+        # valid and keep their original paths and asset names.
+        manifest.setdefault("appearance", "Default")
         return ConversionResult(
             atlas_path=atlas_path,
             manifest_path=manifest_path,
@@ -179,6 +198,7 @@ def convert_pokemon_gif(
     *,
     pokemon_name: str | None = None,
     view: str | None = None,
+    appearance: str = "default",
     overwrite: bool = False,
     max_texture_size: int = MAX_TEXTURE_SIZE,
 ) -> ConversionResult:
@@ -197,12 +217,18 @@ def convert_pokemon_gif(
         pokemon_name=pokemon_name,
         view=view,
     )
-    output_directory = (
-        Path(output_root).expanduser().resolve() / identity.pokemon / identity.view
-    )
-    texture_name = f"T_{identity.pokemon}_{identity.view}_Idle_Sheet"
-    flipbook_name = f"FB_{identity.pokemon}_{identity.view}_Idle"
-    sprite_name_prefix = f"SPR_{identity.pokemon}_{identity.view}_Idle"
+    appearance_label = normalize_appearance(appearance)
+    output_directory = Path(output_root).expanduser().resolve() / identity.pokemon
+    if appearance_label != "Default":
+        output_directory /= appearance_label
+    output_directory /= identity.view
+
+    name_stem = f"{identity.pokemon}_{identity.view}"
+    if appearance_label != "Default":
+        name_stem = f"{identity.pokemon}_{appearance_label}_{identity.view}"
+    texture_name = f"T_{name_stem}_Idle_Sheet"
+    flipbook_name = f"FB_{name_stem}_Idle"
+    sprite_name_prefix = f"SPR_{name_stem}_Idle"
     atlas_path = output_directory / f"{texture_name}.png"
     manifest_path = output_directory / f"{texture_name}.json"
     source_sha256 = _source_sha256(source_path)
@@ -298,6 +324,7 @@ def convert_pokemon_gif(
         "source_sha256": source_sha256,
         "pokemon": identity.pokemon,
         "view": identity.view,
+        "appearance": appearance_label,
         "texture_name": texture_name,
         "flipbook_name": flipbook_name,
         "sprite_name_prefix": sprite_name_prefix,
@@ -341,6 +368,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--pokemon-name")
     parser.add_argument("--view", choices=("front", "back"))
+    parser.add_argument(
+        "--appearance",
+        choices=tuple(VALID_APPEARANCES),
+        default="default",
+    )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -352,6 +384,7 @@ def main() -> int:
         args.output_root,
         pokemon_name=args.pokemon_name,
         view=args.view,
+        appearance=args.appearance,
         overwrite=args.overwrite,
     )
     print(

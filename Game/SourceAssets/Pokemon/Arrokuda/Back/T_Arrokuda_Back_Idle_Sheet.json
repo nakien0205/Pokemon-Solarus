@@ -1,0 +1,383 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 3,
+  "atlas_height": 370,
+  "atlas_rows": 10,
+  "atlas_width": 300,
+  "base_frame_duration_ms": 100,
+  "duration_ms": 8900,
+  "flipbook_name": "FB_Arrokuda_Back_Idle",
+  "frame_height": 37,
+  "frame_width": 100,
+  "frames_per_second": 10.0,
+  "has_transparency": true,
+  "key_frame_count": 89,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Arrokuda",
+  "source_file": "arrokuda_back.gif",
+  "source_frame_count": 89,
+  "source_sha256": "f99a4207efe4018cffe51684f10a83b6c6ed02554065dc868b8cffcf80058d05",
+  "sprite_name_prefix": "SPR_Arrokuda_Back_Idle",
+  "texture_name": "T_Arrokuda_Back_Idle_Sheet",
+  "unique_sprite_count": 29,
+  "view": "Back"
+}

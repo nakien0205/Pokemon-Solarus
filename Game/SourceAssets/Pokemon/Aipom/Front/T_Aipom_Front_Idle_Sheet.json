@@ -1,0 +1,130 @@
+{
+  "atlas_columns": 5,
+  "atlas_height": 168,
+  "atlas_rows": 3,
+  "atlas_width": 175,
+  "base_frame_duration_ms": 100,
+  "duration_ms": 2600,
+  "flipbook_name": "FB_Aipom_Front_Idle",
+  "frame_height": 56,
+  "frame_width": 35,
+  "frames_per_second": 10.0,
+  "has_transparency": true,
+  "key_frame_count": 26,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Aipom",
+  "source_file": "aipom_front.gif",
+  "source_frame_count": 26,
+  "source_sha256": "0d09eb35f2f91bc5fbfe51024bcf385c08f4f0c45998778c48572997b9c1f9cc",
+  "sprite_name_prefix": "SPR_Aipom_Front_Idle",
+  "texture_name": "T_Aipom_Front_Idle_Sheet",
+  "unique_sprite_count": 13,
+  "view": "Front"
+}

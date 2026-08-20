@@ -1,0 +1,408 @@
+# Global Battle Mechanics Roadmap
+
+Status date: 2026-08-20  
+Roadmap status: Approved and materialized; B00, C01, and C02A complete; C02B not started  
+Next package: C02B in a new session; C03 remains blocked until C02B completes
+
+## Current Truth
+
+The live battle source now contains:
+
+- `FPokemonBattleStats`, containing Max HP, Attack, Defense, Special Attack,
+  Special Defense, and Speed.
+- `FBattleDamageCalculator::TryCalculateDamage`, which calculates only the
+  deterministic Physical or Special base-damage stage.
+- Four `PokemonSolarus.Battle.DamageCalculator.*` Automation tests.
+- C01A's strong battle/definition/slot identifiers, frozen setup enums,
+  resolved nature modifier, injectable seeded RNG contract, and seven
+  `PokemonSolarus.Battle.CoreContracts.*` Automation tests.
+- C01B's validated immutable setup, typed decision/rejection contracts, sole
+  mutable engine owner, immutable snapshots, ordered event/resolution model,
+  canonical replay record/serializer, and nine
+  `PokemonSolarus.Battle.C01B.*` Automation tests.
+- C02A's validated permanent-stat inputs and calculations, invariant-safe
+  `FBattleStatStages`, pure effective-stat and accuracy/evasion queries, and
+  seven `PokemonSolarus.Battle.C02A.*` Automation tests.
+
+There is now a minimal no-mechanics `FBattleEngine` and the frozen public
+setup/decision/event/snapshot/replay language needed by later packages. There
+is still no mechanic-bearing battle state, action queue, target resolver,
+switching system, condition engine, encounter flow, or presentation seam. The
+completed Story 001 and its 33-test report describe an older source state and
+are historical evidence only. The current Git history begins with initial commit
+`d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
+already existed, so it cannot explain or restore those missing files.
+
+## B00 Execution Status
+
+- B00A: Complete on 2026-08-20, run
+  `B00A-DamageCalculator-20260820T090904Z`.
+- B00B: Complete and accepted on 2026-08-20. Its accepted snapshot is
+  `plan/battle_mechanics/reference/modern-rules-snapshot.md`, SHA-256
+  `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50`.
+- `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
+  source set, then approved explicit Solarus closures for the rules the sources
+  still did not establish.
+- The B00 and C01 gates are clear. C02A is complete and C02B remains
+  dependency-clear; every later package remains blocked or not started. The
+  workspace's sequential default makes C02B the next session.
+- B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
+  `PokemonSolarusEditor Win64 Development` target evaluation.
+- The focused calculator run discovered and passed exactly four tests: 4
+  succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- Stale objects for absent battle systems remain in `Intermediate` as required,
+  but none is named by the current module linker response and none supplied an
+  extra runtime test.
+- Git was present at the execution baseline on clean `main` at the initial
+  commit above. B00A performed no Git write or commit action.
+
+Protected B00A hashes, unchanged before and after Unreal:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleStats.h` | `92028991c761de61439c37d5e006121194f42c19b10021185b6157ec168518de` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDamageCalculator.h` | `6b4951eba72e3782d392fdf16cfd7f4dc27227843def6a8af019e959d717fe38` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDamageCalculator.cpp` | `f9a61783d19d37dfc7f931d2eaf4f381a1fb52ab06360d3fe209a77326fdc7c5` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleDamageCalculatorTests.cpp` | `c8c32253ff4332ee745d79a897d34c4a23b7d6e43bf456923fc428bc8bd35db1` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+
+Fresh local evidence:
+
+- Manifest:
+  `Game/Saved/Automation/B00A-DamageCalculator-20260820T090904Z/b00a-evidence.json`.
+- Automation report:
+  `Game/Saved/Automation/B00A-DamageCalculator-20260820T090904Z/index.json`.
+- Automation log:
+  `Game/Saved/Logs/B00A-DamageCalculator-20260820T090904Z.log`.
+- Editor build log:
+  `Game/Saved/Logs/B00A-EditorBuild-20260820T090904Z.log`.
+- Full counters, artifact hashes, source inventory, Git transition note,
+  stale-object containment, and separate startup-noise findings are recorded in
+  the package file and manifest.
+- The pinned Showdown, damage-calc, and capture commits were not consulted by
+  B00A. They were fetched at their exact revisions and consulted by the current
+  B00B pass.
+
+B00B accepted evidence:
+
+- Pokemon Showdown revision
+  `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d`.
+- Smogon damage-calc revision
+  `83807801012f0af3e2dbb543d6fd40b483b3ebab`.
+- Scarlet 1.1.0 capture parent revision
+  `31d6aa136883ab354f5e8151526ee40f07317be0`, plus ten child revisions and
+  their SHA-256 content hashes recorded in the snapshot.
+- Solarus handoff SHA-256
+  `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6`.
+- Installed UE 5.8.1 `DataTable.h` SHA-256
+  `1644b15509198b370716c3a106193f3bc642f40ab646235526c69fb8db4a73a4`;
+  Epic's UE 5.8 Data Table pages were checked as the adapter authority.
+- Supplementary Gen IX raw-page pins and SHA-256 values: Obedience
+  `oldid=4554429` / `b53f050d074c5c9e58d9364754f4ea1a2cd0c63449a8db0f8e70ab2576d2d97f`;
+  Priority `oldid=4535978` / `2502da8f8cadeca76ff9b2d3fbe916cb83b77629279251751928ca32624214b4`;
+  Revive `oldid=4594350` / `e650ef2f9d71ebf9be981d5f21485b61e11c90ba7197cc20ca774b5ab0c1d81a`;
+  Full Heal `oldid=4614360` / `eec2a5f9863c102e070df707c942949a0e3e7de0c51bdf7135fccc57b0875549`;
+  X Attack `oldid=4595515` / `056ec4a271f7b73f81e13525877e2d167856bccf63689e0ab6605fa97eebf31d`.
+- Diagnostic obedience artifacts were also pinned: SacredPhoenix PDF SHA-256
+  `1d53fcb0e807cc386abeb633d6d5556573b87dbe06831082ab2d22673356e7f1`
+  and Smogon discussion HTML SHA-256
+  `a6f868f74c20043b1538a104d482d8570683b8cec01b3bc101be00e7c11c3a31`.
+- Accepted Solarus closures are deterministic above-cap refusal before PP/RNG;
+  `Run > voluntary switch > Bag/capture > moves`; Revive HP
+  `max(1, floor(MaxHP / 2))`; and X Attack rejection at `+6` without consuming
+  its item or action. Full Heal cures all frozen major statuses plus Confusion.
+- No battle source, `.uproject`, or Unreal configuration file was changed by
+  B00B. C01 was not started.
+- With user authorization, `.gitignore` stopped broadly hiding `docs/`,
+  `design/`, `src/`, `plan/`, and `production/`, making the durable work
+  visible to Git. Generated `Saved/`, `Intermediate/`, `Binaries/`, logs, and
+  `production/session-logs/` remain ignored. Current `.gitignore` SHA-256 is
+  `0f1da0b6bf5ba95c2514d19b036f0e2ee7a8d899c2530bf898a9e5d8f13f24e9`.
+
+## C01A Execution Status
+
+- C01A completed on 2026-08-20 with successful run ID
+  `C01A-CoreContracts-20260820T122558Z`.
+- The `PokemonSolarusEditor Win64 Development` build succeeded after compiling
+  all four new C01A translation units, with 0 build warnings and 0 build
+  errors.
+- `PokemonSolarus.Battle.CoreContracts` discovered and passed exactly seven
+  tests: 7 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0.
+- The protected `PokemonSolarus.Battle.DamageCalculator` regression filter
+  discovered and passed exactly four tests: 4 succeeded, 0 with warnings, 0
+  failed, and 0 not run; process exit code 0.
+- Per the user's latest instruction, the full `PokemonSolarus.Battle` suite was
+  not run. C01B's focused suite was also not run because C01B was not started.
+- The protected calculator source/tests, module rules, `.uproject`, and
+  `DefaultEngine.ini` hashes were unchanged before and after Unreal. The config
+  remained at SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`.
+- The JSON reports contain no test warnings or failures. Separate startup noise
+  was optional profiler/GPU-capture/tablet DLL messages, unavailable EOS
+  anti-cheat, one stale-layout migration warning in the CoreContracts run, and
+  Unreal's own `UE::UnifiedErrorTest` diagnostics; no Automation or Solarus
+  battle issue line was found.
+- Successful evidence is under
+  `Game/Saved/Automation/C01A-CoreContracts-20260820T122558Z/`,
+  `Game/Saved/Automation/C01A-DamageCalculator-20260820T122558Z/`, and the
+  matching `Game/Saved/Logs/C01A-*-20260820T122558Z.log` files.
+- This is the preserved C01A handoff. C01B's completed status is recorded
+  below.
+
+## C01B Execution Status
+
+- C01B completed on 2026-08-20 with successful run ID
+  `C01B-Contracts-20260820T131414Z`.
+- The first source-compiling Editor build
+  (`C01B-EditorBuild-20260820T131146Z`) found 13 local C01B compiler errors and
+  0 warnings. The fixes stayed inside C01B files. The subsequent
+  `PokemonSolarusEditor Win64 Development` build
+  (`C01B-EditorBuild-20260820T131322Z`) succeeded with 0 compiler warning lines
+  and 0 compiler error lines.
+- `PokemonSolarus.Battle.C01B` discovered and passed exactly nine tests: 9
+  succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- The protected `PokemonSolarus.Battle.CoreContracts` regression filter passed
+  exactly seven tests, and `PokemonSolarus.Battle.DamageCalculator` passed
+  exactly four tests. Both runs had 0 warnings, 0 failures, and 0 not-run tests;
+  both processes exited 0.
+- The full `PokemonSolarus.Battle` filter discovered and passed exactly 20
+  tests: 20 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0.
+- The C01A sources/tests, calculator sources/tests, module rules, `.uproject`,
+  and `DefaultEngine.ini` matched their pre-run hashes after Unreal. The config
+  remained at SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`;
+  no Android File Server cleanup was needed.
+- All four JSON reports record 0 test warnings and 0 failures. Separate startup
+  noise is limited to optional profiler/GPU-capture/tablet DLL messages and
+  Unreal's own `UE::UnifiedErrorTest` diagnostics; no Automation or Solarus
+  battle issue line was found.
+- Successful evidence is under
+  `Game/Saved/Automation/C01B-Contracts-20260820T131414Z/`,
+  `Game/Saved/Automation/C01B-C01A-CoreContracts-20260820T131508Z/`,
+  `Game/Saved/Automation/C01B-DamageCalculator-20260820T131555Z/`, and
+  `Game/Saved/Automation/C01B-FullBattle-20260820T131636Z/`, with matching
+  timestamped files under `Game/Saved/Logs/`.
+- C01 is complete. C02A has now completed in the later focused session
+  recorded below. C02B remains dependency-clear and is the default next
+  package in the shared sequential workspace.
+
+## C02A Execution Status
+
+- C02A completed on 2026-08-20 with focused run ID
+  `C02A-Stats-20260820T134951Z`.
+- The `PokemonSolarusEditor Win64 Development` build
+  (`C02A-EditorBuild-20260820T134917Z`) succeeded after compiling the new
+  calculator/stage runtime and test units, with 0 compiler warning lines and 0
+  compiler error lines.
+- `PokemonSolarus.Battle.C02A` discovered and passed exactly seven tests: 7
+  succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- Per the user's explicit validation limit, only the C02A-focused filter was
+  run. The protected `PokemonSolarus.Battle.DamageCalculator` filter and the
+  full `PokemonSolarus.Battle` suite were not rerun. Their source/test hashes
+  remained unchanged, but this session does not claim fresh runtime regression
+  evidence for them.
+- `BattleSetupTypes.h`, the base-damage implementation/tests, module rules,
+  `.uproject`, and `DefaultEngine.ini` matched their pre-run hashes after
+  Unreal. `BattleStats.h` changed intentionally for C02A inputs. The config
+  remained at SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`;
+  no Android File Server cleanup was needed.
+- The focused JSON report records no warnings or failures. Separate startup
+  noise was limited to optional profiler/GPU-capture/tablet DLL messages,
+  unavailable EOS anti-cheat, and Unreal's own `UE::UnifiedErrorTest`
+  diagnostics; no C02A or Automation issue line was found.
+- Successful evidence is under
+  `Game/Saved/Automation/C02A-Stats-20260820T134951Z/`, with logs
+  `Game/Saved/Logs/C02A-Stats-20260820T134951Z.log` and
+  `Game/Saved/Logs/C02A-EditorBuild-20260820T134917Z.log`.
+- C02A is complete under the approved focused-validation scope. C02B is not
+  started. C03 remains blocked until C02B completes.
+
+## Goal
+
+Build a deterministic, plain-C++ battle core using Scarlet/Violet-style modern
+rules plus explicit Solarus exceptions. The finished core supports:
+
+- Single, Double, and partner Double Battles.
+- Permanent stat calculation, IVs, EVs, natures, temporary stat stages, types,
+  move data, PP, accuracy, critical hits, final damage, and reusable effects.
+- Major status, the approved volatile set, regular weather, all four terrains,
+  standard hazards, screens, rooms, and approved side conditions.
+- The approved Ability, held-item, battle-item, and canonical move proof sets.
+- Parties, targeting, switching, replacements, Shift/Set, battle outcomes,
+  capture, escape, reinforcement, and partner ownership rules.
+- Immutable snapshots, typed decisions, deterministic ordered events, and
+  filtered selector observations for future UI, AI, and progression systems.
+- Unreal Data Table adapters that copy validated rows into immutable plain-C++
+  definitions.
+
+This roadmap does not promise a bespoke implementation of every canonical
+move, Ability, item, or content-specific exception.
+
+## Scope Boundary
+
+Included:
+
+- Pure permanent-stat calculation from base stats, level, IV, EV, and nature.
+- Transient battle state and deterministic rule resolution.
+- Read-only inputs and output events needed by later systems.
+- A selector interface and deterministic test selector, but not strategic AI.
+- Capture and Bag consumption results, but not persistent inventory or storage
+  writes.
+
+Excluded:
+
+- EXP formulas, EXP distribution, EV awards, level growth, move learning, and
+  evolution.
+- Money, rematches, defeat penalties, Pokédex progress, quests, and rewards.
+- Save/load, autosave, permanent party/storage mutation, transport, healing,
+  and all other overworld consequences.
+- UMG, Battle Info layout, input, animation, camera, VFX, audio, localization,
+  accessibility presentation, and assets unrelated to Data Tables.
+- Mega Evolution, Dynamax, Terastallization, Triples, quadruples, Nuzlocke, and
+  Champion-specific rules.
+
+## Authority and Evidence
+
+Use this precedence for every rule:
+
+1. Explicit Solarus rule in `docs/battle-system-interview-handoff.md`.
+2. The rules snapshot produced by B00B from the pinned modern references.
+3. Ask the user if the pinned evidence conflicts or remains ambiguous.
+
+Do not silently choose between conflicting sources. Do not describe the pinned
+community engines as official sources.
+
+Pinned engineering references:
+
+- Pokemon Showdown commit `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d`.
+- Smogon damage-calc commit `83807801012f0af3e2dbb543d6fd40b483b3ebab`.
+- Scarlet 1.1.0 capture disassembly revision
+  `31d6aa136883ab354f5e8151526ee40f07317be0`.
+- Epic Unreal Engine 5.8 Data Table documentation.
+
+The rules-specific supplementary pins are recorded under B00B accepted evidence
+and in the accepted snapshot. They do not widen the general authority order.
+
+## Package Map
+
+| ID | File | Priority | Hard dependencies | Session shape |
+|---|---|---:|---|---|
+| B00 | `01-live-baseline-and-rules-snapshot.md` | P0 | None | A then B |
+| C01 | `02-core-contracts-events-and-rng.md` | P0 | B00 | A then B |
+| C02 | `03-stats-types-moves-and-data-adapters.md` | P0 | C01 | A and B logically parallel |
+| C03 | `04-battle-state-snapshots-and-decisions.md` | P0 | C02A, C02B | A then B |
+| C04 | `05-actions-order-and-targeting.md` | P1 | C03 | A then B |
+| C05 | `06-hit-damage-effects-and-outcomes.md` | P1 | C03; C04B before integration | A, B, then C |
+| C06 | `07-parties-switching-and-replacements.md` | P1 | C05C | A then B |
+| C07 | `08-status-volatiles-field-and-side-conditions.md` | P1/P2 | C06B | A, B/C, then D |
+| C08 | `09-abilities-held-items-and-battle-items.md` | P2 | C07D | A, then B/C |
+| C09 | `10-encounters-capture-escape-and-partner.md` | P2/P3 | C06B, C08B, C08C | A, B, then C |
+| C10 | `11-canonical-proof-content.md` | P3 | C07D, C08, C09 | A then B |
+| C11 | `12-integration-and-release-gate.md` | Completion gate | All applicable packages | A then B |
+
+Priority meaning:
+
+- P0: freezes contracts or facts needed by every later package.
+- P1: builds the correct playable battle loop.
+- P2: adds cross-system rules and modifiers.
+- P3: adds special encounter flows and canonical proof content.
+- Completion gate: must pass before calling the reusable battle core complete.
+
+## Dependency Graph
+
+```text
+B00A Live baseline -> B00B Rules snapshot
+  -> C01A IDs/RNG -> C01B Events/public contract
+      -> C02A Stats/stages ---------+
+      -> C02B Types/moves/adapters -+
+                                      -> C03A State -> C03B Decisions/snapshots
+                                          -> C04A Legality/order -> C04B Targeting
+                                          -> C05A Hit/damage -----+
+                                                                     -> C05B Effects
+                                                                     -> C05C Faint/outcomes
+                                                                         -> C06A Switching
+                                                                         -> C06B Replacements
+                                                                             -> C07A Trigger framework
+                                                                                 -> C07B Major status
+                                                                                 -> C07C Volatiles
+                                                                                     -> C07D Field/side rules
+                                                                                         -> C08A Hooks
+                                                                                             -> C08B Abilities
+                                                                                             -> C08C Items
+                                                                                                 -> C09A Policies
+                                                                                                 -> C09B Wild flows
+                                                                                                 -> C09C Partner
+                                                                                                     -> C10 Content
+                                                                                                         -> C11 Gate
+```
+
+## Session and Parallel-Work Rules
+
+Sequential execution is the default. The current workspace has Git metadata and
+one initial commit, but no approved isolated branches, worktrees, or copies for
+concurrent writing. Every agent shares the same source, `Binaries`,
+`Intermediate`, `Saved`, and module outputs.
+
+Logical parallel lanes after their contracts freeze:
+
+- C02A permanent stats versus C02B nature/type/move/adapters. C01 freezes the
+  small resolved nature-modifier value; C02B alone owns nature IDs and rows.
+- C04A action legality/order versus the pure C05A hit/damage calculator work.
+- C07B major-status content versus C07C volatile content.
+- Weather content versus terrain/side-condition content after C07A.
+- C08B Ability content versus C08C item content.
+- Disjoint canonical Data Table families in C10.
+
+Actual concurrent writing is allowed only after the user creates a trusted Git
+baseline and supplies isolated branches, worktrees, or copies. Each lane must
+own disjoint files. Unreal builds and headless tests remain serialized. Shared
+headers, `FBattleEngine`, battle state, action resolution, and integration tests
+have one owner at a time.
+
+Agents must not initialize Git, commit, push, merge, reset, or delete files
+without explicit user authorization.
+
+## Required Session Completion Contract
+
+Every implementation session must:
+
+1. Read this index, its package file, the live source, and B00B's rules snapshot.
+2. Record exact owned files and files it must not edit.
+3. Record pre-run hashes for relevant source/tests, `.uproject`, and
+   `DefaultEngine.ini`.
+4. Add focused deterministic tests under `PokemonSolarus.Battle.<Subsystem>`.
+5. Run the focused tests, build `PokemonSolarusEditor Win64 Development`, and
+   run the full `PokemonSolarus.Battle` suite.
+6. Export unique timestamped logs and JSON reports; do not overwrite historical
+   evidence.
+7. Report failures, warnings, not-run tests, and unrelated engine-startup noise
+   separately.
+8. Compare configuration hashes after Unreal. Never remove or rewrite the
+   existing Android File Server block without approval.
+9. Update only its package status and handoff. Do not begin the next package in
+   the same session unless the roadmap explicitly groups it.
+
+## Fixed Solarus Decisions Added During Planning
+
+- Field proof set: four regular weather states, four terrains, four hazards,
+  three screens, three rooms, Tailwind, Safeguard, and Mist.
+- Volatile proof set: confusion, flinch, Protect, Leech Seed, partial trapping,
+  switch-prevention trapping, Taunt, Encore, Disable, Substitute, charging,
+  recharge, and semi-invulnerability.
+- Ability proof set: Blaze, Overgrow, Intimidate, Levitate, Drizzle, Speed
+  Boost, Magic Guard, and Mold Breaker.
+- Held-item proof set: Leftovers, Sitrus Berry, Lum Berry, Focus Sash, Life Orb,
+  Choice Band, Heavy-Duty Boots, Air Balloon, and Quick Claw.
+- Battle-item proof set: Poke Ball, Hyper Potion, Revive, Full Heal, and X
+  Attack.
+- Proof mechanics receive canonical named rows, not only anonymous test data.
+- Escape attempt counter `C` starts at one, increments after each legal failed
+  attempt, and never resets during that battle.
+- Casual eligible Single Trainer Battles default to Shift; unsupported formats
+  always use Set.
+- Player-controlled actions are requested first; partner AI may observe those
+  selections, while enemy selectors receive a filtered pre-choice view.

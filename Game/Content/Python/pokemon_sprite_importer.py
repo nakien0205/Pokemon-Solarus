@@ -1,4 +1,4 @@
-"""Reusable UE 5.8 Paper 2D importer for front/back Pokemon GIFs.
+"""Reusable UE 5.8 Paper 2D importer for Pokemon appearance GIFs.
 
 Run this module inside Unreal Editor's Python environment. The public functions
 accept either one GIF path or one folder of GIFs and create texture atlases,
@@ -28,10 +28,45 @@ VALID_GIF_FILENAME_PATTERN = re.compile(
     r"(?P<pokemon>.+)_(?P<view>front|back)\.gif",
     re.IGNORECASE,
 )
+VALID_APPEARANCES = {
+    "default": "Default",
+    "female": "Female",
+    "shiny": "Shiny",
+    "shiny-female": "ShinyFemale",
+}
 
 
 class PokemonSpriteImportError(RuntimeError):
     """Raised when conversion or Unreal asset creation fails."""
+
+
+def _normalize_appearance(appearance: str) -> tuple[str, str]:
+    appearance_key = appearance.strip().casefold()
+    if appearance_key not in VALID_APPEARANCES:
+        choices = ", ".join(VALID_APPEARANCES)
+        raise PokemonSpriteImportError(f"appearance must be one of: {choices}.")
+    return appearance_key, VALID_APPEARANCES[appearance_key]
+
+
+def _infer_appearance_from_folder(folder_path: str | Path) -> str:
+    folder_name = Path(folder_path).expanduser().resolve().name.casefold()
+    return folder_name if folder_name in VALID_APPEARANCES else "default"
+
+
+def _build_destination_path(
+    destination_root: str,
+    pokemon: str,
+    appearance: str,
+    view: str,
+) -> str:
+    pokemon_root = f"{destination_root.rstrip('/')}/{pokemon}"
+    if appearance == "Default":
+        return f"{pokemon_root}/{view}"
+    if appearance not in VALID_APPEARANCES.values():
+        raise PokemonSpriteImportError(
+            f"Converter returned an unsupported appearance: {appearance}"
+        )
+    return f"{pokemon_root}/{appearance}/{view}"
 
 
 def _project_directory() -> Path:
@@ -58,6 +93,7 @@ def _run_converter(
     *,
     project_directory: Path,
     source_output_root: Path,
+    appearance: str,
     overwrite: bool,
 ) -> tuple[Path, dict[str, Any]]:
     converter = project_directory / CONVERTER_RELATIVE_PATH
@@ -70,6 +106,8 @@ def _run_converter(
         str(gif_path),
         "--output-root",
         str(source_output_root),
+        "--appearance",
+        appearance,
     ]
     if overwrite:
         command.append("--overwrite")
@@ -288,14 +326,16 @@ def import_pokemon_gif(
     destination_root: str = DEFAULT_DESTINATION_ROOT,
     pixels_per_unreal_unit: float = DEFAULT_PIXELS_PER_UNREAL_UNIT,
     replace_existing: bool = False,
+    appearance: str = "default",
     project_directory_override: str | None = None,
     source_output_root_override: str | None = None,
 ) -> dict[str, Any]:
     """Create a timing-correct Paper 2D Flipbook from one front/back GIF.
 
     The filename must end in ``_front.gif`` or ``_back.gif``. Generated source
-    PNG/JSON files live outside ``Content``; Unreal assets are created under
-    ``destination_root/<Pokemon>/<Front|Back>``.
+    PNG/JSON files live outside ``Content``. Default Unreal assets stay under
+    ``destination_root/<Pokemon>/<Front|Back>``; variants use
+    ``destination_root/<Pokemon>/<Appearance>/<Front|Back>``.
     """
 
     source_gif = Path(gif_path).expanduser().resolve()
@@ -305,6 +345,7 @@ def import_pokemon_gif(
         raise PokemonSpriteImportError("pixels_per_unreal_unit must be greater than zero.")
     if not destination_root.startswith("/Game/"):
         raise PokemonSpriteImportError("destination_root must start with '/Game/'.")
+    appearance_key, expected_appearance = _normalize_appearance(appearance)
 
     project_directory = (
         Path(project_directory_override).resolve()
@@ -320,12 +361,24 @@ def import_pokemon_gif(
         source_gif,
         project_directory=project_directory,
         source_output_root=source_output_root,
+        appearance=appearance_key,
         overwrite=replace_existing,
     )
 
     pokemon = manifest["pokemon"]
     view = manifest["view"]
-    destination_path = f"{destination_root.rstrip('/')}/{pokemon}/{view}"
+    manifest_appearance = str(manifest.get("appearance", "Default"))
+    if manifest_appearance != expected_appearance:
+        raise PokemonSpriteImportError(
+            "GIF converter returned the wrong appearance: "
+            f"expected {expected_appearance}, received {manifest_appearance}."
+        )
+    destination_path = _build_destination_path(
+        destination_root,
+        pokemon,
+        manifest_appearance,
+        view,
+    )
     frames_path = f"{destination_path}/Frames"
     _preflight_generated_assets(
         destination_path=destination_path,
@@ -408,6 +461,7 @@ def import_pokemon_gif(
     result = {
         "pokemon": pokemon,
         "view": view,
+        "appearance": manifest_appearance,
         "texture": texture.get_path_name(),
         "flipbook": flipbook.get_path_name(),
         "sprite_count": len(sprites),
@@ -478,6 +532,7 @@ def import_pokemon_gif_folder(
     destination_root: str = DEFAULT_DESTINATION_ROOT,
     pixels_per_unreal_unit: float = DEFAULT_PIXELS_PER_UNREAL_UNIT,
     replace_existing: bool = False,
+    appearance: str | None = None,
     project_directory_override: str | None = None,
     source_output_root_override: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -485,15 +540,23 @@ def import_pokemon_gif_folder(
 
     Subfolders and non-GIF files are ignored. Every direct GIF filename is
     validated before any import starts, and must end in ``_front.gif`` or
-    ``_back.gif``.
+    ``_back.gif``. Folders named ``default``, ``female``, ``shiny``, or
+    ``shiny-female`` select that appearance automatically. Other folder names
+    retain the default appearance for backward compatibility.
     """
 
+    appearance_key = (
+        _infer_appearance_from_folder(folder_path)
+        if appearance is None
+        else _normalize_appearance(appearance)[0]
+    )
     gif_paths = _discover_pokemon_gifs(folder_path)
     return import_pokemon_gifs(
         [str(path) for path in gif_paths],
         destination_root=destination_root,
         pixels_per_unreal_unit=pixels_per_unreal_unit,
         replace_existing=replace_existing,
+        appearance=appearance_key,
         project_directory_override=project_directory_override,
         source_output_root_override=source_output_root_override,
     )

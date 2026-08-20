@@ -1,0 +1,271 @@
+{
+  "appearance": "Default",
+  "atlas_columns": 7,
+  "atlas_height": 320,
+  "atlas_rows": 5,
+  "atlas_width": 308,
+  "base_frame_duration_ms": 60,
+  "duration_ms": 4380,
+  "flipbook_name": "FB_Azurill_Front_Idle",
+  "frame_height": 64,
+  "frame_width": 44,
+  "frames_per_second": 16.666666666666668,
+  "has_transparency": true,
+  "key_frame_count": 61,
+  "key_frames": [
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 3,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 16
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 17
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 18
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 20
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 23
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 24
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 25
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 27
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 28
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 29
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 30
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 26
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 31
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 32
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 19
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 21
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 33
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 22
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 2,
+      "sprite_index": 0
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Azurill",
+  "source_file": "azurill_front.gif",
+  "source_frame_count": 70,
+  "source_sha256": "89c641fc8d0041ecae03b1f44c27cb6face90390fc00d9aabad5073302249ca5",
+  "sprite_name_prefix": "SPR_Azurill_Front_Idle",
+  "texture_name": "T_Azurill_Front_Idle_Sheet",
+  "unique_sprite_count": 34,
+  "view": "Front"
+}

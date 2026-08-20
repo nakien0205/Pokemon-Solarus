@@ -1,0 +1,91 @@
+{
+  "appearance": "ShinyFemale",
+  "atlas_columns": 4,
+  "atlas_height": 352,
+  "atlas_rows": 4,
+  "atlas_width": 376,
+  "base_frame_duration_ms": 100,
+  "duration_ms": 1600,
+  "flipbook_name": "FB_Steelix_ShinyFemale_Front_Idle",
+  "frame_height": 88,
+  "frame_width": 94,
+  "frames_per_second": 10.0,
+  "has_transparency": true,
+  "key_frame_count": 16,
+  "key_frames": [
+    {
+      "frame_run": 1,
+      "sprite_index": 0
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 1
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 2
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 3
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 4
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 5
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 6
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 7
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 8
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 9
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 10
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 11
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 12
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 13
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 14
+    },
+    {
+      "frame_run": 1,
+      "sprite_index": 15
+    }
+  ],
+  "loop_count": 0,
+  "manifest_version": 1,
+  "pokemon": "Steelix",
+  "source_file": "steelix_front.gif",
+  "source_frame_count": 16,
+  "source_sha256": "3a256e9ae2c9593744d7a39f4352b3d5c708bc1064725486447584d2cc0466e2",
+  "sprite_name_prefix": "SPR_Steelix_ShinyFemale_Front_Idle",
+  "texture_name": "T_Steelix_ShinyFemale_Front_Idle_Sheet",
+  "unique_sprite_count": 16,
+  "view": "Front"
+}
