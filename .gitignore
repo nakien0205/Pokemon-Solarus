@@ -188,3 +188,4 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 Game/Content/Art/
+.agents/

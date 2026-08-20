@@ -1,7 +1,7 @@
 # C02 — Stats, Types, Moves, and Data Adapters
 
 Priority: P0  
-Status: C02A complete under user-limited focused validation; C02B not started  
+Status: C02 complete under user-limited focused validation  
 Hard dependency: C01B complete  
 Session shape: C02A and C02B are logically parallel
 
@@ -60,7 +60,7 @@ Behavior:
 
 ## C02B — Types, Moves, Definitions, and Unreal Adapter
 
-Status: Not started
+Status: Complete under user-limited focused validation (2026-08-20)
 
 Define immutable records for:
 
@@ -139,7 +139,7 @@ Status date: 2026-08-20
 Successful focused run ID: `C02A-Stats-20260820T134951Z`  
 Successful build run ID: `C02A-EditorBuild-20260820T134917Z`  
 C02A status: Complete  
-Next package: C02B in a new session; C03 remains blocked
+Next package at this historical handoff: C02B; later completion recorded below
 
 ### Owned files
 
@@ -230,3 +230,124 @@ Final C02A source/test hashes:
 | `Game/Source/PokemonSolarus/Private/Battle/BattleStatCalculator.cpp` | `48bb03ffb3fe5637474ef31bb54c7222e833e3acb4106879f8e96decd28c702e` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleStatCalculatorTests.cpp` | `ce3a249a23fec886412e763afaefb190e16969486037176ac084911ad390573d` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleStatStagesTests.cpp` | `5e6b7b92b92e1fcf81b26c2ee86d8160f8eb44c5189fd18dd899a6fad510d45d` |
+
+## C02B Completion Handoff
+
+Status date: 2026-08-20  
+Successful focused run ID: `C02B-Definitions-20260820T143547Z`  
+Successful build run ID: `C02B-EditorBuild-20260820T143528Z`  
+C02B status: Complete under user-limited focused validation  
+C02 status: Complete under user-limited focused validation  
+Next package: C03A in a new session
+
+### Owned files
+
+C02B added only these runtime, adapter, and focused-test files:
+
+- `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h`
+- `Game/Source/PokemonSolarus/Public/Battle/BattleTypeChart.h`
+- `Game/Source/PokemonSolarus/Private/Battle/BattleTypeChart.cpp`
+- `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitionCatalog.h`
+- `Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp`
+- `Game/Source/PokemonSolarus/Public/Battle/BattleDataTableRows.h`
+- `Game/Source/PokemonSolarus/Public/Battle/BattleDataTableAdapter.h`
+- `Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp`
+- `Game/Source/PokemonSolarus/Private/Tests/BattleTypeChartTests.cpp`
+- `Game/Source/PokemonSolarus/Private/Tests/BattleDefinitionCatalogTests.cpp`
+- `Game/Source/PokemonSolarus/Private/Tests/BattleDataTableAdapterTests.cpp`
+
+This handoff and `00-roadmap-index.md` are the only status documents updated.
+C02B did not edit C01, C02A, `FBattleEngine`, battle state, the base-damage
+implementation/tests, module rules, `.uproject`, Unreal config, content/assets,
+Git metadata, or unrelated sprite/importer work. No production JSON or Data
+Table asset was added: C02B freezes the row/adapter contract, while authored
+proof content remains a later package.
+
+### Frozen C02B contracts
+
+- `EPokemonType` is the modern 18-type set in B00B order. `FBattleTypeChart`
+  atomically accepts exactly one valid entry for each of the 324 attacking and
+  defending pairs. It stores the four legal single-type values exactly and
+  multiplies ordered dual types without intermediate rounding; duplicate
+  defending types are rejected.
+- `FNatureId` and the plain definition records cover species/forms, natures,
+  moves, Abilities, held/battle/capture items, and conditions. Move records own
+  type, category, power, literal always-hit state or numeric accuracy, PP,
+  priority, target class, flags, and an ordered reusable effect list.
+- `FBattleMoveEffectDescriptor` represents damage, condition/stage changes,
+  healing, drain, recoil, multi-hit count, field/side changes, switching, item
+  changes, charging, recharge, Protect, and semi-invulnerability through typed
+  kinds plus target, chance, magnitude, duration, count/layer, and flag fields.
+- `FBattleDefinitionCatalog::TryCreate` copies and lexically canonicalizes each
+  definition family, validates identities, cross-references, ranges, effect
+  order/compatibility, and the complete type chart, then publishes only a
+  fully valid immutable-by-interface snapshot. Failure resets the output and
+  returns sorted typed diagnostics, with no partial definitions exposed.
+- Core definition and catalog headers contain no `UObject`, `UDataTable`,
+  `FTableRowBase`, asset-loading, presentation, or random-number dependency.
+- Unreal-facing row `USTRUCT`s live only in `BattleDataTableRows.h`, and every
+  top-level table row inherits `FTableRowBase`. The Data Table row Name is the
+  stable definition ID. `FBattleDataTableAdapter::BuildCatalog` visits copied
+  row names in lexical order, uses each `FindRow<T>` pointer only inside the
+  current call, copies nested arrays into plain definitions, and retains no
+  table or row pointer.
+
+### Validation evidence
+
+- `PokemonSolarusEditor Win64 Development` succeeded with no compiler warning
+  or error line. Log:
+  `Game/Saved/Logs/C02B-EditorBuild-20260820T143528Z.log`, SHA-256
+  `36031833f8a0ef0e7b7395407bbc63a7d2d622d01e43f273357c9bf19c52fff5`.
+- The exact filter `PokemonSolarus.Battle.C02B` discovered and performed seven
+  tests: 7 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0. Report:
+  `Game/Saved/Automation/C02B-Definitions-20260820T143547Z/index.json`,
+  SHA-256
+  `14cb472bdf3af3e963bf608f07d596275d9b39fefd240f53d5e4eb63d7d15716`.
+  Log: `Game/Saved/Logs/C02B-Definitions-20260820T143547Z.log`, SHA-256
+  `001bd33c42cb675c8038c15b510ff7bb04823f30583a1d8fc2a8a01c6b456ace`.
+- The focused tests verify all 324 B00B chart cells; immunity, resistance,
+  neutrality, super-effectiveness, dual products, and chart rejection; the
+  required move/category/target shapes; catalog identity, reference, range,
+  effect-order, incompatibility, and atomic-failure behavior; deterministic
+  definition/diagnostic ordering; reflected row/table diagnostics; JSON
+  import; deep row copying; and source-mutation isolation.
+- Per the user's explicit instruction, no C01, C02A, base-damage, or full
+  `PokemonSolarus.Battle` test filter was run. Their relevant source/test hashes
+  remained unchanged, but this handoff makes no fresh runtime regression claim
+  for those suites. This is the approved exception to the roadmap's usual full
+  battle-suite completion step.
+- `CLAUDE.md`, the Solarus handoff, B00B snapshot, C01/C02A/base-damage source
+  and tests, module rules, `.uproject`, and `DefaultEngine.ini` all matched
+  their pre-run hashes after Unreal. The config remained at SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`;
+  the existing Android File Server block was unchanged.
+- The successful JSON report contains no test warning or error. Separate
+  startup noise was limited to missing optional profiler/GPU-capture/tablet
+  DLLs, unavailable EOS anti-cheat, and Unreal's own
+  `UE::UnifiedErrorTest` diagnostics; no C02B or Automation issue line was
+  present in the successful run.
+
+Two earlier correction attempts are retained as non-passing evidence rather
+than hidden: `C02B-EditorBuild-20260820T143205Z` failed because the adapter
+ignored one `[[nodiscard]]` result, and
+`C02B-Definitions-20260820T143414Z` exited 1 after two successful tests because
+a test fixture appended an element directly from the same `TArray`. Both fixes
+stayed inside C02B files. The successful build and seven-test run above are the
+acceptance evidence.
+
+Final C02B source/test hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h` | `8dde81699b643ce1bed256ee6785d915eaa3617eced2f018320f6d8c8c1ec742` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleTypeChart.h` | `e45eb82aebe5d8f0da3fba970c97ec2334695691b9ab73140e994787ba39bfb2` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleTypeChart.cpp` | `a23fc7dc1ab3649da9b12ec81ae7ca76648a96cd566d06eb01fc23f6d3c95e56` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitionCatalog.h` | `d1b19327d845405b88b90f85d242cd4d2f8290a688aaf580f729f35de004ce34` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp` | `b5f48a7742297b36c6c4002efe4fe6b72785810efb7c3a8e124d94f22326d4e6` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDataTableRows.h` | `8ef550b089d65e53dfa5c874c42c8a3b3a55cb364878144c22152a288abf1d60` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDataTableAdapter.h` | `80300a74e13bd1e017db64527b4bc2e59201708a65731ca18ec983f1ddca5e5b` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp` | `80a48bfb4454e6b22d6c3e71ff7c35499d73a1438755c99e3b169c5941c31b15` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleTypeChartTests.cpp` | `04a368411083d71698234a813b36a64daf3c50687f07fe15c60f5ee8c61a1720` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleDefinitionCatalogTests.cpp` | `2e414a126dfbd58f643c5446259e69eeb77bae337dd686c5d87ec498d3a755f9` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleDataTableAdapterTests.cpp` | `60626a10c88f5c833809261130a74c6b70c2a6a15eefd1b01db78c0d4d486b17` |
