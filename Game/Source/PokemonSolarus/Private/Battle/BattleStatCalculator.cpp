@@ -4,7 +4,7 @@
 
 namespace
 {
-	bool IsKnownNatureStat(const ENatureStat Stat)
+	bool IsKnownBattleStatNature(const ENatureStat Stat)
 	{
 		return Stat == ENatureStat::None
 			|| Stat == ENatureStat::Attack
@@ -14,11 +14,11 @@ namespace
 			|| Stat == ENatureStat::Speed;
 	}
 
-	bool IsValidNatureModifier(const FNatureStatModifier& Modifier)
+	bool IsValidBattleStatNatureModifier(const FNatureStatModifier& Modifier)
 	{
 		const ENatureStat BoostedStat = Modifier.GetBoostedStat();
 		const ENatureStat ReducedStat = Modifier.GetReducedStat();
-		if (!IsKnownNatureStat(BoostedStat) || !IsKnownNatureStat(ReducedStat))
+		if (!IsKnownBattleStatNature(BoostedStat) || !IsKnownBattleStatNature(ReducedStat))
 		{
 			return false;
 		}
@@ -197,7 +197,7 @@ bool FBattleStatCalculator::TryCalculatePermanentStats(
 	{
 		return Fail(EBattleStatCalculationError::EffortValueTotalExceeded);
 	}
-	if (!IsValidNatureModifier(Inputs.NatureModifier))
+	if (!IsValidBattleStatNatureModifier(Inputs.NatureModifier))
 	{
 		return Fail(EBattleStatCalculationError::InvalidNatureModifier);
 	}

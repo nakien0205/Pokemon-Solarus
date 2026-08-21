@@ -5,7 +5,7 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleSnapshotDecisionTests
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -139,7 +139,7 @@ namespace
 		const uint64 TrainerValue,
 		const uint64 BattlerValue,
 		const int32 PartyIndex,
-		const TCHAR* SpeciesName,
+		const TCHAR* SpeciesDefinitionName,
 		const bool bSecretHeldItem = false)
 	{
 		FBattlePartyEntrySetup Entry;
@@ -147,7 +147,7 @@ namespace
 		Entry.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
 		Entry.SourcePokemonId = MakeNumericId<FSourcePokemonId>(1000 + BattlerValue);
 		Entry.PartySlotId = MakePartySlotId(PartyIndex);
-		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
+		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesDefinitionName);
 		Entry.Level = 50;
 		Entry.Stats = {200, 100, 100, 100, 100, 100};
 		Entry.CurrentHP = 200;
@@ -479,16 +479,19 @@ public:
 	{
 		FBattleEngineState& State = GetMutableState(Engine);
 		FBattleBattlerState* Battler = State.FindMutableBattler(
-			MakeNumericId<FBattlerId>(PlayerLeftBattlerValue));
+			BattleSnapshotDecisionTests::MakeNumericId<FBattlerId>(
+				BattleSnapshotDecisionTests::PlayerLeftBattlerValue));
 		FBattleTrainerState* Trainer = State.FindMutableTrainer(
-			MakeNumericId<FTrainerId>(PlayerTrainerValue));
+			BattleSnapshotDecisionTests::MakeNumericId<FTrainerId>(
+				BattleSnapshotDecisionTests::PlayerTrainerValue));
 		check(Battler != nullptr && Trainer != nullptr);
 		Battler->CurrentHP = 150;
 		Battler->Stages.ApplyChange(EBattleStat::Attack, 2);
 		Trainer->Bag[0].Count = 1;
 
 		FBattleConditionState Weather;
-		Weather.ConditionId = MakeDefinitionId<FConditionId>(RainName);
+		Weather.ConditionId = BattleSnapshotDecisionTests::MakeDefinitionId<FConditionId>(
+			BattleSnapshotDecisionTests::RainName);
 		Weather.RemainingTurns = 5;
 		Weather.CreationOrdinal = State.NextConditionCreationOrdinal++;
 		State.Field.Weather = Weather;
@@ -519,8 +522,10 @@ public:
 		EventSpec.ResolutionId = ResolutionId;
 		EventSpec.Type = EBattleEventType::OpponentRemovalCheckpoint;
 		EventSpec.Cause = EBattleEventCause::Outcome;
-		EventSpec.Source.TrainerId = MakeNumericId<FTrainerId>(OpponentTrainerValue);
-		EventSpec.Source.BattlerId = MakeNumericId<FBattlerId>(OpponentLeftBattlerValue);
+		EventSpec.Source.TrainerId = BattleSnapshotDecisionTests::MakeNumericId<FTrainerId>(
+			BattleSnapshotDecisionTests::OpponentTrainerValue);
+		EventSpec.Source.BattlerId = BattleSnapshotDecisionTests::MakeNumericId<FBattlerId>(
+			BattleSnapshotDecisionTests::OpponentLeftBattlerValue);
 		EventSpec.Visibility.Level = EBattleVisibilityLevel::Public;
 		FBattleEvent Event;
 		const bool bEventCreated = FBattleEvent::TryCreate(EventSpec, Event);
@@ -531,6 +536,9 @@ public:
 		return EventSpec.EventOrdinal;
 	}
 };
+
+namespace BattleSnapshotDecisionTests
+{
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC03BSnapshotVisibilityTest,
@@ -862,6 +870,8 @@ bool FBattleC03BStatRefreshTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A stale refresh leaves gameplay version unchanged"), Engine->GetSnapshot().GetStateVersion(), VersionAfterApplied);
 	TestEqual(TEXT("A stale refresh consumes no RNG"), Engine->ExportRandomTrace().Num(), DrawsAfterApplied);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

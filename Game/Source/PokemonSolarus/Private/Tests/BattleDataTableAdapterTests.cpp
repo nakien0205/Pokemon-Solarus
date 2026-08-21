@@ -7,7 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectGlobals.h"
 
-namespace
+namespace BattleDataTableAdapterTests
 {
 	template <typename RowType>
 	UDataTable* MakeTransientTable()
@@ -170,7 +170,6 @@ namespace
 				return Diagnostic.Code == Code;
 			});
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC02BDataTableJsonCopyAndIsolationTest,
@@ -281,6 +280,8 @@ bool FBattleC02BDataTableValidationDiagnosticsTest::RunTest(const FString& Param
 			FBattleCatalogDiagnostic::Less(Diagnostics[Index], Diagnostics[Index - 1]));
 	}
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

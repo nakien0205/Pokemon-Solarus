@@ -4,7 +4,7 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleReplayContractTests
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -78,7 +78,6 @@ namespace
 		}
 		return Input;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC01BCanonicalReplayTest,
@@ -114,6 +113,8 @@ bool FBattleC01BCanonicalReplayTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The replay starts with B"), FirstBytes[2], static_cast<uint8>('B'));
 	TestEqual(TEXT("The replay starts with R"), FirstBytes[3], static_cast<uint8>('R'));
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

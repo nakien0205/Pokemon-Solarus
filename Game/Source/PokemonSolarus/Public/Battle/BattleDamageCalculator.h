@@ -1,15 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Battle/BattleMoveCategory.h"
 #include "Battle/BattleStats.h"
-
-/** Identifies which calculated offensive and defensive stats a move uses. */
-enum class EBattleMoveCategory : uint8
-{
-	Physical,
-	Special,
-	Status
-};
 
 /** Calculates deterministic base damage from supplied level, stats, category, and power. */
 class POKEMONSOLARUS_API FBattleDamageCalculator

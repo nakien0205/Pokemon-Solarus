@@ -4,7 +4,7 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleSetupContractTests
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -41,7 +41,7 @@ namespace
 		const uint64 BattlerValue,
 		const uint64 SourceValue,
 		const int32 PartyIndex,
-		const TCHAR* SpeciesName,
+		const TCHAR* SpeciesDefinitionName,
 		const TCHAR* MoveName)
 	{
 		FBattlePartyEntrySetup Entry;
@@ -49,7 +49,7 @@ namespace
 		Entry.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
 		Entry.SourcePokemonId = MakeNumericId<FSourcePokemonId>(SourceValue);
 		Entry.PartySlotId = MakePartySlotId(PartyIndex);
-		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
+		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesDefinitionName);
 		Entry.Level = 50;
 		Entry.Stats = {200, 100, 100, 100, 100, 100};
 		Entry.CurrentHP = 200;
@@ -120,7 +120,6 @@ namespace
 		Input.ObedienceInputs.Add(Obedience);
 		return Input;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC01BSingleSetupTest,
@@ -190,6 +189,8 @@ bool FBattleC01BPartnerDoubleSetupTest::RunTest(const FString& Parameters)
 		FBattleSetup::TryCreate(Invalid, Setup, Error));
 	TestEqual(TEXT("The ownership error is typed"), Error, EBattleSetupValidationError::TrainerOwnership);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

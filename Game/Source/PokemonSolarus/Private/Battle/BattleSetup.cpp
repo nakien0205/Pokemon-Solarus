@@ -2,7 +2,7 @@
 
 namespace
 {
-	bool IsKnownEncounterKind(const EBattleEncounterKind Value)
+	bool IsKnownBattleSetupEncounterKind(const EBattleEncounterKind Value)
 	{
 		return Value == EBattleEncounterKind::Wild
 			|| Value == EBattleEncounterKind::Trainer
@@ -11,26 +11,26 @@ namespace
 			|| Value == EBattleEncounterKind::TutorialScripted;
 	}
 
-	bool IsKnownFormat(const EBattleFormat Value)
+	bool IsKnownBattleSetupFormat(const EBattleFormat Value)
 	{
 		return Value == EBattleFormat::Single
 			|| Value == EBattleFormat::Double
 			|| Value == EBattleFormat::PartnerDouble;
 	}
 
-	bool IsKnownSide(const EBattleSide Value)
+	bool IsKnownBattleSetupSide(const EBattleSide Value)
 	{
 		return Value == EBattleSide::Player || Value == EBattleSide::Opponent;
 	}
 
-	bool IsKnownRole(const EBattleTrainerRole Value)
+	bool IsKnownBattleSetupRole(const EBattleTrainerRole Value)
 	{
 		return Value == EBattleTrainerRole::Player
 			|| Value == EBattleTrainerRole::Partner
 			|| Value == EBattleTrainerRole::Opponent;
 	}
 
-	bool IsKnownController(const EBattleDecisionController Value)
+	bool IsKnownBattleSetupController(const EBattleDecisionController Value)
 	{
 		return Value == EBattleDecisionController::Human
 			|| Value == EBattleDecisionController::PartnerAI
@@ -46,7 +46,7 @@ namespace
 			|| Value == EBattleKnowledgeKind::ItemRevealed;
 	}
 
-	bool IsKnownVisibility(const EBattleVisibilityLevel Value)
+	bool IsKnownBattleSetupVisibility(const EBattleVisibilityLevel Value)
 	{
 		return Value == EBattleVisibilityLevel::CoreOnly
 			|| Value == EBattleVisibilityLevel::OwningTrainer
@@ -112,7 +112,7 @@ namespace
 			});
 	}
 
-	bool IsPositiveStats(const FPokemonBattleStats& Stats)
+	bool HasPositiveBattleSetupStats(const FPokemonBattleStats& Stats)
 	{
 		return Stats.MaxHP > 0
 			&& Stats.Attack > 0
@@ -123,7 +123,7 @@ namespace
 	}
 
 	template <typename ElementType, typename PredicateType>
-	bool HasDuplicatePair(const TArray<ElementType>& Values, PredicateType Predicate)
+	bool HasDuplicateBattleSetupPair(const TArray<ElementType>& Values, PredicateType Predicate)
 	{
 		for (int32 LeftIndex = 0; LeftIndex < Values.Num(); ++LeftIndex)
 		{
@@ -234,7 +234,7 @@ bool FBattleSetup::TryCreate(
 	{
 		return Fail(EBattleSetupValidationError::InvalidReference);
 	}
-	if (!IsKnownEncounterKind(Input.EncounterKind) || !IsKnownFormat(Input.Format))
+	if (!IsKnownBattleSetupEncounterKind(Input.EncounterKind) || !IsKnownBattleSetupFormat(Input.Format))
 	{
 		return Fail(EBattleSetupValidationError::InvalidEnum);
 	}
@@ -265,7 +265,7 @@ bool FBattleSetup::TryCreate(
 	{
 		return Fail(EBattleSetupValidationError::TrainerShape);
 	}
-	if (HasDuplicatePair(
+	if (HasDuplicateBattleSetupPair(
 		Input.Trainers,
 		[](const FBattleTrainerSetup& Left, const FBattleTrainerSetup& Right)
 		{
@@ -281,9 +281,9 @@ bool FBattleSetup::TryCreate(
 	for (const FBattleTrainerSetup& Trainer : Input.Trainers)
 	{
 		if (!Trainer.TrainerId.IsValid()
-			|| !IsKnownSide(Trainer.Side)
-			|| !IsKnownRole(Trainer.Role)
-			|| !IsKnownController(Trainer.Controller)
+			|| !IsKnownBattleSetupSide(Trainer.Side)
+			|| !IsKnownBattleSetupRole(Trainer.Role)
+			|| !IsKnownBattleSetupController(Trainer.Controller)
 			|| !Trainer.SelectorProfileId.IsValid())
 		{
 			return Fail(EBattleSetupValidationError::InvalidIdentity);
@@ -302,7 +302,7 @@ bool FBattleSetup::TryCreate(
 		PartnerRoleCount += Trainer.Role == EBattleTrainerRole::Partner ? 1 : 0;
 		OpponentRoleCount += Trainer.Role == EBattleTrainerRole::Opponent ? 1 : 0;
 
-		if (HasDuplicatePair(
+		if (HasDuplicateBattleSetupPair(
 			Trainer.Bag,
 			[](const FBattleBagItemCount& Left, const FBattleBagItemCount& Right)
 			{
@@ -329,7 +329,7 @@ bool FBattleSetup::TryCreate(
 	{
 		return Fail(EBattleSetupValidationError::PartyShape);
 	}
-	if (HasDuplicatePair(
+	if (HasDuplicateBattleSetupPair(
 		Input.PartyEntries,
 		[](const FBattlePartyEntrySetup& Left, const FBattlePartyEntrySetup& Right)
 		{
@@ -364,7 +364,7 @@ bool FBattleSetup::TryCreate(
 			|| !Entry.SpeciesFormId.IsValid()
 			|| !Entry.AbilityId.IsValid()
 			|| Entry.Level < 1 || Entry.Level > 100
-			|| !IsPositiveStats(Entry.Stats)
+			|| !HasPositiveBattleSetupStats(Entry.Stats)
 			|| Entry.CurrentHP < 0 || Entry.CurrentHP > Entry.Stats.MaxHP
 			|| Entry.Moves.Num() > 4)
 		{
@@ -374,7 +374,7 @@ bool FBattleSetup::TryCreate(
 		{
 			return Fail(EBattleSetupValidationError::InvalidPartyEntry);
 		}
-		if (HasDuplicatePair(
+		if (HasDuplicateBattleSetupPair(
 			Entry.Moves,
 			[](const FBattleMoveSlotSetup& Left, const FBattleMoveSlotSetup& Right)
 			{
@@ -409,7 +409,7 @@ bool FBattleSetup::TryCreate(
 	{
 		return Fail(EBattleSetupValidationError::ActiveSlotShape);
 	}
-	if (HasDuplicatePair(
+	if (HasDuplicateBattleSetupPair(
 		Input.StartingActive,
 		[](const FBattleActiveAssignment& Left, const FBattleActiveAssignment& Right)
 		{
@@ -470,7 +470,7 @@ bool FBattleSetup::TryCreate(
 		}
 	}
 
-	if (HasDuplicatePair(
+	if (HasDuplicateBattleSetupPair(
 		Input.KnowledgeFacts,
 		[](const FBattleKnowledgeFact& Left, const FBattleKnowledgeFact& Right)
 		{
@@ -487,7 +487,7 @@ bool FBattleSetup::TryCreate(
 		if (FindTrainerIn(Input.Trainers, Fact.ObserverTrainerId) == nullptr
 			|| !IsKnownKnowledgeKind(Fact.Kind)
 			|| !Fact.DefinitionId.IsValid()
-			|| !IsKnownVisibility(Fact.Visibility)
+			|| !IsKnownBattleSetupVisibility(Fact.Visibility)
 			|| (Fact.Kind != EBattleKnowledgeKind::SpeciesFormKnown
 				&& FindBattlerIn(Input.PartyEntries, Fact.SubjectBattlerId) == nullptr))
 		{
@@ -495,7 +495,7 @@ bool FBattleSetup::TryCreate(
 		}
 	}
 
-	if (HasDuplicatePair(
+	if (HasDuplicateBattleSetupPair(
 		Input.ObedienceInputs,
 		[](const FBattleObedienceInput& Left, const FBattleObedienceInput& Right)
 		{

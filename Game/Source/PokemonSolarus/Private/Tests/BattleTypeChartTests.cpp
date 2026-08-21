@@ -3,7 +3,7 @@
 #include "Battle/BattleTypeChart.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleTypeChartTests
 {
 	constexpr int32 TypeCount = FBattleTypeChart::TypeCount;
 
@@ -67,7 +67,6 @@ namespace
 		}
 		return Entries;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC02BAllTypeChartEntriesTest,
@@ -231,6 +230,8 @@ bool FBattleC02BTypeChartProductsAndValidationTest::RunTest(const FString& Param
 		Error,
 		EBattleTypeChartValidationError::InvalidMultiplier);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

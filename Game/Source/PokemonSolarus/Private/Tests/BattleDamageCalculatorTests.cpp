@@ -4,7 +4,7 @@
 #include "Math/NumericLimits.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleDamageCalculatorTests
 {
 	FPokemonBattleStats MakeValidDamageStats()
 	{
@@ -17,7 +17,6 @@ namespace
 		Stats.Speed = 100;
 		return Stats;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleDamageCalculatorArbitraryFixtureAndCategoryStatSelectionTest,
@@ -277,6 +276,8 @@ bool FBattleDamageCalculatorLevelBoundariesAndMinimumTest::RunTest(const FString
 	TestTrue(TEXT("Successful level-one damage is at least one"), LevelOneDamage >= 1);
 	TestTrue(TEXT("Successful level-100 damage is at least one"), LevelOneHundredDamage >= 1);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

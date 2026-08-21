@@ -3,7 +3,7 @@
 #include "Battle/BattleRandom.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleRandomTests
 {
 	FBattleRandomContext MakeRandomContext()
 	{
@@ -21,7 +21,6 @@ namespace
 			&& bPurposeCreated);
 		return Context;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleRandomBoundsAndTraceTest,
@@ -113,6 +112,8 @@ bool FBattleRandomReplayEquivalenceTest::RunTest(const FString& Parameters)
 			First.GetTrace()[Index] == Second.GetTrace()[Index]);
 	}
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

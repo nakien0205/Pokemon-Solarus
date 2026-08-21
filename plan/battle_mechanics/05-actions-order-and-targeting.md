@@ -172,17 +172,27 @@ C04B:
 - C04B was not drafted or implemented. Full target-class resolution, fainted
   target redirection, spread sets, random targets, and redirection effects remain
   C04B. C05 hit, damage, and move-effect execution also remain out of scope.
-- Per the user's explicit validation limit, only the C04A-focused filter was
-  run. Earlier package filters and the full `PokemonSolarus.Battle` suite were
-  not rerun, so this session makes no fresh runtime claim for them.
-- Adding the new translation units caused Unreal's default adaptive-unity
-  regeneration to group older non-C04A files that already declare duplicate
-  `EBattleMoveCategory` and anonymous-namespace helpers. C04A was therefore
-  compiled with a temporary ignored per-module non-unity override. That override
-  was restored to the original empty `Game/Saved/UnrealBuildTool/BuildConfiguration.xml`
-  after validation; no build configuration was committed. Repairing the older
-  unity incompatibilities or permanently disabling unity is a separate,
-  explicitly unapproved cleanup.
+- The original C04A execution honored the user's validation limit and ran only
+  the C04A-focused filter. A separately approved source cleanup on 2026-08-21
+  then repaired the older unity incompatibilities without changing the validated
+  C04A source or test files. `EBattleMoveCategory` now has one canonical
+  definition in `Public/Battle/BattleMoveCategory.h`; older production helpers
+  have file-specific names; and older test translation units use file-specific
+  namespaces instead of colliding anonymous-namespace declarations.
+- The cleanup passed a full forced-unity Editor build with adaptive exclusions
+  disabled (`C04A-UnityCleanup-Pass3-20260821T022230Z.log`) and a normal default
+  adaptive-unity Editor build
+  (`C04A-UnityCleanup-DefaultAdaptive-20260821T022251Z.log`). No permanent unity
+  override was added: `BuildConfiguration.xml` is empty, and the module rules,
+  `.uproject`, and `DefaultEngine.ini` retain their protected hashes.
+- Focused cleanup reports are under
+  `Game/Saved/Automation/C04A-UnityCleanup-20260821T022425Z/`. The affected
+  Damage Calculator, C01B, Random, C02A Permanent Stats, C02B, C03A, and C03B
+  filters plus the unchanged C04A filter performed 44 tests: 44 succeeded, 0
+  with warnings, 0 failed, and 0 not run. This was not a full
+  `PokemonSolarus.Battle` suite run.
+- All 11 C04A source/test files listed below still match their final C04A
+  hashes after the cleanup.
 - The user's open Editor held the ordinary module DLL during the final link, so
   the successful verification used Unreal's suffixed-module build path instead
   of terminating the Editor or risking the open map.

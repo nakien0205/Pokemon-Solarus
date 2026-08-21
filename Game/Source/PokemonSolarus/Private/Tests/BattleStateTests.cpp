@@ -5,7 +5,7 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleStateTests
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -124,7 +124,7 @@ namespace
 		const uint64 BattlerValue,
 		const uint64 SourceValue,
 		const int32 PartyIndex,
-		const TCHAR* SpeciesName,
+		const TCHAR* SpeciesDefinitionName,
 		const bool bWithHeldItem = false)
 	{
 		FBattlePartyEntrySetup Entry;
@@ -132,7 +132,7 @@ namespace
 		Entry.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
 		Entry.SourcePokemonId = MakeNumericId<FSourcePokemonId>(SourceValue);
 		Entry.PartySlotId = MakePartySlotId(PartyIndex);
-		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
+		Entry.SpeciesFormId = MakeDefinitionId<FSpeciesFormId>(SpeciesDefinitionName);
 		Entry.Level = 50;
 		Entry.Stats = {200, 100, 100, 100, 100, 100};
 		Entry.CurrentHP = 200;
@@ -324,6 +324,9 @@ public:
 		return *Engine.State;
 	}
 };
+
+namespace BattleStateTests
+{
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC03ASingleStateTest,
@@ -522,6 +525,8 @@ bool FBattleC03ACatalogRejectionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Missing catalog references are typed"), StateError, EBattleStateValidationError::MissingCatalogReference);
 	TestFalse(TEXT("Failed state construction is atomic"), State.IsValid());
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -358,14 +358,19 @@ B00B accepted evidence:
   Quick Claw eligibility, RNG, and reveal; C07D owns Trick Room state. C04B was
   not begun and still owns target classes, redirection, spread/random targets,
   and final target sets.
-- Per the user's explicit validation limit, only the C04A-focused filter was
-  run. Earlier package filters and the full `PokemonSolarus.Battle` suite were
-  not rerun.
-- The build used a temporary ignored per-module non-unity override because
-  default adaptive-unity regeneration grouped older non-C04A files with duplicate
-  declarations. The override was restored after validation and no configuration
-  change was committed. A suffixed module avoided terminating the user's open
-  Editor when it held the ordinary DLL.
+- The original C04A execution honored the user's validation limit and ran only
+  the C04A-focused filter. A separately approved cleanup on 2026-08-21 then
+  repaired the older duplicate enum and file-local helper declarations without
+  changing any of the 11 validated C04A source/test files.
+- The cleanup passed both a full forced-unity Editor build with adaptive
+  exclusions disabled (`C04A-UnityCleanup-Pass3-20260821T022230Z.log`) and a
+  normal default adaptive-unity Editor build
+  (`C04A-UnityCleanup-DefaultAdaptive-20260821T022251Z.log`). No permanent unity
+  override was added; the build configuration remains empty.
+- Focused cleanup reports under
+  `Game/Saved/Automation/C04A-UnityCleanup-20260821T022425Z/` cover the affected
+  older filters plus unchanged C04A: 44 succeeded, 0 with warnings, 0 failed,
+  and 0 not run. This was not a full `PokemonSolarus.Battle` suite run.
 - Module rules, `.uproject`, `DefaultEngine.ini`, the B00B snapshot, and the
   Solarus interview handoff matched their pre-run hashes after the final test.
   Exact source and protected-file hashes are recorded in the C04 package handoff.

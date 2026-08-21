@@ -5,7 +5,7 @@
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleDefinitionCatalogTests
 {
 	using BattleTest::MakeDefinitionId;
 
@@ -233,7 +233,6 @@ namespace
 				return Diagnostic.Code == Code;
 			});
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC02BMoveRecordShapesTest,
@@ -445,6 +444,8 @@ bool FBattleC02BCatalogDeterministicOrderAndDiagnosticsTest::RunTest(const FStri
 			DiagnosticsA[Index] == DiagnosticsB[Index]);
 	}
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleIdentifiers.h"
+#include "Battle/BattleMoveCategory.h"
 #include "Battle/BattleSetupTypes.h"
 #include "Battle/BattleStatStages.h"
 #include "Battle/BattleStats.h"
@@ -32,15 +33,6 @@ enum class EPokemonType : uint8
 	Dark = 15,
 	Steel = 16,
 	Fairy = 17,
-	Invalid = 255
-};
-
-/** Physical, Special, or non-damaging Status move behavior. */
-enum class EBattleMoveCategory : uint8
-{
-	Physical = 0,
-	Special = 1,
-	Status = 2,
 	Invalid = 255
 };
 

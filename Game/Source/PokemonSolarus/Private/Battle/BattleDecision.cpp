@@ -10,7 +10,7 @@ namespace
 			|| Value == EBattleDecisionRequestKind::Scripted;
 	}
 
-	bool IsKnownActionKind(const EBattleActionKind Value)
+	bool IsKnownBattleDecisionActionKind(const EBattleActionKind Value)
 	{
 		return Value == EBattleActionKind::Fight
 			|| Value == EBattleActionKind::Bag
@@ -38,7 +38,7 @@ namespace
 		return false;
 	}
 
-	bool ActiveSlotLess(const FActiveSlotId& Left, const FActiveSlotId& Right)
+	bool BattleDecisionActiveSlotLess(const FActiveSlotId& Left, const FActiveSlotId& Right)
 	{
 		if (Left.GetSide() != Right.GetSide())
 		{
@@ -73,7 +73,7 @@ namespace
 		switch (Option.Kind)
 		{
 		case EBattleDecisionOptionKind::Action:
-			return IsKnownActionKind(Option.ActionKind)
+			return IsKnownBattleDecisionActionKind(Option.ActionKind)
 				&& !Option.MoveId.IsValid()
 				&& !Option.PartySlotId.IsValid()
 				&& !Option.ItemId.IsValid()
@@ -124,7 +124,7 @@ namespace
 		case EBattleDecisionOptionKind::Item:
 			return Left.ItemId.LexicalLess(Right.ItemId);
 		case EBattleDecisionOptionKind::ActiveTarget:
-			return ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId);
+			return BattleDecisionActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId);
 		default:
 			return static_cast<uint8>(Left.Reason) < static_cast<uint8>(Right.Reason);
 		}
@@ -151,7 +151,7 @@ bool FBattleDecisionRequest::TryCreate(
 
 	for (const EBattleActionKind Action : Spec.LegalActionKinds)
 	{
-		if (!IsKnownActionKind(Action))
+		if (!IsKnownBattleDecisionActionKind(Action))
 		{
 			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
 			return false;
@@ -312,13 +312,13 @@ bool FBattleDecisionRequest::TryCreate(
 		{
 			return Left.LexicalLess(Right);
 		});
-	OutRequest.LegalActiveTargets.Sort(ActiveSlotLess);
+	OutRequest.LegalActiveTargets.Sort(BattleDecisionActiveSlotLess);
 	OutRequest.LegalPartyTargets.Sort();
 	OutRequest.LegalMoveTargets.Sort(
 		[](const FBattleMoveTargetOption& Left, const FBattleMoveTargetOption& Right)
 		{
 			return Left.MoveId == Right.MoveId
-				? ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
+				? BattleDecisionActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
 				: Left.MoveId.LexicalLess(Right.MoveId);
 		});
 	OutRequest.LegalItemPartyTargets.Sort(
@@ -332,7 +332,7 @@ bool FBattleDecisionRequest::TryCreate(
 		[](const FBattleItemActiveTargetOption& Left, const FBattleItemActiveTargetOption& Right)
 		{
 			return Left.ItemId == Right.ItemId
-				? ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
+				? BattleDecisionActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
 				: Left.ItemId.LexicalLess(Right.ItemId);
 		});
 	OutRequest.UnavailableOptions.Sort(UnavailableOptionLess);

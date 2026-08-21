@@ -4,7 +4,7 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleEngineContractTests
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -123,6 +123,9 @@ public:
 			OutRejection);
 	}
 };
+
+namespace BattleEngineContractTests
+{
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC01BDecisionRejectionTest,
@@ -332,6 +335,8 @@ bool FBattleC01BSnapshotImmutabilityTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The old snapshot keeps its deep-copied battler facts"), Before.FindBattler(MakeNumericId<FBattlerId>(11))->CurrentHP, BeforeHP);
 	TestEqual(TEXT("A new snapshot observes the advanced version"), Engine->GetSnapshot().GetStateVersion(), 2ULL);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

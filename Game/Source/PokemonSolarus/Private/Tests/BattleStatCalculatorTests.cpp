@@ -4,7 +4,7 @@
 #include "Math/NumericLimits.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleStatCalculatorTests
 {
 	FPokemonStatInputs MakeUniformInputs(const int32 BaseStat)
 	{
@@ -31,7 +31,6 @@ namespace
 		{TEXT("Special Defense"), &FPokemonStatValues::SpecialDefense},
 		{TEXT("Speed"), &FPokemonStatValues::Speed}
 	};
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC02APermanentStatsLevelAndNatureGoldensTest,
@@ -236,6 +235,8 @@ bool FBattleC02APermanentStatsRoundingAndBaseOneTest::RunTest(const FString& Par
 		FBattleStatCalculator::TryCalculatePermanentStats(Inputs, Stats, Error));
 	TestEqual(TEXT("Base HP exactly one always produces Max HP one"), Stats.MaxHP, 1);
 	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
