@@ -7,6 +7,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 class FBattleEngineContractFixture;
 class FBattleStateTestFixture;
+class FBattleSnapshotDecisionTestFixture;
 #endif
 class FBattleEngineState;
 
@@ -42,12 +43,21 @@ public:
 
 	/** Returns a deep immutable snapshot of current public facts. */
 	[[nodiscard]] FBattleSnapshot GetSnapshot() const;
+	/** Returns a deep snapshot filtered for one exact observing Trainer. */
+	[[nodiscard]] FBattleSnapshot GetSnapshotForObserver(FTrainerId ObserverTrainerId) const;
+
+	/** Starts C03B action selection and creates the first stable owner request batch. */
+	[[nodiscard]] bool TryBeginActionDecisionSequence(FBattleRejection& OutRejection);
 
 	/** Returns the pending decision by value, if one currently exists. */
 	[[nodiscard]] TOptional<FBattleDecisionRequest> GetPendingDecision() const;
+	/** Returns every pending Left/Right request for the current decision owner. */
+	[[nodiscard]] TArray<FBattleDecisionRequest> GetPendingDecisionRequests() const;
 
 	/** Submits one typed decision and returns its accepted/rejected ordered resolution. */
 	[[nodiscard]] FBattleResolution SubmitDecision(const FBattleDecision& Decision);
+	/** Submits one or two ordered choices atomically for the current decision owner. */
+	[[nodiscard]] FBattleResolution SubmitDecisionBatch(const FBattleDecisionBatch& Batch);
 
 	/** Applies a validated between-actions stat refresh at one unused matching checkpoint. */
 	[[nodiscard]] FBattleResolution ApplyBetweenActionsStatRefresh(
@@ -66,6 +76,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBattleEngineContractFixture;
 	friend class FBattleStateTestFixture;
+	friend class FBattleSnapshotDecisionTestFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);
@@ -81,4 +92,7 @@ private:
 #endif
 
 	TUniquePtr<FBattleEngineState> State;
+
+	/** Builds either the core-authority projection or one filtered observer projection. */
+	[[nodiscard]] FBattleSnapshot BuildSnapshot(const FTrainerId* ObserverTrainerId) const;
 };

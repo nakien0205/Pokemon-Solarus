@@ -1,7 +1,7 @@
 # C03 — Battle State, Snapshots, and Decisions
 
 Priority: P0  
-Status: C03A complete under focused validation; C03B dependency-clear and not started  
+Status: C03 complete under focused validation
 Required order: C03A, then C03B
 
 ## Objective
@@ -172,5 +172,76 @@ Progression seam:
   `Game/Saved/Automation/C03A-State-20260821T002222Z/`, with logs
   `Game/Saved/Logs/C03A-State-20260821T002222Z.log` and
   `Game/Saved/Logs/C03A-EditorBuild-20260821T002200Z.log`.
-- C03A is complete under the approved focused-validation scope. C03B is the
-  next package and remains unimplemented.
+- C03A is complete under the approved focused-validation scope. C03B's later
+  completion is recorded below.
+
+## C03B Execution Status
+
+- C03B completed on 2026-08-21 with focused run ID
+  `C03B-SnapshotDecision-20260821T010229Z`.
+- The final `PokemonSolarusEditor Win64 Development` build
+  (`C03B-EditorBuild-20260821T010213Z`) succeeded. The exact
+  `PokemonSolarus.Battle.C03B` filter then discovered and performed six tests:
+  6 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- `FBattleSnapshot` now projects copied Trainer, battler, active-slot,
+  field/side-condition, pending-request, visible-selection, and typed
+  effectiveness facts. Observer projections expose the owner's private party,
+  Bag, and PP while keeping unrelated reserves, Bags, PP, unrevealed Abilities,
+  unrevealed items, and unauthorized selections hidden.
+- The decision core now builds catalog-backed legal and typed-unavailable
+  options, requests human player choices before partner AI and enemy choices,
+  preserves stable Trainer and Left/Right order, and validates one- or
+  two-choice owner batches atomically. Stale and wrong-order batches leave the
+  gameplay state version and RNG trace unchanged.
+- Battle-start species/form knowledge is matched by definition rather than by
+  one opponent instance. Runtime definition reveals are family-aware, and they
+  cannot change the frozen species-knowledge result during that battle.
+- The focused fixtures cover deep snapshot copies; owner/opponent visibility;
+  Single, Double, Partner Double, and player-controlled-partner ordering;
+  catalog-backed moves, switches, items, and targets; typed unavailable
+  reasons; known/unknown/varied effectiveness; stale and reversed decisions;
+  and matching/stale between-actions stat refreshes without reordering locked
+  actions or rewriting prior events.
+- The replay schema is now version 2 so canonical bytes include the expanded
+  request and snapshot projections in explicit field order.
+- Per the user's explicit validation limit, only the C03B-focused filter was
+  run. C01, C02, C03A, base-damage, and full `PokemonSolarus.Battle` filters
+  were not rerun, so this session makes no fresh runtime claim for them.
+- The first build/run pair also passed, but a subsequent contract review found
+  that a form-level known-species fact could be stored without a subject
+  battler. That projection was corrected inside C03B and the final build/run
+  above supersedes the earlier evidence.
+- Successful evidence is under
+  `Game/Saved/Automation/C03B-SnapshotDecision-20260821T010229Z/`, with logs
+  `Game/Saved/Logs/C03B-SnapshotDecision-20260821T010229Z.log` and
+  `Game/Saved/Logs/C03B-EditorBuild-20260821T010213Z.log`.
+- Unreal startup recorded missing optional profiler DLLs and ordinary editor
+  startup diagnostics. The JSON report contains no C03B warning or failure.
+
+Relevant C03B source hashes:
+
+| File | Pre-run SHA-256 | Final SHA-256 |
+|---|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDecision.h` | `7e1306130f62468e05f6b8e20d2ac35dcb8b788f8c9bc01ce3753384c4723f0e` | `dcf55a95c4ed1197bd8c042bd83d1ff514b5df9211563cae0f20074a75f5dde4` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleSnapshot.h` | `8c99db5c57ba5e49f3aac988f6659ea72d64ba215b16fb12d88d2c4afbf13738` | `fa300c536159cfbb840d110800d9437e88fdf197b1f50cf085b310291cfcbb22` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEngine.h` | `1da62b59e6e90e0445b1e5f4c9bd388cef9301def07f1e441ffbacdf005083e1` | `9287a5ea93981c0fe94479912180d00f51bf88fa15ed08677ac77d1e8b6ed98b` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleReplay.h` | `23c0bb101c68b56aff6ec60a20881f4d2518294772376822d2dd492bdc2220dc` | `6673440c37d4203a3c7a18db8bcb6f0992ee694e42693d566703a2d0e9f33eb9` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDecision.cpp` | `9f4fbc5aa5fd53f6670dd292ecb62e8dd611ff382ed2d921b9e6741450f5436a` | `15764716198664ff47859948b81e3abf808528afb63b7729e46ce5338c1e971f` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `101a87596ff7f4c58ffb8a008fd07c79e76ebffb3e7fb67a269afc6e7bb21483` | `89c4295eddebcaea17be43b3fa14cf9cb67f905418c8c017c494fc99b3443003` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `f4166078495de646bbd8cf32a57393a46d8b2830af59e9c1fdadeb8a1de2d7e3` | `ba8b7a862862c30e28f0b4c5937bc27267cb2e9756def9856804b0ec1a8eed8e` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `b75ad710418f21088661aea065979dc3f206f498cc43e672109447ff4bcefff0` | `34d9f76eb52a878a5152190f9ff283f373fd12d14b0b57822b8da50863779547` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleReplay.cpp` | `c42833fb459c5dcc3828550851c3fd8d3002795bfc7517283d5bcb8df8012fd1` | `951ed3de62064f27100ef9b76fc646f801dd36aeff3c1eb0a6b253a39e1bdf30` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleSnapshotDecisionTests.cpp` | absent | `c2fc84811060aac52c77240a55c916015c03763dd57fd7a9291647deeb04bedc` |
+
+Protected files matched their pre-run hashes after the final Unreal run:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+| `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
+| `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |
+
+C03 is complete under the approved focused-validation scope. C04A is now
+dependency-clear, but it was not drafted or implemented in this session.

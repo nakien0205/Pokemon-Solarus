@@ -46,6 +46,89 @@ namespace
 		}
 		return static_cast<uint8>(Left.GetPosition()) < static_cast<uint8>(Right.GetPosition());
 	}
+
+	bool IsKnownOptionKind(const EBattleDecisionOptionKind Value)
+	{
+		return Value == EBattleDecisionOptionKind::Action
+			|| Value == EBattleDecisionOptionKind::Move
+			|| Value == EBattleDecisionOptionKind::SwitchPartySlot
+			|| Value == EBattleDecisionOptionKind::Item
+			|| Value == EBattleDecisionOptionKind::ActiveTarget
+			|| Value == EBattleDecisionOptionKind::PartyTarget;
+	}
+
+	bool IsKnownUnavailableReason(const EBattleOptionUnavailableReason Value)
+	{
+		return Value >= EBattleOptionUnavailableReason::NoPP
+			&& Value <= EBattleOptionUnavailableReason::MissingCatalogReference;
+	}
+
+	bool IsUnavailableOptionValid(const FBattleUnavailableDecisionOption& Option)
+	{
+		if (!IsKnownOptionKind(Option.Kind) || !IsKnownUnavailableReason(Option.Reason))
+		{
+			return false;
+		}
+
+		switch (Option.Kind)
+		{
+		case EBattleDecisionOptionKind::Action:
+			return IsKnownActionKind(Option.ActionKind)
+				&& !Option.MoveId.IsValid()
+				&& !Option.PartySlotId.IsValid()
+				&& !Option.ItemId.IsValid()
+				&& !Option.ActiveSlotId.IsValid();
+		case EBattleDecisionOptionKind::Move:
+			return Option.MoveId.IsValid()
+				&& !Option.PartySlotId.IsValid()
+				&& !Option.ItemId.IsValid()
+				&& !Option.ActiveSlotId.IsValid();
+		case EBattleDecisionOptionKind::SwitchPartySlot:
+		case EBattleDecisionOptionKind::PartyTarget:
+			return Option.PartySlotId.IsValid()
+				&& !Option.MoveId.IsValid()
+				&& !Option.ItemId.IsValid()
+				&& !Option.ActiveSlotId.IsValid();
+		case EBattleDecisionOptionKind::Item:
+			return Option.ItemId.IsValid()
+				&& !Option.MoveId.IsValid()
+				&& !Option.PartySlotId.IsValid()
+				&& !Option.ActiveSlotId.IsValid();
+		case EBattleDecisionOptionKind::ActiveTarget:
+			return Option.ActiveSlotId.IsValid()
+				&& !Option.MoveId.IsValid()
+				&& !Option.PartySlotId.IsValid()
+				&& !Option.ItemId.IsValid();
+		default:
+			return false;
+		}
+	}
+
+	bool UnavailableOptionLess(
+		const FBattleUnavailableDecisionOption& Left,
+		const FBattleUnavailableDecisionOption& Right)
+	{
+		if (Left.Kind != Right.Kind)
+		{
+			return static_cast<uint8>(Left.Kind) < static_cast<uint8>(Right.Kind);
+		}
+		switch (Left.Kind)
+		{
+		case EBattleDecisionOptionKind::Action:
+			return static_cast<uint8>(Left.ActionKind) < static_cast<uint8>(Right.ActionKind);
+		case EBattleDecisionOptionKind::Move:
+			return Left.MoveId.LexicalLess(Right.MoveId);
+		case EBattleDecisionOptionKind::SwitchPartySlot:
+		case EBattleDecisionOptionKind::PartyTarget:
+			return Left.PartySlotId < Right.PartySlotId;
+		case EBattleDecisionOptionKind::Item:
+			return Left.ItemId.LexicalLess(Right.ItemId);
+		case EBattleDecisionOptionKind::ActiveTarget:
+			return ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId);
+		default:
+			return static_cast<uint8>(Left.Reason) < static_cast<uint8>(Right.Reason);
+		}
+	}
 }
 
 bool FBattleDecisionRequest::TryCreate(
@@ -114,13 +197,83 @@ bool FBattleDecisionRequest::TryCreate(
 			return false;
 		}
 	}
+	for (const FBattleMoveTargetOption& Option : Spec.LegalMoveTargets)
+	{
+		if (!Option.MoveId.IsValid()
+			|| !Option.ActiveSlotId.IsValid()
+			|| !Spec.LegalMoveIds.Contains(Option.MoveId)
+			|| !Spec.LegalActiveTargets.Contains(Option.ActiveSlotId))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return false;
+		}
+	}
+	for (const FBattleItemPartyTargetOption& Option : Spec.LegalItemPartyTargets)
+	{
+		if (!Option.ItemId.IsValid()
+			|| !Option.PartySlotId.IsValid()
+			|| !Spec.LegalItemIds.Contains(Option.ItemId)
+			|| !Spec.LegalPartyTargets.Contains(Option.PartySlotId))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return false;
+		}
+	}
+	for (const FBattleItemActiveTargetOption& Option : Spec.LegalItemActiveTargets)
+	{
+		if (!Option.ItemId.IsValid()
+			|| !Option.ActiveSlotId.IsValid()
+			|| !Spec.LegalItemIds.Contains(Option.ItemId)
+			|| !Spec.LegalActiveTargets.Contains(Option.ActiveSlotId))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return false;
+		}
+	}
+	for (const FBattleUnavailableDecisionOption& Option : Spec.UnavailableOptions)
+	{
+		if (!IsUnavailableOptionValid(Option))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return false;
+		}
+	}
 
 	if (HasDuplicates(Spec.LegalActionKinds, [](const EBattleActionKind Left, const EBattleActionKind Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalMoveIds, [](const FMoveId& Left, const FMoveId& Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalSwitchPartySlots, [](const FPartySlotId Left, const FPartySlotId Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalItemIds, [](const FItemId& Left, const FItemId& Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalActiveTargets, [](const FActiveSlotId Left, const FActiveSlotId Right) { return Left == Right; })
-		|| HasDuplicates(Spec.LegalPartyTargets, [](const FPartySlotId Left, const FPartySlotId Right) { return Left == Right; }))
+		|| HasDuplicates(Spec.LegalPartyTargets, [](const FPartySlotId Left, const FPartySlotId Right) { return Left == Right; })
+		|| HasDuplicates(
+			Spec.LegalMoveTargets,
+			[](const FBattleMoveTargetOption& Left, const FBattleMoveTargetOption& Right)
+			{
+				return Left.MoveId == Right.MoveId && Left.ActiveSlotId == Right.ActiveSlotId;
+			})
+		|| HasDuplicates(
+			Spec.LegalItemPartyTargets,
+			[](const FBattleItemPartyTargetOption& Left, const FBattleItemPartyTargetOption& Right)
+			{
+				return Left.ItemId == Right.ItemId && Left.PartySlotId == Right.PartySlotId;
+			})
+		|| HasDuplicates(
+			Spec.LegalItemActiveTargets,
+			[](const FBattleItemActiveTargetOption& Left, const FBattleItemActiveTargetOption& Right)
+			{
+				return Left.ItemId == Right.ItemId && Left.ActiveSlotId == Right.ActiveSlotId;
+			})
+		|| HasDuplicates(
+			Spec.UnavailableOptions,
+			[](const FBattleUnavailableDecisionOption& Left, const FBattleUnavailableDecisionOption& Right)
+			{
+				return Left.Kind == Right.Kind
+					&& Left.ActionKind == Right.ActionKind
+					&& Left.MoveId == Right.MoveId
+					&& Left.PartySlotId == Right.PartySlotId
+					&& Left.ItemId == Right.ItemId
+					&& Left.ActiveSlotId == Right.ActiveSlotId;
+			}))
 	{
 		OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
 		return false;
@@ -138,6 +291,10 @@ bool FBattleDecisionRequest::TryCreate(
 	OutRequest.LegalItemIds = Spec.LegalItemIds;
 	OutRequest.LegalActiveTargets = Spec.LegalActiveTargets;
 	OutRequest.LegalPartyTargets = Spec.LegalPartyTargets;
+	OutRequest.LegalMoveTargets = Spec.LegalMoveTargets;
+	OutRequest.LegalItemPartyTargets = Spec.LegalItemPartyTargets;
+	OutRequest.LegalItemActiveTargets = Spec.LegalItemActiveTargets;
+	OutRequest.UnavailableOptions = Spec.UnavailableOptions;
 
 	OutRequest.LegalActionKinds.Sort(
 		[](const EBattleActionKind Left, const EBattleActionKind Right)
@@ -157,6 +314,28 @@ bool FBattleDecisionRequest::TryCreate(
 		});
 	OutRequest.LegalActiveTargets.Sort(ActiveSlotLess);
 	OutRequest.LegalPartyTargets.Sort();
+	OutRequest.LegalMoveTargets.Sort(
+		[](const FBattleMoveTargetOption& Left, const FBattleMoveTargetOption& Right)
+		{
+			return Left.MoveId == Right.MoveId
+				? ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
+				: Left.MoveId.LexicalLess(Right.MoveId);
+		});
+	OutRequest.LegalItemPartyTargets.Sort(
+		[](const FBattleItemPartyTargetOption& Left, const FBattleItemPartyTargetOption& Right)
+		{
+			return Left.ItemId == Right.ItemId
+				? Left.PartySlotId < Right.PartySlotId
+				: Left.ItemId.LexicalLess(Right.ItemId);
+		});
+	OutRequest.LegalItemActiveTargets.Sort(
+		[](const FBattleItemActiveTargetOption& Left, const FBattleItemActiveTargetOption& Right)
+		{
+			return Left.ItemId == Right.ItemId
+				? ActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId)
+				: Left.ItemId.LexicalLess(Right.ItemId);
+		});
+	OutRequest.UnavailableOptions.Sort(UnavailableOptionLess);
 	return true;
 }
 
@@ -207,7 +386,14 @@ bool FBattleDecisionRequest::Allows(
 			OutRejection.MoveId = Decision.GetMoveId();
 			return false;
 		}
-		if (!LegalActiveTargets.Contains(Decision.GetActiveTargetId()))
+		if (!LegalActiveTargets.Contains(Decision.GetActiveTargetId())
+			|| (!LegalMoveTargets.IsEmpty()
+				&& !LegalMoveTargets.ContainsByPredicate(
+					[&Decision](const FBattleMoveTargetOption& Option)
+					{
+						return Option.MoveId == Decision.GetMoveId()
+							&& Option.ActiveSlotId == Decision.GetActiveTargetId();
+					})))
 		{
 			OutRejection.Reason = EBattleRejectionReason::IllegalTarget;
 			OutRejection.ActiveSlotId = Decision.GetActiveTargetId();
@@ -237,14 +423,28 @@ bool FBattleDecisionRequest::Allows(
 			return false;
 		}
 		if (Decision.GetItemPartyTargetId().IsValid()
-			&& !LegalPartyTargets.Contains(Decision.GetItemPartyTargetId()))
+			&& (!LegalPartyTargets.Contains(Decision.GetItemPartyTargetId())
+				|| (!LegalItemPartyTargets.IsEmpty()
+					&& !LegalItemPartyTargets.ContainsByPredicate(
+						[&Decision](const FBattleItemPartyTargetOption& Option)
+						{
+							return Option.ItemId == Decision.GetItemId()
+								&& Option.PartySlotId == Decision.GetItemPartyTargetId();
+						}))))
 		{
 			OutRejection.Reason = EBattleRejectionReason::IllegalTarget;
 			OutRejection.PartySlotId = Decision.GetItemPartyTargetId();
 			return false;
 		}
 		if (Decision.GetActiveTargetId().IsValid()
-			&& !LegalActiveTargets.Contains(Decision.GetActiveTargetId()))
+			&& (!LegalActiveTargets.Contains(Decision.GetActiveTargetId())
+				|| (!LegalItemActiveTargets.IsEmpty()
+					&& !LegalItemActiveTargets.ContainsByPredicate(
+						[&Decision](const FBattleItemActiveTargetOption& Option)
+						{
+							return Option.ItemId == Decision.GetItemId()
+								&& Option.ActiveSlotId == Decision.GetActiveTargetId();
+						}))))
 		{
 			OutRejection.Reason = EBattleRejectionReason::IllegalTarget;
 			OutRejection.ActiveSlotId = Decision.GetActiveTargetId();
@@ -375,5 +575,45 @@ bool FBattleDecision::TryCreateBag(
 	OutDecision.ItemId = InItemId;
 	OutDecision.ItemPartyTargetId = InPartyTarget;
 	OutDecision.ActiveTargetId = InActiveTarget;
+	return true;
+}
+
+bool FBattleDecisionBatch::TryCreate(
+	const FBattleDecisionBatchSpec& Spec,
+	FBattleDecisionBatch& OutBatch,
+	FBattleRejection& OutRejection)
+{
+	OutBatch = FBattleDecisionBatch();
+	OutRejection = FBattleRejection();
+	if (Spec.StateVersion == 0
+		|| !IsKnownRequestKind(Spec.RequestKind)
+		|| !Spec.DecisionOwnerTrainerId.IsValid()
+		|| Spec.Decisions.IsEmpty()
+		|| Spec.Decisions.Num() > 2)
+	{
+		OutRejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
+		return false;
+	}
+
+	TArray<FBattlerId> Actors;
+	for (const FBattleDecision& Decision : Spec.Decisions)
+	{
+		if (!Decision.IsValid()
+			|| Decision.GetStateVersion() != Spec.StateVersion
+			|| Decision.GetRequestKind() != Spec.RequestKind
+			|| Decision.GetDecisionOwnerTrainerId() != Spec.DecisionOwnerTrainerId
+			|| Actors.Contains(Decision.GetActingBattlerId()))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
+			return false;
+		}
+		Actors.Add(Decision.GetActingBattlerId());
+	}
+
+	OutBatch.bValid = true;
+	OutBatch.StateVersion = Spec.StateVersion;
+	OutBatch.RequestKind = Spec.RequestKind;
+	OutBatch.DecisionOwnerTrainerId = Spec.DecisionOwnerTrainerId;
+	OutBatch.Decisions = Spec.Decisions;
 	return true;
 }

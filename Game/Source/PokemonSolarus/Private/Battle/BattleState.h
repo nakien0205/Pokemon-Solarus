@@ -179,6 +179,21 @@ struct FBattleLockedActionState
 	FBattleDecision Decision;
 };
 
+/** One active battler awaiting a choice inside a Trainer-owned Left/Right group. */
+struct FBattleDecisionActorState
+{
+	FBattlerId BattlerId;
+	FActiveSlotId ActiveSlotId;
+};
+
+/** One stable decision-owner group in the C03B human/partner/enemy sequence. */
+struct FBattleDecisionOwnerState
+{
+	FTrainerId TrainerId;
+	EBattleDecisionController Controller = EBattleDecisionController::Human;
+	TArray<FBattleDecisionActorState> Actors;
+};
+
 /**
  * Single authoritative mutable state owned by FBattleEngine.
  * The header is private to the runtime module; later rule packages consume const queries.
@@ -204,6 +219,8 @@ public:
 	[[nodiscard]] TConstArrayView<FBattlePendingCaptureState> GetPendingCaptures() const { return PendingCaptures; }
 	[[nodiscard]] TConstArrayView<FBattleWildFleePolicyState> GetWildFleePolicies() const { return WildFleePolicies; }
 	[[nodiscard]] TConstArrayView<FBattleLockedActionState> GetLockedActions() const { return LockedActions; }
+	[[nodiscard]] TConstArrayView<FBattleDecisionRequest> GetPendingDecisionRequests() const { return PendingDecisionRequests; }
+	[[nodiscard]] TConstArrayView<FBattleDecision> GetAcceptedSelections() const { return AcceptedSelections; }
 	[[nodiscard]] TConstArrayView<FBattleEvent> GetOrderedEvents() const { return OrderedEvents; }
 	[[nodiscard]] FBattleId GetBattleId() const { return Setup.GetBattleId(); }
 	[[nodiscard]] FTurnId GetTurnId() const { return TurnId; }
@@ -257,6 +274,11 @@ public:
 	TArray<FBattleWildFleePolicyState> WildFleePolicies;
 	TArray<FBattleLockedActionState> LockedActions;
 	TOptional<FBattleDecisionRequest> PendingDecision;
+	TArray<FBattleDecisionOwnerState> DecisionOwnerSequence;
+	int32 CurrentDecisionOwnerIndex = INDEX_NONE;
+	int32 CurrentDecisionActorOffset = 0;
+	TArray<FBattleDecisionRequest> PendingDecisionRequests;
+	TArray<FBattleDecision> AcceptedSelections;
 	TUniquePtr<IBattleRandom> Random;
 	uint64 NextResolutionId = 1;
 	uint64 NextActionId = 1;

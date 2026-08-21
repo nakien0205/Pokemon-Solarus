@@ -327,6 +327,112 @@ namespace
 			{
 				WritePartySlot(PartySlot);
 			}
+			WriteCount(Request.GetLegalMoveTargets().Num());
+			for (const FBattleMoveTargetOption& Option : Request.GetLegalMoveTargets())
+			{
+				WriteTypedDefinitionId(Option.MoveId);
+				WriteActiveSlot(Option.ActiveSlotId);
+			}
+			WriteCount(Request.GetLegalItemPartyTargets().Num());
+			for (const FBattleItemPartyTargetOption& Option : Request.GetLegalItemPartyTargets())
+			{
+				WriteTypedDefinitionId(Option.ItemId);
+				WritePartySlot(Option.PartySlotId);
+			}
+			WriteCount(Request.GetLegalItemActiveTargets().Num());
+			for (const FBattleItemActiveTargetOption& Option : Request.GetLegalItemActiveTargets())
+			{
+				WriteTypedDefinitionId(Option.ItemId);
+				WriteActiveSlot(Option.ActiveSlotId);
+			}
+			WriteCount(Request.GetUnavailableOptions().Num());
+			for (const FBattleUnavailableDecisionOption& Option : Request.GetUnavailableOptions())
+			{
+				WriteU8(static_cast<uint8>(Option.Kind));
+				WriteU8(static_cast<uint8>(Option.Reason));
+				WriteU8(static_cast<uint8>(Option.ActionKind));
+				WriteTypedDefinitionId(Option.MoveId);
+				WritePartySlot(Option.PartySlotId);
+				WriteTypedDefinitionId(Option.ItemId);
+				WriteActiveSlot(Option.ActiveSlotId);
+			}
+		}
+
+		void WriteStatStages(const FBattleStatStages& Stages)
+		{
+			for (int32 StatIndex = 0; StatIndex < 7; ++StatIndex)
+			{
+				int32 Stage = 0;
+				if (!Stages.TryGetStage(static_cast<EBattleStat>(StatIndex), Stage))
+				{
+					bValid = false;
+					return;
+				}
+				WriteI32(Stage);
+			}
+		}
+
+		void WriteObservedTrainer(const FBattleObservedTrainer& Trainer)
+		{
+			WriteNumericId(Trainer.TrainerId);
+			WriteU8(static_cast<uint8>(Trainer.Side));
+			WriteU8(static_cast<uint8>(Trainer.Role));
+			WriteU8(static_cast<uint8>(Trainer.Controller));
+			WriteBool(Trainer.bBagVisible);
+			WriteCount(Trainer.Bag.Num());
+			for (const FBattleBagItemCount& Item : Trainer.Bag)
+			{
+				WriteBagItem(Item);
+			}
+		}
+
+		void WriteObservedBattler(const FBattleObservedBattler& Battler)
+		{
+			WriteNumericId(Battler.TrainerId);
+			WriteNumericId(Battler.BattlerId);
+			WriteBool(Battler.bPartySlotVisible);
+			WritePartySlot(Battler.PartySlotId);
+			WriteTypedDefinitionId(Battler.SpeciesFormId);
+			WriteI32(Battler.Level);
+			WriteI32(Battler.CurrentHP);
+			WriteI32(Battler.MaxHP);
+			WriteBool(Battler.bFainted);
+			WriteTypedDefinitionId(Battler.MajorStatusId);
+			WriteStatStages(Battler.StatStages);
+			WriteBool(Battler.bAbilityKnown);
+			WriteTypedDefinitionId(Battler.AbilityId);
+			WriteBool(Battler.bHeldItemKnown);
+			WriteTypedDefinitionId(Battler.HeldItemId);
+			WriteCount(Battler.Moves.Num());
+			for (const FBattleObservedMove& Move : Battler.Moves)
+			{
+				WriteU8(Move.SlotIndex);
+				WriteTypedDefinitionId(Move.MoveId);
+				WriteBool(Move.bPPVisible);
+				WriteI32(Move.CurrentPP);
+				WriteI32(Move.MaxPP);
+			}
+		}
+
+		void WriteObservedActiveSlot(const FBattleObservedActiveSlot& Slot)
+		{
+			WriteActiveSlot(Slot.ActiveSlotId);
+			WriteBool(Slot.bAvailable);
+			WriteNumericId(Slot.TrainerId);
+			WriteNumericId(Slot.BattlerId);
+		}
+
+		void WriteObservedCondition(const FBattleObservedCondition& Condition)
+		{
+			WriteTypedDefinitionId(Condition.ConditionId);
+			WriteBool(Condition.RemainingTurns.IsSet());
+			if (Condition.RemainingTurns.IsSet())
+			{
+				WriteI32(Condition.RemainingTurns.GetValue());
+			}
+			WriteI32(Condition.LayerCount);
+			WriteU64(Condition.CreationOrdinal);
+			WriteNumericId(Condition.SourceBattlerId);
 		}
 
 		void WriteOptionalI64(const TOptional<int64>& Value)
@@ -453,6 +559,84 @@ namespace
 			if (Pending.IsSet())
 			{
 				WriteRequest(Pending.GetValue());
+			}
+
+			WriteU8(static_cast<uint8>(Snapshot.GetEncounterKind()));
+			WriteU8(static_cast<uint8>(Snapshot.GetFormat()));
+			WriteBool(Snapshot.IsObserverFiltered());
+			WriteNumericId(Snapshot.GetObserverTrainerId());
+			WriteCount(Snapshot.GetObservedTrainers().Num());
+			for (const FBattleObservedTrainer& Trainer : Snapshot.GetObservedTrainers())
+			{
+				WriteObservedTrainer(Trainer);
+			}
+			WriteCount(Snapshot.GetObservedBattlers().Num());
+			for (const FBattleObservedBattler& Battler : Snapshot.GetObservedBattlers())
+			{
+				WriteObservedBattler(Battler);
+			}
+			WriteCount(Snapshot.GetObservedActiveSlots().Num());
+			for (const FBattleObservedActiveSlot& Slot : Snapshot.GetObservedActiveSlots())
+			{
+				WriteObservedActiveSlot(Slot);
+			}
+			WriteBool(Snapshot.GetWeather().IsSet());
+			if (Snapshot.GetWeather().IsSet())
+			{
+				WriteObservedCondition(Snapshot.GetWeather().GetValue());
+			}
+			WriteBool(Snapshot.GetTerrain().IsSet());
+			if (Snapshot.GetTerrain().IsSet())
+			{
+				WriteObservedCondition(Snapshot.GetTerrain().GetValue());
+			}
+			WriteCount(Snapshot.GetRooms().Num());
+			for (const FBattleObservedCondition& Room : Snapshot.GetRooms())
+			{
+				WriteObservedCondition(Room);
+			}
+			WriteCount(Snapshot.GetFieldEffects().Num());
+			for (const FBattleObservedCondition& Effect : Snapshot.GetFieldEffects())
+			{
+				WriteObservedCondition(Effect);
+			}
+			WriteCount(Snapshot.GetObservedSides().Num());
+			for (const FBattleObservedSide& Side : Snapshot.GetObservedSides())
+			{
+				WriteU8(static_cast<uint8>(Side.Side));
+				WriteCount(Side.Conditions.Num());
+				for (const FBattleObservedCondition& Condition : Side.Conditions)
+				{
+					WriteObservedCondition(Condition);
+				}
+				WriteCount(Side.Hazards.Num());
+				for (const FBattleObservedCondition& Hazard : Side.Hazards)
+				{
+					WriteObservedCondition(Hazard);
+				}
+			}
+			WriteCount(Snapshot.GetPendingDecisionRequests().Num());
+			for (const FBattleDecisionRequest& Request : Snapshot.GetPendingDecisionRequests())
+			{
+				WriteRequest(Request);
+			}
+			WriteCount(Snapshot.GetVisibleSelections().Num());
+			for (const FBattleDecision& Decision : Snapshot.GetVisibleSelections())
+			{
+				WriteDecision(Decision);
+			}
+			WriteCount(Snapshot.GetMoveEffectivenessKnowledge().Num());
+			for (const FBattleMoveEffectivenessKnowledge& Knowledge : Snapshot.GetMoveEffectivenessKnowledge())
+			{
+				WriteTypedDefinitionId(Knowledge.MoveId);
+				WriteU8(static_cast<uint8>(Knowledge.Value));
+			}
+			WriteCount(Snapshot.GetTargetEffectivenessKnowledge().Num());
+			for (const FBattleTargetEffectivenessKnowledge& Knowledge : Snapshot.GetTargetEffectivenessKnowledge())
+			{
+				WriteTypedDefinitionId(Knowledge.MoveId);
+				WriteActiveSlot(Knowledge.TargetSlotId);
+				WriteU8(static_cast<uint8>(Knowledge.Value));
 			}
 		}
 

@@ -328,7 +328,8 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		|| !IsKnownOutcome(Outcome)
 		|| (Phase == EBattlePhase::Terminal) != (Outcome != EBattleOutcome::InProgress)
 		|| (Outcome == EBattleOutcome::InProgress && OutcomeCause != EBattleOutcomeCause::None)
-		|| (Phase == EBattlePhase::Terminal && PendingDecision.IsSet()))
+		|| (Phase == EBattlePhase::Terminal
+			&& (PendingDecision.IsSet() || !PendingDecisionRequests.IsEmpty())))
 	{
 		return Fail(EBattleStateValidationError::InvalidLifecycle);
 	}
@@ -696,6 +697,70 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		if (!Action.ActionId.IsValid() || Action.QueueOrdinal == 0 || !Action.Decision.IsValid())
 		{
 			return Fail(EBattleStateValidationError::InvalidCounter);
+		}
+	}
+
+	if (!DecisionOwnerSequence.IsEmpty())
+	{
+		if (CurrentDecisionOwnerIndex < 0
+			|| CurrentDecisionOwnerIndex > DecisionOwnerSequence.Num()
+			|| CurrentDecisionActorOffset < 0
+			|| (Phase == EBattlePhase::Selecting && PendingDecisionRequests.IsEmpty())
+			|| (Phase != EBattlePhase::Selecting && !PendingDecisionRequests.IsEmpty()))
+		{
+			return Fail(EBattleStateValidationError::InvalidLifecycle);
+		}
+
+		for (const FBattleDecisionOwnerState& Owner : DecisionOwnerSequence)
+		{
+			if (!Owner.TrainerId.IsValid()
+				|| FindTrainer(Owner.TrainerId) == nullptr
+				|| Owner.Actors.IsEmpty()
+				|| Owner.Actors.Num() > 2
+				|| HasDuplicatePair(
+					Owner.Actors,
+					[](const FBattleDecisionActorState& Left, const FBattleDecisionActorState& Right)
+					{
+						return Left.BattlerId == Right.BattlerId
+							|| Left.ActiveSlotId == Right.ActiveSlotId;
+					}))
+			{
+				return Fail(EBattleStateValidationError::InvalidLifecycle);
+			}
+		}
+
+		if (!PendingDecisionRequests.IsEmpty())
+		{
+			if (!DecisionOwnerSequence.IsValidIndex(CurrentDecisionOwnerIndex)
+				|| CurrentDecisionActorOffset >= DecisionOwnerSequence[CurrentDecisionOwnerIndex].Actors.Num()
+				|| PendingDecisionRequests.Num()
+					!= DecisionOwnerSequence[CurrentDecisionOwnerIndex].Actors.Num() - CurrentDecisionActorOffset
+				|| !PendingDecision.IsSet())
+			{
+				return Fail(EBattleStateValidationError::InvalidLifecycle);
+			}
+			for (int32 RequestIndex = 0; RequestIndex < PendingDecisionRequests.Num(); ++RequestIndex)
+			{
+				const FBattleDecisionRequest& Request = PendingDecisionRequests[RequestIndex];
+				const FBattleDecisionActorState& Actor =
+					DecisionOwnerSequence[CurrentDecisionOwnerIndex].Actors[CurrentDecisionActorOffset + RequestIndex];
+				if (!Request.IsValid()
+					|| Request.GetStateVersion() != StateVersion
+					|| Request.GetDecisionOwnerTrainerId()
+						!= DecisionOwnerSequence[CurrentDecisionOwnerIndex].TrainerId
+					|| Request.GetActingBattlerId() != Actor.BattlerId
+					|| Request.GetActingSlotId() != Actor.ActiveSlotId)
+				{
+					return Fail(EBattleStateValidationError::InvalidLifecycle);
+				}
+			}
+		}
+	}
+	for (const FBattleDecision& Decision : AcceptedSelections)
+	{
+		if (!Decision.IsValid())
+		{
+			return Fail(EBattleStateValidationError::InvalidLifecycle);
 		}
 	}
 
