@@ -4,7 +4,8 @@ namespace
 {
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleEventType::EffectDeferred);
+		return static_cast<uint8>(Value)
+			<= static_cast<uint8>(EBattleEventType::SwitchTransientStateCleared);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)

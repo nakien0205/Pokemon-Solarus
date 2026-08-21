@@ -9,6 +9,7 @@ class FBattleEngineContractFixture;
 class FBattleStateTestFixture;
 class FBattleSnapshotDecisionTestFixture;
 class FBattleC05BEngineFixture;
+class FBattleC06AEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -72,6 +73,9 @@ public:
 	 */
 	[[nodiscard]] FBattleResolution BeginNextLockedAction();
 
+	/** Revalidates and executes the currently started voluntary Switch action exactly once. */
+	[[nodiscard]] FBattleResolution ExecuteCurrentSwitch();
+
 	/**
 	 * Commits the current Fight action after future status/volatile gates allow it.
 	 * Ordinary moves spend one PP here; engine-supplied Struggle spends none.
@@ -106,6 +110,7 @@ private:
 	friend class FBattleStateTestFixture;
 	friend class FBattleSnapshotDecisionTestFixture;
 	friend class FBattleC05BEngineFixture;
+	friend class FBattleC06AEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

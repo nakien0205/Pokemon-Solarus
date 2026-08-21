@@ -723,6 +723,7 @@ namespace BattleEffectExecutorPrivate
 			: Request(InRequest)
 			, State(InState)
 			, Battlers(InState.Battlers)
+			, ActivePositions(InState.ActivePositions)
 			, Field(InState.Field)
 			, Sides(InState.Sides)
 			, NextConditionCreationOrdinal(InState.NextConditionCreationOrdinal)
@@ -732,9 +733,133 @@ namespace BattleEffectExecutorPrivate
 		void Commit()
 		{
 			State.Battlers = MoveTemp(Battlers);
+			State.ActivePositions = MoveTemp(ActivePositions);
 			State.Field = MoveTemp(Field);
 			State.Sides = MoveTemp(Sides);
 			State.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
+		}
+
+		bool TryResolveForcedSwitches(
+			FBattleEffectExecutionResult& Result,
+			EBattleEffectExecutorError& OutError)
+		{
+			for (FBattleSwitchEffectIntent& Intent : Result.SwitchIntents)
+			{
+				if (Intent.Kind != EBattleSwitchKind::Forced)
+				{
+					continue;
+				}
+				if (Intent.Target.GetKind() != EBattleResolvedTargetKind::Battler)
+				{
+					OutError = EBattleEffectExecutorError::InvalidTarget;
+					return false;
+				}
+
+				const FBattleBattlerTarget& ForcedTarget = Intent.Target.GetBattler();
+				FBattleActivePositionState* Active = FindMutableActivePosition(
+					ForcedTarget.ActiveSlotId);
+				FBattleBattlerState* Outgoing = FindMutableBattler(ForcedTarget.BattlerId);
+				if (Active == nullptr
+					|| Outgoing == nullptr
+					|| !Active->bAvailable
+					|| Active->BattlerId != Outgoing->BattlerId
+					|| Outgoing->CurrentHP <= 0
+					|| Outgoing->bFainted
+					|| Outgoing->bCaptured
+					|| Outgoing->bRemoved)
+				{
+					Intent.BlockReason = EBattleSwitchBlockReason::ActingBattlerUnavailable;
+					continue;
+				}
+
+				const FBattleTrainerState* Trainer = State.FindTrainer(Outgoing->TrainerId);
+				if (Trainer == nullptr || Active->TrainerId != Trainer->TrainerId)
+				{
+					OutError = EBattleEffectExecutorError::InvalidTarget;
+					return false;
+				}
+
+				FBattleSwitchLegalitySpec LegalitySpec;
+				LegalitySpec.Kind = EBattleSwitchKind::Forced;
+				LegalitySpec.ActingTrainerId = Trainer->TrainerId;
+				LegalitySpec.ActingBattlerId = Outgoing->BattlerId;
+				LegalitySpec.ActiveSlotId = Active->ActiveSlotId;
+				LegalitySpec.TransferPolicy = EBattleSwitchStateTransferPolicy::ClearTransient;
+				for (const FBattlePartySlotState& PartySlot : Trainer->PartySlots)
+				{
+					FBattleSwitchCandidateFacts Candidate;
+					Candidate.PartySlotId = PartySlot.PartySlotId;
+					Candidate.bOccupied = PartySlot.BattlerId.IsValid();
+					if (Candidate.bOccupied)
+					{
+						const FBattleBattlerState* Battler = FindBattler(PartySlot.BattlerId);
+						if (Battler == nullptr)
+						{
+							OutError = EBattleEffectExecutorError::InvalidTarget;
+							return false;
+						}
+						Candidate.TrainerId = Battler->TrainerId;
+						Candidate.BattlerId = Battler->BattlerId;
+						Candidate.bAlreadyActive = FindActiveForBattler(Battler->BattlerId) != nullptr;
+						Candidate.bFainted = Battler->CurrentHP <= 0 || Battler->bFainted;
+						Candidate.bEgg = Battler->bEgg;
+						Candidate.bCaptured = Battler->bCaptured;
+						Candidate.bRemoved = Battler->bRemoved;
+					}
+					LegalitySpec.Candidates.Add(MoveTemp(Candidate));
+				}
+
+				FBattleSwitchLegalityResult Legality;
+				if (!FBattleSwitchResolver::TryBuildLegality(LegalitySpec, Legality))
+				{
+					OutError = EBattleEffectExecutorError::InvalidTarget;
+					return false;
+				}
+				FBattleSwitchSelectionSpec SelectionSpec;
+				SelectionSpec.RandomContext.BattleId = Request.BattleId;
+				SelectionSpec.RandomContext.TurnId = Request.TurnId;
+				SelectionSpec.RandomContext.ActionId = Request.ActionId;
+				SelectionSpec.RandomContext.ResolutionId = Request.ResolutionId;
+				SelectionSpec.RandomContext.RulePurpose =
+					FBattleSwitchResolver::GetForcedSelectionRulePurpose();
+				FBattleSwitchResolution Resolution;
+				if (!FBattleSwitchResolver::TryResolve(
+					Legality,
+					SelectionSpec,
+					*State.Random,
+					Resolution))
+				{
+					OutError = EBattleEffectExecutorError::RandomFailure;
+					return false;
+				}
+				Intent.BlockReason = Resolution.GetReason();
+				if (!Resolution.HasSelection())
+				{
+					continue;
+				}
+
+				FBattleBattlerState* Incoming = FindMutableBattler(
+					Resolution.GetSelectedBattlerId());
+				if (Incoming == nullptr || Incoming->TrainerId != Trainer->TrainerId)
+				{
+					OutError = EBattleEffectExecutorError::InvalidTarget;
+					return false;
+				}
+				Intent.OutgoingTarget.TrainerId = Outgoing->TrainerId;
+				Intent.OutgoingTarget.BattlerId = Outgoing->BattlerId;
+				Intent.OutgoingTarget.ActiveSlotId = Active->ActiveSlotId;
+				Intent.IncomingTarget.TrainerId = Incoming->TrainerId;
+				Intent.IncomingTarget.BattlerId = Incoming->BattlerId;
+				Intent.IncomingTarget.ActiveSlotId = Active->ActiveSlotId;
+				Intent.SelectedPartySlotId = Resolution.GetSelectedPartySlotId();
+				Intent.IncomingBattlerId = Incoming->BattlerId;
+
+				Outgoing->Stages = FBattleStatStages();
+				Outgoing->Volatiles.Reset();
+				Active->BattlerId = Incoming->BattlerId;
+				Intent.bApplied = true;
+			}
+			return true;
 		}
 
 		virtual bool PrevalidateRequest(
@@ -1396,6 +1521,24 @@ namespace BattleEffectExecutorPrivate
 				});
 		}
 
+		const FBattleActivePositionState* FindActiveForBattler(const FBattlerId Id) const
+		{
+			return ActivePositions.FindByPredicate(
+				[Id](const FBattleActivePositionState& Position)
+				{
+					return Position.BattlerId == Id;
+				});
+		}
+
+		FBattleActivePositionState* FindMutableActivePosition(const FActiveSlotId Id)
+		{
+			return ActivePositions.FindByPredicate(
+				[Id](const FBattleActivePositionState& Position)
+				{
+					return Position.ActiveSlotId == Id;
+				});
+		}
+
 		FBattleSideState* FindMutableSide(const EBattleSide Side)
 		{
 			return Sides.FindByPredicate(
@@ -1681,6 +1824,7 @@ namespace BattleEffectExecutorPrivate
 		const FBattleEffectExecutionRequest& Request;
 		FBattleEngineState& State;
 		TArray<FBattleBattlerState> Battlers;
+		TArray<FBattleActivePositionState> ActivePositions;
 		FBattleFieldState Field;
 		TArray<FBattleSideState> Sides;
 		uint64 NextConditionCreationOrdinal = 1;
@@ -1912,10 +2056,22 @@ namespace BattleEffectExecutorPrivate
 			}
 			if (Applied.Outcome != EBattleEffectExecutionOutcome::Applied)
 			{
+				const int32 OutcomeEventIndex = Result.Events.Num();
 				if (!TryAddHookOutcomeEvent(Context, Result, Target, Applied, HitIndex))
 				{
 					OutError = EBattleEffectExecutorError::InvalidTarget;
 					return false;
+				}
+				if (Effect.Kind == EBattleMoveEffectKind::Switch
+					&& Applied.Outcome == EBattleEffectExecutionOutcome::Deferred)
+				{
+					FBattleSwitchEffectIntent Intent;
+					Intent.Kind = Effect.Target == EBattleEffectTarget::User
+						? EBattleSwitchKind::Pivot
+						: EBattleSwitchKind::Forced;
+					Intent.EffectEventIndex = OutcomeEventIndex;
+					Intent.Target = Target;
+					Result.SwitchIntents.Add(MoveTemp(Intent));
 				}
 				continue;
 			}
@@ -2887,6 +3043,11 @@ bool FBattleEffectExecutor::TryExecuteAgainstState(
 	BattleEffectExecutorPrivate::FStateExecutionContext Context(Request, State);
 	if (!TryExecute(Request, Context, *State.Random, OutResult, OutError))
 	{
+		return false;
+	}
+	if (!Context.TryResolveForcedSwitches(OutResult, OutError))
+	{
+		OutResult = FBattleEffectExecutionResult();
 		return false;
 	}
 	Context.Commit();

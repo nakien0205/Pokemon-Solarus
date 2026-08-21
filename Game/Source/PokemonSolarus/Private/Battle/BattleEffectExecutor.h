@@ -5,6 +5,7 @@
 #include "Battle/BattleEvent.h"
 #include "Battle/BattleFinalDamageCalculator.h"
 #include "Battle/BattleHitResolver.h"
+#include "Battle/BattleSwitching.h"
 #include "Battle/BattleTargeting.h"
 
 class FBattleEngineState;
@@ -65,6 +66,20 @@ struct FBattleEffectExecutionEvent
 	TOptional<uint16> HitCount;
 };
 
+/** One reached Switch descriptor retained for C06A production resolution. */
+struct FBattleSwitchEffectIntent
+{
+	EBattleSwitchKind Kind = EBattleSwitchKind::Forced;
+	int32 EffectEventIndex = INDEX_NONE;
+	FBattleResolvedTarget Target;
+	bool bApplied = false;
+	EBattleSwitchBlockReason BlockReason = EBattleSwitchBlockReason::None;
+	FPartySlotId SelectedPartySlotId;
+	FBattlerId IncomingBattlerId;
+	FBattleEventTarget OutgoingTarget;
+	FBattleEventTarget IncomingTarget;
+};
+
 /** Immutable input for one already committed and targeted Fight action. */
 struct FBattleEffectExecutionRequest
 {
@@ -85,6 +100,7 @@ struct FBattleEffectExecutionResult
 	int32 TotalActualDamage = 0;
 	TArray<int32> CompletedHitsPerDamageTarget;
 	TArray<FBattleEffectExecutionEvent> Events;
+	TArray<FBattleSwitchEffectIntent> SwitchIntents;
 };
 
 /**

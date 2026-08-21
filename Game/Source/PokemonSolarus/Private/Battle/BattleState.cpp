@@ -50,6 +50,7 @@ namespace
 	{
 		return Value == EBattleLockedEffectExecutionState::Pending
 			|| Value == EBattleLockedEffectExecutionState::Executing
+			|| Value == EBattleLockedEffectExecutionState::AwaitingPivot
 			|| Value == EBattleLockedEffectExecutionState::Completed;
 	}
 
@@ -863,6 +864,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	{
 		return Fail(EBattleStateValidationError::InvalidCounter);
 	}
+	int32 AwaitingPivotActionIndex = INDEX_NONE;
 	for (int32 ActionIndex = 0; ActionIndex < LockedActions.Num(); ++ActionIndex)
 	{
 		const FBattleLockedActionState& Action = LockedActions[ActionIndex];
@@ -872,6 +874,8 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			&& DoesBattleStateTargetClassRequireSelection(Action.TargetClass);
 		const bool bEffectsExecuting = Action.EffectExecutionState
 			== EBattleLockedEffectExecutionState::Executing;
+		const bool bEffectsAwaitingPivot = Action.EffectExecutionState
+			== EBattleLockedEffectExecutionState::AwaitingPivot;
 		const bool bEffectsCompleted = Action.EffectExecutionState
 			== EBattleLockedEffectExecutionState::Completed;
 		const bool bHasResolvedEffectTargets = Action.TargetResolution.IsSet()
@@ -899,12 +903,13 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			|| (Action.bMoveCommitted
 				&& (!Action.bStarted || Action.Decision.GetActionKind() != EBattleActionKind::Fight))
 			|| !IsKnownEffectExecutionState(Action.EffectExecutionState)
-			|| ((bEffectsExecuting || bEffectsCompleted)
+			|| ((bEffectsExecuting || bEffectsAwaitingPivot || bEffectsCompleted)
 				&& (!bFight
 					|| !Action.bStarted
 					|| !Action.bMoveCommitted
 					|| !bHasResolvedEffectTargets))
 			|| (bEffectsExecuting && Action.bFinished)
+			|| (bEffectsAwaitingPivot && Action.bFinished)
 			|| (bEffectsCompleted && !Action.bFinished)
 			|| (bFight
 				&& Action.bFinished
@@ -914,6 +919,45 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		{
 			return Fail(EBattleStateValidationError::InvalidCounter);
 		}
+		if (bEffectsAwaitingPivot)
+		{
+			if (AwaitingPivotActionIndex != INDEX_NONE)
+			{
+				return Fail(EBattleStateValidationError::InvalidLifecycle);
+			}
+			AwaitingPivotActionIndex = ActionIndex;
+		}
+	}
+
+	const bool bHasPivotRequest = PendingDecision.IsSet()
+		&& PendingDecision.GetValue().GetRequestKind()
+			== EBattleDecisionRequestKind::PivotSwitch;
+	if ((AwaitingPivotActionIndex != INDEX_NONE) != bHasPivotRequest)
+	{
+		return Fail(EBattleStateValidationError::InvalidLifecycle);
+	}
+	if (bHasPivotRequest)
+	{
+		const FBattleDecisionRequest& Request = PendingDecision.GetValue();
+		if (Phase != EBattlePhase::Resolving
+			|| AwaitingPivotActionIndex != CurrentLockedActionIndex
+			|| !LockedActions.IsValidIndex(AwaitingPivotActionIndex)
+			|| PendingDecisionRequests.Num() != 1
+			|| PendingDecisionRequests[0].GetRequestKind()
+				!= EBattleDecisionRequestKind::PivotSwitch
+			|| PendingDecisionRequests[0].GetStateVersion() != Request.GetStateVersion()
+			|| PendingDecisionRequests[0].GetActingBattlerId() != Request.GetActingBattlerId()
+			|| Request.GetStateVersion() != StateVersion
+			|| Request.GetActingBattlerId()
+				!= LockedActions[AwaitingPivotActionIndex].Decision.GetActingBattlerId()
+			|| Request.GetActingSlotId()
+				!= LockedActions[AwaitingPivotActionIndex].OrderKey.ActingSlotId
+			|| Request.GetLegalActionKinds().Num() != 1
+			|| Request.GetLegalActionKinds()[0] != EBattleActionKind::Switch
+			|| Request.GetLegalSwitchPartySlots().IsEmpty())
+		{
+			return Fail(EBattleStateValidationError::InvalidLifecycle);
+		}
 	}
 
 	if (!DecisionOwnerSequence.IsEmpty())
@@ -922,7 +966,9 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			|| CurrentDecisionOwnerIndex > DecisionOwnerSequence.Num()
 			|| CurrentDecisionActorOffset < 0
 			|| (Phase == EBattlePhase::Selecting && PendingDecisionRequests.IsEmpty())
-			|| (Phase != EBattlePhase::Selecting && !PendingDecisionRequests.IsEmpty()))
+			|| (Phase != EBattlePhase::Selecting
+				&& !PendingDecisionRequests.IsEmpty()
+				&& !bHasPivotRequest))
 		{
 			return Fail(EBattleStateValidationError::InvalidLifecycle);
 		}
@@ -945,7 +991,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			}
 		}
 
-		if (!PendingDecisionRequests.IsEmpty())
+		if (!PendingDecisionRequests.IsEmpty() && !bHasPivotRequest)
 		{
 			if (!DecisionOwnerSequence.IsValidIndex(CurrentDecisionOwnerIndex)
 				|| CurrentDecisionActorOffset >= DecisionOwnerSequence[CurrentDecisionOwnerIndex].Actors.Num()

@@ -10,7 +10,8 @@ enum class EBattleDecisionRequestKind : uint8
 	Action = 0,
 	MandatoryReplacement = 1,
 	ShiftResponse = 2,
-	Scripted = 3
+	Scripted = 3,
+	PivotSwitch = 4
 };
 
 /** Stable rejection reason. Presentation chooses any display text later. */
@@ -66,7 +67,12 @@ enum class EBattleOptionUnavailableReason : uint8
 	RunRestricted = 10,
 	WrongItemKind = 11,
 	NoLegalTarget = 12,
-	MissingCatalogReference = 13
+	MissingCatalogReference = 13,
+	Captured = 14,
+	WrongOwner = 15,
+	AlreadyReserved = 16,
+	Trapped = 17,
+	SwitchRestricted = 18
 };
 
 /** One unavailable option and its typed reason. Exactly one identity family is populated. */

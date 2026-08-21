@@ -176,7 +176,8 @@ enum class EBattleLockedEffectExecutionState : uint8
 {
 	Pending = 0,
 	Executing = 1,
-	Completed = 2
+	AwaitingPivot = 2,
+	Completed = 3
 };
 
 /** One selected action retained while the normal-turn queue is locked. */

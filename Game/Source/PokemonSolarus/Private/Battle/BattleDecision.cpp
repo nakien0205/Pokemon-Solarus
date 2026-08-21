@@ -7,7 +7,8 @@ namespace
 		return Value == EBattleDecisionRequestKind::Action
 			|| Value == EBattleDecisionRequestKind::MandatoryReplacement
 			|| Value == EBattleDecisionRequestKind::ShiftResponse
-			|| Value == EBattleDecisionRequestKind::Scripted;
+			|| Value == EBattleDecisionRequestKind::Scripted
+			|| Value == EBattleDecisionRequestKind::PivotSwitch;
 	}
 
 	bool IsKnownBattleDecisionActionKind(const EBattleActionKind Value)
@@ -60,7 +61,7 @@ namespace
 	bool IsKnownUnavailableReason(const EBattleOptionUnavailableReason Value)
 	{
 		return Value >= EBattleOptionUnavailableReason::NoPP
-			&& Value <= EBattleOptionUnavailableReason::MissingCatalogReference;
+			&& Value <= EBattleOptionUnavailableReason::SwitchRestricted;
 	}
 
 	bool IsUnavailableOptionValid(const FBattleUnavailableDecisionOption& Option)
@@ -576,8 +577,9 @@ bool FBattleDecision::TryCreateSwitch(
 	OutDecision = FBattleDecision();
 	const bool bVoluntary = InRequestKind == EBattleDecisionRequestKind::Action;
 	const bool bReplacement = InRequestKind == EBattleDecisionRequestKind::MandatoryReplacement;
+	const bool bPivot = InRequestKind == EBattleDecisionRequestKind::PivotSwitch;
 	if (InStateVersion == 0
-		|| (!bVoluntary && !bReplacement)
+		|| (!bVoluntary && !bReplacement && !bPivot)
 		|| !InDecisionOwnerTrainerId.IsValid()
 		|| !InActingBattlerId.IsValid()
 		|| !InPartySlotId.IsValid()

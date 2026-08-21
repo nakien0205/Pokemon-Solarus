@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00 through C05 complete under focused validation
-Next package: C06A in a new session; its dependencies are clear
+Roadmap status: Approved and materialized; B00 through C05 and C06A complete under focused validation
+Next package: C06B; its C06A dependency is clear
 
 ## Current Truth
 
@@ -56,13 +56,18 @@ The live battle source now contains:
   one-use opponent-removal checkpoints, queued-fainted-actor cancellation,
   replacement/end-turn boundaries, terminal outcomes, and seven
   `PokemonSolarus.Battle.C05C.*` Automation tests.
+- C06A's canonical party-reserve resolver, typed switch blockers and transfer
+  policy, execution-time voluntary-switch revalidation, deterministic forced
+  switching, post-move pivot request, stable active-slot occupancy change,
+  transient cleanup and entry-trigger facts, and seven
+  `PokemonSolarus.Battle.C06A.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
-normal-turn selection, queue-lock, action-start, and final-target seam, plus the
-frozen public setup/decision/event/snapshot/replay, stat, type, move,
-definition, adapter, and pure hit/damage language needed by later packages.
-There is still no switching/replacement selection system, concrete condition
-behavior engine, encounter flow, or presentation seam. The
+normal-turn selection, queue-lock, action-start, final-target, and switching
+seam, plus the frozen public setup/decision/event/snapshot/replay, stat, type,
+move, definition, adapter, and pure hit/damage language needed by later
+packages. There is still no faint-replacement or Shift/Set selection system,
+concrete condition behavior engine, encounter flow, or presentation seam. The
 completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -78,9 +83,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C05 gates are clear. C06A is dependency-clear; every later
-  package remains blocked or not started. The workspace's sequential default
-  makes C06A the next session.
+- The B00 through C05 and C06A gates are clear. C06B is dependency-clear; every
+  later package remains blocked or not started. The workspace's sequential
+  default makes C06B the next package.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -543,9 +548,57 @@ B00B accepted evidence:
 - Module rules, `.uproject`, `DefaultEngine.ini`, C05A sources/tests, the
   unchanged C05B executor/support files, B00B, and the Solarus interview
   handoff matched their recorded hashes after final validation.
-- C05 is complete under the approved focused-validation scope. C06A is the
-  next sequential package; C06 switching and replacement selection were not
-  implemented by C05C.
+- C05 is complete under the approved focused-validation scope. C06A was not
+  implemented by C05C; its later completion is recorded immediately below.
+
+## C06A Execution Status
+
+- C06A completed on 2026-08-21 from the clean `c1d478d` baseline. The live
+  roadmap cleared its dependency before writing; no C06B implementation was
+  included.
+- The new reusable resolver returns party-slot-ordered legal reserves, rejects
+  empty/active/fainted/Egg/captured/removed/wrong-owner/reserved candidates,
+  accepts typed encounter/trapping facts, keeps Baton-style transfer typed but
+  blocked, and performs exactly one `U[0,n-1]` draw for a non-empty forced
+  switch list, including `U[0,0]`.
+- `FBattleEngine::ExecuteCurrentSwitch()` revalidates before mutation, preserves
+  the structural active-slot ID and persistent Pokemon facts, clears stages and
+  ordinary volatiles, and executes distinct allied choices through the locked
+  queue. Ordinary wild-opponent switching is unavailable while player,
+  partner-role, and Trainer-party rules remain permitted by the typed policy.
+- Forced effects resolve without a request. A reached pivot effect publishes
+  one `EBattleDecisionRequestKind::PivotSwitch` request only when its source is
+  still active and a reserve exists. Invalid or stale responses retain the
+  request and consume no RNG; a valid response switches before
+  `ActionCompleted` without another action cost.
+- The public contract appends `SwitchTransientStateCleared` and reuses
+  `Switched` as the entry-trigger fact. The generic decision/event replay
+  encoding required no wire-shape or schema-version change.
+- The exact final build command was:
+  `Build.bat PokemonSolarusEditor Win64 Development "D:\Python\Projects\Pokemon Solarus\Game\PokemonSolarus.uproject" -WaitMutex -ForceUnity -DisableAdaptiveUnity -NoUBA`.
+  It succeeded with exit code `0`; evidence is
+  `Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/build.log`.
+- The exact runtime filter was
+  `Automation RunTests PokemonSolarus.Battle.C06A`. It discovered exactly seven
+  tests: 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in
+  process. Every test entry records 0 warnings and 0 errors, and the process
+  exit code was `0`:
+  `Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/report/index.json`.
+  The matching log is
+  `Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/automation.log`.
+- No C05C, older package, complete battle, or full project filter was run. No
+  fresh runtime claim is made for those filters.
+- Final hashes for the three new C06A files are `0ae109bab80368304d24af39c23ddedb9d3eb70430ca340f210a65c1a6d917ce`
+  (`BattleSwitching.h`), `556b6335e620221f91b66307385355291695d6bcd4fe00821ec9e9a653a36d9b`
+  (`BattleSwitching.cpp`), and `af648aa140796af1191a2cad0db84a463ee88b38aec3a271bda32c7c404673e0`
+  (`BattleSwitchingTests.cpp`). The full owned/protected SHA-256 ledger and
+  exact commands are in `07-parties-switching-and-replacements.md`.
+- `CLAUDE.md`, B00B, the Solarus interview handoff, `.uproject`,
+  `DefaultEngine.ini`, module rules, and every existing test file remained at
+  their recorded hashes. No `dev-story`, subagent, Git commit, or other Git
+  write was used.
+- C06A is complete under the approved focused-validation scope. C06B is the
+  next sequential package; stop here.
 
 ## Goal
 

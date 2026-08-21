@@ -1,7 +1,7 @@
 # C06 — Parties, Switching, and Replacements
 
 Priority: P1  
-Status: Blocked by C05C  
+Status: C06A complete under focused validation; C06B next
 Required order: C06A, then C06B
 
 ## Objective
@@ -99,3 +99,87 @@ C06B:
 - Trigger points are emitted for C07/C08 without requiring those packages to
   mutate party arrays directly.
 - C07 can add trapping, cleanup, hazards, and entry effects through frozen hooks.
+
+## C06A Completion Record
+
+C06A completed on 2026-08-21 from clean baseline `c1d478d`. The live roadmap's
+dependency status overrode this package's stale `Blocked by C05C` label before
+implementation began.
+
+Implemented scope:
+
+- `FBattleSwitchResolver` owns canonical reserve legality, typed blockers,
+  typed transfer policy, explicit reserve selection, and the exact one-draw
+  forced-switch rule.
+- `FBattleEngine::ExecuteCurrentSwitch()` revalidates a committed voluntary
+  switch, preserves the structural active slot, clears ordinary transient
+  state, and completes or safely cancels the already-spent action.
+- Distinct allied reserves execute through the existing deterministic queue.
+- Forced move effects resolve without a selector request. Reached pivot effects
+  publish one `PivotSwitch` request only while a valid choice is required, then
+  resume the same action without another action cost.
+- The frozen transition is `LeftActiveSlot`,
+  `SwitchTransientStateCleared`, `EnteredActiveSlot`, `Switched`, then
+  `ActionCompleted`, following the action's earlier `ActionStarted` event.
+- C06B replacement/Shift/Set behavior, hazards, condition mechanics, Ability
+  and item execution, named move data, UI, assets, and configuration remain out
+  of scope.
+
+Final forced-unity Editor build command:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat' PokemonSolarusEditor Win64 Development 'D:\Python\Projects\Pokemon Solarus\Game\PokemonSolarus.uproject' -WaitMutex -ForceUnity -DisableAdaptiveUnity -NoUBA
+```
+
+The command succeeded with exit code `0`. Its log is
+`Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/build.log`.
+
+Final focused Automation command:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' 'D:\Python\Projects\Pokemon Solarus\Game\PokemonSolarus.uproject' -Unattended -NoSplash -NullRHI -NoSound -NoP4 '-ExecCmds=Automation RunTests PokemonSolarus.Battle.C06A; Quit' '-TestExit=Automation Test Queue Empty' '-ReportOutputPath=D:\Python\Projects\Pokemon Solarus\Game\Saved\Automation\C06A-Switching-Final2-20260821T101747Z\report' '-abslog=D:\Python\Projects\Pokemon Solarus\Game\Saved\Automation\C06A-Switching-Final2-20260821T101747Z\automation.log'
+```
+
+The exact `PokemonSolarus.Battle.C06A` filter discovered seven tests. The final
+`index.json` records 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not
+run, and 0 in process. Every individual result records 0 warnings and 0 errors;
+the process exit code was `0`.
+
+- Report:
+  `Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/report/index.json`
+- Editor log:
+  `Game/Saved/Automation/C06A-Switching-Final2-20260821T101747Z/automation.log`
+- No C05C, earlier package, complete battle, or full project test filter was
+  run. No runtime claim is made for those filters.
+
+Final C06A-owned SHA-256 hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleSwitching.h` | `0ae109bab80368304d24af39c23ddedb9d3eb70430ca340f210a65c1a6d917ce` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleSwitching.cpp` | `556b6335e620221f91b66307385355291695d6bcd4fe00821ec9e9a653a36d9b` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleSwitchingTests.cpp` | `af648aa140796af1191a2cad0db84a463ee88b38aec3a271bda32c7c404673e0` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDecision.h` | `d7c72fd4575691c3a0feb4b2ecff4d6d3321724ee4a91b8f5fd881bf9d3863da` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDecision.cpp` | `97944940987285028c6de791cb7e0e2171618ed4c254607be8fd46e42e7ee437` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h` | `3ce106a88d296886e2e8a2d760c6f21d7d4923b19b49a007d21a3e567075376f` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp` | `12b29ec706b3fb57f9139247f1660aad90f33ecf0a163ad32503274ffd19285b` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEngine.h` | `0dab42fa09d4f2b219c7e54d7e5cdb4fd13a006372f0f6049baa4703dc938f68` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `71cbec8f068a9745956fa5738c22fea8da6b1e0adfa97f65faa7bfadd6bd1ba5` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.h` | `1aa344a7b77ab2cb543476c87eda4099c6567faf8e4651345591b2c98f205fb4` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp` | `445fc02baeac9ab58a6a8246ef3472bdc8b49e5d57d99f151b572d0386e47cb3` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `d0b69b31685efdcb3b5e6cd9eb1132eb515e153978df7dc02607e680f416a689` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `bfb09833d2f313a66ee60fe2f34625b89737057bc3d01acf952fac7fb2c5fec0` |
+
+Protected files retained their pre-write SHA-256 hashes:
+
+| File | SHA-256 |
+|---|---|
+| `CLAUDE.md` | `5c4e8a530ba03e52788f973c9a99c3e098353304f3ec6852240f3293a15104c8` |
+| `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
+| `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+| `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
+
+Existing test files remained unchanged. No Git commit or other Git write was
+performed. C06B is the next sequential package.
