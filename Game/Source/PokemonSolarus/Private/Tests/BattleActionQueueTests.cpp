@@ -1015,7 +1015,7 @@ bool FBattleC04AReplayTest::RunTest(const FString& Parameters)
 
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
-	TestEqual(TEXT("C04A replay schema is version 3"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(3));
+	TestEqual(TEXT("Replay schema includes C04B targeting"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(4));
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection Rejection;

@@ -131,6 +131,7 @@ struct POKEMONSOLARUS_API FBattleDecisionRequestSpec
 	FActiveSlotId ActingSlotId;
 	TArray<EBattleActionKind> LegalActionKinds;
 	TArray<FMoveId> LegalMoveIds;
+	TArray<FMoveId> AutomaticallyTargetedMoveIds;
 	TArray<FPartySlotId> LegalSwitchPartySlots;
 	TArray<FItemId> LegalItemIds;
 	TArray<FActiveSlotId> LegalActiveTargets;
@@ -176,6 +177,8 @@ public:
 	[[nodiscard]] TConstArrayView<EBattleActionKind> GetLegalActionKinds() const { return LegalActionKinds; }
 	/** Returns canonical legal move IDs. */
 	[[nodiscard]] TConstArrayView<FMoveId> GetLegalMoveIds() const { return LegalMoveIds; }
+	/** Returns legal moves whose target class resolves without a selector-supplied active slot. */
+	[[nodiscard]] TConstArrayView<FMoveId> GetAutomaticallyTargetedMoveIds() const { return AutomaticallyTargetedMoveIds; }
 	/** Returns canonical legal switch destinations. */
 	[[nodiscard]] TConstArrayView<FPartySlotId> GetLegalSwitchPartySlots() const { return LegalSwitchPartySlots; }
 	/** Returns canonical legal item IDs. */
@@ -205,6 +208,7 @@ private:
 	FActiveSlotId ActingSlotId;
 	TArray<EBattleActionKind> LegalActionKinds;
 	TArray<FMoveId> LegalMoveIds;
+	TArray<FMoveId> AutomaticallyTargetedMoveIds;
 	TArray<FPartySlotId> LegalSwitchPartySlots;
 	TArray<FItemId> LegalItemIds;
 	TArray<FActiveSlotId> LegalActiveTargets;
@@ -238,6 +242,14 @@ public:
 		FBattlerId ActingBattlerId,
 		FMoveId MoveId,
 		FActiveSlotId Target,
+		FBattleDecision& OutDecision);
+
+	/** Creates one Fight decision for a self, random, side, field, or spread target class. */
+	[[nodiscard]] static bool TryCreateAutomaticallyTargetedFight(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		FMoveId MoveId,
 		FBattleDecision& OutDecision);
 
 	/** Creates one typed switch or mandatory-replacement decision. */

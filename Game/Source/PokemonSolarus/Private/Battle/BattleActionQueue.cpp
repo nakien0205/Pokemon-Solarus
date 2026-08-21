@@ -39,6 +39,18 @@ namespace
 		return Key.MovePriority * 10 + Key.FractionalPriorityTenths;
 	}
 
+	bool IsKnownActionQueueTargetClass(const EBattleTargetClass Value)
+	{
+		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleTargetClass::FixedSpreadSet);
+	}
+
+	bool RequiresSelectedActiveTarget(const EBattleTargetClass Value)
+	{
+		return Value == EBattleTargetClass::SelectedAlly
+			|| Value == EBattleTargetClass::SelectedOpponent
+			|| Value == EBattleTargetClass::AnySelectedBattler;
+	}
+
 	bool IsCandidateValid(const FBattleActionOrderCandidate& Candidate)
 	{
 		if (!Candidate.ActionId.IsValid()
@@ -59,11 +71,14 @@ namespace
 
 		if (ExpectedBand == EBattleActionCommandBand::Move)
 		{
-			return Candidate.OrderKey.MovePriority >= -7
+			const bool bRequiresSelectedTarget = RequiresSelectedActiveTarget(Candidate.TargetClass);
+			return IsKnownActionQueueTargetClass(Candidate.TargetClass)
+				&& Candidate.OrderKey.MovePriority >= -7
 				&& Candidate.OrderKey.MovePriority <= 5
 				&& Candidate.OrderKey.FractionalPriorityTenths >= 0
 				&& Candidate.OrderKey.FractionalPriorityTenths <= 9
-				&& Candidate.SelectedTargetBattlerId.IsValid();
+				&& Candidate.Decision.GetActiveTargetId().IsValid() == bRequiresSelectedTarget
+				&& Candidate.SelectedTargetBattlerId.IsValid() == bRequiresSelectedTarget;
 		}
 
 		return Candidate.OrderKey.MovePriority == 0
@@ -239,6 +254,7 @@ bool FBattleActionQueueResolver::TryLock(
 		Action.QueueOrdinal = static_cast<uint64>(Index + 1);
 		Action.Decision = Ordered[Index].Decision;
 		Action.OrderKey = Ordered[Index].OrderKey;
+		Action.TargetClass = Ordered[Index].TargetClass;
 		Action.SelectedTargetBattlerId = Ordered[Index].SelectedTargetBattlerId;
 		OutQueue.Add(MoveTemp(Action));
 	}

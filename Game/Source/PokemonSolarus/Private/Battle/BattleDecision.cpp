@@ -165,6 +165,14 @@ bool FBattleDecisionRequest::TryCreate(
 			return false;
 		}
 	}
+	for (const FMoveId& MoveId : Spec.AutomaticallyTargetedMoveIds)
+	{
+		if (!MoveId.IsValid() || !Spec.LegalMoveIds.Contains(MoveId))
+		{
+			OutRejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return false;
+		}
+	}
 	for (const FPartySlotId PartySlotId : Spec.LegalSwitchPartySlots)
 	{
 		if (!PartySlotId.IsValid())
@@ -241,6 +249,7 @@ bool FBattleDecisionRequest::TryCreate(
 
 	if (HasDuplicates(Spec.LegalActionKinds, [](const EBattleActionKind Left, const EBattleActionKind Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalMoveIds, [](const FMoveId& Left, const FMoveId& Right) { return Left == Right; })
+		|| HasDuplicates(Spec.AutomaticallyTargetedMoveIds, [](const FMoveId& Left, const FMoveId& Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalSwitchPartySlots, [](const FPartySlotId Left, const FPartySlotId Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalItemIds, [](const FItemId& Left, const FItemId& Right) { return Left == Right; })
 		|| HasDuplicates(Spec.LegalActiveTargets, [](const FActiveSlotId Left, const FActiveSlotId Right) { return Left == Right; })
@@ -287,6 +296,7 @@ bool FBattleDecisionRequest::TryCreate(
 	OutRequest.ActingSlotId = Spec.ActingSlotId;
 	OutRequest.LegalActionKinds = Spec.LegalActionKinds;
 	OutRequest.LegalMoveIds = Spec.LegalMoveIds;
+	OutRequest.AutomaticallyTargetedMoveIds = Spec.AutomaticallyTargetedMoveIds;
 	OutRequest.LegalSwitchPartySlots = Spec.LegalSwitchPartySlots;
 	OutRequest.LegalItemIds = Spec.LegalItemIds;
 	OutRequest.LegalActiveTargets = Spec.LegalActiveTargets;
@@ -302,6 +312,11 @@ bool FBattleDecisionRequest::TryCreate(
 			return static_cast<uint8>(Left) < static_cast<uint8>(Right);
 		});
 	OutRequest.LegalMoveIds.Sort(
+		[](const FMoveId& Left, const FMoveId& Right)
+		{
+			return Left.LexicalLess(Right);
+		});
+	OutRequest.AutomaticallyTargetedMoveIds.Sort(
 		[](const FMoveId& Left, const FMoveId& Right)
 		{
 			return Left.LexicalLess(Right);
@@ -386,14 +401,22 @@ bool FBattleDecisionRequest::Allows(
 			OutRejection.MoveId = Decision.GetMoveId();
 			return false;
 		}
-		if (!LegalActiveTargets.Contains(Decision.GetActiveTargetId())
-			|| (!LegalMoveTargets.IsEmpty()
-				&& !LegalMoveTargets.ContainsByPredicate(
-					[&Decision](const FBattleMoveTargetOption& Option)
-					{
-						return Option.MoveId == Decision.GetMoveId()
-							&& Option.ActiveSlotId == Decision.GetActiveTargetId();
-					})))
+		if (AutomaticallyTargetedMoveIds.Contains(Decision.GetMoveId()))
+		{
+			if (Decision.GetActiveTargetId().IsValid())
+			{
+				OutRejection.Reason = EBattleRejectionReason::IllegalTarget;
+				OutRejection.ActiveSlotId = Decision.GetActiveTargetId();
+				return false;
+			}
+		}
+		else if (!LegalActiveTargets.Contains(Decision.GetActiveTargetId())
+			|| !LegalMoveTargets.ContainsByPredicate(
+				[&Decision](const FBattleMoveTargetOption& Option)
+				{
+					return Option.MoveId == Decision.GetMoveId()
+						&& Option.ActiveSlotId == Decision.GetActiveTargetId();
+				}))
 		{
 			OutRejection.Reason = EBattleRejectionReason::IllegalTarget;
 			OutRejection.ActiveSlotId = Decision.GetActiveTargetId();
@@ -513,6 +536,31 @@ bool FBattleDecision::TryCreateFight(
 	OutDecision.ActionKind = EBattleActionKind::Fight;
 	OutDecision.MoveId = InMoveId;
 	OutDecision.ActiveTargetId = InTarget;
+	return true;
+}
+
+bool FBattleDecision::TryCreateAutomaticallyTargetedFight(
+	const uint64 InStateVersion,
+	const FTrainerId InDecisionOwnerTrainerId,
+	const FBattlerId InActingBattlerId,
+	const FMoveId InMoveId,
+	FBattleDecision& OutDecision)
+{
+	OutDecision = FBattleDecision();
+	if (InStateVersion == 0
+		|| !InDecisionOwnerTrainerId.IsValid()
+		|| !InActingBattlerId.IsValid()
+		|| !InMoveId.IsValid())
+	{
+		return false;
+	}
+	OutDecision.bValid = true;
+	OutDecision.StateVersion = InStateVersion;
+	OutDecision.RequestKind = EBattleDecisionRequestKind::Action;
+	OutDecision.DecisionOwnerTrainerId = InDecisionOwnerTrainerId;
+	OutDecision.ActingBattlerId = InActingBattlerId;
+	OutDecision.ActionKind = EBattleActionKind::Fight;
+	OutDecision.MoveId = InMoveId;
 	return true;
 }
 

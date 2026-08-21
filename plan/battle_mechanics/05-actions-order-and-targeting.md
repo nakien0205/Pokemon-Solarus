@@ -1,7 +1,7 @@
 # C04 — Action Legality, Order, and Targeting
 
 Priority: P1  
-Status: C04A complete under focused validation; C04B dependency-clear and not started
+Status: C04 complete under focused validation; C05A is the next sequential package
 Required order: C04A, then C04B
 
 ## Objective
@@ -169,9 +169,9 @@ C04B:
   Trick Room state remains C07D. The current engine therefore supplies ordinary
   `0.0` fractional priority and non-reversed Speed until those owning packages
   connect the frozen hooks.
-- C04B was not drafted or implemented. Full target-class resolution, fainted
-  target redirection, spread sets, random targets, and redirection effects remain
-  C04B. C05 hit, damage, and move-effect execution also remain out of scope.
+- At C04A completion, C04B had not been drafted or implemented. Its later
+  completion is recorded below. C05 hit, damage, and move-effect execution
+  remain out of scope for C04.
 - The original C04A execution honored the user's validation limit and ran only
   the C04A-focused filter. A separately approved source cleanup on 2026-08-21
   then repaired the older unity incompatibilities without changing the validated
@@ -226,3 +226,90 @@ Protected files matched their pre-run hashes after the final C04A run:
 | `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
 | `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
 | `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |
+
+## C04B Execution Status
+
+- C04B completed on 2026-08-21 with final focused run ID
+  `C04B-Targeting-Final3-20260821`.
+- The final normal adaptive non-unity build
+  (`C04B-EditorBuild-Final3-20260821.log`) and forced-unity build with adaptive
+  exclusions disabled (`C04B-EditorBuild-ForcedUnity-Final3-20260821.log`)
+  both succeeded for `PokemonSolarusEditor Win64 Development`.
+- The exact `PokemonSolarus.Battle.C04B` filter discovered and performed seven
+  tests: 7 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0. No older or future Automation filter was run.
+- Selection and resolution use exactly four canonical structural positions:
+  Player Left, Player Right, Opponent Left, and Opponent Right. All ten target
+  classes produce stable candidate or automatic target sets. Empty, fainted,
+  captured, and removed positions cannot be newly selected; living
+  semi-invulnerable battlers remain selectable because C05 owns reachability.
+- Only selected ally, selected opponent, and any selected battler require an
+  explicit choice. Self, random opponent, sides, field, and fixed spread are
+  automatic. Fixed spread excludes the user and includes every other living
+  structural position, including a living ally. Doubles Struggle remains an
+  explicit selected-opponent action.
+- Capture of the originally selected battler cancels at action start before PP
+  or move RNG. Normal target resolution occurs only after the move commits and
+  PP is spent. A fainted selected opponent falls back deterministically to the
+  other living opponent; a non-empty random-opponent set consumes exactly one
+  injected `Rule.Targeting.RandomLegalOpponent` draw, including `U[0,0]` for a
+  one-candidate set, while an empty set consumes no draw.
+- The locked action freezes the target class and a validated typed target set
+  for C05. `TargetsResolved` events carry complete battler identity triples or
+  canonical side/field tokens. Replay schema 4 serializes automatic request
+  classes and typed target events in explicit field order. Two identical
+  public-engine runs produced the same queue, targeting events, RNG trace, and
+  canonical replay bytes.
+- Ordered legal redirection proposals are frozen and tested in the pure
+  resolver. The engine intentionally supplies no ordinary proposals until the
+  later Ability/condition packages own their generation. Capture cancellation
+  still wins before any proposal.
+- No public C04B API can yet perform a voluntary switch or mutate a living
+  active battler into the post-lock no-legal-target state. Public engine
+  regressions for replacement-slot targeting and post-PP no-target completion
+  therefore remain deferred until the owning later package exposes those
+  transitions; production handling exists without granting tests private-state
+  access.
+- C04B's replay additions require schema 4. The single pre-existing C04A
+  schema-version assertion was updated from 3 to 4 so the committed tree does
+  not retain a known stale expectation. The C04A filter was not run, so no
+  fresh runtime claim for it is made here.
+- Successful evidence is under
+  `Game/Saved/Automation/C04B-Targeting-Final3-20260821/`, with logs
+  `Game/Saved/Logs/C04B-Targeting-Final3-20260821.log`,
+  `Game/Saved/Logs/C04B-EditorBuild-Final3-20260821.log`, and
+  `Game/Saved/Logs/C04B-EditorBuild-ForcedUnity-Final3-20260821.log`.
+
+Relevant C04B final source hashes:
+
+| File | Final SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleTargeting.h` | `c446f63b0d7e5b36924bfdac94af53043db562cb1dbea0520dcd6d7ef409886b` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleTargeting.cpp` | `20ad8b3d2723c9bfbb1fc03c600d2d78d219e3e1944a2371a9e2f8306b3ad7cf` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDecision.h` | `e4721d8f35a3aa58aecdf7ba442df4a2a8aba768fa7fbc926dd531f484c2160e` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDecision.cpp` | `9ddc3258d58891deefca2ac8e48d0584830e6dde0520b67b9d67c56d5a18364d` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleActionQueue.h` | `5508fe9b9d55c376fcca2fda1bc37af51ae05726d87f7784bf31fb56a3b048dc` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleActionQueue.cpp` | `e698b0e7e3dc7c5201b44943602ee706bc90a6157af5ac6f08b134b39e0274a1` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEngine.h` | `4b351872b2c6d891e4819cef321dabb0060ef7d885c672de1ee2264214106570` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `951be6500c30e87b962c0a089176064b0ca4a8d689189039794edeeeabd7a836` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h` | `aaf0a5b3ea99563a3a8ce62a8ef56ab3ec507806a6c54a883e466ce061b7f086` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp` | `3df1b166cc0bc86e86176f73d1557960c29230f87b6bbfc9e38b222d2c1f1b92` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleReplay.h` | `d1cad6df30c07af55aaac1f9442eeb6f8e9fd1d65c0300fc82b71555ad120ef7` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleReplay.cpp` | `b35f1b327c2ab9f12559bd4a55bf50076d952dad4ed4b1f2b2ec50cb9a96cab7` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `5e0efdda6b0d3367875ada8e7b807af17329b7ab76052bc740691f18bc593ae9` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `6e96a96f3decfe44dabf2dcbf7430efd7d2bc8e3b52634ea2b6e1e7565ab7328` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleTargetingTests.cpp` | `a78f3476ff19026632251bdf94a99c8c8166a2b3cfe34891b243f3312acee85b` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleActionQueueTests.cpp` | `363cd88c56d9971071c982524dd37162338aa58f049ce57b6153292850cccafd` |
+
+Protected files matched their pre-run hashes after final C04B validation:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+| `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
+| `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |
+
+C04 is complete under the approved focused-validation scope. C05A is
+dependency-clear and is the next sequential package.

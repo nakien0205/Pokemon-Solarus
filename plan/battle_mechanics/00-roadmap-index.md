@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00, C01, C02, C03, and C04A complete under focused validation
-Next package: C04B in a new session; its dependencies are clear
+Roadmap status: Approved and materialized; B00, C01, C02, C03, and C04 complete under focused validation
+Next package: C05A in a new session; its dependencies are clear
 
 ## Current Truth
 
@@ -38,13 +38,17 @@ The live battle source now contains:
   immutable ordered queue, Solarus command/Speed/tie keys, deterministic
   obedience gate, replay schema 3 projection, and seven
   `PokemonSolarus.Battle.C04A.*` Automation tests.
+- C04B's ten target classes, exact four-position structural model, typed
+  battler/side/field target sets, capture and fainted-target timing, stable
+  random targeting, replay schema 4 projection, and seven
+  `PokemonSolarus.Battle.C04B.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
-normal-turn selection, queue-lock, and action-start seam, plus the frozen public
-setup/decision/event/snapshot/replay, stat, type, move, definition, and adapter
-language needed by later packages. There is still no C04B target resolver,
-switching system, condition behavior engine, encounter flow, or presentation
-seam. The completed Story 001 and its 33-test report describe an older source state and
+normal-turn selection, queue-lock, action-start, and final-target seam, plus the
+frozen public setup/decision/event/snapshot/replay, stat, type, move,
+definition, and adapter language needed by later packages. There is still no
+C05 hit/damage resolution pipeline, switching system, condition behavior
+engine, encounter flow, or presentation seam. The completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
 already existed, so it cannot explain or restore those missing files.
@@ -59,9 +63,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00, C01, C02, and C03 gates are clear, and C04A is complete. C04B is
-  dependency-clear; every later package remains blocked or not started. The
-  workspace's sequential default makes C04B the next session.
+- The B00, C01, C02, C03, and C04 gates are clear. C05A is dependency-clear;
+  every later package remains blocked or not started. The workspace's
+  sequential default makes C05A the next session.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -355,9 +359,8 @@ B00B accepted evidence:
   engine-owned Struggle, action-start revalidation, deterministic obedience,
   PP-at-commit behavior, core-only order events, and replay schema 3.
 - C04A freezes generic `+0.1` and reverse-Speed hook inputs only. C08C still owns
-  Quick Claw eligibility, RNG, and reveal; C07D owns Trick Room state. C04B was
-  not begun and still owns target classes, redirection, spread/random targets,
-  and final target sets.
+  Quick Claw eligibility, RNG, and reveal; C07D owns Trick Room state. At C04A
+  completion, C04B had not begun; its later completion is recorded below.
 - The original C04A execution honored the user's validation limit and ran only
   the C04A-focused filter. A separately approved cleanup on 2026-08-21 then
   repaired the older duplicate enum and file-local helper declarations without
@@ -378,8 +381,53 @@ B00B accepted evidence:
   `Game/Saved/Automation/C04A-Actions-Exit-20260821T015813Z/`, with logs
   `Game/Saved/Logs/C04A-Actions-Exit-20260821T015813Z.log` and
   `Game/Saved/Logs/C04A-EditorBuild-Suffixed-20260821T015247Z.log`.
-- C04A is complete under the approved focused-validation scope. C04B is
-  dependency-clear and must begin in a new session.
+- C04A is complete under the approved focused-validation scope. C04B's later
+  completion is recorded immediately below.
+
+## C04B Execution Status
+
+- C04B completed on 2026-08-21 with final focused run ID
+  `C04B-Targeting-Final3-20260821`.
+- The final normal adaptive non-unity and forced-unity
+  `PokemonSolarusEditor Win64 Development` builds succeeded. The exact
+  `PokemonSolarus.Battle.C04B` filter discovered and performed seven tests:
+  7 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- The target resolver now owns the ten C04B target classes over exactly four
+  canonical structural positions. It rejects empty, fainted, captured, and
+  removed positions for new selection, keeps living semi-invulnerable
+  battlers selectable, excludes the user from fixed spread sets, and produces
+  typed battler, side, and field targets in stable order.
+- Target class and the final typed target set are frozen on the locked action
+  for C05. Capture cancels before PP, selected-opponent fainting falls back to
+  the other living opponent after PP, and random legal opponents consume the
+  injected targeting draw only for a non-empty candidate set, including the
+  one-candidate `U[0,0]` case. Doubles Struggle requires an explicit opponent.
+- `TargetsResolved` events validate their target-class shape and serialize in
+  replay schema 4. Identical setup, decisions, and seed produced identical
+  queue, targeting event, RNG trace, and canonical replay bytes.
+- The seven C04B tests use only public battle APIs. Per the user's package
+  boundary, no older or future Automation filter was run. The one existing
+  C04A assertion made stale by the required replay schema-4 bump was updated
+  from 3 to 4, but the C04A filter was not run; this completion therefore makes
+  no fresh runtime claim for that filter.
+- Ordinary redirection-proposal generation remains with the later Ability and
+  condition owners; C04B freezes and tests the ordered legal proposal seam.
+  Public engine regressions for a switched replacement occupying a selected
+  position and for the post-PP no-legal-target completion path remain deferred
+  until a later package exposes those state transitions without private-state
+  test access. The production resolver and engine paths for both cases are
+  present; C05 hit reachability and damage remain out of scope.
+- Module rules, `.uproject`, `DefaultEngine.ini`, the B00B snapshot, and the
+  Solarus interview handoff matched their pre-run hashes after validation.
+  Exact source and protected-file hashes are recorded in the C04 package
+  handoff.
+- Successful evidence is under
+  `Game/Saved/Automation/C04B-Targeting-Final3-20260821/`, with logs
+  `Game/Saved/Logs/C04B-Targeting-Final3-20260821.log`,
+  `Game/Saved/Logs/C04B-EditorBuild-Final3-20260821.log`, and
+  `Game/Saved/Logs/C04B-EditorBuild-ForcedUnity-Final3-20260821.log`.
+- C04 is complete under the approved focused-validation scope. C05A is
+  dependency-clear and is the next sequential package.
 
 ## Goal
 

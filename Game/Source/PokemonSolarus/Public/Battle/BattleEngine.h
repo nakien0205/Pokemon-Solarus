@@ -77,6 +77,12 @@ public:
 	 */
 	[[nodiscard]] FBattleResolution CommitCurrentMoveAfterPreMoveGates();
 
+	/**
+	 * Freezes the committed Fight action's final C04B targets after PP deduction.
+	 * A no-target result keeps spent PP, completes that action, and exposes no hit target to C05.
+	 */
+	[[nodiscard]] FBattleResolution ResolveCurrentMoveTargets();
+
 	/** Applies a validated between-actions stat refresh at one unused matching checkpoint. */
 	[[nodiscard]] FBattleResolution ApplyBetweenActionsStatRefresh(
 		const FBattleBetweenActionsStatRefresh& Refresh);

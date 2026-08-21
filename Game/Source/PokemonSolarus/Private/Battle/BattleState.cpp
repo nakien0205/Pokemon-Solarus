@@ -151,6 +151,158 @@ namespace
 	{
 		return Species.AbilityChoices.Contains(AbilityId);
 	}
+
+	bool IsBattleStateKnownTargetClass(const EBattleTargetClass TargetClass)
+	{
+		return static_cast<uint8>(TargetClass)
+			<= static_cast<uint8>(EBattleTargetClass::FixedSpreadSet);
+	}
+
+	bool DoesBattleStateTargetClassRequireSelection(const EBattleTargetClass TargetClass)
+	{
+		return TargetClass == EBattleTargetClass::SelectedAlly
+			|| TargetClass == EBattleTargetClass::SelectedOpponent
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler;
+	}
+
+	int32 GetBattleStateActiveSlotOrder(const FActiveSlotId ActiveSlotId)
+	{
+		const int32 SideOffset = ActiveSlotId.GetSide() == EBattleSide::Player ? 0 : 2;
+		const int32 PositionOffset = ActiveSlotId.GetPosition() == EBattlePosition::Left ? 0 : 1;
+		return SideOffset + PositionOffset;
+	}
+
+	bool IsBattleStateTargetResolutionValid(const FBattleLockedActionState& Action)
+	{
+		if (!Action.TargetResolution.IsSet())
+		{
+			return true;
+		}
+
+		const FBattleTargetResolutionResult& Resolution = Action.TargetResolution.GetValue();
+		if (!Action.bStarted
+			|| !Action.bMoveCommitted
+			|| Action.Decision.GetActionKind() != EBattleActionKind::Fight
+			|| Resolution.TargetClass != Action.TargetClass
+			|| (Resolution.Outcome != EBattleTargetResolutionOutcome::Resolved
+				&& Resolution.Outcome != EBattleTargetResolutionOutcome::NoLegalTarget)
+			|| (Resolution.bUsedFaintedTargetFallback && !Resolution.bWasRedirected)
+			|| (Resolution.bUsedFaintedTargetFallback
+				&& Action.TargetClass != EBattleTargetClass::SelectedOpponent
+				&& Action.TargetClass != EBattleTargetClass::AnySelectedBattler)
+			|| (Resolution.Outcome == EBattleTargetResolutionOutcome::Resolved) == Resolution.Targets.IsEmpty()
+			|| (Resolution.Targets.IsEmpty()
+				&& (Resolution.bWasRedirected || Resolution.bUsedFaintedTargetFallback)))
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < Resolution.Targets.Num(); ++Index)
+		{
+			const FBattleResolvedTarget& Target = Resolution.Targets[Index];
+			if (!Target.IsValid())
+			{
+				return false;
+			}
+			for (int32 PriorIndex = 0; PriorIndex < Index; ++PriorIndex)
+			{
+				if (Resolution.Targets[PriorIndex] == Target)
+				{
+					return false;
+				}
+			}
+			if (Index > 0 && Resolution.Targets[Index - 1].GetKind() != Target.GetKind())
+			{
+				return false;
+			}
+			if (Index > 0 && Target.GetKind() == EBattleResolvedTargetKind::Battler
+				&& GetBattleStateActiveSlotOrder(Resolution.Targets[Index - 1].GetBattler().ActiveSlotId)
+					>= GetBattleStateActiveSlotOrder(Target.GetBattler().ActiveSlotId))
+			{
+				return false;
+			}
+			if (Index > 0 && Target.GetKind() == EBattleResolvedTargetKind::Side
+				&& static_cast<uint8>(Resolution.Targets[Index - 1].GetSide())
+					>= static_cast<uint8>(Target.GetSide()))
+			{
+				return false;
+			}
+		}
+
+		const EBattleSide UserSide = Action.OrderKey.ActingSlotId.GetSide();
+		const EBattleSide OtherSide = UserSide == EBattleSide::Player
+			? EBattleSide::Opponent
+			: EBattleSide::Player;
+		if (Resolution.Outcome == EBattleTargetResolutionOutcome::NoLegalTarget)
+		{
+			return Action.TargetClass == EBattleTargetClass::SelectedAlly
+				|| Action.TargetClass == EBattleTargetClass::SelectedOpponent
+				|| Action.TargetClass == EBattleTargetClass::AnySelectedBattler
+				|| Action.TargetClass == EBattleTargetClass::RandomLegalOpponent
+				|| Action.TargetClass == EBattleTargetClass::FixedSpreadSet;
+		}
+
+		switch (Action.TargetClass)
+		{
+		case EBattleTargetClass::Self:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Resolution.Targets[0].GetBattler().ActiveSlotId == Action.OrderKey.ActingSlotId
+				&& Resolution.Targets[0].GetBattler().BattlerId == Action.Decision.GetActingBattlerId()
+				&& !Resolution.bWasRedirected;
+		case EBattleTargetClass::SelectedAlly:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Resolution.Targets[0].GetBattler().ActiveSlotId.GetSide() == UserSide
+				&& (Resolution.Targets[0].GetBattler().ActiveSlotId != Action.OrderKey.ActingSlotId
+					|| Resolution.Targets[0].GetBattler().BattlerId != Action.Decision.GetActingBattlerId());
+		case EBattleTargetClass::SelectedOpponent:
+		case EBattleTargetClass::RandomLegalOpponent:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Resolution.Targets[0].GetBattler().ActiveSlotId.GetSide() == OtherSide;
+		case EBattleTargetClass::AnySelectedBattler:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler;
+		case EBattleTargetClass::UserSide:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Side
+				&& Resolution.Targets[0].GetSide() == UserSide
+				&& !Resolution.bWasRedirected;
+		case EBattleTargetClass::OpponentSide:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Side
+				&& Resolution.Targets[0].GetSide() == OtherSide
+				&& !Resolution.bWasRedirected;
+		case EBattleTargetClass::BothSides:
+			return Resolution.Targets.Num() == 2
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Side
+				&& Resolution.Targets[0].GetSide() == EBattleSide::Player
+				&& Resolution.Targets[1].GetSide() == EBattleSide::Opponent
+				&& !Resolution.bWasRedirected;
+		case EBattleTargetClass::Field:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Field
+				&& !Resolution.bWasRedirected;
+		case EBattleTargetClass::FixedSpreadSet:
+			if (Resolution.bWasRedirected || Resolution.Targets.Num() > 3)
+			{
+				return false;
+			}
+			for (const FBattleResolvedTarget& Target : Resolution.Targets)
+			{
+				if (Target.GetKind() != EBattleResolvedTargetKind::Battler
+					|| (Target.GetBattler().ActiveSlotId == Action.OrderKey.ActingSlotId
+						&& Target.GetBattler().BattlerId == Action.Decision.GetActingBattlerId()))
+				{
+					return false;
+				}
+			}
+			return true;
+		default:
+			return false;
+		}
+	}
 }
 
 bool FBattleEngineState::TryCreate(
@@ -708,23 +860,31 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	{
 		const FBattleLockedActionState& Action = LockedActions[ActionIndex];
 		const bool bMoveBand = Action.OrderKey.CommandBand == EBattleActionCommandBand::Move;
+		const bool bFight = Action.Decision.GetActionKind() == EBattleActionKind::Fight;
+		const bool bRequiresSelectedTarget = bFight
+			&& DoesBattleStateTargetClassRequireSelection(Action.TargetClass);
 		if (!Action.ActionId.IsValid()
 			|| Action.QueueOrdinal != static_cast<uint64>(ActionIndex + 1)
 			|| !Action.Decision.IsValid()
 			|| !IsKnownCommandBand(Action.OrderKey.CommandBand)
 			|| !Action.OrderKey.ActingSlotId.IsValid()
 			|| Action.OrderKey.EffectiveSpeed <= 0
+			|| bMoveBand != bFight
 			|| (bMoveBand
-				&& (Action.OrderKey.MovePriority < -7
+				&& (!IsBattleStateKnownTargetClass(Action.TargetClass)
+					|| Action.OrderKey.MovePriority < -7
 					|| Action.OrderKey.MovePriority > 5
 					|| Action.OrderKey.FractionalPriorityTenths < 0
 					|| Action.OrderKey.FractionalPriorityTenths > 9
-					|| !Action.SelectedTargetBattlerId.IsValid()))
+					|| Action.Decision.GetActiveTargetId().IsValid() != bRequiresSelectedTarget
+					|| Action.SelectedTargetBattlerId.IsValid() != bRequiresSelectedTarget))
 			|| (!bMoveBand
 				&& (Action.OrderKey.MovePriority != 0
-					|| Action.OrderKey.FractionalPriorityTenths != 0))
+					|| Action.OrderKey.FractionalPriorityTenths != 0
+					|| Action.TargetResolution.IsSet()))
 			|| (Action.bMoveCommitted
-				&& (!Action.bStarted || Action.Decision.GetActionKind() != EBattleActionKind::Fight)))
+				&& (!Action.bStarted || Action.Decision.GetActionKind() != EBattleActionKind::Fight))
+			|| !IsBattleStateTargetResolutionValid(Action))
 		{
 			return Fail(EBattleStateValidationError::InvalidCounter);
 		}

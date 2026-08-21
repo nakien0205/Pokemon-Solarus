@@ -307,6 +307,11 @@ namespace
 			{
 				WriteTypedDefinitionId(MoveId);
 			}
+			WriteCount(Request.GetAutomaticallyTargetedMoveIds().Num());
+			for (const FMoveId& MoveId : Request.GetAutomaticallyTargetedMoveIds())
+			{
+				WriteTypedDefinitionId(MoveId);
+			}
 			WriteCount(Request.GetLegalSwitchPartySlots().Num());
 			for (const FPartySlotId PartySlot : Request.GetLegalSwitchPartySlots())
 			{
@@ -484,6 +489,9 @@ namespace
 				WriteNumericId(Target.TrainerId);
 				WriteNumericId(Target.BattlerId);
 				WriteActiveSlot(Target.ActiveSlotId);
+				WriteBool(Target.bHasSide);
+				WriteU8(static_cast<uint8>(Target.Side));
+				WriteBool(Target.bField);
 			}
 			WriteOptionalI64(Event.GetNumericBefore());
 			WriteOptionalI64(Event.GetNumericAfter());
@@ -502,6 +510,14 @@ namespace
 				WriteI32(ActionOrder.OrderKey.EffectiveSpeed);
 				WriteActiveSlot(ActionOrder.OrderKey.ActingSlotId);
 				WriteBool(ActionOrder.bReverseSpeed);
+			}
+			WriteBool(Event.GetTargetResolution().IsSet());
+			if (Event.GetTargetResolution().IsSet())
+			{
+				const FBattleTargetResolutionMetadata& TargetResolution = Event.GetTargetResolution().GetValue();
+				WriteU8(static_cast<uint8>(TargetResolution.TargetClass));
+				WriteBool(TargetResolution.bWasRedirected);
+				WriteBool(TargetResolution.bUsedFaintedTargetFallback);
 			}
 			WriteU8(static_cast<uint8>(Event.GetVisibility().Level));
 			WriteNumericId(Event.GetVisibility().OwningTrainerId);

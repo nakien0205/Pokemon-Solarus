@@ -178,9 +178,11 @@ struct FBattleLockedActionState
 	uint64 QueueOrdinal = 0;
 	FBattleDecision Decision;
 	FBattleActionOrderKey OrderKey;
+	EBattleTargetClass TargetClass = EBattleTargetClass::SelectedOpponent;
 	FBattlerId SelectedTargetBattlerId;
 	bool bStarted = false;
 	bool bMoveCommitted = false;
+	TOptional<FBattleTargetResolutionResult> TargetResolution;
 	bool bFinished = false;
 };
 

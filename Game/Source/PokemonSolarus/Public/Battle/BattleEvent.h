@@ -46,7 +46,8 @@ enum class EBattleEventType : uint8
 	StatRefreshRejected = 37,
 	ActionOrderLocked = 38,
 	ObedienceConfirmed = 39,
-	ObedienceRefused = 40
+	ObedienceRefused = 40,
+	TargetsResolved = 41
 };
 
 /** Typed source family for an event cause. */
@@ -63,7 +64,8 @@ enum class EBattleEventCause : uint8
 	Scripted = 8,
 	Rule = 9,
 	Outcome = 10,
-	StatRefresh = 11
+	StatRefresh = 11,
+	Targeting = 12
 };
 
 /** Optional typed source identities for one event. */
@@ -81,6 +83,9 @@ struct POKEMONSOLARUS_API FBattleEventTarget
 	FTrainerId TrainerId;
 	FBattlerId BattlerId;
 	FActiveSlotId ActiveSlotId;
+	EBattleSide Side = EBattleSide::Player;
+	bool bHasSide = false;
+	bool bField = false;
 };
 
 /** Public visibility and reveal metadata for one event. */
@@ -99,6 +104,14 @@ struct POKEMONSOLARUS_API FBattleActionOrderMetadata
 	uint64 QueueOrdinal = 0;
 	FBattleActionOrderKey OrderKey;
 	bool bReverseSpeed = false;
+};
+
+/** Target-class and redirection facts attached only to a TargetsResolved event. */
+struct POKEMONSOLARUS_API FBattleTargetResolutionMetadata
+{
+	EBattleTargetClass TargetClass = EBattleTargetClass::SelectedOpponent;
+	bool bWasRedirected = false;
+	bool bUsedFaintedTargetFallback = false;
 };
 
 /** Mutable construction input for one validated immutable event. */
@@ -122,6 +135,7 @@ struct POKEMONSOLARUS_API FBattleEventSpec
 	TOptional<uint16> HitIndex;
 	TOptional<uint16> HitCount;
 	TOptional<FBattleActionOrderMetadata> ActionOrder;
+	TOptional<FBattleTargetResolutionMetadata> TargetResolution;
 	FBattleEventVisibility Visibility;
 };
 
@@ -173,6 +187,8 @@ public:
 	[[nodiscard]] const TOptional<uint16>& GetHitCount() const { return HitCount; }
 	/** Returns complete queue-order metadata only for ActionOrderLocked. */
 	[[nodiscard]] const TOptional<FBattleActionOrderMetadata>& GetActionOrder() const { return ActionOrder; }
+	/** Returns target-class and redirect metadata only for TargetsResolved. */
+	[[nodiscard]] const TOptional<FBattleTargetResolutionMetadata>& GetTargetResolution() const { return TargetResolution; }
 	/** Returns public visibility/reveal metadata. */
 	[[nodiscard]] const FBattleEventVisibility& GetVisibility() const { return Visibility; }
 
@@ -196,6 +212,7 @@ private:
 	TOptional<uint16> HitIndex;
 	TOptional<uint16> HitCount;
 	TOptional<FBattleActionOrderMetadata> ActionOrder;
+	TOptional<FBattleTargetResolutionMetadata> TargetResolution;
 	FBattleEventVisibility Visibility;
 };
 

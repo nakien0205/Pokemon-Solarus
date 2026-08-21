@@ -4,6 +4,7 @@
 #include "Battle/BattleDecision.h"
 #include "Battle/BattleDefinitions.h"
 #include "Battle/BattleRandom.h"
+#include "Battle/BattleTargeting.h"
 
 /** Solarus normal-turn command bands. Higher values execute first. */
 enum class EBattleActionCommandBand : uint8
@@ -42,6 +43,7 @@ struct POKEMONSOLARUS_API FBattleActionOrderCandidate
 	FActionId ActionId;
 	FBattleDecision Decision;
 	FBattleActionOrderKey OrderKey;
+	EBattleTargetClass TargetClass = EBattleTargetClass::SelectedOpponent;
 	FBattlerId SelectedTargetBattlerId;
 };
 
@@ -52,7 +54,9 @@ struct POKEMONSOLARUS_API FBattleLockedAction
 	uint64 QueueOrdinal = 0;
 	FBattleDecision Decision;
 	FBattleActionOrderKey OrderKey;
+	EBattleTargetClass TargetClass = EBattleTargetClass::SelectedOpponent;
 	FBattlerId SelectedTargetBattlerId;
+	TOptional<FBattleTargetResolutionResult> TargetResolution;
 };
 
 /** Validated context and candidates supplied to the deterministic queue resolver. */
