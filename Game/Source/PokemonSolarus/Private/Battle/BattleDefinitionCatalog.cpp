@@ -438,7 +438,9 @@ namespace
 			|| Effect.Kind == EBattleMoveEffectKind::Drain
 			|| Effect.Kind == EBattleMoveEffectKind::Recoil)
 		{
-			if (Effect.MagnitudeNumerator <= 0)
+			if (Effect.MagnitudeNumerator <= 0
+				|| (Effect.MagnitudeDenominator > 1
+					&& Effect.MagnitudeNumerator > Effect.MagnitudeDenominator))
 			{
 				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects.Magnitude"));
 			}
@@ -499,6 +501,10 @@ namespace
 		if ((static_cast<uint32>(Move.Flags) & ~KnownMoveFlags) != 0)
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::InvalidEnum, TEXT("Flags"));
+		}
+		if (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::TypelessDamage))
+		{
+			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
 		}
 		if (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::AlwaysCritical)
 			&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))

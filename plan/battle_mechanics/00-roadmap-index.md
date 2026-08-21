@@ -476,8 +476,8 @@ B00B accepted evidence:
 
 ## C05B Execution Status
 
-- C05B completed on 2026-08-21 with final focused report
-  `C05B-EffectExecutor-20260821T061116Z/report-04`.
+- C05B completed on 2026-08-21; its reviewed fixes have final focused report
+  `C05B-EffectExecutor-Fixes-20260821T083903Z/report`.
 - The forced-unity `PokemonSolarusEditor Win64 Development` build succeeded
   with `-ForceUnity -DisableAdaptiveUnity -NoUBA`. The exact
   `PokemonSolarus.Battle.C05B` filter discovered exactly nine tests: 9
@@ -489,6 +489,12 @@ B00B accepted evidence:
 - Primary `1/1` effects consume no chance draw. Eligible explicit
   `1..100/100` secondaries each consume independent `U[0,99]`, including
   `100/100`; no shared-chance mechanism was added.
+- Non-`PerHit` spread secondaries wait until every successful spread target has
+  taken damage. Action-scoped effects are de-duplicated per concrete target,
+  while explicitly per-hit effects keep their authored repetition.
+- `BothSides` now expands from a single reached side. Oversized authored
+  percentages and the engine-owned `TypelessDamage` flag are rejected before
+  effect RNG or mutation.
 - The public engine step is exact-once after commitment and C04B targeting.
   Zero HP sets the existing faint/pending-transition facts and blocks later
   locked actions, but C05B emits no faint/removal/replacement/outcome behavior.
@@ -497,15 +503,15 @@ B00B accepted evidence:
 - Per the user's explicit validation limit, no C05A, older battle filter, or
   full `PokemonSolarus.Battle` suite was run. The JSON report contains no
   non-C05B test, warning, error, duplicate path, failure, or not-run entry.
-- Module rules, `.uproject`, `DefaultEngine.ini`, every pre-existing test,
-  C05A sources/tests, B00B, and the Solarus interview handoff matched their
-  pre-run hashes after Unreal exited. Exact C05B source hashes are recorded in
-  the C05 package handoff.
+- The remediation changed three private C05B implementation files, one public
+  move-flag comment, its existing test file, and these C05B records. It did not
+  edit module/configuration files, C05A, B00B, or the Solarus interview handoff.
+  Exact C05B source hashes are recorded in the C05 package handoff.
 - Final evidence is
-  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/build-07.log`,
-  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/automation-04.log`,
+  `Game/Saved/Automation/C05B-EffectExecutor-Fixes-20260821T083903Z/build.log`,
+  `Game/Saved/Automation/C05B-EffectExecutor-Fixes-20260821T083903Z/automation.log`,
   and
-  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/report-04/index.json`.
+  `Game/Saved/Automation/C05B-EffectExecutor-Fixes-20260821T083903Z/report/index.json`.
 - C05B is complete under the approved focused-validation scope. C05C is the
   next sequential package.
 

@@ -762,7 +762,8 @@ namespace BattleEffectExecutorTests
 
 	bool TryBuildRemoveConditionAdapterCatalog(
 		FBattleDefinitionCatalog& OutCatalog,
-		TArray<FBattleCatalogDiagnostic>& OutDiagnostics)
+		TArray<FBattleCatalogDiagnostic>& OutDiagnostics,
+		const bool bIncludeTypelessDamageFlag = false)
 	{
 		UDataTable* SpeciesForms = MakeTransientTable<FBattleSpeciesFormTableRow>();
 		UDataTable* Natures = MakeTransientTable<FBattleNatureTableRow>();
@@ -798,6 +799,10 @@ namespace BattleEffectExecutorTests
 		ClearWeather.BasePP = 10;
 		ClearWeather.Priority = 0;
 		ClearWeather.TargetClass = FName(TEXT("Field"));
+		if (bIncludeTypelessDamageFlag)
+		{
+			ClearWeather.Flags.Add(FName(TEXT("TypelessDamage")));
+		}
 		FBattleMoveEffectTableRow Removal;
 		Removal.Kind = FName(TEXT("RemoveCondition"));
 		Removal.Target = FName(TEXT("Field"));
@@ -1051,6 +1056,45 @@ namespace BattleEffectExecutorTests
 			TEXT("Spread plus multi-hit is rejected until combined count semantics are frozen"),
 			TryMakeCatalog(SpreadMultiHit, Catalog, Diagnostics));
 
+		FBattleMoveEffectDescriptor OversizedPercentageHeal = MakeEffect(
+			0,
+			EBattleMoveEffectKind::Heal,
+			EBattleEffectTarget::User);
+		OversizedPercentageHeal.ChanceNumerator = 100;
+		OversizedPercentageHeal.ChanceDenominator = 100;
+		OversizedPercentageHeal.MagnitudeNumerator = 3;
+		OversizedPercentageHeal.MagnitudeDenominator = 2;
+		const FBattleMoveDefinition OversizedPercentageHealMove = MakeStatusMove(
+			EBattleTargetClass::Self,
+			{OversizedPercentageHeal});
+		Diagnostics.Reset();
+		TestFalse(
+			TEXT("A percentage magnitude greater than its whole is rejected before execution"),
+			TryMakeCatalog(OversizedPercentageHealMove, Catalog, Diagnostics));
+		TestTrue(
+			TEXT("The oversized percentage names Effects.Magnitude"),
+			Diagnostics.ContainsByPredicate(
+				[](const FBattleCatalogDiagnostic& Diagnostic)
+				{
+					return Diagnostic.Code == EBattleCatalogDiagnosticCode::InvalidRange
+						&& Diagnostic.Field == FName(TEXT("Effects.Magnitude"));
+				}));
+
+		FBattleMoveDefinition AuthoredTypelessMove = MakeDamagingMove();
+		AuthoredTypelessMove.Flags |= EBattleMoveFlags::TypelessDamage;
+		Diagnostics.Reset();
+		TestFalse(
+			TEXT("An authored move cannot opt into engine-owned typeless damage"),
+			TryMakeCatalog(AuthoredTypelessMove, Catalog, Diagnostics));
+		TestTrue(
+			TEXT("The authored typeless flag is reported as incompatible"),
+			Diagnostics.ContainsByPredicate(
+				[](const FBattleCatalogDiagnostic& Diagnostic)
+				{
+					return Diagnostic.Code == EBattleCatalogDiagnosticCode::IncompatibleEffect
+						&& Diagnostic.Field == FName(TEXT("Flags"));
+				}));
+
 		Diagnostics.Reset();
 		TestTrue(
 			TEXT("The Unreal Data Table adapter recognizes RemoveCondition"),
@@ -1069,6 +1113,18 @@ namespace BattleEffectExecutorTests
 					EBattleMoveEffectKind::RemoveCondition);
 			}
 		}
+		Diagnostics.Reset();
+		TestFalse(
+			TEXT("The Unreal Data Table adapter rejects the reserved TypelessDamage flag"),
+			TryBuildRemoveConditionAdapterCatalog(Catalog, Diagnostics, true));
+		TestTrue(
+			TEXT("The reserved authored flag is an invalid Flags value"),
+			Diagnostics.ContainsByPredicate(
+				[](const FBattleCatalogDiagnostic& Diagnostic)
+				{
+					return Diagnostic.Code == EBattleCatalogDiagnosticCode::InvalidAuthoredValue
+						&& Diagnostic.Field == FName(TEXT("Flags"));
+				}));
 
 		auto AssertDirectInvalidDefinitionNoDraw = [this](
 			const TCHAR* Shape,
@@ -1100,6 +1156,23 @@ namespace BattleEffectExecutorTests
 				Prefix + TEXT(" emits no completed-hit metadata"),
 				Result.CompletedHitsPerDamageTarget.IsEmpty());
 		};
+
+		AssertDirectInvalidDefinitionNoDraw(
+			TEXT("a 100/100 Heal percentage greater than one whole"),
+			OversizedPercentageHealMove,
+			{MakeBattlerTarget(
+				EBattleSide::Player,
+				EBattlePosition::Left,
+				PlayerLeftBattlerValue)},
+			98);
+		AssertDirectInvalidDefinitionNoDraw(
+			TEXT("an authored known-type move carrying TypelessDamage"),
+			AuthoredTypelessMove,
+			{MakeBattlerTarget(
+				EBattleSide::Opponent,
+				EBattlePosition::Left,
+				OpponentLeftBattlerValue)},
+			99);
 
 		FBattleMoveEffectDescriptor FieldSecondaryHeal = MakeEffect(
 			0,
@@ -1799,6 +1872,82 @@ namespace BattleEffectExecutorTests
 		TestTrue(
 			TEXT("Critical resolution occurs after protection breaking"),
 			CriticalIndex > BreakIndex);
+
+		FBattleMoveDefinition ScopedSpreadMove = MakeDamagingMove(
+			EBattleTargetClass::FixedSpreadSet,
+			EBattleEffectTarget::AllResolvedTargets);
+		FBattleMoveEffectDescriptor UserDrop = MakeEffect(
+			1,
+			EBattleMoveEffectKind::ModifyStatStage,
+			EBattleEffectTarget::User);
+		UserDrop.ChanceNumerator = 100;
+		UserDrop.ChanceDenominator = 100;
+		UserDrop.Stat = EBattleStat::Attack;
+		UserDrop.MagnitudeNumerator = -1;
+		ScopedSpreadMove.Effects.Add(UserDrop);
+		const TArray<FBattleResolvedTarget> ScopedSpreadTargets =
+		{
+			MakeBattlerTarget(
+				EBattleSide::Opponent,
+				EBattlePosition::Left,
+				OpponentLeftBattlerValue),
+			MakeBattlerTarget(
+				EBattleSide::Opponent,
+				EBattlePosition::Right,
+				OpponentRightBattlerValue)
+		};
+		FMockExecutionContext ScopedSpreadContext;
+		FStrictScriptedRandom ScopedSpreadRandom(
+			{
+				{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()},
+				{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()},
+				{0, 99, 99, FBattleEffectExecutor::GetSecondaryChanceRulePurpose()}
+			});
+		FBattleEffectExecutionResult ScopedSpreadResult;
+		Error = EBattleEffectExecutorError::None;
+		TestTrue(
+			TEXT("A spread move with one user-scoped secondary executes"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(ScopedSpreadMove, ScopedSpreadTargets, 4),
+				ScopedSpreadContext,
+				ScopedSpreadRandom,
+				ScopedSpreadResult,
+				Error));
+		TestTrue(
+			TEXT("Two damage rolls and one user-secondary chance draw are consumed exactly"),
+			ScopedSpreadRandom.IsExact());
+		TestTrue(
+			TEXT("The user-scoped descriptor applies once for the whole spread action"),
+			ScopedSpreadContext.AppliedEffectOrders == TArray<int32>({1}));
+		TestEqual(
+			TEXT("The user loses exactly one Attack stage"),
+			ScopedSpreadContext.AttackStage,
+			-1);
+		TestEqual(
+			TEXT("The spread action emits one user stat mutation"),
+			CountExecutionEvents(ScopedSpreadResult.Events, EBattleEventType::StatStageChanged),
+			1);
+		TestEqual(
+			TEXT("The action-scoped secondary has one independent chance draw"),
+			static_cast<int32>(Algo::CountIf(
+				ScopedSpreadRandom.GetTrace(),
+				[](const FBattleRandomDraw& Draw)
+				{
+					return Draw.RulePurpose == FBattleEffectExecutor::GetSecondaryChanceRulePurpose();
+				})),
+			1);
+		const int32 SecondSpreadDamageIndex = ScopedSpreadContext.Calls.IndexOfByPredicate(
+			[](const FString& Call)
+			{
+				return Call.StartsWith(TEXT("HP:-")) && Call.EndsWith(TEXT(":22"));
+			});
+		const int32 UserDropIndex = ScopedSpreadContext.Calls.Find(
+			FString::Printf(
+				TEXT("Effect:1:%d"),
+				static_cast<int32>(EBattleMoveEffectKind::ModifyStatStage)));
+		TestTrue(
+			TEXT("The user-scoped secondary runs only after the final spread target takes damage"),
+			SecondSpreadDamageIndex != INDEX_NONE && UserDropIndex > SecondSpreadDamageIndex);
 		return true;
 	}
 
@@ -2673,12 +2822,52 @@ namespace BattleEffectExecutorTests
 		TestTrue(
 			TEXT("BothSides mutation order is Player then Opponent"),
 			MutatedSides == TArray<EBattleSide>({EBattleSide::Player, EBattleSide::Opponent}));
+
+		const FBattleMoveDefinition SingleSideReachedMove = MakeStatusMove(
+			EBattleTargetClass::OpponentSide,
+			{SetBothSides});
+		FMockExecutionContext SingleSideReachedContext;
+		FStrictScriptedRandom SingleSideReachedRandom({});
+		FBattleEffectExecutionResult SingleSideReachedResult;
+		Error = EBattleEffectExecutorError::None;
+		TestTrue(
+			TEXT("A BothSides descriptor expands beyond a single reached side"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(
+					SingleSideReachedMove,
+					{MakeSideTarget(EBattleSide::Opponent)},
+					6),
+				SingleSideReachedContext,
+				SingleSideReachedRandom,
+				SingleSideReachedResult,
+				Error));
+		TestEqual(
+			TEXT("The single reached side still produces two side mutations"),
+			CountExecutionEvents(
+				SingleSideReachedResult.Events,
+				EBattleEventType::FieldEffectChanged),
+			2);
+		TArray<EBattleSide> SingleReachMutatedSides;
+		for (const FBattleEffectExecutionEvent& Event : SingleSideReachedResult.Events)
+		{
+			if (Event.Type == EBattleEventType::FieldEffectChanged
+				&& Event.Targets.Num() == 1
+				&& Event.Targets[0].bHasSide)
+			{
+				SingleReachMutatedSides.Add(Event.Targets[0].Side);
+			}
+		}
+		TestTrue(
+			TEXT("A single-side move expands BothSides in Player then Opponent order"),
+			SingleReachMutatedSides
+				== TArray<EBattleSide>({EBattleSide::Player, EBattleSide::Opponent}));
 		TestTrue(TEXT("All future and generic operations consume no RNG"),
 			UserFutureRandom.IsExact()
 				&& TargetFutureRandom.IsExact()
 				&& FieldRandom.IsExact()
 				&& SideRandom.IsExact()
-				&& BothSidesRandom.IsExact());
+				&& BothSidesRandom.IsExact()
+				&& SingleSideReachedRandom.IsExact());
 		return true;
 	}
 

@@ -108,6 +108,7 @@ enum class EBattleMoveFlags : uint32
 	AlwaysCritical = 1U << 7,
 	NeverCritical = 1U << 8,
 	UsesPerHitAccuracy = 1U << 9,
+	/** Reserved for engine-owned damage definitions such as Struggle. */
 	TypelessDamage = 1U << 10
 };
 ENUM_CLASS_FLAGS(EBattleMoveFlags);

@@ -388,7 +388,6 @@ namespace
 			else if (Name == FName(TEXT("AlwaysCritical"))) Flag = EBattleMoveFlags::AlwaysCritical;
 			else if (Name == FName(TEXT("NeverCritical"))) Flag = EBattleMoveFlags::NeverCritical;
 			else if (Name == FName(TEXT("UsesPerHitAccuracy"))) Flag = EBattleMoveFlags::UsesPerHitAccuracy;
-			else if (Name == FName(TEXT("TypelessDamage"))) Flag = EBattleMoveFlags::TypelessDamage;
 			else return false;
 
 			if (EnumHasAnyFlags(OutFlags, Flag))

@@ -318,7 +318,8 @@ namespace BattleEffectExecutorPrivate
 		}
 		case EBattleEffectTarget::BothSides:
 		{
-			if (ReachedTarget.GetKind() == EBattleResolvedTargetKind::Side)
+			if (Request.Move->TargetClass == EBattleTargetClass::BothSides
+				&& ReachedTarget.GetKind() == EBattleResolvedTargetKind::Side)
 			{
 				OutTargets.Add(ReachedTarget);
 				return true;
@@ -340,6 +341,13 @@ namespace BattleEffectExecutorPrivate
 		default:
 			return false;
 		}
+	}
+
+	bool IsActionScopedOrdinaryEffect(const FBattleMoveEffectDescriptor& Effect)
+	{
+		return !EnumHasAllFlags(Effect.Flags, EBattleMoveEffectFlags::PerHit)
+			&& Effect.Target != EBattleEffectTarget::ResolvedTarget
+			&& Effect.Target != EBattleEffectTarget::AllResolvedTargets;
 	}
 
 	bool AreResolvedTargetsValid(const FBattleEffectExecutionRequest& Request)
@@ -499,7 +507,9 @@ namespace BattleEffectExecutorPrivate
 			else if ((Effect.Kind == EBattleMoveEffectKind::Heal
 					|| Effect.Kind == EBattleMoveEffectKind::Drain
 					|| Effect.Kind == EBattleMoveEffectKind::Recoil)
-				&& Effect.MagnitudeNumerator <= 0)
+				&& (Effect.MagnitudeNumerator <= 0
+					|| (Effect.MagnitudeDenominator > 1
+						&& Effect.MagnitudeNumerator > Effect.MagnitudeDenominator)))
 			{
 				return false;
 			}
@@ -1749,7 +1759,8 @@ namespace BattleEffectExecutorPrivate
 		IBattleEffectExecutionContext& Context,
 		IBattleRandom& Random,
 		FBattleEffectExecutionResult& Result,
-		EBattleEffectExecutorError& OutError)
+		EBattleEffectExecutorError& OutError,
+		TArray<FBattleResolvedTarget>* InOutAppliedTargets)
 	{
 		TArray<FBattleResolvedTarget> EffectTargets;
 		if (!TryExpandEffectTargets(Request, Effect, ReachedTarget, EffectTargets))
@@ -1759,6 +1770,15 @@ namespace BattleEffectExecutorPrivate
 		}
 		for (const FBattleResolvedTarget& Target : EffectTargets)
 		{
+			if (InOutAppliedTargets != nullptr)
+			{
+				if (InOutAppliedTargets->Contains(Target))
+				{
+					continue;
+				}
+				InOutAppliedTargets->Add(Target);
+			}
+
 			const FBattleEffectHookResult Eligibility = Context.CheckEffectEligibility(Effect, Target);
 			if (!IsKnownOutcome(Eligibility.Outcome)
 				|| Eligibility.Outcome == EBattleEffectExecutionOutcome::ChanceFailed
@@ -2199,6 +2219,16 @@ bool FBattleEffectExecutor::TryExecute(
 	int64 TotalActualDamage = 0;
 	int32 TotalCompletedHits = 0;
 	TOptional<FBattleResolvedTarget> FirstReachedTarget;
+	TArray<FBattleResolvedTarget> CompletedDamageTargets;
+	TMap<int32, TArray<FBattleResolvedTarget>> AppliedActionScopedTargetsByEffectOrder;
+	auto GetAppliedActionScopedTargets =
+		[&AppliedActionScopedTargetsByEffectOrder](
+			const FBattleMoveEffectDescriptor& Effect) -> TArray<FBattleResolvedTarget>*
+		{
+			return IsActionScopedOrdinaryEffect(Effect)
+				? &AppliedActionScopedTargetsByEffectOrder.FindOrAdd(Effect.Order)
+				: nullptr;
+		};
 
 	for (const FBattleResolvedTarget& Target : Request.Targets)
 	{
@@ -2418,7 +2448,8 @@ bool FBattleEffectExecutor::TryExecute(
 					Context,
 					Random,
 					OutResult,
-					OutError))
+					OutError,
+					GetAppliedActionScopedTargets(Effect)))
 				{
 					return false;
 				}
@@ -2446,7 +2477,8 @@ bool FBattleEffectExecutor::TryExecute(
 				Context,
 				Random,
 				OutResult,
-				OutError))
+				OutError,
+				GetAppliedActionScopedTargets(Effect)))
 			{
 				return false;
 			}
@@ -2712,6 +2744,7 @@ bool FBattleEffectExecutor::TryExecute(
 
 		if (CompletedHits > 0)
 		{
+			CompletedDamageTargets.Add(Target);
 			for (const FBattleMoveEffectDescriptor& Effect : Request.Move->Effects)
 			{
 				if (Effect.Kind == EBattleMoveEffectKind::Damage
@@ -2731,6 +2764,10 @@ bool FBattleEffectExecutor::TryExecute(
 				const bool bPerHit = EnumHasAllFlags(
 					Effect.Flags,
 					EBattleMoveEffectFlags::PerHit);
+				if (bSpread && !bPerHit)
+				{
+					continue;
+				}
 				const int32 ApplicationCount = bPerHit ? CompletedHits : 1;
 				for (int32 ApplicationIndex = 1;
 					ApplicationIndex <= ApplicationCount;
@@ -2747,7 +2784,8 @@ bool FBattleEffectExecutor::TryExecute(
 						Context,
 						Random,
 						OutResult,
-						OutError))
+						OutError,
+						nullptr))
 					{
 						return false;
 					}
@@ -2761,6 +2799,44 @@ bool FBattleEffectExecutor::TryExecute(
 			if (Event.HitIndex.IsSet())
 			{
 				Event.HitCount = static_cast<uint16>(CompletedHits);
+			}
+		}
+	}
+
+	if (bDamagingMove && bSpread && !CompletedDamageTargets.IsEmpty())
+	{
+		for (const FBattleResolvedTarget& Target : CompletedDamageTargets)
+		{
+			for (const FBattleMoveEffectDescriptor& Effect : Request.Move->Effects)
+			{
+				if (Effect.Kind == EBattleMoveEffectKind::Damage
+					|| Effect.Kind == EBattleMoveEffectKind::MultiHit
+					|| Effect.Kind == EBattleMoveEffectKind::Drain
+					|| Effect.Kind == EBattleMoveEffectKind::Recoil)
+				{
+					continue;
+				}
+				const bool bPrimaryBeforeDamage = Effect.ChanceNumerator == 1
+					&& Effect.ChanceDenominator == 1
+					&& Effect.Order < DamageEffect->Order;
+				if (bPrimaryBeforeDamage
+					|| EnumHasAllFlags(Effect.Flags, EBattleMoveEffectFlags::PerHit))
+				{
+					continue;
+				}
+				if (!TryApplyOrdinaryDescriptor(
+					Request,
+					Effect,
+					Target,
+					TOptional<uint16>(),
+					Context,
+					Random,
+					OutResult,
+					OutError,
+					GetAppliedActionScopedTargets(Effect)))
+				{
+					return false;
+				}
 			}
 		}
 	}
