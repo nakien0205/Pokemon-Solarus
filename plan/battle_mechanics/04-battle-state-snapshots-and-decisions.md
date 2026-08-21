@@ -1,7 +1,7 @@
 # C03 — Battle State, Snapshots, and Decisions
 
 Priority: P0  
-Status: Blocked by C02A and C02B  
+Status: C03A complete under focused validation; C03B dependency-clear and not started  
 Required order: C03A, then C03B
 
 ## Objective
@@ -134,3 +134,43 @@ Progression seam:
 - Snapshots are deterministic and versioned.
 - C04 and C05 can separately consume state queries without directly mutating
   state internals.
+
+## C03A Execution Status
+
+- C03A completed on 2026-08-21 with focused run ID
+  `C03A-State-20260821T002222Z`.
+- The final `PokemonSolarusEditor Win64 Development` build
+  (`C03A-EditorBuild-20260821T002200Z`) succeeded with no compiler warning or
+  error line.
+- The exact `PokemonSolarus.Battle.C03A` filter discovered and performed six
+  tests: 6 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0.
+- The focused fixtures cover valid Single, Double, and Partner Double state;
+  four structural active positions with unavailable right slots in Single;
+  Trainer ownership and action allowances; atomic setup rejection; HP, PP,
+  resource, stage, lifecycle, and catalog-reference invariants.
+- The internal plain-C++ state now owns the frozen setup and catalog, Trainers,
+  six party slots per Trainer, battlers, active positions, field/side condition
+  storage, capture/reinforcement/escape facts, default-disabled flee-policy
+  storage, locked actions, pending decision state, counters, traced RNG owner,
+  resolutions, and ordered events. Existing snapshots are rebuilt as copies
+  from that authoritative state; C03B does not begin here.
+- The first build (`C03A-EditorBuild-20260821T001849Z`) exposed one local use of
+  an unavailable `TArray` helper. After that correction, the first focused run
+  (`C03A-State-20260821T001944Z`) passed five tests before its final fixture
+  appended an element from its own `TArray` and triggered an assertion. Both
+  corrections stayed inside C03A files; the later build and complete six-test
+  run are the acceptance evidence.
+- Per the user's explicit validation limit, only the C03A-focused filter was
+  run. C01, C02, base-damage, and full `PokemonSolarus.Battle` filters were not
+  rerun, so this session makes no fresh runtime claim for them.
+- C01/C02 contracts and tests, module rules, `.uproject`, and
+  `DefaultEngine.ini` matched their pre-run hashes. The config remained at
+  SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`.
+- Successful evidence is under
+  `Game/Saved/Automation/C03A-State-20260821T002222Z/`, with logs
+  `Game/Saved/Logs/C03A-State-20260821T002222Z.log` and
+  `Game/Saved/Logs/C03A-EditorBuild-20260821T002200Z.log`.
+- C03A is complete under the approved focused-validation scope. C03B is the
+  next package and remains unimplemented.

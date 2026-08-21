@@ -1,27 +1,5 @@
 #include "Battle/BattleEngine.h"
-
-class FBattleEngineState
-{
-public:
-	FBattleSetup Setup;
-	uint64 StateVersion = 1;
-	FTurnId TurnId;
-	EBattlePhase Phase = EBattlePhase::Setup;
-	EBattleOutcome Outcome = EBattleOutcome::InProgress;
-	EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
-	TArray<FBattleTrainerSetup> Trainers;
-	TArray<FBattlePartyEntrySetup> PartyEntries;
-	TArray<FBattleActiveAssignment> ActiveAssignments;
-	TOptional<FBattleDecisionRequest> PendingDecision;
-	TUniquePtr<IBattleRandom> Random;
-	uint64 NextResolutionId = 1;
-	uint64 NextActionId = 1;
-	uint64 NextEventOrdinal = 1;
-	TArray<uint64> AvailableOpponentRemovalCheckpoints;
-	TArray<FBattleDecision> SubmittedDecisions;
-	TArray<FBattleBetweenActionsStatRefresh> SubmittedStatRefreshes;
-	TArray<FBattleResolution> Resolutions;
-};
+#include "Battle/BattleState.h"
 
 namespace
 {
@@ -48,8 +26,8 @@ namespace
 	FBattleEventSource FindFallbackSource(const FBattleEngineState& State)
 	{
 		FBattleEventSource Source;
-		const FBattleTrainerSetup* PlayerTrainer = State.Trainers.FindByPredicate(
-			[](const FBattleTrainerSetup& Trainer)
+		const FBattleTrainerState* PlayerTrainer = State.Trainers.FindByPredicate(
+			[](const FBattleTrainerState& Trainer)
 			{
 				return Trainer.Role == EBattleTrainerRole::Player;
 			});
@@ -57,11 +35,11 @@ namespace
 		{
 			Source.TrainerId = PlayerTrainer->TrainerId;
 		}
-		const FBattleActiveAssignment* PlayerLeft = State.ActiveAssignments.FindByPredicate(
-			[](const FBattleActiveAssignment& Assignment)
+		const FBattleActivePositionState* PlayerLeft = State.ActivePositions.FindByPredicate(
+			[](const FBattleActivePositionState& Position)
 			{
-				return Assignment.ActiveSlotId.GetSide() == EBattleSide::Player
-					&& Assignment.ActiveSlotId.GetPosition() == EBattlePosition::Left;
+				return Position.ActiveSlotId.GetSide() == EBattleSide::Player
+					&& Position.ActiveSlotId.GetPosition() == EBattlePosition::Left;
 			});
 		if (PlayerLeft != nullptr)
 		{
@@ -150,25 +128,10 @@ namespace
 		FBattleResolution Resolution;
 		const bool bCreated = FBattleResolution::TryCreate(Spec, Resolution);
 		check(bCreated);
-		State.Resolutions.Add(Resolution);
+		State.AppendResolution(Resolution);
 		return Resolution;
 	}
 
-	void CopySetupState(const FBattleSetup& Setup, FBattleEngineState& State)
-	{
-		for (const FBattleTrainerSetup& Trainer : Setup.GetTrainers())
-		{
-			State.Trainers.Add(Trainer);
-		}
-		for (const FBattlePartyEntrySetup& Entry : Setup.GetPartyEntries())
-		{
-			State.PartyEntries.Add(Entry);
-		}
-		for (const FBattleActiveAssignment& Assignment : Setup.GetStartingActive())
-		{
-			State.ActiveAssignments.Add(Assignment);
-		}
-	}
 }
 
 FBattleEngine::FBattleEngine(TUniquePtr<FBattleEngineState>&& InState)
@@ -180,27 +143,51 @@ FBattleEngine::~FBattleEngine() = default;
 
 bool FBattleEngine::TryCreate(
 	const FBattleSetup& Setup,
+	const FBattleDefinitionCatalog& Catalog,
 	TUniquePtr<IBattleRandom>&& Random,
 	TUniquePtr<FBattleEngine>& OutEngine,
 	FBattleRejection& OutRejection)
 {
 	OutEngine.Reset();
 	OutRejection = FBattleRejection();
-	if (!Setup.IsValid() || !Random.IsValid())
+	TUniquePtr<FBattleEngineState> NewState;
+	EBattleStateValidationError StateError = EBattleStateValidationError::None;
+	if (!FBattleEngineState::TryCreate(
+		Setup,
+		&Catalog,
+		MoveTemp(Random),
+		NewState,
+		StateError))
 	{
 		OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
 		return false;
 	}
 
-	TUniquePtr<FBattleEngineState> NewState = MakeUnique<FBattleEngineState>();
-	NewState->Setup = Setup;
-	if (!FTurnId::TryCreate(1, NewState->TurnId))
+	OutEngine = TUniquePtr<FBattleEngine>(new FBattleEngine(MoveTemp(NewState)));
+	return true;
+}
+
+bool FBattleEngine::TryCreate(
+	const FBattleSetup& Setup,
+	TUniquePtr<IBattleRandom>&& Random,
+	TUniquePtr<FBattleEngine>& OutEngine,
+	FBattleRejection& OutRejection)
+{
+	OutEngine.Reset();
+	OutRejection = FBattleRejection();
+	TUniquePtr<FBattleEngineState> NewState;
+	EBattleStateValidationError StateError = EBattleStateValidationError::None;
+	if (!FBattleEngineState::TryCreate(
+		Setup,
+		nullptr,
+		MoveTemp(Random),
+		NewState,
+		StateError))
 	{
 		OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
 		return false;
 	}
-	NewState->Random = MoveTemp(Random);
-	CopySetupState(Setup, *NewState);
+
 	OutEngine = TUniquePtr<FBattleEngine>(new FBattleEngine(MoveTemp(NewState)));
 	return true;
 }
@@ -270,9 +257,9 @@ FBattleSnapshot FBattleEngine::GetSnapshot() const
 	Snapshot.OutcomeCause = State->OutcomeCause;
 	Snapshot.SettingsReference = State->Setup.GetSettingsReference();
 	Snapshot.CatalogReference = State->Setup.GetCatalogReference();
-	Snapshot.Trainers = State->Trainers;
-	Snapshot.PartyEntries = State->PartyEntries;
-	Snapshot.ActiveAssignments = State->ActiveAssignments;
+	Snapshot.Trainers = State->BuildTrainerProjection();
+	Snapshot.PartyEntries = State->BuildPartyProjection();
+	Snapshot.ActiveAssignments = State->BuildActiveProjection();
 	Snapshot.PendingDecision = State->PendingDecision;
 	return Snapshot;
 }
@@ -387,7 +374,7 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 	FBattleResolution Resolution;
 	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
 	check(bResolutionCreated);
-	State->Resolutions.Add(Resolution);
+	State->AppendResolution(Resolution);
 	return Resolution;
 }
 
@@ -403,11 +390,7 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	const FResolutionId ResolutionId = TakeResolutionId(*State);
 	FBattleEventSource Source = FindFallbackSource(*State);
 	Source.BattlerId = Refresh.BattlerId;
-	const FBattlePartyEntrySetup* Existing = State->PartyEntries.FindByPredicate(
-		[&Refresh](const FBattlePartyEntrySetup& Entry)
-		{
-			return Entry.BattlerId == Refresh.BattlerId;
-		});
+	const FBattleBattlerState* Existing = State->FindBattler(Refresh.BattlerId);
 	if (Existing != nullptr)
 	{
 		Source.TrainerId = Existing->TrainerId;
@@ -453,16 +436,13 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	}
 
 	const uint64 BeforeStateVersion = State->StateVersion;
-	FBattlePartyEntrySetup* MutableEntry = State->PartyEntries.FindByPredicate(
-		[&Refresh](const FBattlePartyEntrySetup& Entry)
-		{
-			return Entry.BattlerId == Refresh.BattlerId;
-		});
+	FBattleBattlerState* MutableEntry = State->FindMutableBattler(Refresh.BattlerId);
 	check(MutableEntry != nullptr);
 	const int32 PreviousLevel = MutableEntry->Level;
 	MutableEntry->Level = Refresh.NewLevel;
-	MutableEntry->Stats = Refresh.NewStats;
+	MutableEntry->PermanentStats = Refresh.NewStats;
 	MutableEntry->CurrentHP = Refresh.NewCurrentHP;
+	MutableEntry->bFainted = Refresh.NewCurrentHP == 0;
 	State->AvailableOpponentRemovalCheckpoints.RemoveSingle(Refresh.OpponentRemovalCheckpointEventOrdinal);
 	++State->StateVersion;
 
@@ -500,7 +480,7 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	FBattleResolution Resolution;
 	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
 	check(bResolutionCreated);
-	State->Resolutions.Add(Resolution);
+	State->AppendResolution(Resolution);
 	return Resolution;
 }
 

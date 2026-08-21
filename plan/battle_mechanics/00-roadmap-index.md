@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-20  
-Roadmap status: Approved and materialized; B00, C01, and C02 complete under focused validation  
-Next package: C03A in a new session; C03 dependencies are clear
+Status date: 2026-08-21  
+Roadmap status: Approved and materialized; B00, C01, C02, and C03A complete under focused validation  
+Next package: C03B in a new session; its dependencies are clear
 
 ## Current Truth
 
@@ -26,13 +26,17 @@ The live battle source now contains:
 - C02B's exact 18x18 type chart, plain definition records and ordered move
   effects, atomic immutable-by-interface catalog, Unreal Data Table copy
   adapter, and seven `PokemonSolarus.Battle.C02B.*` Automation tests.
+- C03A's single authoritative private battle state, frozen catalog-backed
+  Trainer/battler/party/active records, typed mechanic-state storage, invariant
+  validator, existing-snapshot projections, and six
+  `PokemonSolarus.Battle.C03A.*` Automation tests.
 
-There is now a minimal no-mechanics `FBattleEngine` plus the frozen public
-setup/decision/event/snapshot/replay, stat, type, move, definition, and adapter
-language needed by later packages. There is still no mechanic-bearing battle
-state, action queue, target resolver, switching system, condition engine,
-encounter flow, or presentation seam. The completed Story 001 and its 33-test
-report describe an older source state and
+There is now a minimal no-mechanics `FBattleEngine`, one authoritative internal
+battle-state owner, and the frozen public setup/decision/event/snapshot/replay,
+stat, type, move, definition, and adapter language needed by later packages.
+There is still no action queue, target resolver, switching system, condition
+behavior engine, encounter flow, or presentation seam. The completed Story 001
+and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
 already existed, so it cannot explain or restore those missing files.
@@ -47,9 +51,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00, C01, and C02 gates are clear. C03A is dependency-clear; every later
-  package remains blocked or not started. The workspace's sequential default
-  makes C03A the next session.
+- The B00, C01, C02, and C03A gates are clear. C03B is dependency-clear; every
+  later package remains blocked or not started. The workspace's sequential
+  default makes C03B the next session.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -189,8 +193,8 @@ B00B accepted evidence:
   `Game/Saved/Automation/C01B-DamageCalculator-20260820T131555Z/`, and
   `Game/Saved/Automation/C01B-FullBattle-20260820T131636Z/`, with matching
   timestamped files under `Game/Saved/Logs/`.
-- C01 is complete. C02A and C02B have now completed in the later focused
-  sessions recorded below. C03A is the default next package in the shared
+- C01 is complete. C02A, C02B, and C03A have now completed in the later focused
+  sessions recorded below. C03B is the default next package in the shared
   sequential workspace.
 
 ## C02A Execution Status
@@ -262,8 +266,42 @@ B00B accepted evidence:
   `Game/Saved/Automation/C02B-Definitions-20260820T143547Z/`, with logs
   `Game/Saved/Logs/C02B-Definitions-20260820T143547Z.log` and
   `Game/Saved/Logs/C02B-EditorBuild-20260820T143528Z.log`.
-- C02 is complete under the approved focused-validation scope. C03A is now
-  dependency-clear and must begin in a new session.
+- C02 is complete under the approved focused-validation scope. C03A's later
+  completion is recorded immediately below.
+
+## C03A Execution Status
+
+- C03A completed on 2026-08-21 with focused run ID
+  `C03A-State-20260821T002222Z`.
+- The final `PokemonSolarusEditor Win64 Development` build
+  (`C03A-EditorBuild-20260821T002200Z`) succeeded with no compiler warning or
+  error line.
+- The exact `PokemonSolarus.Battle.C03A` filter discovered and performed six
+  tests: 6 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit
+  code 0.
+- Tests cover valid Single, Double, and Partner Double state creation;
+  structural party and active-position storage; Trainer ownership and action
+  allowances; atomic invalid-setup rejection; runtime HP, PP, stage, resource,
+  lifecycle, and frozen-catalog reference invariants.
+- The first build (`C03A-EditorBuild-20260821T001849Z`) exposed one local use of
+  an unavailable `TArray` helper. The first focused run
+  (`C03A-State-20260821T001944Z`) then passed five tests before a test fixture
+  appended an element from its own `TArray` and triggered an assertion. Both
+  corrections stayed within C03A files; the later build and six-test run are
+  the acceptance evidence.
+- Per the user's explicit validation limit, only the C03A-focused filter was
+  run. C01, C02, base-damage, and full `PokemonSolarus.Battle` filters were not
+  rerun, so this session makes no fresh runtime claim for them.
+- C01/C02 contracts and tests, module rules, `.uproject`, and
+  `DefaultEngine.ini` matched their pre-run hashes. The config remained at
+  SHA-256
+  `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920`.
+- Successful evidence is under
+  `Game/Saved/Automation/C03A-State-20260821T002222Z/`, with logs
+  `Game/Saved/Logs/C03A-State-20260821T002222Z.log` and
+  `Game/Saved/Logs/C03A-EditorBuild-20260821T002200Z.log`.
+- C03A is complete under the approved focused-validation scope. C03B is
+  dependency-clear, unimplemented, and the next package for a new session.
 
 ## Goal
 

@@ -1,10 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleReplay.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 class FBattleEngineContractFixture;
+class FBattleStateTestFixture;
 #endif
 class FBattleEngineState;
 
@@ -20,7 +22,18 @@ public:
 	FBattleEngine(FBattleEngine&&) = delete;
 	FBattleEngine& operator=(FBattleEngine&&) = delete;
 
-	/** Creates an engine from a fully validated setup and lifetime-safe RNG owner. */
+	/** Creates an engine from validated setup, a frozen catalog, and a lifetime-safe RNG owner. */
+	[[nodiscard]] static bool TryCreate(
+		const FBattleSetup& Setup,
+		const FBattleDefinitionCatalog& Catalog,
+		TUniquePtr<IBattleRandom>&& Random,
+		TUniquePtr<FBattleEngine>& OutEngine,
+		FBattleRejection& OutRejection);
+
+	/**
+	 * Creates the catalog-free C01 no-mechanics compatibility fixture.
+	 * Gameplay packages that query definitions use the catalog-aware overload.
+	 */
 	[[nodiscard]] static bool TryCreate(
 		const FBattleSetup& Setup,
 		TUniquePtr<IBattleRandom>&& Random,
@@ -52,6 +65,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FBattleEngineContractFixture;
+	friend class FBattleStateTestFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);
