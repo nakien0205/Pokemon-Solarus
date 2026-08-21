@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00 through C06 complete under focused validation
-Next package: C07A; its C06B dependency is clear
+Roadmap status: Approved and materialized; B00 through C07A complete under focused validation
+Next packages: C07B and C07C; their shared C07A dependency is clear
 
 ## Current Truth
 
@@ -66,13 +66,20 @@ The live battle source now contains:
   accept/decline path, unsupported-format Set normalization, deterministic
   entry facts and replay, and eight `PokemonSolarus.Battle.C06B.*` Automation
   tests.
+- C07A's standalone trigger scheduler, 17 frozen phases, typed
+  Condition/Ability/item sources and battle subjects, deterministic
+  caller-directed ordering with no RNG tie draw, deferred declarative effect
+  requests, reentrancy guards, duration/expiry/layer/suppression state, typed
+  cleanup, fact-only lifecycle output, and seven
+  `PokemonSolarus.Battle.C07A.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
-normal-turn selection, queue-lock, action-start, final-target, and switching
-seam, plus the frozen public setup/decision/event/snapshot/replay, stat, type,
-move, definition, adapter, and pure hit/damage language needed by later
-packages. There is still no concrete condition behavior engine, encounter
-flow, Ability/item execution, or presentation seam. The
+normal-turn selection, queue-lock, action-start, final-target, switching, and
+standalone trigger-scheduling seam, plus the frozen public
+setup/decision/event/snapshot/replay, stat, type, move, definition, adapter,
+and pure hit/damage language needed by later packages. There is still no
+concrete condition behavior or trigger-to-engine integration, encounter flow,
+Ability/item execution, or presentation seam. The
 completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -88,9 +95,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C06 gates are clear. C07A is dependency-clear; every later
-  package remains blocked or not started. The workspace's sequential default
-  makes C07A the next package.
+- The B00 through C07A gates are clear. C07B and C07C are dependency-clear and
+  next; C07D and later packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -640,8 +646,40 @@ B00B accepted evidence:
 - Protected authorities, C05C, event/replay files, module/configuration files,
   and existing tests retained their recorded pre-write hashes. No `dev-story`,
   subagent, Git commit, or other Git write was used.
-- C06 is complete under the approved focused-validation scope. C07A is the next
-  sequential package and its C06B dependency is clear.
+- C06 is complete under its approved focused-validation scope. C06B cleared
+  C07A's dependency; C07A's later completion is recorded immediately below.
+
+## C07A Execution Status
+
+- C07A completed on 2026-08-21 from clean `main` baseline
+  `d3d8addce481a9a2e682a0782e5fe226f2b4a6c1`.
+- The new standalone `FBattleTriggerFramework` schedules declarative requests
+  only. It freezes all 17 phases, deep-copies and validates registrations,
+  orders canonical keys under explicit directions without RNG, defers queued
+  phases, guards non-repeatable triggers per token, decrements finite duration
+  before effects, queues expiry, preserves layer/suppression state, applies
+  typed cleanup, and emits ordered fact-only lifecycle records.
+- No `FBattleEngine` integration, concrete C07B/C07C/C07D behavior, Data Table
+  expansion, callback execution, event/replay/snapshot change, or existing
+  runtime/test modification was included.
+- The required forced-unity `PokemonSolarusEditor Win64 Development` build with
+  adaptive unity disabled succeeded with exit code `0`. Evidence is
+  `Game/Saved/Automation/C07A-TriggerFramework-20260821T135944Z/build.log`.
+- The only runtime filter run was
+  `Automation RunTests PokemonSolarus.Battle.C07A`. Its exported `index.json`
+  records exactly 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process; every path starts with the C07A filter, every entry has 0
+  warnings and 0 errors, and the process exited `0`. The report and log are
+  under `Game/Saved/Automation/C07A-TriggerFramework-20260821T135944Z/`.
+- The user's focused-test instruction superseded the roadmap's generic
+  full-suite requirement. No C06, older battle, complete battle, or full
+  project filter was run, and no fresh runtime claim is made for them.
+- Protected pre-existing battle sources/tests, the three authorities,
+  `.uproject`, `DefaultEngine.ini`, module rules, and `FoundationMap.umap`
+  retained their pre-write SHA-256 hashes. No `dev-story`, subagent, Git
+  commit, or other Git write was used.
+- C07A is complete under the approved focused-validation scope. C07B and C07C
+  are next and were not started; C07D remains later.
 
 ## Goal
 

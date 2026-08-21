@@ -1,8 +1,8 @@
 # C07 — Status, Volatiles, Field, and Side Conditions
 
 Priority: P1/P2  
-Status: Blocked by C06B  
-Required order: C07A; C07B/C; then C07D
+Status: C07A complete under focused validation; C07B and C07C next
+Required order: C07B/C; then C07D
 
 ## Objective
 
@@ -36,6 +36,38 @@ Rules:
 - Start/end/duration events contain facts only, not messages or animation time.
 - Switch, faint, capture, battle end, and suppression cleanup use typed policies
   from the definition.
+
+### C07A Completion Record
+
+- C07A completed on 2026-08-21 from clean `main` baseline
+  `d3d8addce481a9a2e682a0782e5fe226f2b4a6c1`.
+- The standalone plain-C++ framework freezes all 17 trigger phases and owns
+  deep-copied registrations, deterministic caller-directed ordering, deferred
+  phase/effect queues, reentrancy guards, decrement-before-effect duration,
+  expiry requests, layers, suppression/restoration, typed cleanup, and ordered
+  fact-only lifecycle output. It has no callback or RNG dependency and is not
+  wired into `FBattleEngine`.
+- C07A added only `BattleTriggerFramework.h`, `BattleTriggerFramework.cpp`, and
+  `BattleTriggerFrameworkTests.cpp`. Existing battle runtime, definitions,
+  catalog/adapters, event/replay/snapshot contracts, configuration, module
+  rules, and tests were not edited.
+- The forced-unity `PokemonSolarusEditor Win64 Development` build with
+  `-ForceUnity -DisableAdaptiveUnity -NoUBA` succeeded with process exit code
+  `0`. The build log is
+  `Game/Saved/Automation/C07A-TriggerFramework-20260821T135944Z/build.log`.
+- The only runtime filter run was
+  `Automation RunTests PokemonSolarus.Battle.C07A`. The exported report records
+  exactly 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0
+  in process; all seven paths use the C07A prefix, every entry has 0 warnings
+  and 0 errors, and the process exited `0`. Evidence is under
+  `Game/Saved/Automation/C07A-TriggerFramework-20260821T135944Z/`.
+- The approved focused-test instruction overrides this roadmap's generic
+  full-suite wording for this package. No C06, older battle, complete battle,
+  or full-project filter was run, so no fresh runtime claim is made for them.
+- Protected pre-existing sources, authorities, configuration, module rules,
+  map, and tests retained their pre-write SHA-256 hashes. No `dev-story`,
+  subagent, Git commit, or other Git write was used.
+- C07B and C07C are next and were not started by C07A. C07D remains later.
 
 ## C07B — Major Status
 
@@ -145,4 +177,3 @@ effects are framework-only and excluded from this proof set.
 - Battle snapshots contain exact remaining duration/layers for future Battle
   Info.
 - C08 can register Ability/item hooks without editing individual conditions.
-
