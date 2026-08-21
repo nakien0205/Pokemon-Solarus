@@ -8,7 +8,8 @@ enum class EBattleSwitchKind : uint8
 {
 	Voluntary = 0,
 	Forced = 1,
-	Pivot = 2
+	Pivot = 2,
+	Replacement = 3
 };
 
 /** State carried from the outgoing battler to the incoming battler. */

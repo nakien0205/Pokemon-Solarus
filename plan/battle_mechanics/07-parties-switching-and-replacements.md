@@ -1,7 +1,7 @@
 # C06 — Parties, Switching, and Replacements
 
 Priority: P1  
-Status: C06A complete under focused validation; C06B next
+Status: C06 complete under focused validation; C07A next
 Required order: C06A, then C06B
 
 ## Objective
@@ -182,4 +182,100 @@ Protected files retained their pre-write SHA-256 hashes:
 | `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
 
 Existing test files remained unchanged. No Git commit or other Git write was
-performed. C06B is the next sequential package.
+performed. C06B's later completion is recorded below.
+
+## C06B Completion Record
+
+C06B completed on 2026-08-21 from clean `main` baseline `7330dda`
+(`Implement C06A`). The live roadmap package remained the implementation
+contract; `dev-story` was not used.
+
+Implemented scope:
+
+- `FBattleEncounterPolicies` defaults eligible non-Wild Single encounters to
+  Shift. Setup canonicalization preserves explicit false and forces Set for
+  Wild, Double, and Partner Double formats.
+- `EBattleSwitchKind::Replacement` reuses C06A party-slot legality without an
+  acting battler, voluntary trapping, an action cost, or RNG.
+- Mandatory replacement requests are identified by Trainer plus destination
+  active slot. Left/Right owner batches require distinct destinations and
+  reserves and are revalidated atomically before occupancy changes.
+- The queue-exhaustion checkpoint freezes every replaceable empty slot in
+  side/Left/Right order, emits each existing `ReplacementRequired` fact once,
+  applies the lone-reserve Left fallback, and presents one owner group at a
+  time. Positions without legal reserves stay empty after C05C outcome checks.
+- Eligible Shift responses are typed accepts or declines. Accept reuses C06A
+  transient cleanup and emits `DecisionAccepted`, `LeftActiveSlot`,
+  `SwitchTransientStateCleared`, `EnteredActiveSlot`, `Switched`. Decline emits
+  only `DecisionAccepted`, then exposes the opponent replacement request.
+- Mandatory replacement emits every `DecisionAccepted` first, then
+  `EnteredActiveSlot` and `Switched` per entrant in active-slot order. It adds no
+  locked action, action ID, action lifecycle event, or RNG draw.
+- Replacement state clears at `EndOfTurn`. No C07A behavior, new phase, event
+  enum, replay-schema bump, public engine method, hazard execution, Ability
+  execution, item execution, UI, or asset work was added.
+
+Final forced-unity Editor build command:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat' PokemonSolarusEditor Win64 Development 'D:\Python\Projects\Pokemon Solarus\Game\PokemonSolarus.uproject' -WaitMutex -ForceUnity -DisableAdaptiveUnity -NoUBA
+```
+
+The final command succeeded with exit code `0`.
+
+Final focused Automation command:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' 'D:\Python\Projects\Pokemon Solarus\Game\PokemonSolarus.uproject' -Unattended -NoSplash -NullRHI -NoSound -NoP4 '-ExecCmds=Automation RunTests PokemonSolarus.Battle.C06B; Quit' '-TestExit=Automation Test Queue Empty' '-ReportOutputPath=D:\Python\Projects\Pokemon Solarus\Game\Saved\Automation\C06B-Replacements-20260821T111345Z\report' '-abslog=D:\Python\Projects\Pokemon Solarus\Game\Saved\Automation\C06B-Replacements-20260821T111345Z\automation.log'
+```
+
+The exact `PokemonSolarus.Battle.C06B` filter discovered eight tests. The final
+`index.json` records 8 succeeded, 0 succeeded with warnings, 0 failed, 0 not
+run, and 0 in process. Every individual result records 0 warnings and 0 errors;
+the process exit code was `0`.
+
+- Report:
+  `Game/Saved/Automation/C06B-Replacements-20260821T111345Z/report/index.json`
+- Editor log:
+  `Game/Saved/Automation/C06B-Replacements-20260821T111345Z/automation.log`
+- The editor emitted one pre-test startup warning that `-ReportOutputPath` is
+  now called `-ReportExportPath`. It was command-line startup noise, not a test
+  warning; all eight C06B report entries remain warning-free and error-free.
+- No C06A, C05C, older battle, complete battle, or full project test filter was
+  run. No fresh runtime claim is made for those filters.
+
+Final C06B-owned SHA-256 hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleSetup.h` | `70068fbc3905afe13ebf658317e159ad04b61a91b1dea3955774f210b78210af` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleSetup.cpp` | `d08dc1f1d5213bee75fffe053fc03c8532914b01e9474a9def95dbe414735097` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDecision.h` | `365cae711aa278cf940712ca731fdfd7444a13c4cd9f9323d0f5d15214b51c99` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDecision.cpp` | `76fde8dc6877da688ca5e0938a2a678e1dcc093dfef650b50175b92eb7dd809e` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleSwitching.h` | `565b9b18292ecab09cae00082a60d54248bdb7707ea090870b999f7f01a068e4` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleSwitching.cpp` | `c0956c27ebc7573123a4c757b687a7bb8da0da673230e4517b369695d534a96f` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `22d8412b5db593f83a958bf5cb2722a8e0986a522a08eaa91ef13957a16be326` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `d31938866830435855ea7d82ec45cf2133b769a3b132c38ded31cbb06059cd04` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `79372d2b600dcdf97e61c0c335bc2c64f93b1a6708d8d4d50dee8397b037003b` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleReplacementTests.cpp` | `a800904e90f071c15aefd1ea4cffa716449e95428c1a81a0abb04a42778fb56a` |
+
+Protected files retained their pre-write SHA-256 hashes:
+
+| File | SHA-256 |
+|---|---|
+| `CLAUDE.md` | `5c4e8a530ba03e52788f973c9a99c3e098353304f3ec6852240f3293a15104c8` |
+| `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
+| `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleFaintOutcomeResolver.h` | `60b68d3b9aa5269d56ea2edbc49003382319d9c64881b57a111327e265f98088` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleFaintOutcomeResolver.cpp` | `28844517aca2b8eb39dd3a537f7661de33b885631a62523df03021063b926baa` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h` | `3ce106a88d296886e2e8a2d760c6f21d7d4923b19b49a007d21a3e567075376f` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp` | `12b29ec706b3fb57f9139247f1660aad90f33ecf0a163ad32503274ffd19285b` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleReplay.h` | `d1cad6df30c07af55aaac1f9442eeb6f8e9fd1d65c0300fc82b71555ad120ef7` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleReplay.cpp` | `b35f1b327c2ab9f12559bd4a55bf50076d952dad4ed4b1f2b2ec50cb9a96cab7` |
+| `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+
+Existing tests remained unchanged. No subagent, Git commit, or other Git write
+was used. C06 is complete; C07A is the next sequential package and its C06B
+dependency is clear.

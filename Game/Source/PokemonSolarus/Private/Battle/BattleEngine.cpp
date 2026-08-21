@@ -316,6 +316,76 @@ namespace
 		return Event;
 	}
 
+	FBattleEvent MakeTargetedActionlessEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const EBattleEventType Type,
+		const EBattleEventCause Cause,
+		const EBattleActionKind ActionKind,
+		const FBattleEventSource& Source,
+		const FBattleEventTarget& Target)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = Cause;
+		Spec.CauseActionKind = ActionKind;
+		Spec.Source = Source;
+		Spec.Targets.Add(Target);
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	void AppendActionlessSwitchTransitionEvents(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleEventSource& Source,
+		const FBattleEventTarget& Outgoing,
+		const FBattleEventTarget& Incoming,
+		TArray<FBattleEvent>& Events)
+	{
+		Events.Add(MakeTargetedActionlessEvent(
+			State,
+			ResolutionId,
+			EBattleEventType::LeftActiveSlot,
+			EBattleEventCause::Switch,
+			EBattleActionKind::Switch,
+			Source,
+			Outgoing));
+		Events.Add(MakeTargetedActionlessEvent(
+			State,
+			ResolutionId,
+			EBattleEventType::SwitchTransientStateCleared,
+			EBattleEventCause::Rule,
+			EBattleActionKind::Switch,
+			Source,
+			Outgoing));
+		Events.Add(MakeTargetedActionlessEvent(
+			State,
+			ResolutionId,
+			EBattleEventType::EnteredActiveSlot,
+			EBattleEventCause::Switch,
+			EBattleActionKind::Switch,
+			Source,
+			Incoming));
+		Events.Add(MakeTargetedActionlessEvent(
+			State,
+			ResolutionId,
+			EBattleEventType::Switched,
+			EBattleEventCause::Rule,
+			EBattleActionKind::Switch,
+			Source,
+			Incoming));
+	}
+
 	void AppendSwitchTransitionEvents(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
@@ -380,6 +450,12 @@ namespace
 		return Event;
 	}
 
+	bool TryBuildReplacementCheckpointRequests(
+		const FBattleEngineState& State,
+		uint64 StateVersion,
+		bool bAllowShiftPrompt,
+		TArray<FBattleDecisionRequest>& OutRequests);
+
 	void AppendPostActionBoundaryEvents(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
@@ -388,6 +464,35 @@ namespace
 	{
 		TArray<FBattleReplacementRequirement> Requirements;
 		FBattleFaintOutcomeResolver::ResolveQueueBoundary(State, Requirements);
+		if (State.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			State.PendingReplacements.Reset();
+			for (const FBattleReplacementRequirement& Requirement : Requirements)
+			{
+				FBattlePendingReplacementState& Pending =
+					State.PendingReplacements.AddDefaulted_GetRef();
+				Pending.TrainerId = Requirement.Target.TrainerId;
+				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
+			}
+
+			TArray<FBattleDecisionRequest> Requests;
+			const uint64 RequestStateVersion = State.StateVersion + 1;
+			const bool bRequestsBuilt = RequestStateVersion != 0
+				&& TryBuildReplacementCheckpointRequests(
+					State,
+					RequestStateVersion,
+					true,
+					Requests);
+			check(bRequestsBuilt && !Requests.IsEmpty());
+			State.PendingDecisionRequests = MoveTemp(Requests);
+			State.PendingDecision = State.PendingDecisionRequests[0];
+		}
+		else if (State.Phase == EBattlePhase::EndOfTurn)
+		{
+			State.PendingReplacements.Reset();
+			State.PendingDecisionRequests.Reset();
+			State.PendingDecision.Reset();
+		}
 		for (const FBattleReplacementRequirement& Requirement : Requirements)
 		{
 			Events.Add(MakeTargetedActionEvent(
@@ -490,11 +595,27 @@ namespace
 		FBattleSwitchLegalityResult& OutLegality)
 	{
 		const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
-		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
 		const FBattleActivePositionState* Active = State.FindActivePosition(ActiveSlotId);
-		if (Trainer == nullptr
-			|| Battler == nullptr
-			|| Active == nullptr
+		const bool bReplacement = Kind == EBattleSwitchKind::Replacement;
+		const FBattleBattlerState* Battler = bReplacement
+			? nullptr
+			: State.FindBattler(BattlerId);
+		if (Trainer == nullptr || Active == nullptr)
+		{
+			return false;
+		}
+		if (bReplacement)
+		{
+			if (BattlerId.IsValid()
+				|| !Active->bAvailable
+				|| Active->ActiveSlotId.GetSide() != Trainer->Side
+				|| Active->TrainerId.IsValid()
+				|| Active->BattlerId.IsValid())
+			{
+				return false;
+			}
+		}
+		else if (Battler == nullptr
 			|| Battler->TrainerId != Trainer->TrainerId
 			|| Active->TrainerId != Trainer->TrainerId
 			|| Active->BattlerId != Battler->BattlerId)
@@ -505,11 +626,12 @@ namespace
 		FBattleSwitchLegalitySpec Spec;
 		Spec.Kind = Kind;
 		Spec.ActingTrainerId = Trainer->TrainerId;
-		Spec.ActingBattlerId = Battler->BattlerId;
+		Spec.ActingBattlerId = bReplacement ? FBattlerId() : Battler->BattlerId;
 		Spec.ActiveSlotId = Active->ActiveSlotId;
 		Spec.TransferPolicy = EBattleSwitchStateTransferPolicy::ClearTransient;
-		Spec.Blockers.bEncounterPolicyAllows = !(State.EncounterKind == EBattleEncounterKind::Wild
-			&& Trainer->Role == EBattleTrainerRole::Opponent);
+		Spec.Blockers.bEncounterPolicyAllows = Kind != EBattleSwitchKind::Voluntary
+			|| !(State.EncounterKind == EBattleEncounterKind::Wild
+				&& Trainer->Role == EBattleTrainerRole::Opponent);
 		if (!Spec.Blockers.bEncounterPolicyAllows)
 		{
 			Spec.Blockers.EncounterPolicyRuleId = GetWildOpponentSwitchRestrictionRuleId();
@@ -612,6 +734,46 @@ namespace
 		Outgoing->Stages = FBattleStatStages();
 		Outgoing->Volatiles.Reset();
 		Active->BattlerId = Incoming->BattlerId;
+		return true;
+	}
+
+	bool TryApplyReplacementSelection(
+		FBattleEngineState& State,
+		const FTrainerId TrainerId,
+		const FActiveSlotId ActiveSlotId,
+		const FBattleSwitchResolution& Resolution,
+		FBattleEventTarget& OutIncomingTarget)
+	{
+		OutIncomingTarget = FBattleEventTarget();
+		if (!Resolution.IsValid() || !Resolution.HasSelection())
+		{
+			return false;
+		}
+
+		FBattleActivePositionState* Active = State.FindMutableActivePosition(ActiveSlotId);
+		FBattleBattlerState* Incoming = State.FindMutableBattler(
+			Resolution.GetSelectedBattlerId());
+		const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+		if (Active == nullptr
+			|| Incoming == nullptr
+			|| Trainer == nullptr
+			|| !Active->bAvailable
+			|| Active->ActiveSlotId.GetSide() != Trainer->Side
+			|| Active->TrainerId.IsValid()
+			|| Active->BattlerId.IsValid()
+			|| Incoming->TrainerId != Trainer->TrainerId
+			|| Incoming->PartySlotId != Resolution.GetSelectedPartySlotId()
+			|| !IsLivingSelectableBattler(Incoming)
+			|| FindActiveForBattler(State, Incoming->BattlerId) != nullptr)
+		{
+			return false;
+		}
+
+		Active->TrainerId = Trainer->TrainerId;
+		Active->BattlerId = Incoming->BattlerId;
+		OutIncomingTarget.TrainerId = Incoming->TrainerId;
+		OutIncomingTarget.BattlerId = Incoming->BattlerId;
+		OutIncomingTarget.ActiveSlotId = Active->ActiveSlotId;
 		return true;
 	}
 
@@ -850,6 +1012,202 @@ namespace
 		Option.Reason = Reason;
 		Option.ItemId = ItemId;
 		Spec.UnavailableOptions.Add(Option);
+	}
+
+	bool TryBuildReplacementDecisionRequest(
+		const FBattleEngineState& State,
+		const FBattlePendingReplacementState& Pending,
+		const uint64 StateVersion,
+		FBattleDecisionRequest& OutRequest)
+	{
+		OutRequest = FBattleDecisionRequest();
+		FBattleSwitchLegalityResult Legality;
+		if (!TryBuildSwitchLegality(
+			State,
+			EBattleSwitchKind::Replacement,
+			Pending.TrainerId,
+			FBattlerId(),
+			Pending.ActiveSlotId,
+			TConstArrayView<FPartySlotId>(),
+			Legality)
+			|| Legality.GetLegalPartySlots().IsEmpty())
+		{
+			return false;
+		}
+
+		FBattleDecisionRequestSpec Spec;
+		Spec.StateVersion = StateVersion;
+		Spec.RequestKind = EBattleDecisionRequestKind::MandatoryReplacement;
+		Spec.DecisionOwnerTrainerId = Pending.TrainerId;
+		Spec.ActingSlotId = Pending.ActiveSlotId;
+		Spec.LegalActionKinds.Add(EBattleActionKind::Replacement);
+		Spec.LegalActiveTargets.Add(Pending.ActiveSlotId);
+		for (const FBattleSwitchCandidateResult& Candidate : Legality.GetCandidates())
+		{
+			if (Candidate.bLegal)
+			{
+				Spec.LegalSwitchPartySlots.Add(Candidate.PartySlotId);
+			}
+			else
+			{
+				AddUnavailableSwitch(
+					Spec,
+					Candidate.PartySlotId,
+					ToUnavailableReason(Candidate.Reason));
+			}
+		}
+
+		FBattleRejection Rejection;
+		return FBattleDecisionRequest::TryCreate(Spec, OutRequest, Rejection);
+	}
+
+	bool TryBuildMandatoryReplacementRequests(
+		const FBattleEngineState& State,
+		const uint64 StateVersion,
+		TArray<FBattleDecisionRequest>& OutRequests)
+	{
+		OutRequests.Reset();
+		if (State.PendingReplacements.IsEmpty())
+		{
+			return false;
+		}
+
+		const FTrainerId OwnerTrainerId = State.PendingReplacements[0].TrainerId;
+		for (const FBattlePendingReplacementState& Pending : State.PendingReplacements)
+		{
+			if (Pending.TrainerId != OwnerTrainerId)
+			{
+				continue;
+			}
+
+			FBattleDecisionRequest Request;
+			if (!TryBuildReplacementDecisionRequest(
+				State,
+				Pending,
+				StateVersion,
+				Request))
+			{
+				OutRequests.Reset();
+				return false;
+			}
+			OutRequests.Add(MoveTemp(Request));
+		}
+		return !OutRequests.IsEmpty() && OutRequests.Num() <= 2;
+	}
+
+	bool TryBuildShiftDecisionRequest(
+		const FBattleEngineState& State,
+		const uint64 StateVersion,
+		FBattleDecisionRequest& OutRequest)
+	{
+		OutRequest = FBattleDecisionRequest();
+		if (!State.EncounterPolicies.bShiftPromptEligible
+			|| State.Format != EBattleFormat::Single
+			|| State.EncounterKind == EBattleEncounterKind::Wild
+			|| State.PendingReplacements.IsEmpty()
+			|| State.PendingReplacements.ContainsByPredicate(
+				[](const FBattlePendingReplacementState& Pending)
+				{
+					return Pending.ActiveSlotId.GetSide() == EBattleSide::Player;
+				})
+			|| !State.PendingReplacements.ContainsByPredicate(
+				[](const FBattlePendingReplacementState& Pending)
+				{
+					return Pending.ActiveSlotId.GetSide() == EBattleSide::Opponent;
+				}))
+		{
+			return false;
+		}
+
+		const FBattleTrainerState* PlayerTrainer = State.Trainers.FindByPredicate(
+			[](const FBattleTrainerState& Trainer)
+			{
+				return Trainer.Side == EBattleSide::Player
+					&& Trainer.Role == EBattleTrainerRole::Player;
+			});
+		const FBattleActivePositionState* PlayerActive = State.ActivePositions.FindByPredicate(
+			[](const FBattleActivePositionState& Position)
+			{
+				return Position.ActiveSlotId.GetSide() == EBattleSide::Player
+					&& Position.ActiveSlotId.GetPosition() == EBattlePosition::Left;
+			});
+		const FBattleBattlerState* PlayerBattler = PlayerActive != nullptr
+			? State.FindBattler(PlayerActive->BattlerId)
+			: nullptr;
+		if (PlayerTrainer == nullptr
+			|| PlayerActive == nullptr
+			|| PlayerActive->TrainerId != PlayerTrainer->TrainerId
+			|| !IsLivingSelectableBattler(PlayerBattler))
+		{
+			return false;
+		}
+
+		FBattleSwitchLegalityResult Legality;
+		if (!TryBuildSwitchLegality(
+			State,
+			EBattleSwitchKind::Voluntary,
+			PlayerTrainer->TrainerId,
+			PlayerBattler->BattlerId,
+			PlayerActive->ActiveSlotId,
+			TConstArrayView<FPartySlotId>(),
+			Legality)
+			|| Legality.GetLegalPartySlots().IsEmpty())
+		{
+			return false;
+		}
+
+		FBattleDecisionRequestSpec Spec;
+		Spec.StateVersion = StateVersion;
+		Spec.RequestKind = EBattleDecisionRequestKind::ShiftResponse;
+		Spec.DecisionOwnerTrainerId = PlayerTrainer->TrainerId;
+		Spec.ActingBattlerId = PlayerBattler->BattlerId;
+		Spec.ActingSlotId = PlayerActive->ActiveSlotId;
+		Spec.LegalActionKinds.Add(EBattleActionKind::Switch);
+		Spec.LegalActiveTargets.Add(PlayerActive->ActiveSlotId);
+		for (const FBattleSwitchCandidateResult& Candidate : Legality.GetCandidates())
+		{
+			if (Candidate.bLegal)
+			{
+				Spec.LegalSwitchPartySlots.Add(Candidate.PartySlotId);
+			}
+			else
+			{
+				AddUnavailableSwitch(
+					Spec,
+					Candidate.PartySlotId,
+					ToUnavailableReason(Candidate.Reason));
+			}
+		}
+
+		FBattleRejection Rejection;
+		return FBattleDecisionRequest::TryCreate(Spec, OutRequest, Rejection);
+	}
+
+	bool TryBuildReplacementCheckpointRequests(
+		const FBattleEngineState& State,
+		const uint64 StateVersion,
+		const bool bAllowShiftPrompt,
+		TArray<FBattleDecisionRequest>& OutRequests)
+	{
+		OutRequests.Reset();
+		if (State.Phase != EBattlePhase::MandatoryReplacement
+			|| StateVersion == 0
+			|| State.PendingReplacements.IsEmpty())
+		{
+			return false;
+		}
+
+		if (bAllowShiftPrompt)
+		{
+			FBattleDecisionRequest ShiftRequest;
+			if (TryBuildShiftDecisionRequest(State, StateVersion, ShiftRequest))
+			{
+				OutRequests.Add(MoveTemp(ShiftRequest));
+				return true;
+			}
+		}
+
+		return TryBuildMandatoryReplacementRequests(State, StateVersion, OutRequests);
 	}
 
 	bool TryBuildPivotDecisionRequest(
@@ -1368,6 +1726,402 @@ namespace
 			}
 		}
 		return true;
+	}
+
+	bool HasPendingReplacement(
+		const FBattleEngineState& State,
+		const FTrainerId TrainerId,
+		const FActiveSlotId ActiveSlotId)
+	{
+		return State.PendingReplacements.ContainsByPredicate(
+			[TrainerId, ActiveSlotId](const FBattlePendingReplacementState& Pending)
+			{
+				return Pending.TrainerId == TrainerId
+					&& Pending.ActiveSlotId == ActiveSlotId;
+			});
+	}
+
+	FBattleResolution ResolveReplacementDecisionBatch(
+		FBattleEngineState& State,
+		const FBattleDecisionBatch& Batch,
+		const FResolutionId ResolutionId,
+		const FBattleEventSource& FallbackSource)
+	{
+		const FBattleDecision* FirstDecision = Batch.IsValid() && !Batch.GetDecisions().IsEmpty()
+			? &Batch.GetDecisions()[0]
+			: nullptr;
+		FBattleRejection Rejection;
+		if (!Batch.IsValid())
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
+		}
+		else if (State.PendingDecisionRequests.IsEmpty()
+			|| State.PendingReplacements.IsEmpty())
+		{
+			Rejection.Reason = EBattleRejectionReason::NoPendingDecision;
+		}
+		else if (Batch.GetStateVersion() != State.StateVersion)
+		{
+			Rejection.Reason = EBattleRejectionReason::StaleStateVersion;
+		}
+		else if (Batch.GetRequestKind()
+			!= EBattleDecisionRequestKind::MandatoryReplacement)
+		{
+			Rejection.Reason = EBattleRejectionReason::WrongRequestKind;
+		}
+		else if (Batch.GetDecisionOwnerTrainerId()
+			!= State.PendingDecisionRequests[0].GetDecisionOwnerTrainerId())
+		{
+			Rejection.Reason = EBattleRejectionReason::WrongDecisionOwner;
+			Rejection.TrainerId = Batch.GetDecisionOwnerTrainerId();
+		}
+		else if (Batch.GetDecisions().Num() != State.PendingDecisionRequests.Num())
+		{
+			Rejection.Reason = EBattleRejectionReason::WrongDecisionCount;
+		}
+
+		TArray<FBattleSwitchResolution> SwitchResolutions;
+		TArray<FPartySlotId> ReservedPartySlots;
+		if (!Rejection.IsRejected())
+		{
+			SwitchResolutions.Reserve(Batch.GetDecisions().Num());
+			for (int32 DecisionIndex = 0;
+				DecisionIndex < Batch.GetDecisions().Num();
+				++DecisionIndex)
+			{
+				const FBattleDecision& Decision = Batch.GetDecisions()[DecisionIndex];
+				const FBattleDecisionRequest& Request =
+					State.PendingDecisionRequests[DecisionIndex];
+				if (Request.GetRequestKind()
+						!= EBattleDecisionRequestKind::MandatoryReplacement
+					|| Decision.GetActiveTargetId() != Request.GetActingSlotId())
+				{
+					Rejection.Reason = EBattleRejectionReason::WrongDecisionOrder;
+					Rejection.ActiveSlotId = Decision.GetActiveTargetId();
+					break;
+				}
+				if (!Request.Allows(Decision, Rejection))
+				{
+					break;
+				}
+				if (!HasPendingReplacement(
+					State,
+					Decision.GetDecisionOwnerTrainerId(),
+					Decision.GetActiveTargetId()))
+				{
+					Rejection.Reason = EBattleRejectionReason::IllegalTarget;
+					Rejection.ActiveSlotId = Decision.GetActiveTargetId();
+					break;
+				}
+
+				FBattleSwitchLegalityResult Legality;
+				FBattleSwitchSelectionSpec SelectionSpec;
+				SelectionSpec.RequestedPartySlotId = Decision.GetSwitchPartySlotId();
+				FBattleSwitchResolution SwitchResolution;
+				if (!TryBuildSwitchLegality(
+						State,
+						EBattleSwitchKind::Replacement,
+						Decision.GetDecisionOwnerTrainerId(),
+						FBattlerId(),
+						Decision.GetActiveTargetId(),
+						ReservedPartySlots,
+						Legality)
+					|| !FBattleSwitchResolver::TryResolve(
+						Legality,
+						SelectionSpec,
+						*State.Random,
+						SwitchResolution)
+					|| !SwitchResolution.HasSelection())
+				{
+					Rejection.Reason = EBattleRejectionReason::IllegalSwitch;
+					Rejection.PartySlotId = Decision.GetSwitchPartySlotId();
+					break;
+				}
+
+				ReservedPartySlots.Add(Decision.GetSwitchPartySlotId());
+				SwitchResolutions.Add(MoveTemp(SwitchResolution));
+			}
+		}
+
+		if (Rejection.IsRejected())
+		{
+			return MakeRejectedResolution(
+				State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				FirstDecision != nullptr
+					? FirstDecision->GetActionKind()
+					: EBattleActionKind::Replacement,
+				FallbackSource);
+		}
+
+		const uint64 BeforeStateVersion = State.StateVersion;
+		const uint64 AfterStateVersion = BeforeStateVersion + 1;
+		if (AfterStateVersion == 0)
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				EBattleActionKind::Replacement,
+				FallbackSource);
+		}
+
+		TArray<FBattleEvent> Events;
+		for (int32 DecisionIndex = 0;
+			DecisionIndex < Batch.GetDecisions().Num();
+			++DecisionIndex)
+		{
+			const FBattleDecision& Decision = Batch.GetDecisions()[DecisionIndex];
+			const FBattleDecisionRequest& Request =
+				State.PendingDecisionRequests[DecisionIndex];
+			Events.Add(MakeEvent(
+				State,
+				ResolutionId,
+				FActionId(),
+				EBattleEventType::DecisionAccepted,
+				EBattleEventCause::Decision,
+				EBattleActionKind::Replacement,
+				EBattleOutcomeCause::None,
+				SourceFromRequest(State, &Request, &Decision)));
+		}
+
+		for (int32 DecisionIndex = 0;
+			DecisionIndex < Batch.GetDecisions().Num();
+			++DecisionIndex)
+		{
+			const FBattleDecision& Decision = Batch.GetDecisions()[DecisionIndex];
+			const FBattleDecisionRequest& Request =
+				State.PendingDecisionRequests[DecisionIndex];
+			FBattleEventTarget IncomingTarget;
+			const bool bApplied = TryApplyReplacementSelection(
+				State,
+				Decision.GetDecisionOwnerTrainerId(),
+				Decision.GetActiveTargetId(),
+				SwitchResolutions[DecisionIndex],
+				IncomingTarget);
+			if (!bApplied)
+			{
+				UE_LOG(
+					LogTemp,
+					Fatal,
+					TEXT("Validated C06B replacement could not be applied atomically."));
+			}
+			const FBattleEventSource Source = SourceFromRequest(State, &Request, &Decision);
+			Events.Add(MakeTargetedActionlessEvent(
+				State,
+				ResolutionId,
+				EBattleEventType::EnteredActiveSlot,
+				EBattleEventCause::Switch,
+				EBattleActionKind::Replacement,
+				Source,
+				IncomingTarget));
+			Events.Add(MakeTargetedActionlessEvent(
+				State,
+				ResolutionId,
+				EBattleEventType::Switched,
+				EBattleEventCause::Rule,
+				EBattleActionKind::Replacement,
+				Source,
+				IncomingTarget));
+		}
+
+		for (const FBattleDecision& Decision : Batch.GetDecisions())
+		{
+			State.PendingReplacements.RemoveAll(
+				[&Decision](const FBattlePendingReplacementState& Pending)
+				{
+					return Pending.TrainerId == Decision.GetDecisionOwnerTrainerId()
+						&& Pending.ActiveSlotId == Decision.GetActiveTargetId();
+				});
+		}
+
+		State.PendingDecision.Reset();
+		State.PendingDecisionRequests.Reset();
+		if (State.PendingReplacements.IsEmpty())
+		{
+			State.Phase = EBattlePhase::EndOfTurn;
+		}
+		else
+		{
+			TArray<FBattleDecisionRequest> NextRequests;
+			const bool bBuiltNextRequests = TryBuildReplacementCheckpointRequests(
+				State,
+				AfterStateVersion,
+				false,
+				NextRequests);
+			if (!bBuiltNextRequests || NextRequests.IsEmpty())
+			{
+				UE_LOG(
+					LogTemp,
+					Fatal,
+					TEXT("C06B could not expose the next frozen replacement owner group."));
+			}
+			State.PendingDecisionRequests = MoveTemp(NextRequests);
+			State.PendingDecision = State.PendingDecisionRequests[0];
+		}
+		State.StateVersion = AfterStateVersion;
+
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		const bool bStateValid = State.ValidateInvariants(StateError);
+		check(bStateValid);
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State.StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(
+			ResolutionSpec,
+			Resolution);
+		check(bResolutionCreated);
+		State.AppendResolution(Resolution);
+		return Resolution;
+	}
+
+	FBattleResolution ResolveShiftResponseDecision(
+		FBattleEngineState& State,
+		const FBattleDecision& Decision,
+		const FBattleDecisionRequest& Request,
+		const FResolutionId ResolutionId,
+		const FBattleEventSource& Source)
+	{
+		check(Request.GetRequestKind() == EBattleDecisionRequestKind::ShiftResponse);
+		const bool bDeclined = !Decision.GetSwitchPartySlotId().IsValid()
+			&& !Decision.GetActiveTargetId().IsValid();
+		FBattleSwitchResolution SwitchResolution;
+		FBattleRejection Rejection;
+		if (!bDeclined)
+		{
+			FBattleSwitchLegalityResult Legality;
+			FBattleSwitchSelectionSpec SelectionSpec;
+			SelectionSpec.RequestedPartySlotId = Decision.GetSwitchPartySlotId();
+			if (!TryBuildSwitchLegality(
+					State,
+					EBattleSwitchKind::Voluntary,
+					Decision.GetDecisionOwnerTrainerId(),
+					Decision.GetActingBattlerId(),
+					Decision.GetActiveTargetId(),
+					TConstArrayView<FPartySlotId>(),
+					Legality)
+				|| !FBattleSwitchResolver::TryResolve(
+					Legality,
+					SelectionSpec,
+					*State.Random,
+					SwitchResolution)
+				|| !SwitchResolution.HasSelection())
+			{
+				Rejection.Reason = EBattleRejectionReason::IllegalSwitch;
+				Rejection.PartySlotId = Decision.GetSwitchPartySlotId();
+			}
+		}
+
+		if (Rejection.IsRejected())
+		{
+			return MakeRejectedResolution(
+				State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				EBattleActionKind::Switch,
+				Source);
+		}
+
+		const uint64 BeforeStateVersion = State.StateVersion;
+		const uint64 AfterStateVersion = BeforeStateVersion + 1;
+		if (AfterStateVersion == 0)
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				EBattleActionKind::Switch,
+				Source);
+		}
+
+		TArray<FBattleEvent> Events;
+		Events.Add(MakeEvent(
+			State,
+			ResolutionId,
+			FActionId(),
+			EBattleEventType::DecisionAccepted,
+			EBattleEventCause::Decision,
+			EBattleActionKind::Switch,
+			EBattleOutcomeCause::None,
+			Source));
+		if (!bDeclined)
+		{
+			FBattleEventTarget OutgoingTarget;
+			FBattleEventTarget IncomingTarget;
+			const bool bApplied = TryApplySwitchSelection(
+				State,
+				Decision.GetDecisionOwnerTrainerId(),
+				Decision.GetActingBattlerId(),
+				Decision.GetActiveTargetId(),
+				SwitchResolution,
+				OutgoingTarget,
+				IncomingTarget);
+			if (!bApplied)
+			{
+				UE_LOG(
+					LogTemp,
+					Fatal,
+					TEXT("Validated C06B Shift response could not be applied."));
+			}
+			AppendActionlessSwitchTransitionEvents(
+				State,
+				ResolutionId,
+				Source,
+				OutgoingTarget,
+				IncomingTarget,
+				Events);
+		}
+
+		TArray<FBattleDecisionRequest> ReplacementRequests;
+		const bool bBuiltRequests = TryBuildReplacementCheckpointRequests(
+			State,
+			AfterStateVersion,
+			false,
+			ReplacementRequests);
+		if (!bBuiltRequests || ReplacementRequests.IsEmpty())
+		{
+			UE_LOG(
+				LogTemp,
+				Fatal,
+				TEXT("C06B Shift response could not expose opponent replacements."));
+		}
+		State.PendingDecisionRequests = MoveTemp(ReplacementRequests);
+		State.PendingDecision = State.PendingDecisionRequests[0];
+		State.StateVersion = AfterStateVersion;
+
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		const bool bStateValid = State.ValidateInvariants(StateError);
+		check(bStateValid);
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State.StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(
+			ResolutionSpec,
+			Resolution);
+		check(bResolutionCreated);
+		State.AppendResolution(Resolution);
+		return Resolution;
 	}
 
 }
@@ -3007,6 +3761,14 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 		? &Batch.GetDecisions()[0]
 		: nullptr;
 	const FBattleEventSource FallbackSource = SourceFromRequest(*State, FirstRequest, FirstDecision);
+	if (State->Phase == EBattlePhase::MandatoryReplacement)
+	{
+		return ResolveReplacementDecisionBatch(
+			*State,
+			Batch,
+			ResolutionId,
+			FallbackSource);
+	}
 
 	FBattleRejection Rejection;
 	if (State->Phase == EBattlePhase::Terminal)
@@ -3214,7 +3976,11 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 {
 	check(State.IsValid());
-	if (State->Phase == EBattlePhase::Selecting && !State->PendingDecisionRequests.IsEmpty())
+	if ((State->Phase == EBattlePhase::Selecting
+			|| (State->Phase == EBattlePhase::MandatoryReplacement
+				&& Decision.GetRequestKind()
+					== EBattleDecisionRequestKind::MandatoryReplacement))
+		&& !State->PendingDecisionRequests.IsEmpty())
 	{
 		FBattleDecisionBatchSpec BatchSpec;
 		BatchSpec.StateVersion = Decision.GetStateVersion();
@@ -3288,6 +4054,31 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 			EBattleEventType::DecisionRejected,
 			EBattleEventCause::Decision,
 			ActionKind,
+			Source);
+	}
+	if (Request->GetRequestKind() == EBattleDecisionRequestKind::ShiftResponse)
+	{
+		if (State->Phase != EBattlePhase::MandatoryReplacement
+			|| State->PendingDecisionRequests.Num() != 1
+			|| State->PendingReplacements.IsEmpty()
+			|| State->PendingDecisionRequests[0].GetRequestKind()
+				!= EBattleDecisionRequestKind::ShiftResponse)
+		{
+			Rejection.Reason = EBattleRejectionReason::IllegalAction;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				ActionKind,
+				Source);
+		}
+		return ResolveShiftResponseDecision(
+			*State,
+			Decision,
+			*Request,
+			ResolutionId,
 			Source);
 	}
 	if (Request->GetRequestKind() == EBattleDecisionRequestKind::PivotSwitch)

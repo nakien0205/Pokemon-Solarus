@@ -6,7 +6,8 @@ namespace
 	{
 		return Kind == EBattleSwitchKind::Voluntary
 			|| Kind == EBattleSwitchKind::Forced
-			|| Kind == EBattleSwitchKind::Pivot;
+			|| Kind == EBattleSwitchKind::Pivot
+			|| Kind == EBattleSwitchKind::Replacement;
 	}
 
 	bool IsKnownTransferPolicy(const EBattleSwitchStateTransferPolicy Policy)
@@ -80,16 +81,22 @@ bool FBattleSwitchResolver::TryBuildLegality(
 	FBattleSwitchLegalityResult& OutResult)
 {
 	OutResult = FBattleSwitchLegalityResult();
+	const bool bActorlessReplacement = Spec.Kind == EBattleSwitchKind::Replacement;
 	if (!IsKnownSwitchKind(Spec.Kind)
 		|| !Spec.ActingTrainerId.IsValid()
-		|| !Spec.ActingBattlerId.IsValid()
+		|| (bActorlessReplacement
+			? Spec.ActingBattlerId.IsValid()
+			: !Spec.ActingBattlerId.IsValid())
 		|| !Spec.ActiveSlotId.IsValid()
 		|| !IsKnownTransferPolicy(Spec.TransferPolicy)
 		|| Spec.Candidates.IsEmpty()
 		|| Spec.Candidates.Num() > FPartySlotId::PartySize
-		|| (!Spec.Blockers.bEncounterPolicyAllows
+		|| (Spec.Kind == EBattleSwitchKind::Voluntary
+			&& !Spec.Blockers.bEncounterPolicyAllows
 			&& !Spec.Blockers.EncounterPolicyRuleId.IsValid())
-		|| (Spec.Blockers.bTrapped && !Spec.Blockers.TrappingRuleId.IsValid()))
+		|| (Spec.Kind == EBattleSwitchKind::Voluntary
+			&& Spec.Blockers.bTrapped
+			&& !Spec.Blockers.TrappingRuleId.IsValid()))
 	{
 		return false;
 	}

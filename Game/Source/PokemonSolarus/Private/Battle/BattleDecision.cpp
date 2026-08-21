@@ -139,10 +139,14 @@ bool FBattleDecisionRequest::TryCreate(
 {
 	OutRequest = FBattleDecisionRequest();
 	OutRejection = FBattleRejection();
+	const bool bActorlessReplacement =
+		Spec.RequestKind == EBattleDecisionRequestKind::MandatoryReplacement;
 	if (Spec.StateVersion == 0
 		|| !IsKnownRequestKind(Spec.RequestKind)
 		|| !Spec.DecisionOwnerTrainerId.IsValid()
-		|| !Spec.ActingBattlerId.IsValid()
+		|| (bActorlessReplacement
+			? Spec.ActingBattlerId.IsValid()
+			: !Spec.ActingBattlerId.IsValid())
 		|| !Spec.ActingSlotId.IsValid()
 		|| Spec.LegalActionKinds.IsEmpty())
 	{
@@ -426,6 +430,12 @@ bool FBattleDecisionRequest::Allows(
 		break;
 	case EBattleActionKind::Switch:
 	case EBattleActionKind::Replacement:
+		if (RequestKind == EBattleDecisionRequestKind::ShiftResponse
+			&& !Decision.GetSwitchPartySlotId().IsValid()
+			&& !Decision.GetActiveTargetId().IsValid())
+		{
+			return true;
+		}
 		if (!LegalSwitchPartySlots.Contains(Decision.GetSwitchPartySlotId()))
 		{
 			OutRejection.Reason = EBattleRejectionReason::IllegalSwitch;
@@ -576,10 +586,9 @@ bool FBattleDecision::TryCreateSwitch(
 {
 	OutDecision = FBattleDecision();
 	const bool bVoluntary = InRequestKind == EBattleDecisionRequestKind::Action;
-	const bool bReplacement = InRequestKind == EBattleDecisionRequestKind::MandatoryReplacement;
 	const bool bPivot = InRequestKind == EBattleDecisionRequestKind::PivotSwitch;
 	if (InStateVersion == 0
-		|| (!bVoluntary && !bReplacement && !bPivot)
+		|| (!bVoluntary && !bPivot)
 		|| !InDecisionOwnerTrainerId.IsValid()
 		|| !InActingBattlerId.IsValid()
 		|| !InPartySlotId.IsValid()
@@ -592,9 +601,84 @@ bool FBattleDecision::TryCreateSwitch(
 	OutDecision.RequestKind = InRequestKind;
 	OutDecision.DecisionOwnerTrainerId = InDecisionOwnerTrainerId;
 	OutDecision.ActingBattlerId = InActingBattlerId;
-	OutDecision.ActionKind = bReplacement ? EBattleActionKind::Replacement : EBattleActionKind::Switch;
+	OutDecision.ActionKind = EBattleActionKind::Switch;
 	OutDecision.SwitchPartySlotId = InPartySlotId;
 	OutDecision.ActiveTargetId = InDestination;
+	return true;
+}
+
+bool FBattleDecision::TryCreateReplacement(
+	const uint64 InStateVersion,
+	const FTrainerId InDecisionOwnerTrainerId,
+	const FPartySlotId InPartySlotId,
+	const FActiveSlotId InDestination,
+	FBattleDecision& OutDecision)
+{
+	OutDecision = FBattleDecision();
+	if (InStateVersion == 0
+		|| !InDecisionOwnerTrainerId.IsValid()
+		|| !InPartySlotId.IsValid()
+		|| !InDestination.IsValid())
+	{
+		return false;
+	}
+	OutDecision.bValid = true;
+	OutDecision.StateVersion = InStateVersion;
+	OutDecision.RequestKind = EBattleDecisionRequestKind::MandatoryReplacement;
+	OutDecision.DecisionOwnerTrainerId = InDecisionOwnerTrainerId;
+	OutDecision.ActionKind = EBattleActionKind::Replacement;
+	OutDecision.SwitchPartySlotId = InPartySlotId;
+	OutDecision.ActiveTargetId = InDestination;
+	return true;
+}
+
+bool FBattleDecision::TryCreateShiftSwitch(
+	const uint64 InStateVersion,
+	const FTrainerId InDecisionOwnerTrainerId,
+	const FBattlerId InActingBattlerId,
+	const FPartySlotId InPartySlotId,
+	const FActiveSlotId InDestination,
+	FBattleDecision& OutDecision)
+{
+	OutDecision = FBattleDecision();
+	if (InStateVersion == 0
+		|| !InDecisionOwnerTrainerId.IsValid()
+		|| !InActingBattlerId.IsValid()
+		|| !InPartySlotId.IsValid()
+		|| !InDestination.IsValid())
+	{
+		return false;
+	}
+	OutDecision.bValid = true;
+	OutDecision.StateVersion = InStateVersion;
+	OutDecision.RequestKind = EBattleDecisionRequestKind::ShiftResponse;
+	OutDecision.DecisionOwnerTrainerId = InDecisionOwnerTrainerId;
+	OutDecision.ActingBattlerId = InActingBattlerId;
+	OutDecision.ActionKind = EBattleActionKind::Switch;
+	OutDecision.SwitchPartySlotId = InPartySlotId;
+	OutDecision.ActiveTargetId = InDestination;
+	return true;
+}
+
+bool FBattleDecision::TryCreateShiftDecline(
+	const uint64 InStateVersion,
+	const FTrainerId InDecisionOwnerTrainerId,
+	const FBattlerId InActingBattlerId,
+	FBattleDecision& OutDecision)
+{
+	OutDecision = FBattleDecision();
+	if (InStateVersion == 0
+		|| !InDecisionOwnerTrainerId.IsValid()
+		|| !InActingBattlerId.IsValid())
+	{
+		return false;
+	}
+	OutDecision.bValid = true;
+	OutDecision.StateVersion = InStateVersion;
+	OutDecision.RequestKind = EBattleDecisionRequestKind::ShiftResponse;
+	OutDecision.DecisionOwnerTrainerId = InDecisionOwnerTrainerId;
+	OutDecision.ActingBattlerId = InActingBattlerId;
+	OutDecision.ActionKind = EBattleActionKind::Switch;
 	return true;
 }
 
@@ -645,19 +729,47 @@ bool FBattleDecisionBatch::TryCreate(
 		return false;
 	}
 
+	const bool bReplacementBatch =
+		Spec.RequestKind == EBattleDecisionRequestKind::MandatoryReplacement;
 	TArray<FBattlerId> Actors;
+	TArray<FActiveSlotId> Destinations;
+	TArray<FPartySlotId> Reserves;
 	for (const FBattleDecision& Decision : Spec.Decisions)
 	{
 		if (!Decision.IsValid()
 			|| Decision.GetStateVersion() != Spec.StateVersion
 			|| Decision.GetRequestKind() != Spec.RequestKind
-			|| Decision.GetDecisionOwnerTrainerId() != Spec.DecisionOwnerTrainerId
-			|| Actors.Contains(Decision.GetActingBattlerId()))
+			|| Decision.GetDecisionOwnerTrainerId() != Spec.DecisionOwnerTrainerId)
 		{
 			OutRejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
 			return false;
 		}
-		Actors.Add(Decision.GetActingBattlerId());
+
+		if (bReplacementBatch)
+		{
+			if (Decision.GetActingBattlerId().IsValid()
+				|| Decision.GetActionKind() != EBattleActionKind::Replacement
+				|| !Decision.GetActiveTargetId().IsValid()
+				|| !Decision.GetSwitchPartySlotId().IsValid()
+				|| Destinations.Contains(Decision.GetActiveTargetId())
+				|| Reserves.Contains(Decision.GetSwitchPartySlotId()))
+			{
+				OutRejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
+				return false;
+			}
+			Destinations.Add(Decision.GetActiveTargetId());
+			Reserves.Add(Decision.GetSwitchPartySlotId());
+		}
+		else
+		{
+			if (!Decision.GetActingBattlerId().IsValid()
+				|| Actors.Contains(Decision.GetActingBattlerId()))
+			{
+				OutRejection.Reason = EBattleRejectionReason::InvalidDecisionBatch;
+				return false;
+			}
+			Actors.Add(Decision.GetActingBattlerId());
+		}
 	}
 
 	OutBatch.bValid = true;

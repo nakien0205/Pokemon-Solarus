@@ -212,6 +212,13 @@ struct FBattleDecisionOwnerState
 	TArray<FBattleDecisionActorState> Actors;
 };
 
+/** One empty active position frozen at the queue-exhaustion replacement checkpoint. */
+struct FBattlePendingReplacementState
+{
+	FTrainerId TrainerId;
+	FActiveSlotId ActiveSlotId;
+};
+
 /**
  * Single authoritative mutable state owned by FBattleEngine.
  * The header is private to the runtime module; later rule packages consume const queries.
@@ -298,6 +305,7 @@ public:
 	int32 CurrentDecisionOwnerIndex = INDEX_NONE;
 	int32 CurrentDecisionActorOffset = 0;
 	TArray<FBattleDecisionRequest> PendingDecisionRequests;
+	TArray<FBattlePendingReplacementState> PendingReplacements;
 	TArray<FBattleDecision> AcceptedSelections;
 	TUniquePtr<IBattleRandom> Random;
 	uint64 NextResolutionId = 1;

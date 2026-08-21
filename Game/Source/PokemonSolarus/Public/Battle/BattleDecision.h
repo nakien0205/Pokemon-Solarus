@@ -258,7 +258,7 @@ public:
 		FMoveId MoveId,
 		FBattleDecision& OutDecision);
 
-	/** Creates one typed switch or mandatory-replacement decision. */
+	/** Creates one typed voluntary or pivot-switch decision. */
 	[[nodiscard]] static bool TryCreateSwitch(
 		uint64 StateVersion,
 		EBattleDecisionRequestKind RequestKind,
@@ -266,6 +266,30 @@ public:
 		FBattlerId ActingBattlerId,
 		FPartySlotId PartySlotId,
 		FActiveSlotId Destination,
+		FBattleDecision& OutDecision);
+
+	/** Creates one actorless mandatory replacement for an empty active slot. */
+	[[nodiscard]] static bool TryCreateReplacement(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FPartySlotId PartySlotId,
+		FActiveSlotId Destination,
+		FBattleDecision& OutDecision);
+
+	/** Accepts a Shift prompt by freely switching the current active battler. */
+	[[nodiscard]] static bool TryCreateShiftSwitch(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
+		FPartySlotId PartySlotId,
+		FActiveSlotId Destination,
+		FBattleDecision& OutDecision);
+
+	/** Declines a Shift prompt without carrying a reserve or active destination. */
+	[[nodiscard]] static bool TryCreateShiftDecline(
+		uint64 StateVersion,
+		FTrainerId DecisionOwnerTrainerId,
+		FBattlerId ActingBattlerId,
 		FBattleDecision& OutDecision);
 
 	/** Creates one typed Bag decision with an active target, party target, or both. */
@@ -331,7 +355,7 @@ public:
 	/** Creates an invalid batch. */
 	FBattleDecisionBatch() = default;
 
-	/** Validates shared version, request kind, owner, size, and unique actors. */
+	/** Validates shared identity plus unique actors or replacement destinations/reserves. */
 	[[nodiscard]] static bool TryCreate(
 		const FBattleDecisionBatchSpec& Spec,
 		FBattleDecisionBatch& OutBatch,

@@ -157,7 +157,7 @@ struct POKEMONSOLARUS_API FBattleEncounterPolicies
 	bool bRunAllowed = false;
 	bool bCaptureAllowed = false;
 	bool bBagAllowed = true;
-	bool bShiftPromptEligible = false;
+	bool bShiftPromptEligible = true;
 	EBattleWildFleeMode WildFleeMode = EBattleWildFleeMode::Disabled;
 	uint32 WildFleeNumerator = 0;
 	uint32 WildFleeDenominator = 0;

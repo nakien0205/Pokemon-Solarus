@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00 through C05 and C06A complete under focused validation
-Next package: C06B; its C06A dependency is clear
+Roadmap status: Approved and materialized; B00 through C06 complete under focused validation
+Next package: C07A; its C06B dependency is clear
 
 ## Current Truth
 
@@ -61,13 +61,18 @@ The live battle source now contains:
   switching, post-move pivot request, stable active-slot occupancy change,
   transient cleanup and entry-trigger facts, and seven
   `PokemonSolarus.Battle.C06A.*` Automation tests.
+- C06B's frozen queue-boundary replacement groups, actorless mandatory
+  replacement decisions, atomic Left/Right reserve assignment, free Shift
+  accept/decline path, unsupported-format Set normalization, deterministic
+  entry facts and replay, and eight `PokemonSolarus.Battle.C06B.*` Automation
+  tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, and switching
 seam, plus the frozen public setup/decision/event/snapshot/replay, stat, type,
 move, definition, adapter, and pure hit/damage language needed by later
-packages. There is still no faint-replacement or Shift/Set selection system,
-concrete condition behavior engine, encounter flow, or presentation seam. The
+packages. There is still no concrete condition behavior engine, encounter
+flow, Ability/item execution, or presentation seam. The
 completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -83,9 +88,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C05 and C06A gates are clear. C06B is dependency-clear; every
-  later package remains blocked or not started. The workspace's sequential
-  default makes C06B the next package.
+- The B00 through C06 gates are clear. C07A is dependency-clear; every later
+  package remains blocked or not started. The workspace's sequential default
+  makes C07A the next package.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -597,8 +602,46 @@ B00B accepted evidence:
   `DefaultEngine.ini`, module rules, and every existing test file remained at
   their recorded hashes. No `dev-story`, subagent, Git commit, or other Git
   write was used.
-- C06A is complete under the approved focused-validation scope. C06B is the
-  next sequential package; stop here.
+- C06A is complete under the approved focused-validation scope. C06B's later
+  completion is recorded immediately below.
+
+## C06B Execution Status
+
+- C06B completed on 2026-08-21 from clean `main` baseline `7330dda`
+  (`Implement C06A`). C07A was not started.
+- Setup now defaults eligible non-Wild Single encounters to Shift, preserves an
+  explicit forced-Set choice, and normalizes Wild, Double, and Partner Double
+  setups to Set.
+- Queue exhaustion freezes replacement needs in side/Left/Right order. The
+  engine emits each existing `ReplacementRequired` fact once, offers an
+  eligible player Shift response first, then exposes actorless owner-scoped
+  mandatory replacement batches. One reserve falls back to Left when both
+  slots are empty.
+- Replacement and Shift choices are revalidated before mutation. Rejected
+  stale, wrong-owner, duplicate-reserve, or illegal responses retain gameplay
+  version, occupancy, pending requests, and RNG trace. Accepted replacement is
+  actionless; accepted Shift reuses C06A transient cleanup; decline emits only
+  `DecisionAccepted` before opponent replacement.
+- No phase, event enum, replay field/schema version, public engine method,
+  hazard execution, Ability execution, or item execution was added.
+- The final forced-unity `PokemonSolarusEditor Win64 Development` build with
+  `-ForceUnity -DisableAdaptiveUnity -NoUBA` succeeded with exit code `0`.
+- The only runtime filter run was
+  `Automation RunTests PokemonSolarus.Battle.C06B`, under run ID
+  `C06B-Replacements-20260821T111345Z`. Its `index.json` records exactly 8
+  succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in process;
+  every test entry records 0 warnings and 0 errors, and the process exited `0`.
+- The editor log contains one pre-test command-line deprecation warning that
+  `-ReportOutputPath` is now named `-ReportExportPath`; it contains no C06B test
+  warning or failure. Report evidence is
+  `Game/Saved/Automation/C06B-Replacements-20260821T111345Z/report/index.json`.
+- No C06A, C05C, older battle, complete battle, or full project test filter was
+  run. No fresh runtime claim is made for those filters.
+- Protected authorities, C05C, event/replay files, module/configuration files,
+  and existing tests retained their recorded pre-write hashes. No `dev-story`,
+  subagent, Git commit, or other Git write was used.
+- C06 is complete under the approved focused-validation scope. C07A is the next
+  sequential package and its C06B dependency is clear.
 
 ## Goal
 

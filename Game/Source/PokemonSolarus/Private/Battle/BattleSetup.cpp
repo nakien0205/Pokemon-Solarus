@@ -140,6 +140,12 @@ namespace
 
 	void Canonicalize(FBattleSetupInput& Input)
 	{
+		if (Input.EncounterKind == EBattleEncounterKind::Wild
+			|| Input.Format != EBattleFormat::Single)
+		{
+			Input.Policies.bShiftPromptEligible = false;
+		}
+
 		for (FBattleTrainerSetup& Trainer : Input.Trainers)
 		{
 			Trainer.Bag.Sort(
