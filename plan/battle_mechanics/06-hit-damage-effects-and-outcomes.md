@@ -1,7 +1,7 @@
 # C05 — Hit, Damage, Reusable Effects, Fainting, and Outcomes
 
 Priority: P1  
-Status: C05A and C05B complete under focused validation; C05C not started
+Status: C05A, C05B, and C05C complete under focused validation
 Required order: C05A, C05B, then C05C
 
 ## Objective
@@ -250,4 +250,76 @@ Implemented C05B source hashes:
 | `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `59fe96cc6f9241d014a1d51c266ce13947715d4eec5392a4d88ad161100cbc1f` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp` | `2153b7fac2398273451dd5c9cb972e026c594dfaacf50455b9622d03266baf2d` |
 
-C05C is the next sequential package.
+## C05C Completion Evidence
+
+C05C completed on 2026-08-21 from the clean `c7d944a` baseline. It added one
+private faint/outcome resolver, automatic engine integration, and exactly seven
+public-engine tests under the `PokemonSolarus.Battle.C05C` filter.
+
+Frozen implementation boundaries:
+
+- `FBattleEngine::ExecuteCurrentMoveEffects()` now emits each zero-HP
+  `Damage -> HPChanged -> Fainted` sequence before linked recoil. Direct
+  spread faints share one nonzero resolution-scoped simultaneous-group ID and
+  retain stable Player/Opponent and Left/Right order.
+- Only after every linked effect is known, fainted battlers lose major status,
+  temporary stat stages, and volatiles; their active slots are vacated and
+  `LeftActiveSlot`, `Removed`, and applicable
+  `OpponentRemovalCheckpoint` facts are emitted in stable order.
+- `ActionCompleted` precedes terminal resolution. Both sides losing their
+  final usable Pokemon in one action produces `Defeat / SimultaneousFaint`;
+  the other completed outcome branches are ordinary Victory, ordinary Defeat,
+  and `Victory / PartnerTeamVictory`.
+- A fainted queued actor is canceled without PP or execution RNG. Queue
+  exhaustion publishes stable `ReplacementRequired` slot facts when a living
+  reserve exists, otherwise enters `EndOfTurn`; C05C does not select or perform
+  a replacement.
+- Impossible disagreement between already committed effect state and the
+  private faint resolver terminates through an all-configuration `Fatal`
+  invariant, so Test/Shipping cannot continue with partial faint cleanup.
+- The existing one-use between-actions stat-refresh seam remains restricted to
+  the `Resolving` phase. C05C emits the future progression checkpoint fact but
+  does not implement EXP, level progression, or terminal progression
+  orchestration.
+- No public method, enum, event ordinal, replay field, or schema was added.
+  Replay schema 4 and the existing hit and simultaneous-group metadata remain
+  authoritative. C06 switching/replacement selection and C07/C08 mechanics
+  remain later work.
+
+Review and final validation:
+
+- The required parallel Unreal/C++ and QA-testability reviews first identified
+  the all-configuration invariant guard and assertion gaps. After patching,
+  both reviews were rerun and reported no remaining actionable findings.
+- The final forced-unity `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA`:
+  `Game/Saved/Logs/C05C-Final-EditorBuild-ForcedUnity-20260821T092416Z.log`.
+- The exact `PokemonSolarus.Battle.C05C` run discovered exactly seven tests:
+  7 succeeded, 0 with warnings, 0 failed, 0 not run, and 0 in process. Every
+  individual test entry contains 0 warnings and 0 errors:
+  `Game/Saved/Automation/C05C-Final-20260821T092434Z/report/index.json`.
+- The matching editor log is
+  `Game/Saved/Automation/C05C-Final-20260821T092434Z/automation.log`.
+- Each required test executes its scenario twice and compares total event
+  order, RNG trace, outcome and cause, and canonical replay bytes. The seven
+  tests also cover cleanup/removal order, slot vacancy, replacement payload
+  and order, the no-replacement `EndOfTurn` branch, full spread hit/group
+  metadata, checkpoint one-use, and terminal/replacement exclusivity.
+- Per the user's explicit validation limit, no C05B, C05A, older battle
+  filter, or full `PokemonSolarus.Battle` suite was run. No fresh runtime claim
+  is made for those filters.
+- Module rules, `.uproject`, `DefaultEngine.ini`, every C05A source/test, the
+  unchanged C05B executor/support sources, B00B, and the Solarus interview
+  handoff matched their recorded hashes after final validation.
+
+Implemented C05C source hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Private/Battle/BattleFaintOutcomeResolver.h` | `60b68d3b9aa5269d56ea2edbc49003382319d9c64881b57a111327e265f98088` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleFaintOutcomeResolver.cpp` | `28844517aca2b8eb39dd3a537f7661de33b885631a62523df03021063b926baa` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `53df7ee3c62927ab9b54125c6ee16c887c62fa5762aa20c47d6ad970e8644c84` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleFaintOutcomeTests.cpp` | `999fc1d7305318ae264b9c855394e8e96f14f0abdcbac7c9f2f15cd9b1979c2c` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp` | `2a9f96992aeab114dbb113d52682dd12e88773461c2baa2c760be47cdb8607dc` |
+
+C05 is complete under focused validation. C06A is the next sequential package.

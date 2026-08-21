@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00 through C04, C05A, and C05B complete under focused validation
-Next package: C05C in a new session; its dependencies are clear
+Roadmap status: Approved and materialized; B00 through C05 complete under focused validation
+Next package: C06A in a new session; its dependencies are clear
 
 ## Current Truth
 
@@ -51,13 +51,18 @@ The live battle source now contains:
   appended effect outcomes and removal operation, exact-once public engine
   step, pending-faint boundary, and nine `PokemonSolarus.Battle.C05B.*`
   Automation tests.
+- C05C's automatic faint/removal/outcome continuation, target-before-recoil
+  faint order, stable simultaneous spread groups, cleanup and slot vacancy,
+  one-use opponent-removal checkpoints, queued-fainted-actor cancellation,
+  replacement/end-turn boundaries, terminal outcomes, and seven
+  `PokemonSolarus.Battle.C05C.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, and final-target seam, plus the
 frozen public setup/decision/event/snapshot/replay, stat, type, move,
 definition, adapter, and pure hit/damage language needed by later packages.
-There is still no C05C faint-event/removal/outcome pipeline, switching system,
-concrete condition behavior engine, encounter flow, or presentation seam. The
+There is still no switching/replacement selection system, concrete condition
+behavior engine, encounter flow, or presentation seam. The
 completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -73,9 +78,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00, C01, C02, C03, C04, C05A, and C05B gates are clear. C05C is
-  dependency-clear; every later package remains blocked or not started. The
-  workspace's sequential default makes C05C the next session.
+- The B00 through C05 gates are clear. C06A is dependency-clear; every later
+  package remains blocked or not started. The workspace's sequential default
+  makes C06A the next session.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -512,8 +517,35 @@ B00B accepted evidence:
   `Game/Saved/Automation/C05B-EffectExecutor-Fixes-20260821T083903Z/automation.log`,
   and
   `Game/Saved/Automation/C05B-EffectExecutor-Fixes-20260821T083903Z/report/index.json`.
-- C05B is complete under the approved focused-validation scope. C05C is the
-  next sequential package.
+- C05B is complete under the approved focused-validation scope. C05C's later
+  completion is recorded immediately below.
+
+## C05C Execution Status
+
+- C05C completed on 2026-08-21 from the clean `c7d944a` baseline.
+- The private faint/outcome resolver is integrated automatically through
+  `FBattleEngine::ExecuteCurrentMoveEffects()`; no optional faint API, public
+  enum, event ordinal, replay field, or replay-schema change was added.
+- The final forced-unity `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA`:
+  `Game/Saved/Logs/C05C-Final-EditorBuild-ForcedUnity-20260821T092416Z.log`.
+- The exact `PokemonSolarus.Battle.C05C` report contains exactly seven tests:
+  7 succeeded, 0 with warnings, 0 failed, 0 not run, and 0 in process. Every
+  individual entry also contains 0 warnings and 0 errors:
+  `Game/Saved/Automation/C05C-Final-20260821T092434Z/report/index.json`.
+- The matching editor log is
+  `Game/Saved/Automation/C05C-Final-20260821T092434Z/automation.log`.
+- The required parallel Unreal/C++ and QA-testability reviews were rerun after
+  patching; both final reviews reported no remaining actionable findings.
+- Per the user's explicit validation limit, no C05B, C05A, older battle
+  filter, or full `PokemonSolarus.Battle` suite was run. No fresh runtime claim
+  is made for those filters.
+- Module rules, `.uproject`, `DefaultEngine.ini`, C05A sources/tests, the
+  unchanged C05B executor/support files, B00B, and the Solarus interview
+  handoff matched their recorded hashes after final validation.
+- C05 is complete under the approved focused-validation scope. C06A is the
+  next sequential package; C06 switching and replacement selection were not
+  implemented by C05C.
 
 ## Goal
 

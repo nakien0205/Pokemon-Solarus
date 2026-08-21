@@ -1583,11 +1583,11 @@ namespace BattleEffectExecutorTests
 		TestFalse(TEXT("Effect execution is rejected before target resolution"), BeforeTargeting.WasAccepted());
 		TestTrue(TEXT("C04B target resolution succeeds"), Engine->ResolveCurrentMoveTargets().WasAccepted());
 		TestTrue(
-			TEXT("The fixture sets a one-HP production-adapter target"),
+			TEXT("The fixture keeps the production-adapter target above the faint threshold"),
 			FBattleC05BEngineFixture::SetBattlerHpForExecution(
 				*Engine,
 				MakeNumericId<FBattlerId>(OpponentLeftBattlerValue),
-				1));
+				200));
 
 		TestTrue(
 			TEXT("The fixture can expose the synchronous re-entrant guard"),
@@ -1635,10 +1635,10 @@ namespace BattleEffectExecutorTests
 				MakeNumericId<FBattlerId>(OpponentLeftBattlerValue),
 				bFainted,
 				bFaintTransitionPending));
-		TestTrue(TEXT("Zero HP sets the existing faint flag"), bFainted);
-		TestTrue(TEXT("Zero HP sets the pending C05C transition flag"), bFaintTransitionPending);
-		TestTrue(
-			TEXT("The public snapshot projects zero HP as fainted"),
+		TestFalse(TEXT("The surviving C05B target is not fainted"), bFainted);
+		TestFalse(TEXT("The surviving C05B target has no pending C05C transition"), bFaintTransitionPending);
+		TestFalse(
+			TEXT("The public snapshot keeps the surviving target active"),
 			AfterExecution.FindObservedBattler(
 				MakeNumericId<FBattlerId>(OpponentLeftBattlerValue))->bFainted);
 		TestEqual(

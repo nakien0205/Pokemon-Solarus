@@ -1,5 +1,6 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleEffectExecutor.h"
+#include "Battle/BattleFaintOutcomeResolver.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleStatCalculator.h"
 
@@ -249,7 +250,8 @@ namespace
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
 		const FBattleLockedActionState& Action,
-		const FBattleEffectExecutionEvent& Record)
+		const FBattleEffectExecutionEvent& Record,
+		const TOptional<uint64> SimultaneousGroupId = TOptional<uint64>())
 	{
 		FBattleEventSpec Spec;
 		Spec.EventOrdinal = State.NextEventOrdinal;
@@ -265,6 +267,7 @@ namespace
 		Spec.NumericBefore = Record.NumericBefore;
 		Spec.NumericAfter = Record.NumericAfter;
 		Spec.NumericDelta = Record.NumericDelta;
+		Spec.SimultaneousGroupId = SimultaneousGroupId;
 		Spec.HitIndex = Record.HitIndex;
 		Spec.HitCount = Record.HitCount;
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
@@ -274,6 +277,88 @@ namespace
 		check(bCreated);
 		++State.NextEventOrdinal;
 		return Event;
+	}
+
+	FBattleEvent MakeTargetedActionEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		const EBattleEventType Type,
+		const EBattleEventCause Cause,
+		const FBattleEventTarget& Target,
+		const EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None,
+		const TOptional<uint64> SimultaneousGroupId = TOptional<uint64>(),
+		const TOptional<uint16> HitIndex = TOptional<uint16>(),
+		const TOptional<uint16> HitCount = TOptional<uint16>())
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = Cause;
+		Spec.CauseActionKind = Action.Decision.GetActionKind();
+		Spec.OutcomeCause = OutcomeCause;
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Targets.Add(Target);
+		Spec.SimultaneousGroupId = SimultaneousGroupId;
+		Spec.HitIndex = HitIndex;
+		Spec.HitCount = HitCount;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeBattleEndedEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		const EBattleOutcomeCause OutcomeCause)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = EBattleEventType::BattleEnded;
+		Spec.Cause = EBattleEventCause::Outcome;
+		Spec.CauseActionKind = Action.Decision.GetActionKind();
+		Spec.OutcomeCause = OutcomeCause;
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	void AppendPostActionBoundaryEvents(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		TArray<FBattleEvent>& Events)
+	{
+		TArray<FBattleReplacementRequirement> Requirements;
+		FBattleFaintOutcomeResolver::ResolveQueueBoundary(State, Requirements);
+		for (const FBattleReplacementRequirement& Requirement : Requirements)
+		{
+			Events.Add(MakeTargetedActionEvent(
+				State,
+				ResolutionId,
+				Action,
+				EBattleEventType::ReplacementRequired,
+				EBattleEventCause::Rule,
+				Requirement.Target));
+		}
 	}
 
 	FBattleResolution MakeRejectedResolution(
@@ -1864,6 +1949,7 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 			EBattleEventType::ActionCompleted,
 			EBattleEventCause::Action));
 		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, Action, Events);
 	}
 	else
 	{
@@ -1882,6 +1968,7 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 			EBattleEventType::ActionCompleted,
 			EBattleEventCause::Action));
 		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, Action, Events);
 	}
 
 	++State->StateVersion;
@@ -1975,6 +2062,7 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 			EBattleEventType::ActionCompleted,
 			EBattleEventCause::Action));
 		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
 		++State->StateVersion;
 
 		FBattleResolutionSpec ResolutionSpec;
@@ -2179,6 +2267,7 @@ FBattleResolution FBattleEngine::ResolveCurrentMoveTargets()
 			EBattleEventType::ActionCompleted,
 			EBattleEventCause::Action));
 		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
 	}
 
 	++State->StateVersion;
@@ -2300,11 +2389,97 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 	}
 
 	const uint64 BeforeStateVersion = State->StateVersion;
-	TArray<FBattleEvent> Events;
-	Events.Reserve(EffectResult.Events.Num() + 1);
-	for (const FBattleEffectExecutionEvent& Record : EffectResult.Events)
+	FBattleFaintOutcomeResolution FaintResolution;
+	const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
+		EffectResult,
+		Action->TargetClass,
+		ResolutionId,
+		*State,
+		FaintResolution);
+	if (!bFaintsResolved)
 	{
-		Events.Add(MakeBattleEffectEvent(*State, ResolutionId, *Action, Record));
+		UE_LOG(
+			LogTemp,
+			Fatal,
+			TEXT("C05C faint resolution disagreed with already committed effect state."));
+	}
+
+	TArray<FBattleEvent> Events;
+	Events.Reserve(
+		EffectResult.Events.Num()
+		+ FaintResolution.Faints.Num()
+		+ FaintResolution.Removals.Num() * 3
+		+ 3);
+	for (int32 EventIndex = 0; EventIndex < EffectResult.Events.Num(); ++EventIndex)
+	{
+		const FBattleEffectExecutionEvent& Record = EffectResult.Events[EventIndex];
+		TOptional<uint64> SimultaneousGroupId;
+		if (const uint64* GroupId = FaintResolution.SimultaneousGroupsByEffectEvent.Find(EventIndex))
+		{
+			SimultaneousGroupId = *GroupId;
+		}
+		Events.Add(MakeBattleEffectEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			Record,
+			SimultaneousGroupId));
+
+		const FBattleFaintTransitionRecord* Faint = FaintResolution.Faints.FindByPredicate(
+			[EventIndex](const FBattleFaintTransitionRecord& Candidate)
+			{
+				return Candidate.EffectEventIndex == EventIndex;
+			});
+		if (Faint != nullptr)
+		{
+			Events.Add(MakeTargetedActionEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::Fainted,
+				Record.Cause,
+				Faint->Target,
+				EBattleOutcomeCause::None,
+				Faint->SimultaneousGroupId,
+				Faint->HitIndex,
+				Faint->HitCount));
+		}
+	}
+
+	for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
+	{
+		Events.Add(MakeTargetedActionEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::LeftActiveSlot,
+			EBattleEventCause::Rule,
+			Removal.Target,
+			EBattleOutcomeCause::None,
+			Removal.SimultaneousGroupId));
+		Events.Add(MakeTargetedActionEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::Removed,
+			EBattleEventCause::Rule,
+			Removal.Target,
+			EBattleOutcomeCause::None,
+			Removal.SimultaneousGroupId));
+		if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
+		{
+			FBattleEvent Checkpoint = MakeTargetedActionEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::OpponentRemovalCheckpoint,
+				EBattleEventCause::Rule,
+				Removal.Target,
+				EBattleOutcomeCause::None,
+				Removal.SimultaneousGroupId);
+			State->AvailableOpponentRemovalCheckpoints.Add(Checkpoint.GetEventOrdinal());
+			Events.Add(MoveTemp(Checkpoint));
+		}
 	}
 
 	Action->EffectExecutionState = EBattleLockedEffectExecutionState::Completed;
@@ -2316,6 +2491,18 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 		EBattleEventType::ActionCompleted,
 		EBattleEventCause::Action));
 	++State->CurrentLockedActionIndex;
+	if (FaintResolution.bBattleEnded)
+	{
+		Events.Add(MakeBattleEndedEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			FaintResolution.OutcomeCause));
+	}
+	else
+	{
+		AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+	}
 	++State->StateVersion;
 
 	EBattleStateValidationError StateError = EBattleStateValidationError::None;
