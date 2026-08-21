@@ -59,6 +59,24 @@ public:
 	/** Submits one or two ordered choices atomically for the current decision owner. */
 	[[nodiscard]] FBattleResolution SubmitDecisionBatch(const FBattleDecisionBatch& Batch);
 
+	/** Returns the complete core-authority locked queue by deep copy. */
+	[[nodiscard]] TArray<FBattleLockedAction> GetLockedActions() const;
+
+	/** Returns the currently started locked action, if one awaits a later resolver. */
+	[[nodiscard]] TOptional<FBattleLockedAction> GetCurrentLockedAction() const;
+
+	/**
+	 * Applies actor, captured-target, and obedience gates to the next locked action.
+	 * A proceeding action remains current for later pre-move and effect resolvers.
+	 */
+	[[nodiscard]] FBattleResolution BeginNextLockedAction();
+
+	/**
+	 * Commits the current Fight action after future status/volatile gates allow it.
+	 * Ordinary moves spend one PP here; engine-supplied Struggle spends none.
+	 */
+	[[nodiscard]] FBattleResolution CommitCurrentMoveAfterPreMoveGates();
+
 	/** Applies a validated between-actions stat refresh at one unused matching checkpoint. */
 	[[nodiscard]] FBattleResolution ApplyBetweenActionsStatRefresh(
 		const FBattleBetweenActionsStatRefresh& Refresh);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Battle/BattleDecision.h"
+#include "Battle/BattleActionQueue.h"
 
 /** Public event family with explicit canonical encoding. */
 enum class EBattleEventType : uint8
@@ -43,7 +43,10 @@ enum class EBattleEventType : uint8
 	OpponentRemovalCheckpoint = 34,
 	BattleEnded = 35,
 	StatRefreshApplied = 36,
-	StatRefreshRejected = 37
+	StatRefreshRejected = 37,
+	ActionOrderLocked = 38,
+	ObedienceConfirmed = 39,
+	ObedienceRefused = 40
 };
 
 /** Typed source family for an event cause. */
@@ -90,6 +93,14 @@ struct POKEMONSOLARUS_API FBattleEventVisibility
 	bool bRevealSourceDefinition = false;
 };
 
+/** Complete queue-order facts attached only to an ActionOrderLocked event. */
+struct POKEMONSOLARUS_API FBattleActionOrderMetadata
+{
+	uint64 QueueOrdinal = 0;
+	FBattleActionOrderKey OrderKey;
+	bool bReverseSpeed = false;
+};
+
 /** Mutable construction input for one validated immutable event. */
 struct POKEMONSOLARUS_API FBattleEventSpec
 {
@@ -110,6 +121,7 @@ struct POKEMONSOLARUS_API FBattleEventSpec
 	TOptional<uint64> SimultaneousGroupId;
 	TOptional<uint16> HitIndex;
 	TOptional<uint16> HitCount;
+	TOptional<FBattleActionOrderMetadata> ActionOrder;
 	FBattleEventVisibility Visibility;
 };
 
@@ -159,6 +171,8 @@ public:
 	[[nodiscard]] const TOptional<uint16>& GetHitIndex() const { return HitIndex; }
 	/** Returns the optional total reached hit count. */
 	[[nodiscard]] const TOptional<uint16>& GetHitCount() const { return HitCount; }
+	/** Returns complete queue-order metadata only for ActionOrderLocked. */
+	[[nodiscard]] const TOptional<FBattleActionOrderMetadata>& GetActionOrder() const { return ActionOrder; }
 	/** Returns public visibility/reveal metadata. */
 	[[nodiscard]] const FBattleEventVisibility& GetVisibility() const { return Visibility; }
 
@@ -181,6 +195,7 @@ private:
 	TOptional<uint64> SimultaneousGroupId;
 	TOptional<uint16> HitIndex;
 	TOptional<uint16> HitCount;
+	TOptional<FBattleActionOrderMetadata> ActionOrder;
 	FBattleEventVisibility Visibility;
 };
 

@@ -4,7 +4,7 @@ namespace
 {
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleEventType::StatRefreshRejected);
+		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleEventType::ObedienceRefused);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)
@@ -40,6 +40,32 @@ namespace
 		return Target.TrainerId.IsValid()
 			|| Target.BattlerId.IsValid()
 			|| Target.ActiveSlotId.IsValid();
+	}
+
+	bool IsActionOrderMetadataValid(const FBattleActionOrderMetadata& Metadata)
+	{
+		const bool bKnownBand = Metadata.OrderKey.CommandBand == EBattleActionCommandBand::Move
+			|| Metadata.OrderKey.CommandBand == EBattleActionCommandBand::Bag
+			|| Metadata.OrderKey.CommandBand == EBattleActionCommandBand::VoluntarySwitch
+			|| Metadata.OrderKey.CommandBand == EBattleActionCommandBand::Run;
+		if (Metadata.QueueOrdinal == 0
+			|| !bKnownBand
+			|| !Metadata.OrderKey.ActingSlotId.IsValid()
+			|| Metadata.OrderKey.EffectiveSpeed <= 0)
+		{
+			return false;
+		}
+
+		if (Metadata.OrderKey.CommandBand == EBattleActionCommandBand::Move)
+		{
+			return Metadata.OrderKey.MovePriority >= -7
+				&& Metadata.OrderKey.MovePriority <= 5
+				&& Metadata.OrderKey.FractionalPriorityTenths >= 0
+				&& Metadata.OrderKey.FractionalPriorityTenths <= 9;
+		}
+
+		return Metadata.OrderKey.MovePriority == 0
+			&& Metadata.OrderKey.FractionalPriorityTenths == 0;
 	}
 }
 
@@ -81,6 +107,19 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 	{
 		return false;
 	}
+	if (Spec.Type == EBattleEventType::ActionOrderLocked)
+	{
+		if (!Spec.ActionId.IsValid()
+			|| !Spec.ActionOrder.IsSet()
+			|| !IsActionOrderMetadataValid(Spec.ActionOrder.GetValue()))
+		{
+			return false;
+		}
+	}
+	else if (Spec.ActionOrder.IsSet())
+	{
+		return false;
+	}
 	if (Spec.Visibility.Level == EBattleVisibilityLevel::OwningTrainer
 		&& !Spec.Visibility.OwningTrainerId.IsValid())
 	{
@@ -112,6 +151,7 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 	OutEvent.SimultaneousGroupId = Spec.SimultaneousGroupId;
 	OutEvent.HitIndex = Spec.HitIndex;
 	OutEvent.HitCount = Spec.HitCount;
+	OutEvent.ActionOrder = Spec.ActionOrder;
 	OutEvent.Visibility = Spec.Visibility;
 	return true;
 }

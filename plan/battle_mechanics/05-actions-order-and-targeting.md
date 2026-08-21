@@ -1,7 +1,7 @@
 # C04 — Action Legality, Order, and Targeting
 
 Priority: P1  
-Status: Blocked by C03  
+Status: C04A complete under focused validation; C04B dependency-clear and not started
 Required order: C04A, then C04B
 
 ## Objective
@@ -133,3 +133,86 @@ C04B:
 - No test reaches into state internals to manufacture legality.
 - C05 receives a validated locked action and target set and makes no independent
   selection-policy decisions.
+
+## C04A Execution Status
+
+- C04A completed on 2026-08-21 with final focused run ID
+  `C04A-Actions-Exit-20260821T015813Z`.
+- The final `PokemonSolarusEditor Win64 Development` module build
+  (`C04A-EditorBuild-Suffixed-20260821T015247Z`) succeeded. The exact
+  `PokemonSolarus.Battle.C04A` filter then discovered and performed seven tests:
+  7 succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- The engine now validates complete normal-turn selections before locking one
+  immutable queue. Queue keys contain the Solarus command band, integer move
+  priority, fractional-priority tenths, effective Speed, acting slot, and the
+  frozen reverse-Speed flag. Same-side exact ties consume one traced `U[0,1]`
+  draw per two-battler group; exact cross-side ties consume no draw and put the
+  player side first.
+- Zero-PP authored moves remain visible with typed `NoPP` reasons. When every
+  defined move has zero PP, the request exposes only the engine-owned modern
+  Struggle fallback. Ordinary PP is deducted only after the action-start and
+  future pre-move gates; Struggle has no PP.
+- The action-start seam revalidates the actor and the captured selected target,
+  then applies the accepted Solarus obedience rule before PP or RNG. It emits
+  typed obey/refuse results, and enemy snapshots do not reveal the player's
+  unexecuted choice.
+- `ActionOrderLocked` events carry complete order metadata and are `CoreOnly`,
+  so the authoritative replay can reproduce the queue without exposing hidden
+  selections. Replay schema 3 serializes those keys in explicit field order.
+- The seven public-seam tests cover command legality, typed zero-PP options,
+  generated Struggle, command/move priority, Speed, all-four and cross-side tie
+  rules, generic `+0.1` keys, frozen order, actor/captured-target start gates,
+  deterministic obedience, PP timing, hidden-choice filtering, and canonical
+  replay equality. No C04A test includes or mutates private battle state.
+- C04A freezes only the generic fractional-priority and reverse-Speed inputs.
+  Quick Claw eligibility, its `U[0,4]` item draw, and item reveal remain C08C;
+  Trick Room state remains C07D. The current engine therefore supplies ordinary
+  `0.0` fractional priority and non-reversed Speed until those owning packages
+  connect the frozen hooks.
+- C04B was not drafted or implemented. Full target-class resolution, fainted
+  target redirection, spread sets, random targets, and redirection effects remain
+  C04B. C05 hit, damage, and move-effect execution also remain out of scope.
+- Per the user's explicit validation limit, only the C04A-focused filter was
+  run. Earlier package filters and the full `PokemonSolarus.Battle` suite were
+  not rerun, so this session makes no fresh runtime claim for them.
+- Adding the new translation units caused Unreal's default adaptive-unity
+  regeneration to group older non-C04A files that already declare duplicate
+  `EBattleMoveCategory` and anonymous-namespace helpers. C04A was therefore
+  compiled with a temporary ignored per-module non-unity override. That override
+  was restored to the original empty `Game/Saved/UnrealBuildTool/BuildConfiguration.xml`
+  after validation; no build configuration was committed. Repairing the older
+  unity incompatibilities or permanently disabling unity is a separate,
+  explicitly unapproved cleanup.
+- The user's open Editor held the ordinary module DLL during the final link, so
+  the successful verification used Unreal's suffixed-module build path instead
+  of terminating the Editor or risking the open map.
+- Successful evidence is under
+  `Game/Saved/Automation/C04A-Actions-Exit-20260821T015813Z/`, with logs
+  `Game/Saved/Logs/C04A-Actions-Exit-20260821T015813Z.log` and
+  `Game/Saved/Logs/C04A-EditorBuild-Suffixed-20260821T015247Z.log`.
+
+Relevant C04A source hashes:
+
+| File | Pre-run SHA-256 | Final SHA-256 |
+|---|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleActionQueue.h` | absent | `47ee482163bc96347e71bd706e6495d5c5c260a8b45391d950e46c37b703ce07` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleActionQueue.cpp` | absent | `4a81d49495c57e0f73ba2f0311e12100d7160a85ada96bb283363576cb8ffddc` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleActionQueueTests.cpp` | absent | `428723b015a70a3a868b23a2bc740cc000c22e44636d6df0174b011c196fdc21` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEngine.h` | `9287a5ea93981c0fe94479912180d00f51bf88fa15ed08677ac77d1e8b6ed98b` | `8e63583b7a936153627f257077cef08440390d16d903979b6d513bb611d7592b` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `89c4295eddebcaea17be43b3fa14cf9cb67f905418c8c017c494fc99b3443003` | `15f42f501293902d4e1f907b79e635f52056f559bf3f1c12c5fd2bd8cf6bc779` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h` | `b80fccbfe8185272cc655af41f1f4a187a0843ca50e68a08de28eb9291b0754a` | `f4481199de3137cd52f532a91fd08fc40378abc82f34466062fb5ee362dfb912` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp` | `960d346df2c504b54ae06b53697e8d659ca8f4c7994a51e4664a77e1cbe73e5f` | `e0670ef72099bb105474980b82fde59f22e8b54132100663cdbd9f83cb871fbd` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleReplay.h` | `6673440c37d4203a3c7a18db8bcb6f0992ee694e42693d566703a2d0e9f33eb9` | `313d0287df88b65b6452cc32f6fcbb3576abb1f09c137f539dc129e5e1e4fa76` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleReplay.cpp` | `951ed3de62064f27100ef9b76fc646f801dd36aeff3c1eb0a6b253a39e1bdf30` | `ad91e47799d3e80da9fe07a507b4cefe6b709d93aa161775ec4ec01c5d61d5e6` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `ba8b7a862862c30e28f0b4c5937bc27267cb2e9756def9856804b0ec1a8eed8e` | `37e9da7ef3bf32eba2b1b81d4d4f140d2d3678c11c8afd0e1a2f860d7b7cc341` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `34d9f76eb52a878a5152190f9ff283f373fd12d14b0b57822b8da50863779547` | `d0704de211f741f25933ee850ab3a45651d8967f42a309f2ef38fe16cc361c92` |
+
+Protected files matched their pre-run hashes after the final C04A run:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/PokemonSolarus.Build.cs` | `5055df3ec3790fb34ef6113f2f47ebe1bdafb0cda2e3ae3cd5b5e631a216d8b7` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `cc089de5c5094ab055af54e81f4b518e799afa9adaebf542e0d45bea46ba2920` |
+| `plan/battle_mechanics/reference/modern-rules-snapshot.md` | `ded20d707ab67c2bb4d883df8ac07cbd20e38a31766b8a9ef14515c93168ad50` |
+| `docs/battle-system-interview-handoff.md` | `476040bcaf0cfdb9d7f97d3fba3ddc752f7760de252bcc7a8775f846a58c98a6` |

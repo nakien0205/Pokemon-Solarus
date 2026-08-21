@@ -177,6 +177,11 @@ struct FBattleLockedActionState
 	FActionId ActionId;
 	uint64 QueueOrdinal = 0;
 	FBattleDecision Decision;
+	FBattleActionOrderKey OrderKey;
+	FBattlerId SelectedTargetBattlerId;
+	bool bStarted = false;
+	bool bMoveCommitted = false;
+	bool bFinished = false;
 };
 
 /** One active battler awaiting a choice inside a Trainer-owned Left/Right group. */
@@ -273,6 +278,8 @@ public:
 	FBattleEncounterPolicies EncounterPolicies;
 	TArray<FBattleWildFleePolicyState> WildFleePolicies;
 	TArray<FBattleLockedActionState> LockedActions;
+	bool bLockedOrderReversesSpeed = false;
+	int32 CurrentLockedActionIndex = 0;
 	TOptional<FBattleDecisionRequest> PendingDecision;
 	TArray<FBattleDecisionOwnerState> DecisionOwnerSequence;
 	int32 CurrentDecisionOwnerIndex = INDEX_NONE;

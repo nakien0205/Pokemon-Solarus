@@ -38,6 +38,14 @@ namespace
 			|| Value == EBattleFormat::PartnerDouble;
 	}
 
+	bool IsKnownCommandBand(const EBattleActionCommandBand Value)
+	{
+		return Value == EBattleActionCommandBand::Move
+			|| Value == EBattleActionCommandBand::Bag
+			|| Value == EBattleActionCommandBand::VoluntarySwitch
+			|| Value == EBattleActionCommandBand::Run;
+	}
+
 	bool IsKnownPhase(const EBattlePhase Value)
 	{
 		return Value == EBattlePhase::Setup
@@ -692,9 +700,31 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	{
 		return Fail(EBattleStateValidationError::InvalidCounter);
 	}
-	for (const FBattleLockedActionState& Action : LockedActions)
+	if (CurrentLockedActionIndex < 0 || CurrentLockedActionIndex > LockedActions.Num())
 	{
-		if (!Action.ActionId.IsValid() || Action.QueueOrdinal == 0 || !Action.Decision.IsValid())
+		return Fail(EBattleStateValidationError::InvalidCounter);
+	}
+	for (int32 ActionIndex = 0; ActionIndex < LockedActions.Num(); ++ActionIndex)
+	{
+		const FBattleLockedActionState& Action = LockedActions[ActionIndex];
+		const bool bMoveBand = Action.OrderKey.CommandBand == EBattleActionCommandBand::Move;
+		if (!Action.ActionId.IsValid()
+			|| Action.QueueOrdinal != static_cast<uint64>(ActionIndex + 1)
+			|| !Action.Decision.IsValid()
+			|| !IsKnownCommandBand(Action.OrderKey.CommandBand)
+			|| !Action.OrderKey.ActingSlotId.IsValid()
+			|| Action.OrderKey.EffectiveSpeed <= 0
+			|| (bMoveBand
+				&& (Action.OrderKey.MovePriority < -7
+					|| Action.OrderKey.MovePriority > 5
+					|| Action.OrderKey.FractionalPriorityTenths < 0
+					|| Action.OrderKey.FractionalPriorityTenths > 9
+					|| !Action.SelectedTargetBattlerId.IsValid()))
+			|| (!bMoveBand
+				&& (Action.OrderKey.MovePriority != 0
+					|| Action.OrderKey.FractionalPriorityTenths != 0))
+			|| (Action.bMoveCommitted
+				&& (!Action.bStarted || Action.Decision.GetActionKind() != EBattleActionKind::Fight)))
 		{
 			return Fail(EBattleStateValidationError::InvalidCounter);
 		}

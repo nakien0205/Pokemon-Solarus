@@ -1,5 +1,6 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleStatCalculator.h"
 
 namespace
 {
@@ -70,6 +71,25 @@ namespace
 		return Source;
 	}
 
+	FBattleEventSource SourceFromLockedAction(
+		const FBattleEngineState& State,
+		const FBattleLockedActionState& Action)
+	{
+		FBattleEventSource Source = FindFallbackSource(State);
+		Source.TrainerId = Action.Decision.GetDecisionOwnerTrainerId();
+		Source.BattlerId = Action.Decision.GetActingBattlerId();
+		Source.ActiveSlotId = Action.OrderKey.ActingSlotId;
+		if (Action.Decision.GetActionKind() == EBattleActionKind::Fight)
+		{
+			Source.DefinitionId = Action.Decision.GetMoveId().GetDefinitionId();
+		}
+		else if (Action.Decision.GetActionKind() == EBattleActionKind::Bag)
+		{
+			Source.DefinitionId = Action.Decision.GetItemId().GetDefinitionId();
+		}
+		return Source;
+	}
+
 	FBattleEvent MakeEvent(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
@@ -92,6 +112,68 @@ namespace
 		Spec.OutcomeCause = OutcomeCause;
 		Spec.Source = Source;
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeActionOrderLockedEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = EBattleEventType::ActionOrderLocked;
+		Spec.Cause = EBattleEventCause::Action;
+		Spec.CauseActionKind = Action.Decision.GetActionKind();
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.ActionOrder = FBattleActionOrderMetadata{
+			Action.QueueOrdinal,
+			Action.OrderKey,
+			State.bLockedOrderReversesSpeed
+		};
+		Spec.Visibility.Level = EBattleVisibilityLevel::CoreOnly;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeActionDetailEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		const EBattleEventType Type,
+		const EBattleEventCause Cause,
+		const TOptional<int64> NumericBefore = TOptional<int64>(),
+		const TOptional<int64> NumericAfter = TOptional<int64>(),
+		const TOptional<int64> NumericDelta = TOptional<int64>(),
+		const EBattleVisibilityLevel Visibility = EBattleVisibilityLevel::Public)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = Cause;
+		Spec.CauseActionKind = Action.Decision.GetActionKind();
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.NumericBefore = NumericBefore;
+		Spec.NumericAfter = NumericAfter;
+		Spec.NumericDelta = NumericDelta;
+		Spec.Visibility.Level = Visibility;
 
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
@@ -168,6 +250,147 @@ namespace
 			&& !Battler->bFainted
 			&& !Battler->bCaptured
 			&& !Battler->bRemoved;
+	}
+
+	bool TryGetCommandBand(
+		const EBattleActionKind ActionKind,
+		EBattleActionCommandBand& OutBand)
+	{
+		OutBand = EBattleActionCommandBand::Move;
+		switch (ActionKind)
+		{
+		case EBattleActionKind::Fight:
+			OutBand = EBattleActionCommandBand::Move;
+			return true;
+		case EBattleActionKind::Bag:
+			OutBand = EBattleActionCommandBand::Bag;
+			return true;
+		case EBattleActionKind::Switch:
+			OutBand = EBattleActionCommandBand::VoluntarySwitch;
+			return true;
+		case EBattleActionKind::Run:
+			OutBand = EBattleActionCommandBand::Run;
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	bool TryBuildLockedActions(
+		FBattleEngineState& State,
+		const TArray<FBattleDecision>& Selections,
+		const FResolutionId ResolutionId,
+		TArray<FBattleLockedActionState>& OutActions)
+	{
+		OutActions.Reset();
+		const uint64 NextActionIdAfterLock = State.NextActionId + static_cast<uint64>(Selections.Num());
+		if (Selections.IsEmpty()
+			|| Selections.Num() > 4
+			|| !State.Random.IsValid()
+			|| NextActionIdAfterLock <= State.NextActionId)
+		{
+			return false;
+		}
+
+		FBattleActionQueueLockSpec LockSpec;
+		LockSpec.BattleId = State.Setup.GetBattleId();
+		LockSpec.TurnId = State.TurnId;
+		LockSpec.ResolutionId = ResolutionId;
+		LockSpec.bReverseSpeed = false;
+		LockSpec.Candidates.Reserve(Selections.Num());
+
+		for (int32 Index = 0; Index < Selections.Num(); ++Index)
+		{
+			const FBattleDecision& Decision = Selections[Index];
+			const FBattleBattlerState* Battler = State.FindBattler(Decision.GetActingBattlerId());
+			const FBattleActivePositionState* Active = Battler != nullptr
+				? FindActiveForBattler(State, Battler->BattlerId)
+				: nullptr;
+			const FBattleTrainerState* Trainer = Battler != nullptr
+				? State.FindTrainer(Battler->TrainerId)
+				: nullptr;
+			if (Battler == nullptr
+				|| Active == nullptr
+				|| Trainer == nullptr
+				|| Trainer->TrainerId != Decision.GetDecisionOwnerTrainerId()
+				|| !IsLivingSelectableBattler(Battler))
+			{
+				return false;
+			}
+
+			const uint64 RawActionId = State.NextActionId + static_cast<uint64>(Index);
+			FActionId ActionId;
+			if (RawActionId < State.NextActionId
+				|| !FActionId::TryCreate(RawActionId, ActionId))
+			{
+				return false;
+			}
+
+			FBattleActionOrderCandidate Candidate;
+			Candidate.ActionId = ActionId;
+			Candidate.Decision = Decision;
+			Candidate.OrderKey.ActingSlotId = Active->ActiveSlotId;
+			if (!TryGetCommandBand(Decision.GetActionKind(), Candidate.OrderKey.CommandBand)
+				|| !FBattleStatCalculator::TryCalculateEffectiveStat(
+					Battler->PermanentStats,
+					Battler->Stages,
+					EBattleStat::Speed,
+					Candidate.OrderKey.EffectiveSpeed))
+			{
+				return false;
+			}
+
+			if (Decision.GetActionKind() == EBattleActionKind::Fight)
+			{
+				const FMoveId MoveId = Decision.GetMoveId();
+				if (MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId())
+				{
+					Candidate.OrderKey.MovePriority = FBattleBuiltInMoveDefinitions::GetStruggle().Priority;
+				}
+				else
+				{
+					const FBattleMoveDefinition* Move = State.Catalog.FindMove(MoveId);
+					if (Move == nullptr)
+					{
+						return false;
+					}
+					Candidate.OrderKey.MovePriority = Move->Priority;
+				}
+
+				const FBattleActivePositionState* Target = State.FindActivePosition(
+					Decision.GetActiveTargetId());
+				if (Target == nullptr || !Target->BattlerId.IsValid())
+				{
+					return false;
+				}
+				Candidate.SelectedTargetBattlerId = Target->BattlerId;
+			}
+			LockSpec.Candidates.Add(MoveTemp(Candidate));
+		}
+
+		TArray<FBattleLockedAction> Locked;
+		EBattleActionQueueError QueueError = EBattleActionQueueError::None;
+		if (!FBattleActionQueueResolver::TryLock(
+			LockSpec,
+			*State.Random,
+			Locked,
+			QueueError))
+		{
+			return false;
+		}
+
+		OutActions.Reserve(Locked.Num());
+		for (const FBattleLockedAction& Action : Locked)
+		{
+			FBattleLockedActionState StateAction;
+			StateAction.ActionId = Action.ActionId;
+			StateAction.QueueOrdinal = Action.QueueOrdinal;
+			StateAction.Decision = Action.Decision;
+			StateAction.OrderKey = Action.OrderKey;
+			StateAction.SelectedTargetBattlerId = Action.SelectedTargetBattlerId;
+			OutActions.Add(MoveTemp(StateAction));
+		}
+		return true;
 	}
 
 	void AddUnavailableAction(
@@ -291,7 +514,8 @@ namespace
 			|| Trainer == nullptr
 			|| ActingPosition->BattlerId != Battler->BattlerId
 			|| ActingPosition->TrainerId != Trainer->TrainerId
-			|| !IsLivingSelectableBattler(Battler))
+			|| !IsLivingSelectableBattler(Battler)
+			|| Trainer->ActionAllowance.RemainingActions <= 0)
 		{
 			OutRejection = FBattleRejection();
 			OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
@@ -306,6 +530,7 @@ namespace
 		Spec.ActingSlotId = ActingPosition->ActiveSlotId;
 
 		bool bMoveRejectedForNoTarget = false;
+		bool bAnyDefinedMoveHasPP = false;
 		for (const FBattleMoveSlotState& Move : Battler->Moves)
 		{
 			const FBattleMoveDefinition* Definition = State.Catalog.FindMove(Move.MoveId);
@@ -319,6 +544,7 @@ namespace
 				AddUnavailableMove(Spec, Move.MoveId, EBattleOptionUnavailableReason::NoPP);
 				continue;
 			}
+			bAnyDefinedMoveHasPP = true;
 
 			const TArray<FActiveSlotId> Targets = BuildMoveTargets(State, *ActingPosition, Definition->TargetClass);
 			if (Targets.IsEmpty())
@@ -335,6 +561,28 @@ namespace
 				Spec.LegalMoveTargets.Add({Move.MoveId, Target});
 			}
 		}
+		if (Spec.LegalMoveIds.IsEmpty() && !bAnyDefinedMoveHasPP)
+		{
+			const FBattleMoveDefinition& Struggle = FBattleBuiltInMoveDefinitions::GetStruggle();
+			const TArray<FActiveSlotId> Targets = BuildMoveTargets(
+				State,
+				*ActingPosition,
+				Struggle.TargetClass);
+			if (Targets.IsEmpty())
+			{
+				bMoveRejectedForNoTarget = true;
+			}
+			else
+			{
+				Spec.LegalMoveIds.Add(Struggle.Id);
+				for (const FActiveSlotId Target : Targets)
+				{
+					AddUnique(Spec.LegalActiveTargets, Target);
+					Spec.LegalMoveTargets.Add({Struggle.Id, Target});
+				}
+			}
+		}
+
 		if (!Spec.LegalMoveIds.IsEmpty())
 		{
 			Spec.LegalActionKinds.Add(EBattleActionKind::Fight);
@@ -589,6 +837,76 @@ namespace
 			OutRequests.Add(MoveTemp(Request));
 		}
 		return !OutRequests.IsEmpty();
+	}
+
+	bool ValidateCombinedSelections(
+		const FBattleEngineState& State,
+		const TConstArrayView<FBattleDecision> NewDecisions,
+		FBattleRejection& OutRejection)
+	{
+		TArray<FBattleDecision> Combined = State.AcceptedSelections;
+		for (const FBattleDecision& Decision : NewDecisions)
+		{
+			Combined.Add(Decision);
+		}
+
+		for (int32 LeftIndex = 0; LeftIndex < Combined.Num(); ++LeftIndex)
+		{
+			const FBattleDecision& Left = Combined[LeftIndex];
+			const FBattleTrainerState* Trainer = State.FindTrainer(Left.GetDecisionOwnerTrainerId());
+			if (Trainer == nullptr)
+			{
+				OutRejection.Reason = EBattleRejectionReason::WrongDecisionOwner;
+				OutRejection.TrainerId = Left.GetDecisionOwnerTrainerId();
+				return false;
+			}
+
+			int32 TrainerActionCount = 0;
+			for (const FBattleDecision& Candidate : Combined)
+			{
+				if (Candidate.GetDecisionOwnerTrainerId() == Trainer->TrainerId)
+				{
+					++TrainerActionCount;
+				}
+			}
+			if (TrainerActionCount > Trainer->ActionAllowance.RemainingActions)
+			{
+				OutRejection.Reason = EBattleRejectionReason::IllegalAction;
+				OutRejection.TrainerId = Trainer->TrainerId;
+				return false;
+			}
+
+			for (int32 RightIndex = LeftIndex + 1; RightIndex < Combined.Num(); ++RightIndex)
+			{
+				const FBattleDecision& Right = Combined[RightIndex];
+				if (Left.GetDecisionOwnerTrainerId() != Right.GetDecisionOwnerTrainerId())
+				{
+					continue;
+				}
+				if (Left.GetActingBattlerId() == Right.GetActingBattlerId())
+				{
+					OutRejection.Reason = EBattleRejectionReason::IllegalAction;
+					OutRejection.BattlerId = Right.GetActingBattlerId();
+					return false;
+				}
+				if (Left.GetActionKind() == EBattleActionKind::Bag
+					&& Right.GetActionKind() == EBattleActionKind::Bag)
+				{
+					OutRejection.Reason = EBattleRejectionReason::IllegalAction;
+					OutRejection.TrainerId = Trainer->TrainerId;
+					return false;
+				}
+				if (Left.GetActionKind() == EBattleActionKind::Switch
+					&& Right.GetActionKind() == EBattleActionKind::Switch
+					&& Left.GetSwitchPartySlotId() == Right.GetSwitchPartySlotId())
+				{
+					OutRejection.Reason = EBattleRejectionReason::IllegalSwitch;
+					OutRejection.PartySlotId = Right.GetSwitchPartySlotId();
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 }
@@ -860,6 +1178,23 @@ namespace
 		const FMoveId MoveId,
 		const FActiveSlotId TargetSlotId)
 	{
+		if (MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId())
+		{
+			const FBattleActivePositionState* Position = State.FindActivePosition(TargetSlotId);
+			const FBattleBattlerState* Target = Position != nullptr
+				? State.FindBattler(Position->BattlerId)
+				: nullptr;
+			return Target != nullptr
+				&& IsDefinitionKnown(
+					State,
+					ObserverTrainerId,
+					Target->BattlerId,
+					EBattleKnowledgeKind::SpeciesFormKnown,
+					Target->SpeciesFormId.GetDefinitionId())
+				? EBattleEffectivenessKnowledge::Neutral
+				: EBattleEffectivenessKnowledge::Unknown;
+		}
+
 		const FBattleMoveDefinition* Move = State.Catalog.FindMove(MoveId);
 		if (Move == nullptr)
 		{
@@ -1174,6 +1509,373 @@ TArray<FBattleDecisionRequest> FBattleEngine::GetPendingDecisionRequests() const
 	return State.IsValid() ? State->PendingDecisionRequests : TArray<FBattleDecisionRequest>();
 }
 
+TArray<FBattleLockedAction> FBattleEngine::GetLockedActions() const
+{
+	TArray<FBattleLockedAction> Actions;
+	if (!State.IsValid())
+	{
+		return Actions;
+	}
+
+	Actions.Reserve(State->LockedActions.Num());
+	for (const FBattleLockedActionState& StateAction : State->LockedActions)
+	{
+		FBattleLockedAction Action;
+		Action.ActionId = StateAction.ActionId;
+		Action.QueueOrdinal = StateAction.QueueOrdinal;
+		Action.Decision = StateAction.Decision;
+		Action.OrderKey = StateAction.OrderKey;
+		Action.SelectedTargetBattlerId = StateAction.SelectedTargetBattlerId;
+		Actions.Add(MoveTemp(Action));
+	}
+	return Actions;
+}
+
+TOptional<FBattleLockedAction> FBattleEngine::GetCurrentLockedAction() const
+{
+	if (!State.IsValid()
+		|| !State->LockedActions.IsValidIndex(State->CurrentLockedActionIndex))
+	{
+		return TOptional<FBattleLockedAction>();
+	}
+
+	const FBattleLockedActionState& StateAction = State->LockedActions[State->CurrentLockedActionIndex];
+	if (!StateAction.bStarted || StateAction.bFinished)
+	{
+		return TOptional<FBattleLockedAction>();
+	}
+
+	FBattleLockedAction Action;
+	Action.ActionId = StateAction.ActionId;
+	Action.QueueOrdinal = StateAction.QueueOrdinal;
+	Action.Decision = StateAction.Decision;
+	Action.OrderKey = StateAction.OrderKey;
+	Action.SelectedTargetBattlerId = StateAction.SelectedTargetBattlerId;
+	return Action;
+}
+
+FBattleResolution FBattleEngine::BeginNextLockedAction()
+{
+	check(State.IsValid());
+	const FResolutionId ResolutionId = TakeResolutionId(*State);
+	const FBattleLockedActionState* ExistingAction = State->LockedActions.IsValidIndex(
+		State->CurrentLockedActionIndex)
+		? &State->LockedActions[State->CurrentLockedActionIndex]
+		: nullptr;
+	const FBattleEventSource FallbackSource = ExistingAction != nullptr
+		? SourceFromLockedAction(*State, *ExistingAction)
+		: FindFallbackSource(*State);
+	const EBattleActionKind ActionKind = ExistingAction != nullptr
+		? ExistingAction->Decision.GetActionKind()
+		: EBattleActionKind::Fight;
+
+	FBattleRejection Rejection;
+	if (State->Phase == EBattlePhase::Terminal)
+	{
+		Rejection.Reason = EBattleRejectionReason::TerminalState;
+	}
+	else if ((State->Phase != EBattlePhase::Locked && State->Phase != EBattlePhase::Resolving)
+		|| ExistingAction == nullptr
+		|| ExistingAction->bFinished)
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+	}
+	else if (ExistingAction->bStarted)
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+		Rejection.ActionId = ExistingAction->ActionId;
+	}
+
+	const FBattleBattlerState* Battler = ExistingAction != nullptr
+		? State->FindBattler(ExistingAction->Decision.GetActingBattlerId())
+		: nullptr;
+	const FBattleTrainerState* Trainer = Battler != nullptr
+		? State->FindTrainer(Battler->TrainerId)
+		: nullptr;
+	if (!Rejection.IsRejected()
+		&& (Trainer == nullptr || Trainer->ActionAllowance.RemainingActions <= 0))
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+		if (Trainer != nullptr)
+		{
+			Rejection.TrainerId = Trainer->TrainerId;
+		}
+	}
+
+	if (Rejection.IsRejected())
+	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Action,
+			ActionKind,
+			FallbackSource);
+	}
+
+	check(ExistingAction != nullptr && Battler != nullptr && Trainer != nullptr);
+	const FBattleActivePositionState* Active = State->FindActivePosition(
+		ExistingAction->OrderKey.ActingSlotId);
+	const FBattleBattlerState* SelectedTarget = ExistingAction->SelectedTargetBattlerId.IsValid()
+		? State->FindBattler(ExistingAction->SelectedTargetBattlerId)
+		: nullptr;
+
+	FBattleActionStartFacts Facts;
+	Facts.ActionKind = ExistingAction->Decision.GetActionKind();
+	Facts.bActorActive = Active != nullptr
+		&& Active->BattlerId == Battler->BattlerId;
+	Facts.bActorLiving = IsLivingSelectableBattler(Battler);
+	Facts.bSelectedTargetCaptured = Facts.ActionKind == EBattleActionKind::Fight
+		&& SelectedTarget != nullptr
+		&& SelectedTarget->bCaptured;
+	Facts.bSubjectToPlayerObedience = Facts.ActionKind == EBattleActionKind::Fight
+		&& Trainer->Role == EBattleTrainerRole::Player
+		&& Trainer->Controller == EBattleDecisionController::Human
+		&& Battler->Obedience.bHasSnapshot
+		&& Battler->Obedience.bSubjectToPlayerCap;
+	if (Facts.bSubjectToPlayerObedience)
+	{
+		Facts.ObedienceReferenceLevel = Battler->Obedience.ReferenceLevel;
+		Facts.BadgeCount = Battler->Obedience.BadgeCount;
+	}
+
+	FBattleActionStartResult StartResult;
+	if (!FBattleActionStartRules::TryEvaluate(Facts, StartResult))
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Action,
+			ActionKind,
+			FallbackSource);
+	}
+
+	const uint64 BeforeStateVersion = State->StateVersion;
+	FBattleLockedActionState& Action = State->LockedActions[State->CurrentLockedActionIndex];
+	FBattleTrainerState* MutableTrainer = State->FindMutableTrainer(Trainer->TrainerId);
+	check(MutableTrainer != nullptr && MutableTrainer->ActionAllowance.RemainingActions > 0);
+	--MutableTrainer->ActionAllowance.RemainingActions;
+
+	TArray<FBattleEvent> Events;
+	if (StartResult.Outcome == EBattleActionStartOutcome::Proceed)
+	{
+		Action.bStarted = true;
+		State->Phase = EBattlePhase::Resolving;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionStarted,
+			EBattleEventCause::Action));
+		if (StartResult.ObedienceCap.IsSet())
+		{
+			Events.Add(MakeActionDetailEvent(
+				*State,
+				ResolutionId,
+				Action,
+				EBattleEventType::ObedienceConfirmed,
+				EBattleEventCause::Rule,
+				static_cast<int64>(Facts.ObedienceReferenceLevel),
+				static_cast<int64>(StartResult.ObedienceCap.GetValue()),
+				static_cast<int64>(Facts.ObedienceReferenceLevel)
+					- static_cast<int64>(StartResult.ObedienceCap.GetValue()),
+				EBattleVisibilityLevel::CoreOnly));
+		}
+	}
+	else if (StartResult.Outcome == EBattleActionStartOutcome::ObedienceRefused)
+	{
+		Action.bStarted = true;
+		Action.bFinished = true;
+		State->Phase = EBattlePhase::Resolving;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionStarted,
+			EBattleEventCause::Action));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ObedienceRefused,
+			EBattleEventCause::Rule,
+			static_cast<int64>(Facts.ObedienceReferenceLevel),
+			static_cast<int64>(StartResult.ObedienceCap.GetValue()),
+			static_cast<int64>(Facts.ObedienceReferenceLevel)
+				- static_cast<int64>(StartResult.ObedienceCap.GetValue())));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+	}
+	else
+	{
+		Action.bFinished = true;
+		State->Phase = EBattlePhase::Resolving;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Action));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+	}
+
+	++State->StateVersion;
+	FBattleResolutionSpec ResolutionSpec;
+	ResolutionSpec.ResolutionId = ResolutionId;
+	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+	ResolutionSpec.AfterStateVersion = State->StateVersion;
+	ResolutionSpec.bAccepted = true;
+	ResolutionSpec.Events = MoveTemp(Events);
+	FBattleResolution Resolution;
+	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+	check(bResolutionCreated);
+	State->AppendResolution(Resolution);
+	return Resolution;
+}
+
+FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
+{
+	check(State.IsValid());
+	const FResolutionId ResolutionId = TakeResolutionId(*State);
+	FBattleLockedActionState* Action = State->LockedActions.IsValidIndex(
+		State->CurrentLockedActionIndex)
+		? &State->LockedActions[State->CurrentLockedActionIndex]
+		: nullptr;
+	const FBattleEventSource FallbackSource = Action != nullptr
+		? SourceFromLockedAction(*State, *Action)
+		: FindFallbackSource(*State);
+
+	FBattleRejection Rejection;
+	if (State->Phase == EBattlePhase::Terminal)
+	{
+		Rejection.Reason = EBattleRejectionReason::TerminalState;
+	}
+	else if (State->Phase != EBattlePhase::Resolving
+		|| Action == nullptr
+		|| !Action->bStarted
+		|| Action->bFinished
+		|| Action->bMoveCommitted
+		|| Action->Decision.GetActionKind() != EBattleActionKind::Fight)
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+	}
+
+	FBattleBattlerState* Battler = Action != nullptr
+		? State->FindMutableBattler(Action->Decision.GetActingBattlerId())
+		: nullptr;
+	FBattleMoveSlotState* MoveSlot = nullptr;
+	const bool bStruggle = Action != nullptr
+		&& Action->Decision.GetMoveId() == FBattleBuiltInMoveDefinitions::GetStruggleMoveId();
+	if (!Rejection.IsRejected() && Battler == nullptr)
+	{
+		Rejection.Reason = EBattleRejectionReason::WrongActingBattler;
+	}
+	if (!Rejection.IsRejected() && !bStruggle)
+	{
+		MoveSlot = Battler->Moves.FindByPredicate(
+			[Action](const FBattleMoveSlotState& Candidate)
+			{
+				return Candidate.MoveId == Action->Decision.GetMoveId();
+			});
+	}
+
+	if (Rejection.IsRejected())
+	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Action,
+			EBattleActionKind::Fight,
+			FallbackSource);
+	}
+
+	check(Action != nullptr && Battler != nullptr);
+	const uint64 BeforeStateVersion = State->StateVersion;
+	TArray<FBattleEvent> Events;
+	if (!bStruggle && (MoveSlot == nullptr || MoveSlot->CurrentPP <= 0))
+	{
+		Action->bFinished = true;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Action));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+		++State->StateVersion;
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State->StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+		check(bResolutionCreated);
+		State->AppendResolution(Resolution);
+		return Resolution;
+	}
+
+	if (MoveSlot != nullptr)
+	{
+		const int32 PreviousPP = MoveSlot->CurrentPP;
+		--MoveSlot->CurrentPP;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::PPConsumed,
+			EBattleEventCause::Move,
+			static_cast<int64>(PreviousPP),
+			static_cast<int64>(MoveSlot->CurrentPP),
+			static_cast<int64>(-1)));
+	}
+	Events.Add(MakeActionDetailEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::MoveUsed,
+		EBattleEventCause::Move));
+	Action->bMoveCommitted = true;
+	++State->StateVersion;
+
+	FBattleResolutionSpec ResolutionSpec;
+	ResolutionSpec.ResolutionId = ResolutionId;
+	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+	ResolutionSpec.AfterStateVersion = State->StateVersion;
+	ResolutionSpec.bAccepted = true;
+	ResolutionSpec.Events = MoveTemp(Events);
+	FBattleResolution Resolution;
+	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+	check(bResolutionCreated);
+	State->AppendResolution(Resolution);
+	return Resolution;
+}
+
 FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch& Batch)
 {
 	check(State.IsValid());
@@ -1242,6 +1944,10 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 			{
 				break;
 			}
+		}
+		if (!Rejection.IsRejected())
+		{
+			ValidateCombinedSelections(*State, Batch.GetDecisions(), Rejection);
 		}
 	}
 
@@ -1317,6 +2023,29 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 			FallbackSource);
 	}
 
+	const bool bLocksQueue = NextRequests.IsEmpty();
+	TArray<FBattleLockedActionState> NewLockedActions;
+	if (bLocksQueue)
+	{
+		TArray<FBattleDecision> AllSelections = State->AcceptedSelections;
+		for (const FBattleDecision& Decision : Batch.GetDecisions())
+		{
+			AllSelections.Add(Decision);
+		}
+		if (!TryBuildLockedActions(*State, AllSelections, ResolutionId, NewLockedActions))
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::DecisionRejected,
+				EBattleEventCause::Decision,
+				FirstDecision->GetActionKind(),
+				FallbackSource);
+		}
+	}
+
 	TArray<FBattleEvent> Events;
 	for (int32 DecisionIndex = 0; DecisionIndex < Batch.GetDecisions().Num(); ++DecisionIndex)
 	{
@@ -1341,7 +2070,15 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 	if (State->PendingDecisionRequests.IsEmpty())
 	{
 		State->PendingDecision.Reset();
+		State->LockedActions = MoveTemp(NewLockedActions);
+		State->bLockedOrderReversesSpeed = false;
+		State->CurrentLockedActionIndex = 0;
+		State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
 		State->Phase = EBattlePhase::Locked;
+		for (const FBattleLockedActionState& Action : State->LockedActions)
+		{
+			Events.Add(MakeActionOrderLockedEvent(*State, ResolutionId, Action));
+		}
 	}
 	else
 	{

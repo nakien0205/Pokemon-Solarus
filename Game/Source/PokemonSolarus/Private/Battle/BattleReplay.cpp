@@ -491,6 +491,18 @@ namespace
 			WriteOptionalU64(Event.GetSimultaneousGroupId());
 			WriteOptionalU16(Event.GetHitIndex());
 			WriteOptionalU16(Event.GetHitCount());
+			WriteBool(Event.GetActionOrder().IsSet());
+			if (Event.GetActionOrder().IsSet())
+			{
+				const FBattleActionOrderMetadata& ActionOrder = Event.GetActionOrder().GetValue();
+				WriteU64(ActionOrder.QueueOrdinal);
+				WriteU8(static_cast<uint8>(ActionOrder.OrderKey.CommandBand));
+				WriteI32(ActionOrder.OrderKey.MovePriority);
+				WriteI32(ActionOrder.OrderKey.FractionalPriorityTenths);
+				WriteI32(ActionOrder.OrderKey.EffectiveSpeed);
+				WriteActiveSlot(ActionOrder.OrderKey.ActingSlotId);
+				WriteBool(ActionOrder.bReverseSpeed);
+			}
 			WriteU8(static_cast<uint8>(Event.GetVisibility().Level));
 			WriteNumericId(Event.GetVisibility().OwningTrainerId);
 			WriteU8(static_cast<uint8>(Event.GetVisibility().OwningSide));
