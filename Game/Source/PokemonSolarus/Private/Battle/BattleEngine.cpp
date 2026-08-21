@@ -628,7 +628,6 @@ namespace
 			BuildBattleEngineTargetPositions(State);
 
 		bool bMoveRejectedForNoTarget = false;
-		bool bAnyDefinedMoveHasPP = false;
 		for (const FBattleMoveSlotState& Move : Battler->Moves)
 		{
 			const FBattleMoveDefinition* Definition = State.Catalog.FindMove(Move.MoveId);
@@ -642,8 +641,6 @@ namespace
 				AddUnavailableMove(Spec, Move.MoveId, EBattleOptionUnavailableReason::NoPP);
 				continue;
 			}
-			bAnyDefinedMoveHasPP = true;
-
 			bool bHasLegalTarget = false;
 			if (!TryAddBattleEngineMoveSelection(
 				*ActingPosition,
@@ -663,7 +660,7 @@ namespace
 				AddUnavailableMove(Spec, Move.MoveId, EBattleOptionUnavailableReason::NoLegalTarget);
 			}
 		}
-		if (Spec.LegalMoveIds.IsEmpty() && !bAnyDefinedMoveHasPP)
+		if (Spec.LegalMoveIds.IsEmpty())
 		{
 			const FBattleMoveDefinition& Struggle = FBattleBuiltInMoveDefinitions::GetStruggle();
 			bool bHasLegalTarget = false;
@@ -1584,7 +1581,12 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 					TargetValues.Add(Value);
 					Snapshot.TargetEffectivenessKnowledge.Add({MoveId, Pair.ActiveSlotId, Value});
 				}
-				Snapshot.MoveEffectivenessKnowledge.Add({MoveId, SummarizeEffectiveness(TargetValues)});
+				const FBattleMoveDefinition* Move = State->Catalog.FindMove(MoveId);
+				const EBattleEffectivenessKnowledge Summary = Move != nullptr
+					&& Move->Category == EBattleMoveCategory::Status
+					? EBattleEffectivenessKnowledge::NotApplicable
+					: SummarizeEffectiveness(TargetValues);
+				Snapshot.MoveEffectivenessKnowledge.Add({MoveId, Summary});
 			}
 		}
 	}

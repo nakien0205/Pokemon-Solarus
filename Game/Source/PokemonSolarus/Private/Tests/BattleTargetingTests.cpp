@@ -21,6 +21,7 @@ namespace BattleTargetingTests
 	constexpr uint64 OpponentRightBattlerValue = 22;
 
 	const TCHAR* FixedSpreadMoveName = TEXT("Move.C04B.FixedSpread");
+	const TCHAR* FieldConditionName = TEXT("Condition.C04B.Field");
 	const TCHAR* AbilityName = TEXT("Ability.C04B.Core");
 	const TCHAR* SpeciesName = TEXT("Species.C04B.Core");
 
@@ -206,6 +207,20 @@ namespace BattleTargetingTests
 		return Candidates.Contains(Expected);
 	}
 
+	bool HasUnavailableMove(
+		const FBattleDecisionRequest& Request,
+		const FMoveId MoveId,
+		const EBattleOptionUnavailableReason Reason)
+	{
+		return Request.GetUnavailableOptions().ContainsByPredicate(
+			[MoveId, Reason](const FBattleUnavailableDecisionOption& Option)
+			{
+				return Option.Kind == EBattleDecisionOptionKind::Move
+					&& Option.MoveId == MoveId
+					&& Option.Reason == Reason;
+			});
+	}
+
 	TArray<EBattleTargetClass> GetAllTargetClasses()
 	{
 		return {
@@ -250,7 +265,8 @@ namespace BattleTargetingTests
 	}
 
 	FBattleDefinitionCatalog MakeCatalog(
-		const EBattleTargetClass MoveTargetClass = EBattleTargetClass::FixedSpreadSet)
+		const EBattleTargetClass MoveTargetClass = EBattleTargetClass::FixedSpreadSet,
+		const EBattleMoveCategory MoveCategory = EBattleMoveCategory::Physical)
 	{
 		FBattleDefinitionCatalogInput Input;
 		Input.TypeChartEntries = MakeTypeChart();
@@ -258,17 +274,29 @@ namespace BattleTargetingTests
 		FBattleMoveDefinition Move;
 		Move.Id = MakeDefinitionId<FMoveId>(FixedSpreadMoveName);
 		Move.Type = EPokemonType::Normal;
-		Move.Category = EBattleMoveCategory::Physical;
-		Move.Power = 40;
-		Move.Accuracy = 100;
+		Move.Category = MoveCategory;
+		Move.Power = MoveCategory == EBattleMoveCategory::Status ? 0 : 40;
+		Move.bAlwaysHits = MoveCategory == EBattleMoveCategory::Status;
+		Move.Accuracy = Move.bAlwaysHits ? 0 : 100;
 		Move.BasePP = 20;
 		Move.Priority = 0;
 		Move.TargetClass = MoveTargetClass;
-		FBattleMoveEffectDescriptor Damage;
-		Damage.Order = 0;
-		Damage.Kind = EBattleMoveEffectKind::Damage;
-		Damage.Target = EBattleEffectTarget::AllResolvedTargets;
-		Move.Effects.Add(Damage);
+		FBattleMoveEffectDescriptor Effect;
+		Effect.Order = 0;
+		if (MoveCategory == EBattleMoveCategory::Status)
+		{
+			Effect.Kind = EBattleMoveEffectKind::SetFieldCondition;
+			Effect.Target = EBattleEffectTarget::Field;
+			Effect.ConditionId = MakeDefinitionId<FConditionId>(FieldConditionName);
+			Effect.DurationTurns = 5;
+			Input.Conditions.Add({Effect.ConditionId, EBattleConditionKind::Weather});
+		}
+		else
+		{
+			Effect.Kind = EBattleMoveEffectKind::Damage;
+			Effect.Target = EBattleEffectTarget::AllResolvedTargets;
+		}
+		Move.Effects.Add(Effect);
 		Input.Moves.Add(Move);
 
 		Input.Abilities.Add({MakeDefinitionId<FAbilityId>(AbilityName)});
@@ -345,14 +373,14 @@ namespace BattleTargetingTests
 		};
 	}
 
-	FBattleSetup MakeDoubleSetup(const int32 CurrentPP)
+	FBattleSetup MakeSetup(const int32 CurrentPP, const EBattleFormat Format)
 	{
 		FBattleSetupInput Input;
 		Input.BattleId = MakeNumericId<FBattleId>(4404);
 		Input.SettingsReference = {MakeDefinitionId<FDefinitionId>(TEXT("Settings.C04B")), 1};
 		Input.CatalogReference = {MakeDefinitionId<FDefinitionId>(TEXT("Catalog.C04B")), 1};
 		Input.EncounterKind = EBattleEncounterKind::Trainer;
-		Input.Format = EBattleFormat::Double;
+		Input.Format = Format;
 		Input.CaptureCapacity = {2, 100};
 		Input.Policies.bBagAllowed = false;
 
@@ -373,45 +401,57 @@ namespace BattleTargetingTests
 			0,
 			400,
 			CurrentPP));
-		Input.PartyEntries.Add(MakePartyEntry(
-			PlayerTrainerValue,
-			PlayerRightBattlerValue,
-			1,
-			300,
-			CurrentPP));
+		if (Format == EBattleFormat::Double)
+		{
+			Input.PartyEntries.Add(MakePartyEntry(
+				PlayerTrainerValue,
+				PlayerRightBattlerValue,
+				1,
+				300,
+				CurrentPP));
+		}
 		Input.PartyEntries.Add(MakePartyEntry(
 			OpponentTrainerValue,
 			OpponentLeftBattlerValue,
 			0,
 			200,
 			CurrentPP));
-		Input.PartyEntries.Add(MakePartyEntry(
-			OpponentTrainerValue,
-			OpponentRightBattlerValue,
-			1,
-			100,
-			CurrentPP));
+		if (Format == EBattleFormat::Double)
+		{
+			Input.PartyEntries.Add(MakePartyEntry(
+				OpponentTrainerValue,
+				OpponentRightBattlerValue,
+				1,
+				100,
+				CurrentPP));
+		}
 
 		Input.StartingActive.Add(MakeActive(
 			EBattleSide::Player,
 			EBattlePosition::Left,
 			PlayerTrainerValue,
 			PlayerLeftBattlerValue));
-		Input.StartingActive.Add(MakeActive(
-			EBattleSide::Player,
-			EBattlePosition::Right,
-			PlayerTrainerValue,
-			PlayerRightBattlerValue));
+		if (Format == EBattleFormat::Double)
+		{
+			Input.StartingActive.Add(MakeActive(
+				EBattleSide::Player,
+				EBattlePosition::Right,
+				PlayerTrainerValue,
+				PlayerRightBattlerValue));
+		}
 		Input.StartingActive.Add(MakeActive(
 			EBattleSide::Opponent,
 			EBattlePosition::Left,
 			OpponentTrainerValue,
 			OpponentLeftBattlerValue));
-		Input.StartingActive.Add(MakeActive(
-			EBattleSide::Opponent,
-			EBattlePosition::Right,
-			OpponentTrainerValue,
-			OpponentRightBattlerValue));
+		if (Format == EBattleFormat::Double)
+		{
+			Input.StartingActive.Add(MakeActive(
+				EBattleSide::Opponent,
+				EBattlePosition::Right,
+				OpponentTrainerValue,
+				OpponentRightBattlerValue));
+		}
 
 		Input.ObedienceInputs.Add(
 			{
@@ -420,13 +460,16 @@ namespace BattleTargetingTests
 				20,
 				8
 			});
-		Input.ObedienceInputs.Add(
-			{
-				MakeNumericId<FBattlerId>(PlayerRightBattlerValue),
-				true,
-				20,
-				8
-			});
+		if (Format == EBattleFormat::Double)
+		{
+			Input.ObedienceInputs.Add(
+				{
+					MakeNumericId<FBattlerId>(PlayerRightBattlerValue),
+					true,
+					20,
+					8
+				});
+		}
 
 		FBattleSetup Setup;
 		EBattleSetupValidationError Error = EBattleSetupValidationError::None;
@@ -443,8 +486,26 @@ namespace BattleTargetingTests
 		TUniquePtr<FBattleEngine> Engine;
 		FBattleRejection Rejection;
 		const bool bCreated = FBattleEngine::TryCreate(
-			MakeDoubleSetup(CurrentPP),
+			MakeSetup(CurrentPP, EBattleFormat::Double),
 			MakeCatalog(MoveTargetClass),
+			MakeUnique<FSeededBattleRandom>(Seed),
+			Engine,
+			Rejection);
+		check(bCreated);
+		return Engine;
+	}
+
+	TUniquePtr<FBattleEngine> MakeSingleEngine(
+		const int32 CurrentPP,
+		const uint64 Seed,
+		const EBattleTargetClass MoveTargetClass,
+		const EBattleMoveCategory MoveCategory = EBattleMoveCategory::Physical)
+	{
+		TUniquePtr<FBattleEngine> Engine;
+		FBattleRejection Rejection;
+		const bool bCreated = FBattleEngine::TryCreate(
+			MakeSetup(CurrentPP, EBattleFormat::Single),
+			MakeCatalog(MoveTargetClass, MoveCategory),
 			MakeUnique<FSeededBattleRandom>(Seed),
 			Engine,
 			Rejection);
@@ -656,6 +717,106 @@ namespace BattleTargetingTests
 				TestEqual(TEXT("Battler target classes resolve typed battlers"), Result.Targets[0].GetKind(), EBattleResolvedTargetKind::Battler);
 			}
 		}
+
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC04BNoTargetStruggleFallbackTest,
+		"PokemonSolarus.Battle.C04B.Selection.NoTargetStruggleFallback",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC04BNoTargetStruggleFallbackTest::RunTest(const FString& Parameters)
+	{
+		const FMoveId ConfiguredMove = MakeDefinitionId<FMoveId>(FixedSpreadMoveName);
+		const FMoveId Struggle = FBattleBuiltInMoveDefinitions::GetStruggleMoveId();
+		TUniquePtr<FBattleEngine> Engine = MakeSingleEngine(
+			10,
+			4408,
+			EBattleTargetClass::SelectedAlly);
+		FBattleRejection Rejection;
+		TestTrue(
+			TEXT("A no-reserve Singles battle with only a PP-bearing ally move begins selection"),
+			Engine->TryBeginActionDecisionSequence(Rejection));
+		const TArray<FBattleDecisionRequest> Requests = Engine->GetPendingDecisionRequests();
+		TestEqual(TEXT("The player receives one fallback request"), Requests.Num(), 1);
+		if (Requests.Num() != 1)
+		{
+			return false;
+		}
+
+		const FBattleDecisionRequest& Request = Requests[0];
+		TestEqual(TEXT("Struggle is the only legal move"), Request.GetLegalMoveIds().Num(), 1);
+		TestTrue(TEXT("Struggle replaces the unusable ally move"), Request.GetLegalMoveIds().Contains(Struggle));
+		TestTrue(TEXT("Fight remains a legal command"), Request.GetLegalActionKinds().Contains(EBattleActionKind::Fight));
+		TestTrue(
+			TEXT("The authored move retains its no-target reason"),
+			HasUnavailableMove(Request, ConfiguredMove, EBattleOptionUnavailableReason::NoLegalTarget));
+		const FActiveSlotId OpponentLeftSlot = MakeActiveSlotId(
+			EBattleSide::Opponent,
+			EBattlePosition::Left);
+		TestTrue(
+			TEXT("Singles Struggle exposes the living opponent"),
+			Request.GetLegalMoveTargets().ContainsByPredicate(
+				[Struggle, OpponentLeftSlot](const FBattleMoveTargetOption& Option)
+				{
+					return Option.MoveId == Struggle && Option.ActiveSlotId == OpponentLeftSlot;
+				}));
+
+		FBattleDecision Decision;
+		TestTrue(
+			TEXT("The fallback Struggle decision is constructible"),
+			FBattleDecision::TryCreateFight(
+				Request.GetStateVersion(),
+				Request.GetDecisionOwnerTrainerId(),
+				Request.GetActingBattlerId(),
+				Struggle,
+				OpponentLeftSlot,
+				Decision));
+		TestTrue(TEXT("The fallback request accepts Struggle"), Request.Allows(Decision, Rejection));
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC04BFieldStatusEffectivenessTest,
+		"PokemonSolarus.Battle.C04B.Snapshot.FieldStatusEffectiveness",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC04BFieldStatusEffectivenessTest::RunTest(const FString& Parameters)
+	{
+		const FMoveId ConfiguredMove = MakeDefinitionId<FMoveId>(FixedSpreadMoveName);
+		TUniquePtr<FBattleEngine> Engine = MakeSingleEngine(
+			10,
+			4409,
+			EBattleTargetClass::Field,
+			EBattleMoveCategory::Status);
+		FBattleRejection Rejection;
+		TestTrue(TEXT("A Field Status move begins selection"), Engine->TryBeginActionDecisionSequence(Rejection));
+		const FBattleSnapshot Snapshot = Engine->GetSnapshotForObserver(
+			MakeNumericId<FTrainerId>(PlayerTrainerValue));
+		const FBattleMoveEffectivenessKnowledge* Summary =
+			Snapshot.GetMoveEffectivenessKnowledge().FindByPredicate(
+				[ConfiguredMove](const FBattleMoveEffectivenessKnowledge& Knowledge)
+				{
+					return Knowledge.MoveId == ConfiguredMove;
+				});
+		TestNotNull(TEXT("The Field Status move has an effectiveness summary"), Summary);
+		if (Summary != nullptr)
+		{
+			TestEqual(
+				TEXT("Field Status effectiveness is not applicable"),
+				Summary->Value,
+				EBattleEffectivenessKnowledge::NotApplicable);
+		}
+		TestEqual(
+			TEXT("A Field move creates no fake battler effectiveness rows"),
+			static_cast<int32>(Algo::CountIf(
+				Snapshot.GetTargetEffectivenessKnowledge(),
+				[ConfiguredMove](const FBattleTargetEffectivenessKnowledge& Knowledge)
+				{
+					return Knowledge.MoveId == ConfiguredMove;
+				})),
+			0);
 		return true;
 	}
 
