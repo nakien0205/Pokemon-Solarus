@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00, C01, C02, C03, and C04 complete under focused validation
-Next package: C05A in a new session; its dependencies are clear
+Roadmap status: Approved and materialized; B00 through C04 and C05A complete under focused validation
+Next package: C05B in a new session; its dependencies are clear
 
 ## Current Truth
 
@@ -42,13 +42,18 @@ The live battle source now contains:
   battler/side/field target sets, capture and fainted-target timing, stable
   random targeting, replay schema 4 projection, and seven
   `PokemonSolarus.Battle.C04B.*` Automation tests.
+- C05A's pure accuracy and critical stages, unchanged authoritative base-damage
+  calculator, exact ordered final-damage modifiers, typed immunity results,
+  named damage trace, checked arithmetic, and eight
+  `PokemonSolarus.Battle.C05A.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, and final-target seam, plus the
 frozen public setup/decision/event/snapshot/replay, stat, type, move,
-definition, and adapter language needed by later packages. There is still no
-C05 hit/damage resolution pipeline, switching system, condition behavior
-engine, encounter flow, or presentation seam. The completed Story 001 and its 33-test report describe an older source state and
+definition, adapter, and pure hit/damage language needed by later packages.
+There is still no C05B effect-execution integration, HP mutation, faint/outcome
+pipeline, switching system, condition behavior engine, encounter flow, or
+presentation seam. The completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
 already existed, so it cannot explain or restore those missing files.
@@ -63,9 +68,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00, C01, C02, C03, and C04 gates are clear. C05A is dependency-clear;
-  every later package remains blocked or not started. The workspace's
-  sequential default makes C05A the next session.
+- The B00, C01, C02, C03, C04, and C05A gates are clear. C05B is
+  dependency-clear; every later package remains blocked or not started. The
+  workspace's sequential default makes C05B the next session.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -426,7 +431,42 @@ B00B accepted evidence:
   `Game/Saved/Logs/C04B-Targeting-Final3-20260821.log`,
   `Game/Saved/Logs/C04B-EditorBuild-Final3-20260821.log`, and
   `Game/Saved/Logs/C04B-EditorBuild-ForcedUnity-Final3-20260821.log`.
-- C04 is complete under the approved focused-validation scope. C05A is
+- C04 is complete under the approved focused-validation scope. C05A's later
+  completion is recorded immediately below.
+
+## C05A Execution Status
+
+- C05A completed on 2026-08-21 with final focused run ID
+  `C05A-HitDamage-20260821T050211Z`.
+- The forced-unity `PokemonSolarusEditor Win64 Development` build succeeded
+  with adaptive exclusions disabled. The exact `PokemonSolarus.Battle.C05A`
+  filter discovered and performed eight tests: 8 succeeded, 0 with warnings,
+  0 failed, and 0 not run; process exit code 0.
+- The new pure services resolve literal/numeric accuracy, modern critical
+  stages and blocking, critical stage/screen ignores, the unchanged current
+  base calculator, and the exact B00B post-base modifier order. All random
+  draws use the injected action-scoped RNG and every final damage result carries
+  a named integer trace.
+- Focused vectors cover all 16 random factors, accuracy and critical extremes,
+  externally pinned rounding/order, real dual-type chart products, typed
+  immunity and typeless bypass, burn and its explicit exception, spread,
+  weather, STAB, screens, terrain/Ability/item hook inputs, minimum and defined
+  OF16 zero behavior, and true host-overflow rejection.
+- The current base calculator and its four tests were not changed. C05A retains
+  that calculator as the authoritative base stage; explicit OF32/OF16 behavior
+  in later B00B phases remains distinct from rejected host-language overflow.
+- C05A did not touch engine integration, actions, PP, HP, effects, events,
+  replay, fainting, or outcomes. Per the user's explicit validation limit, no
+  older battle filter and no full `PokemonSolarus.Battle` suite was run.
+- Module rules, `.uproject`, `DefaultEngine.ini`, the unchanged base calculator
+  and tests, B00B snapshot, and Solarus interview handoff matched their pre-run
+  hashes after validation. Exact C05A source hashes are recorded in the C05
+  package handoff.
+- Successful evidence is under
+  `Game/Saved/Automation/C05A-HitDamage-20260821T050211Z/`, with logs
+  `Game/Saved/Logs/C05A-HitDamage-20260821T050211Z.log` and
+  `Game/Saved/Logs/C05A-EditorBuild-ForcedUnity-20260821T050136Z.log`.
+- C05A is complete under the approved focused-validation scope. C05B is
   dependency-clear and is the next sequential package.
 
 ## Goal

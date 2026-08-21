@@ -1,7 +1,7 @@
 # C05 — Hit, Damage, Reusable Effects, Fainting, and Outcomes
 
 Priority: P1  
-Status: Blocked by C03; C05B integration also requires C04B  
+Status: C05A complete under focused validation; C05B not started
 Required order: C05A, C05B, then C05C
 
 ## Objective
@@ -124,3 +124,48 @@ C05C:
   another command.
 - C06 can add switching/replacement without altering damage-stage contracts.
 
+## C05A Completion Evidence
+
+C05A completed on 2026-08-21. It added pure, engine-independent accuracy,
+critical-hit, and final-damage services plus eight tests under the exact
+`PokemonSolarus.Battle.C05A` filter.
+
+Frozen implementation boundaries:
+
+- `FBattleDamageCalculator::TryCalculateDamage` and its four existing tests
+  remain unchanged and authoritative for the base stage. B00B's explicit OF32
+  operations apply to the ordered post-base damage phases implemented here.
+- The documented minimum is applied at B00B step 9 before its required OF16.
+  Therefore an exact pathological OF16 wrap can return numeric zero while the
+  typed result remains `Damage`; immunity remains a distinct typed `NoEffect`.
+- Host-language overflow is rejected before RNG. B00B's explicit OF32 and OF16
+  operations are intentional rules and are not treated as host overflow.
+- C05A exposes only pure staged calculation and named hook inputs. It does not
+  integrate actions, mutate HP, execute move effects, emit battle events, or
+  begin C05B/C05C.
+
+Final validation:
+
+- Forced-unity `PokemonSolarusEditor Win64 Development` build succeeded with
+  adaptive exclusions disabled and four build actions completed:
+  `Game/Saved/Logs/C05A-EditorBuild-ForcedUnity-20260821T050136Z.log`.
+- The exact `PokemonSolarus.Battle.C05A` run performed eight tests: 8 succeeded,
+  0 with warnings, 0 failed, and 0 not run; process exit code 0. Evidence is in
+  `Game/Saved/Automation/C05A-HitDamage-20260821T050211Z/` and
+  `Game/Saved/Logs/C05A-HitDamage-20260821T050211Z.log`.
+- Per the user's explicit validation limit, no older battle filter and no full
+  `PokemonSolarus.Battle` suite was run. Optional platform SDK and profiler DLL
+  startup messages did not produce Automation warnings or failures.
+- Module rules, `.uproject`, `DefaultEngine.ini`, the unchanged base calculator
+  and tests, B00B snapshot, and Solarus interview handoff matched their pre-run
+  hashes after validation.
+
+Implemented C05A source hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleHitResolver.h` | `82143e8785861c0b215b8753a470a96e56488d398faff9145e61b8051ecda886` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleHitResolver.cpp` | `a1723110af9f463d43d065dbb360b2cd468df3eab8fd5ec849389eba8bac88d6` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleFinalDamageCalculator.h` | `5fff7169192dac38ddda4b7c56c598043eb3f095c513fe1e9a25be574b3d450e` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleFinalDamageCalculator.cpp` | `30aded7b2e0b57867ad726c8cc46223bae28aff67476089902aaede1af11fbf1` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleHitDamageTests.cpp` | `e8d88a39ced7aec2d9a3d3b0e986463f90a5493753a3a60a5e3404d5d0460dde` |
