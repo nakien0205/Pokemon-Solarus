@@ -47,7 +47,13 @@ enum class EBattleEventType : uint8
 	ActionOrderLocked = 38,
 	ObedienceConfirmed = 39,
 	ObedienceRefused = 40,
-	TargetsResolved = 41
+	TargetsResolved = 41,
+	Unreachable = 42,
+	EffectBlocked = 43,
+	EffectFailed = 44,
+	EffectCapped = 45,
+	EffectPrevented = 46,
+	EffectDeferred = 47
 };
 
 /** Typed source family for an event cause. */

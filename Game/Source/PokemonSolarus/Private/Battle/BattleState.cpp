@@ -46,6 +46,13 @@ namespace
 			|| Value == EBattleActionCommandBand::Run;
 	}
 
+	bool IsKnownEffectExecutionState(const EBattleLockedEffectExecutionState Value)
+	{
+		return Value == EBattleLockedEffectExecutionState::Pending
+			|| Value == EBattleLockedEffectExecutionState::Executing
+			|| Value == EBattleLockedEffectExecutionState::Completed;
+	}
+
 	bool IsKnownPhase(const EBattlePhase Value)
 	{
 		return Value == EBattlePhase::Setup
@@ -863,6 +870,13 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		const bool bFight = Action.Decision.GetActionKind() == EBattleActionKind::Fight;
 		const bool bRequiresSelectedTarget = bFight
 			&& DoesBattleStateTargetClassRequireSelection(Action.TargetClass);
+		const bool bEffectsExecuting = Action.EffectExecutionState
+			== EBattleLockedEffectExecutionState::Executing;
+		const bool bEffectsCompleted = Action.EffectExecutionState
+			== EBattleLockedEffectExecutionState::Completed;
+		const bool bHasResolvedEffectTargets = Action.TargetResolution.IsSet()
+			&& Action.TargetResolution.GetValue().Outcome
+				== EBattleTargetResolutionOutcome::Resolved;
 		if (!Action.ActionId.IsValid()
 			|| Action.QueueOrdinal != static_cast<uint64>(ActionIndex + 1)
 			|| !Action.Decision.IsValid()
@@ -884,6 +898,18 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 					|| Action.TargetResolution.IsSet()))
 			|| (Action.bMoveCommitted
 				&& (!Action.bStarted || Action.Decision.GetActionKind() != EBattleActionKind::Fight))
+			|| !IsKnownEffectExecutionState(Action.EffectExecutionState)
+			|| ((bEffectsExecuting || bEffectsCompleted)
+				&& (!bFight
+					|| !Action.bStarted
+					|| !Action.bMoveCommitted
+					|| !bHasResolvedEffectTargets))
+			|| (bEffectsExecuting && Action.bFinished)
+			|| (bEffectsCompleted && !Action.bFinished)
+			|| (bFight
+				&& Action.bFinished
+				&& bHasResolvedEffectTargets
+				&& !bEffectsCompleted)
 			|| !IsBattleStateTargetResolutionValid(Action))
 		{
 			return Fail(EBattleStateValidationError::InvalidCounter);

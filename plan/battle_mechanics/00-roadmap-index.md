@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-21  
-Roadmap status: Approved and materialized; B00 through C04 and C05A complete under focused validation
-Next package: C05B in a new session; its dependencies are clear
+Roadmap status: Approved and materialized; B00 through C04, C05A, and C05B complete under focused validation
+Next package: C05C in a new session; its dependencies are clear
 
 ## Current Truth
 
@@ -46,14 +46,19 @@ The live battle source now contains:
   calculator, exact ordered final-damage modifiers, typed immunity results,
   named damage trace, checked arithmetic, and eight
   `PokemonSolarus.Battle.C05A.*` Automation tests.
+- C05B's prevalidated reusable effect executor, exact gate/RNG/effect order,
+  staged HP/condition mutation, healing/drain/recoil, fixed/ranged multi-hit,
+  appended effect outcomes and removal operation, exact-once public engine
+  step, pending-faint boundary, and nine `PokemonSolarus.Battle.C05B.*`
+  Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, and final-target seam, plus the
 frozen public setup/decision/event/snapshot/replay, stat, type, move,
 definition, adapter, and pure hit/damage language needed by later packages.
-There is still no C05B effect-execution integration, HP mutation, faint/outcome
-pipeline, switching system, condition behavior engine, encounter flow, or
-presentation seam. The completed Story 001 and its 33-test report describe an older source state and
+There is still no C05C faint-event/removal/outcome pipeline, switching system,
+concrete condition behavior engine, encounter flow, or presentation seam. The
+completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
 already existed, so it cannot explain or restore those missing files.
@@ -68,9 +73,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00, C01, C02, C03, C04, and C05A gates are clear. C05B is
+- The B00, C01, C02, C03, C04, C05A, and C05B gates are clear. C05C is
   dependency-clear; every later package remains blocked or not started. The
-  workspace's sequential default makes C05B the next session.
+  workspace's sequential default makes C05C the next session.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -466,8 +471,43 @@ B00B accepted evidence:
   `Game/Saved/Automation/C05A-HitDamage-20260821T050211Z/`, with logs
   `Game/Saved/Logs/C05A-HitDamage-20260821T050211Z.log` and
   `Game/Saved/Logs/C05A-EditorBuild-ForcedUnity-20260821T050136Z.log`.
-- C05A is complete under the approved focused-validation scope. C05B is
-  dependency-clear and is the next sequential package.
+- C05A is complete under the approved focused-validation scope. C05B's later
+  completion is recorded immediately below.
+
+## C05B Execution Status
+
+- C05B completed on 2026-08-21 with final focused report
+  `C05B-EffectExecutor-20260821T061116Z/report-04`.
+- The forced-unity `PokemonSolarusEditor Win64 Development` build succeeded
+  with `-ForceUnity -DisableAdaptiveUnity -NoUBA`. The exact
+  `PokemonSolarus.Battle.C05B` filter discovered exactly nine tests: 9
+  succeeded, 0 with warnings, 0 failed, and 0 not run; process exit code 0.
+- The private executor validates the complete request before drawing or
+  mutating, stages engine-owned state, preserves B00B's gate and per-target
+  order, and applies ordered damage, multi-hit, secondaries, healing, drain,
+  recoil, generic condition/stat/field/side operations, and typed future hooks.
+- Primary `1/1` effects consume no chance draw. Eligible explicit
+  `1..100/100` secondaries each consume independent `U[0,99]`, including
+  `100/100`; no shared-chance mechanism was added.
+- The public engine step is exact-once after commitment and C04B targeting.
+  Zero HP sets the existing faint/pending-transition facts and blocks later
+  locked actions, but C05B emits no faint/removal/replacement/outcome behavior.
+- Replay schema 4 and all earlier enum ordinals remain unchanged. Public C05B
+  event kinds and `RemoveCondition` were appended.
+- Per the user's explicit validation limit, no C05A, older battle filter, or
+  full `PokemonSolarus.Battle` suite was run. The JSON report contains no
+  non-C05B test, warning, error, duplicate path, failure, or not-run entry.
+- Module rules, `.uproject`, `DefaultEngine.ini`, every pre-existing test,
+  C05A sources/tests, B00B, and the Solarus interview handoff matched their
+  pre-run hashes after Unreal exited. Exact C05B source hashes are recorded in
+  the C05 package handoff.
+- Final evidence is
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/build-07.log`,
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/automation-04.log`,
+  and
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/report-04/index.json`.
+- C05B is complete under the approved focused-validation scope. C05C is the
+  next sequential package.
 
 ## Goal
 

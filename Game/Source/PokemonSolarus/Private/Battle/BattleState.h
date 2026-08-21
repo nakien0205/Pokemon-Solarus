@@ -171,6 +171,14 @@ struct FBattleWildFleePolicyState
 	uint32 Denominator = 0;
 };
 
+/** Private one-way guard for the synchronous C05B effect checkpoint. */
+enum class EBattleLockedEffectExecutionState : uint8
+{
+	Pending = 0,
+	Executing = 1,
+	Completed = 2
+};
+
 /** One selected action retained while the normal-turn queue is locked. */
 struct FBattleLockedActionState
 {
@@ -183,6 +191,8 @@ struct FBattleLockedActionState
 	bool bStarted = false;
 	bool bMoveCommitted = false;
 	TOptional<FBattleTargetResolutionResult> TargetResolution;
+	EBattleLockedEffectExecutionState EffectExecutionState =
+		EBattleLockedEffectExecutionState::Pending;
 	bool bFinished = false;
 };
 

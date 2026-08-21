@@ -77,6 +77,7 @@ enum class EBattleMoveEffectKind : uint8
 	Recharge = 12,
 	Protect = 13,
 	SemiInvulnerability = 14,
+	RemoveCondition = 15,
 	Invalid = 255
 };
 

@@ -1,7 +1,7 @@
 # C05 — Hit, Damage, Reusable Effects, Fainting, and Outcomes
 
 Priority: P1  
-Status: C05A complete under focused validation; C05B not started
+Status: C05A and C05B complete under focused validation; C05C not started
 Required order: C05A, C05B, then C05C
 
 ## Objective
@@ -45,8 +45,8 @@ Execute the ordered effect descriptors supplied by the move definition:
 - Major/volatile status and stat changes through typed future hooks.
 - Fixed/percentage healing, drain, recoil, and self-damage.
 - Fixed/ranged multi-hit count and one complete damage event per hit.
-- Primary versus secondary effects and independent/shared chances as frozen in
-  B00B.
+- Primary versus secondary effects and independent chances as frozen in B00B;
+  B00B defines no shared-chance grouping mechanism.
 - Charging, recharge, Protect-like blocking, semi-invulnerability, field/side
   creation/removal, switching, and item operations through typed hooks.
 
@@ -169,3 +169,77 @@ Implemented C05A source hashes:
 | `Game/Source/PokemonSolarus/Public/Battle/BattleFinalDamageCalculator.h` | `5fff7169192dac38ddda4b7c56c598043eb3f095c513fe1e9a25be574b3d450e` |
 | `Game/Source/PokemonSolarus/Private/Battle/BattleFinalDamageCalculator.cpp` | `30aded7b2e0b57867ad726c8cc46223bae28aff67476089902aaede1af11fbf1` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleHitDamageTests.cpp` | `e8d88a39ced7aec2d9a3d3b0e986463f90a5493753a3a60a5e3404d5d0460dde` |
+
+## C05B Completion Evidence
+
+C05B completed on 2026-08-21. It added the private reusable effect executor,
+the public engine execution step, and exactly nine tests under the
+`PokemonSolarus.Battle.C05B` filter.
+
+Frozen implementation boundaries:
+
+- Existing enum ordinals and replay schema 4 remain unchanged.
+  `RemoveCondition` and the C05B effect-outcome events are appended values.
+- Primary `1/1` descriptors consume no chance draw. Every eligible explicit
+  `1..100/100` secondary consumes an independent `U[0,99]`, including
+  `100/100`. No shared-chance group was added.
+- A move may define one fixed `2..5` or ranged `2..5` multi-hit descriptor.
+  It is primary, precedes the sole damage descriptor, and is rejected for a
+  spread move. Ranged count uses B00B's exact `U[0,19]` mapping.
+- The executor prevalidates the complete request before RNG or mutation,
+  stages all mutable state, and publishes no partial result on failure. Each
+  reached hit performs independent critical and damage draws, applies HP and
+  immediate-update hooks, and reports the actual completed hit count.
+- Healing, drain, recoil, fixed self-damage, and Struggle recoil use the frozen
+  magnitude meanings with half-up rounding, HP caps, and positive-source
+  checks. Damaging secondaries run after that target's damage events in
+  descriptor order; `PerHit` secondaries repeat once per completed hit.
+- Generic status, volatile, stat, field, side, and removal operations mutate
+  only after an applied hook. Protect/charge/recharge/semi-invulnerability,
+  switching, and item operations remain typed deferred hooks for later owners.
+- `FBattleEngine::ExecuteCurrentMoveEffects()` accepts only the current
+  committed and successfully targeted Fight action and enforces
+  `Pending -> Executing -> Completed` exactly once. Rejected duplicate,
+  re-entrant, premature, or invalid calls do not apply effects or consume
+  effect RNG.
+- Zero HP sets the existing faint and pending-transition state and blocks later
+  locked actions. C05B does not emit `Fainted`, remove battlers, request
+  replacements, or resolve outcomes; those remain C05C.
+
+Final validation:
+
+- The forced-unity `PokemonSolarusEditor Win64 Development` build succeeded
+  with `-ForceUnity -DisableAdaptiveUnity -NoUBA`:
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/build-07.log`.
+- The exact `PokemonSolarus.Battle.C05B` run discovered exactly nine tests:
+  9 succeeded, 0 with warnings, 0 failed, and 0 not run. No non-C05B test was
+  present in the authoritative JSON report:
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/report-04/index.json`.
+- The matching editor log is
+  `Game/Saved/Automation/C05B-EffectExecutor-20260821T061116Z/automation-04.log`.
+  The process exited 0, but completion was determined from the JSON summary and
+  individual entries.
+- Per the user's explicit validation limit, no C05A, older battle filter, or
+  full `PokemonSolarus.Battle` suite was run.
+- Module rules, `.uproject`, `DefaultEngine.ini`, every pre-existing test,
+  C05A sources/tests, B00B, and the Solarus interview handoff matched their
+  recorded pre-run hashes after Unreal exited.
+
+Implemented C05B source hashes:
+
+| File | SHA-256 |
+|---|---|
+| `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h` | `6439759209563ac93ee5311fabe5189c8f2268f9ed8278abcd200d0801d9ba50` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h` | `f01a954708d4dff62a685ae279eb39abdb44f41a43249d27785d9c1bc1000da9` |
+| `Game/Source/PokemonSolarus/Public/Battle/BattleEngine.h` | `0dcc88024620cc6729905a2eeabdde8d51df57f6fa0fab4c3ec1e344feed093a` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.h` | `5670cd99f7a711199e405905ae2c0341cfb5bdccea2840a42997011758265754` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp` | `db257eb3f1706895e965cd4ff3699036be95ee104cbe7f6b143fd456fce5188d` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp` | `67c1b42330221444d630ba1f198c636dabb58b28477a79a292672445913bd6eb` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp` | `d9a7e8afba80ba599403c17e900506e9ffd58b1b93b767e75fa5f9031943d679` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp` | `5929dbec194bf0a39f87667948579f24c728af67bdaaa72a40b31d3a942ecdc3` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp` | `70aaa599774e089d8487061fc0ab0a7a7d1d2fba72a1457da745b804f772cc52` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.h` | `1b0ca1938a4e3b34f0154f6b5eef9f491b2606bb72fc01dcbcd2e8abedcb08d2` |
+| `Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp` | `59fe96cc6f9241d014a1d51c266ce13947715d4eec5392a4d88ad161100cbc1f` |
+| `Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp` | `b37e63e64d0b45f580b2bb09cd667836779625969196d770bdf57488a9b17a98` |
+
+C05C is the next sequential package.

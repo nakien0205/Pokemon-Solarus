@@ -1,4 +1,5 @@
 #include "Battle/BattleEngine.h"
+#include "Battle/BattleEffectExecutor.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleStatCalculator.h"
 
@@ -236,6 +237,37 @@ namespace
 			}
 			Spec.Targets.Add(MoveTemp(EventTarget));
 		}
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeBattleEffectEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		const FBattleEffectExecutionEvent& Record)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Record.Type;
+		Spec.Cause = Record.Cause;
+		Spec.CauseActionKind = EBattleActionKind::Fight;
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Targets = Record.Targets;
+		Spec.NumericBefore = Record.NumericBefore;
+		Spec.NumericAfter = Record.NumericAfter;
+		Spec.NumericDelta = Record.NumericDelta;
+		Spec.HitIndex = Record.HitIndex;
+		Spec.HitCount = Record.HitCount;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
@@ -1682,6 +1714,16 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 	{
 		Rejection.Reason = EBattleRejectionReason::TerminalState;
 	}
+	else if (State->Battlers.ContainsByPredicate(
+		[](const FBattleBattlerState& Candidate)
+		{
+			return Candidate.bFaintTransitionPending;
+		}))
+	{
+		// C05B leaves zero-HP battlers pending for C05C. Do not allow a later
+		// locked action to bypass that checkpoint before C05C owns the transition.
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+	}
 	else if ((State->Phase != EBattlePhase::Locked && State->Phase != EBattlePhase::Resolving)
 		|| ExistingAction == nullptr
 		|| ExistingAction->bFinished)
@@ -2140,6 +2182,146 @@ FBattleResolution FBattleEngine::ResolveCurrentMoveTargets()
 	}
 
 	++State->StateVersion;
+	FBattleResolutionSpec ResolutionSpec;
+	ResolutionSpec.ResolutionId = ResolutionId;
+	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+	ResolutionSpec.AfterStateVersion = State->StateVersion;
+	ResolutionSpec.bAccepted = true;
+	ResolutionSpec.Events = MoveTemp(Events);
+	FBattleResolution Resolution;
+	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
+	check(bResolutionCreated);
+	State->AppendResolution(Resolution);
+	return Resolution;
+}
+
+FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
+{
+	check(State.IsValid());
+	const FResolutionId ResolutionId = TakeResolutionId(*State);
+	FBattleLockedActionState* Action = State->LockedActions.IsValidIndex(
+		State->CurrentLockedActionIndex)
+		? &State->LockedActions[State->CurrentLockedActionIndex]
+		: nullptr;
+	const FBattleEventSource FallbackSource = Action != nullptr
+		? SourceFromLockedAction(*State, *Action)
+		: FindFallbackSource(*State);
+
+	FBattleRejection Rejection;
+	if (State->Phase == EBattlePhase::Terminal)
+	{
+		Rejection.Reason = EBattleRejectionReason::TerminalState;
+	}
+	else if (State->Phase != EBattlePhase::Resolving
+		|| Action == nullptr
+		|| !Action->bStarted
+		|| Action->bFinished
+		|| !Action->bMoveCommitted
+		|| !Action->TargetResolution.IsSet()
+		|| Action->TargetResolution.GetValue().Outcome
+			!= EBattleTargetResolutionOutcome::Resolved
+		|| Action->Decision.GetActionKind() != EBattleActionKind::Fight
+		|| Action->EffectExecutionState != EBattleLockedEffectExecutionState::Pending)
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+		if (Action != nullptr)
+		{
+			Rejection.ActionId = Action->ActionId;
+		}
+	}
+
+	const FBattleBattlerState* User = Action != nullptr
+		? State->FindBattler(Action->Decision.GetActingBattlerId())
+		: nullptr;
+	const FBattleMoveDefinition* Move = nullptr;
+	if (!Rejection.IsRejected() && User == nullptr)
+	{
+		Rejection.Reason = EBattleRejectionReason::WrongActingBattler;
+		Rejection.BattlerId = Action->Decision.GetActingBattlerId();
+	}
+	if (!Rejection.IsRejected())
+	{
+		const FMoveId MoveId = Action->Decision.GetMoveId();
+		Move = MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId()
+			? &FBattleBuiltInMoveDefinitions::GetStruggle()
+			: State->Catalog.FindMove(MoveId);
+		if (Move == nullptr)
+		{
+			Rejection.Reason = EBattleRejectionReason::IllegalMove;
+		}
+	}
+
+	if (Rejection.IsRejected())
+	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Move,
+			EBattleActionKind::Fight,
+			FallbackSource);
+	}
+
+	check(Action != nullptr && User != nullptr && Move != nullptr);
+	Action->EffectExecutionState = EBattleLockedEffectExecutionState::Executing;
+
+	FBattleEffectExecutionRequest Request;
+	Request.BattleId = State->Setup.GetBattleId();
+	Request.TurnId = State->TurnId;
+	Request.ActionId = Action->ActionId;
+	Request.ResolutionId = ResolutionId;
+	Request.UserBattlerId = User->BattlerId;
+	Request.UserSlotId = Action->OrderKey.ActingSlotId;
+	Request.Move = Move;
+	Request.Targets = Action->TargetResolution.GetValue().Targets;
+
+	FBattleEffectExecutionResult EffectResult;
+	EBattleEffectExecutorError EffectError = EBattleEffectExecutorError::None;
+	if (!FBattleEffectExecutor::TryExecuteAgainstState(
+		Request,
+		*State,
+		EffectResult,
+		EffectError))
+	{
+		Action->EffectExecutionState = EBattleLockedEffectExecutionState::Pending;
+		Rejection.Reason = EffectError == EBattleEffectExecutorError::InvalidMoveDefinition
+			? EBattleRejectionReason::IllegalMove
+			: EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Move,
+			EBattleActionKind::Fight,
+			FallbackSource);
+	}
+
+	const uint64 BeforeStateVersion = State->StateVersion;
+	TArray<FBattleEvent> Events;
+	Events.Reserve(EffectResult.Events.Num() + 1);
+	for (const FBattleEffectExecutionEvent& Record : EffectResult.Events)
+	{
+		Events.Add(MakeBattleEffectEvent(*State, ResolutionId, *Action, Record));
+	}
+
+	Action->EffectExecutionState = EBattleLockedEffectExecutionState::Completed;
+	Action->bFinished = true;
+	Events.Add(MakeActionDetailEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::ActionCompleted,
+		EBattleEventCause::Action));
+	++State->CurrentLockedActionIndex;
+	++State->StateVersion;
+
+	EBattleStateValidationError StateError = EBattleStateValidationError::None;
+	const bool bStateValid = State->ValidateInvariants(StateError);
+	check(bStateValid);
+
 	FBattleResolutionSpec ResolutionSpec;
 	ResolutionSpec.ResolutionId = ResolutionId;
 	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;

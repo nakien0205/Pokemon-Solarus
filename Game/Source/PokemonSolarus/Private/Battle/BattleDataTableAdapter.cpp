@@ -299,7 +299,8 @@ namespace
 			{FName(TEXT("Charge")), EBattleMoveEffectKind::Charge},
 			{FName(TEXT("Recharge")), EBattleMoveEffectKind::Recharge},
 			{FName(TEXT("Protect")), EBattleMoveEffectKind::Protect},
-			{FName(TEXT("SemiInvulnerability")), EBattleMoveEffectKind::SemiInvulnerability}
+			{FName(TEXT("SemiInvulnerability")), EBattleMoveEffectKind::SemiInvulnerability},
+			{FName(TEXT("RemoveCondition")), EBattleMoveEffectKind::RemoveCondition}
 		};
 		for (const auto& Mapping : Mappings)
 		{

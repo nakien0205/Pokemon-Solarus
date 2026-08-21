@@ -67,7 +67,7 @@ namespace
 
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleMoveEffectKind::SemiInvulnerability);
+		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleMoveEffectKind::RemoveCondition);
 	}
 
 	bool IsKnownEffectTarget(const EBattleEffectTarget Value)
@@ -189,7 +189,8 @@ namespace
 			|| Kind == EBattleMoveEffectKind::Charge
 			|| Kind == EBattleMoveEffectKind::Recharge
 			|| Kind == EBattleMoveEffectKind::Protect
-			|| Kind == EBattleMoveEffectKind::SemiInvulnerability;
+			|| Kind == EBattleMoveEffectKind::SemiInvulnerability
+			|| Kind == EBattleMoveEffectKind::RemoveCondition;
 	}
 
 	bool ConditionKindMatchesEffect(
@@ -214,6 +215,34 @@ namespace
 		case EBattleMoveEffectKind::Protect:
 		case EBattleMoveEffectKind::SemiInvulnerability:
 			return ConditionKind == EBattleConditionKind::Volatile;
+		case EBattleMoveEffectKind::RemoveCondition:
+			return IsKnownConditionKind(ConditionKind);
+		default:
+			return false;
+		}
+	}
+
+	bool IsRemovalTargetCompatible(
+		const EBattleEffectTarget Target,
+		const EBattleConditionKind ConditionKind)
+	{
+		switch (ConditionKind)
+		{
+		case EBattleConditionKind::MajorStatus:
+		case EBattleConditionKind::Volatile:
+			return Target == EBattleEffectTarget::User
+				|| Target == EBattleEffectTarget::ResolvedTarget
+				|| Target == EBattleEffectTarget::AllResolvedTargets;
+		case EBattleConditionKind::Weather:
+		case EBattleConditionKind::Terrain:
+		case EBattleConditionKind::Room:
+			return Target == EBattleEffectTarget::Field;
+		case EBattleConditionKind::Hazard:
+		case EBattleConditionKind::Screen:
+		case EBattleConditionKind::SideCondition:
+			return Target == EBattleEffectTarget::UserSide
+				|| Target == EBattleEffectTarget::TargetSide
+				|| Target == EBattleEffectTarget::BothSides;
 		default:
 			return false;
 		}
@@ -221,9 +250,28 @@ namespace
 
 	bool IsDamageTarget(const EBattleEffectTarget Target)
 	{
-		return Target == EBattleEffectTarget::User
-			|| Target == EBattleEffectTarget::ResolvedTarget
+		return Target == EBattleEffectTarget::ResolvedTarget
 			|| Target == EBattleEffectTarget::AllResolvedTargets;
+	}
+
+	bool IsBattlerTargetClass(const EBattleTargetClass TargetClass)
+	{
+		return TargetClass == EBattleTargetClass::Self
+			|| TargetClass == EBattleTargetClass::SelectedAlly
+			|| TargetClass == EBattleTargetClass::SelectedOpponent
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| TargetClass == EBattleTargetClass::RandomLegalOpponent
+			|| TargetClass == EBattleTargetClass::FixedSpreadSet;
+	}
+
+	bool IsBattlerEffectTargetCompatible(
+		const EBattleTargetClass MoveTargetClass,
+		const EBattleEffectTarget EffectTarget)
+	{
+		return EffectTarget == EBattleEffectTarget::User
+			|| ((EffectTarget == EBattleEffectTarget::ResolvedTarget
+				|| EffectTarget == EBattleEffectTarget::AllResolvedTargets)
+				&& IsBattlerTargetClass(MoveTargetClass));
 	}
 
 	void ValidateEffect(
@@ -259,9 +307,12 @@ namespace
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidEnum, TEXT("Effects.Target"));
 		}
-		if (Effect.ChanceNumerator <= 0
-			|| Effect.ChanceDenominator <= 0
-			|| Effect.ChanceNumerator > Effect.ChanceDenominator)
+		const bool bPrimaryChance = Effect.ChanceNumerator == 1
+			&& Effect.ChanceDenominator == 1;
+		const bool bIndependentPercentageChance = Effect.ChanceNumerator >= 1
+			&& Effect.ChanceNumerator <= 100
+			&& Effect.ChanceDenominator == 100;
+		if (!bPrimaryChance && !bIndependentPercentageChance)
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects.Chance"));
 		}
@@ -278,7 +329,31 @@ namespace
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidEnum, TEXT("Effects.Flags"));
 		}
 
-		if (Effect.Kind == EBattleMoveEffectKind::Damage && !IsDamageTarget(Effect.Target))
+		if (Effect.Kind == EBattleMoveEffectKind::Damage
+			&& (!IsDamageTarget(Effect.Target)
+				|| !IsBattlerTargetClass(Move.TargetClass)
+				|| !bPrimaryChance))
+		{
+			AddEffectDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				bPrimaryChance ? TEXT("Effects.Target") : TEXT("Effects.Chance"));
+		}
+		if ((Effect.Kind == EBattleMoveEffectKind::ApplyCondition
+				|| Effect.Kind == EBattleMoveEffectKind::ModifyStatStage
+				|| Effect.Kind == EBattleMoveEffectKind::Heal
+				|| Effect.Kind == EBattleMoveEffectKind::Switch
+				|| Effect.Kind == EBattleMoveEffectKind::ChangeItem)
+			&& !IsBattlerEffectTargetCompatible(Move.TargetClass, Effect.Target))
+		{
+			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
+		}
+		if ((Effect.Kind == EBattleMoveEffectKind::Drain
+				|| Effect.Kind == EBattleMoveEffectKind::Recoil
+				|| Effect.Kind == EBattleMoveEffectKind::Charge
+				|| Effect.Kind == EBattleMoveEffectKind::Recharge
+				|| Effect.Kind == EBattleMoveEffectKind::Protect
+				|| Effect.Kind == EBattleMoveEffectKind::SemiInvulnerability)
+			&& Effect.Target != EBattleEffectTarget::User)
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
 		}
@@ -291,6 +366,13 @@ namespace
 			&& Effect.Target != EBattleEffectTarget::UserSide
 			&& Effect.Target != EBattleEffectTarget::TargetSide
 			&& Effect.Target != EBattleEffectTarget::BothSides)
+		{
+			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
+		}
+		if ((Effect.Kind == EBattleMoveEffectKind::SetSideCondition
+				|| Effect.Kind == EBattleMoveEffectKind::RemoveCondition)
+			&& Effect.Target == EBattleEffectTarget::TargetSide
+			&& Move.TargetClass == EBattleTargetClass::Field)
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
 		}
@@ -307,6 +389,18 @@ namespace
 			else if (!ConditionKindMatchesEffect(Effect.Kind, Condition->Kind))
 			{
 				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.ConditionId"));
+			}
+			else if (Effect.Kind == EBattleMoveEffectKind::RemoveCondition
+				&& !IsRemovalTargetCompatible(Effect.Target, Condition->Kind))
+			{
+				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
+			}
+			else if (Effect.Kind == EBattleMoveEffectKind::RemoveCondition
+				&& (Condition->Kind == EBattleConditionKind::MajorStatus
+					|| Condition->Kind == EBattleConditionKind::Volatile)
+				&& !IsBattlerEffectTargetCompatible(Move.TargetClass, Effect.Target))
+			{
+				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
 			}
 		}
 		else if (Effect.ConditionId.IsValid())
@@ -349,12 +443,27 @@ namespace
 				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects.Magnitude"));
 			}
 		}
-		if (Effect.Kind == EBattleMoveEffectKind::MultiHit
-			&& (Effect.MinimumCount < 2
-				|| Effect.MaximumCount < Effect.MinimumCount
-				|| Effect.MaximumCount > 5))
+		if (Effect.Kind == EBattleMoveEffectKind::MultiHit)
 		{
-			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects.Count"));
+			const bool bFixedCount = Effect.MinimumCount == Effect.MaximumCount
+				&& Effect.MinimumCount >= 2
+				&& Effect.MinimumCount <= 5;
+			const bool bApprovedRange = Effect.MinimumCount == 2
+				&& Effect.MaximumCount == 5;
+			if (!bFixedCount && !bApprovedRange)
+			{
+				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects.Count"));
+			}
+		}
+		if (EnumHasAllFlags(Effect.Flags, EBattleMoveEffectFlags::PerHit)
+			&& (Move.Category == EBattleMoveCategory::Status
+				|| bPrimaryChance
+				|| Effect.Kind == EBattleMoveEffectKind::Damage
+				|| Effect.Kind == EBattleMoveEffectKind::MultiHit
+				|| Effect.Kind == EBattleMoveEffectKind::Drain
+				|| Effect.Kind == EBattleMoveEffectKind::Recoil))
+		{
+			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Flags"));
 		}
 	}
 
@@ -432,7 +541,11 @@ namespace
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::InvalidRange, TEXT("Effects"));
 		}
 
-		bool bHasDamageEffect = false;
+		int32 DamageEffectCount = 0;
+		int32 MultiHitEffectCount = 0;
+		const FBattleMoveEffectDescriptor* DamageEffect = nullptr;
+		const FBattleMoveEffectDescriptor* MultiHitEffect = nullptr;
+		int32 MultiHitEffectIndex = INDEX_NONE;
 		for (int32 EffectIndex = 0; EffectIndex < Move.Effects.Num(); ++EffectIndex)
 		{
 			const FBattleMoveEffectDescriptor& Effect = Move.Effects[EffectIndex];
@@ -446,19 +559,49 @@ namespace
 					FName(TEXT("Effects.Order")),
 					EffectIndex);
 			}
-			bHasDamageEffect = bHasDamageEffect || Effect.Kind == EBattleMoveEffectKind::Damage;
+			if (Effect.Kind == EBattleMoveEffectKind::Damage)
+			{
+				++DamageEffectCount;
+				DamageEffect = &Effect;
+			}
+			else if (Effect.Kind == EBattleMoveEffectKind::MultiHit)
+			{
+				++MultiHitEffectCount;
+				MultiHitEffect = &Effect;
+				MultiHitEffectIndex = EffectIndex;
+			}
 			ValidateEffect(Move, Effect, EffectIndex, Conditions, Items, Diagnostics);
 		}
 
-		if (Move.Category == EBattleMoveCategory::Status && bHasDamageEffect)
+		if (Move.Category == EBattleMoveCategory::Status && DamageEffectCount != 0)
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Category"));
 		}
 		if ((Move.Category == EBattleMoveCategory::Physical
 			|| Move.Category == EBattleMoveCategory::Special)
-			&& !bHasDamageEffect)
+			&& DamageEffectCount != 1)
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Category"));
+		}
+		if (MultiHitEffectCount > 1)
+		{
+			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.MultiHit"));
+		}
+		if (MultiHitEffect != nullptr
+			&& (DamageEffect == nullptr
+				|| MultiHitEffect->ChanceNumerator != 1
+				|| MultiHitEffect->ChanceDenominator != 1
+				|| MultiHitEffect->Order >= DamageEffect->Order
+				|| MultiHitEffect->Target != DamageEffect->Target
+				|| Move.TargetClass == EBattleTargetClass::FixedSpreadSet))
+		{
+			AddDiagnostic(
+				Diagnostics,
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				EBattleDefinitionFamily::Move,
+				MoveId,
+				FName(TEXT("Effects.MultiHit")),
+				MultiHitEffectIndex);
 		}
 	}
 }
