@@ -1,5 +1,6 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleEffectExecutor.h"
+#include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleFaintOutcomeResolver.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
@@ -10,6 +11,10 @@
 
 namespace
 {
+	const FBattleActivePositionState* FindActiveForBattler(
+		const FBattleEngineState& State,
+		FBattlerId BattlerId);
+
 	FResolutionId TakeResolutionId(FBattleEngineState& State)
 	{
 		FResolutionId Id;
@@ -206,6 +211,423 @@ namespace
 		const FConditionId& VolatileId)
 	{
 		return FindVolatile(Battler, VolatileId) != nullptr;
+	}
+
+	bool HasFieldRoom(
+		const FBattleEngineState& State,
+		const FConditionId& RoomId)
+	{
+		return State.Field.Rooms.ContainsByPredicate(
+			[&RoomId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == RoomId;
+			});
+	}
+
+	const FBattleSideState* FindSide(
+		const FBattleEngineState& State,
+		const EBattleSide Side)
+	{
+		return State.Sides.FindByPredicate(
+			[Side](const FBattleSideState& Candidate)
+			{
+				return Candidate.Side == Side;
+			});
+	}
+
+	FBattleSideState* FindMutableSide(
+		FBattleEngineState& State,
+		const EBattleSide Side)
+	{
+		return State.Sides.FindByPredicate(
+			[Side](const FBattleSideState& Candidate)
+			{
+				return Candidate.Side == Side;
+			});
+	}
+
+	bool HasSideCondition(
+		const FBattleEngineState& State,
+		const EBattleSide Side,
+		const FConditionId& ConditionId)
+	{
+		const FBattleSideState* SideState = FindSide(State, Side);
+		return SideState != nullptr && SideState->Conditions.ContainsByPredicate(
+			[&ConditionId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == ConditionId;
+			});
+	}
+
+	const FBattleConditionState* FindFieldSideCondition(
+		const FBattleEngineState& State,
+		const FBattleTriggerSubject& Owner,
+		const FConditionId& ConditionId)
+	{
+		if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId))
+		{
+			return nullptr;
+		}
+		if (Owner.Kind == EBattleTriggerSubjectKind::Field)
+		{
+			if (State.Field.Weather.IsSet()
+				&& State.Field.Weather.GetValue().ConditionId == ConditionId)
+			{
+				return &State.Field.Weather.GetValue();
+			}
+			if (State.Field.Terrain.IsSet()
+				&& State.Field.Terrain.GetValue().ConditionId == ConditionId)
+			{
+				return &State.Field.Terrain.GetValue();
+			}
+			return State.Field.Rooms.FindByPredicate(
+				[&ConditionId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == ConditionId;
+				});
+		}
+		if (Owner.Kind != EBattleTriggerSubjectKind::Side || !Owner.bHasSide)
+		{
+			return nullptr;
+		}
+		const FBattleSideState* Side = FindSide(State, Owner.Side);
+		if (Side == nullptr)
+		{
+			return nullptr;
+		}
+		const FBattleConditionState* Condition = Side->Conditions.FindByPredicate(
+			[&ConditionId](const FBattleConditionState& Candidate)
+			{
+				return Candidate.ConditionId == ConditionId;
+			});
+		return Condition != nullptr
+			? Condition
+			: Side->Hazards.FindByPredicate(
+				[&ConditionId](const FBattleConditionState& Candidate)
+				{
+					return Candidate.ConditionId == ConditionId;
+				});
+	}
+
+	bool TryDispatchFieldSidePhase(
+		FBattleEngineState& State,
+		const FBattleTriggerSubject& Owner,
+		const EBattleTriggerPhase Phase,
+		const FConditionId& FilterConditionId,
+		const TOptional<FActiveSlotId>& ActiveSlotId,
+		TArray<FBattleTriggerEffectRequest>& OutRequests,
+		TArray<FBattleTriggerLifecycleFact>& OutFacts)
+	{
+		OutRequests.Reset();
+		OutFacts.Reset();
+		if (!Owner.IsValid()
+			|| (Owner.Kind != EBattleTriggerSubjectKind::Field
+				&& Owner.Kind != EBattleTriggerSubjectKind::Side))
+		{
+			return false;
+		}
+
+		FBattleTriggerDispatchSpec Dispatch;
+		Dispatch.Phase = Phase;
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner != Owner
+				|| Registration.Spec.Rule.Phase != Phase
+				|| Registration.Spec.SourceDefinition.Kind
+					!= EBattleTriggerSourceDefinitionKind::Condition)
+			{
+				continue;
+			}
+			const FConditionId& ConditionId =
+				Registration.Spec.SourceDefinition.ConditionId;
+			if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId)
+				|| (FilterConditionId.IsValid() && ConditionId != FilterConditionId)
+				|| FindFieldSideCondition(State, Owner, ConditionId) == nullptr)
+			{
+				continue;
+			}
+			FBattleTriggerDispatchParticipant& Participant =
+				Dispatch.Participants.AddDefaulted_GetRef();
+			Participant.RegistrationId = Registration.RegistrationId;
+			Participant.ActiveSlotId = ActiveSlotId;
+		}
+		if (Dispatch.Participants.IsEmpty())
+		{
+			return true;
+		}
+
+		FBattleTriggerOperationContext Operation;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		FBattleTriggerDispatchResult Result;
+		if (!TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+		Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+		if (!State.TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+			|| !State.TriggerFramework.TryResolveNextDispatch(Result, Error))
+		{
+			return false;
+		}
+		State.TriggerFramework.DrainEffectRequests(OutRequests);
+		State.TriggerFramework.DrainLifecycleFacts(OutFacts);
+		if (Result.bQueuedExpiryDispatch)
+		{
+			FBattleTriggerDispatchResult ExpiryResult;
+			if (!State.TriggerFramework.TryResolveNextDispatch(ExpiryResult, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+			TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+			State.TriggerFramework.DrainEffectRequests(ExpiryRequests);
+			State.TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+			OutRequests.Append(MoveTemp(ExpiryRequests));
+			OutFacts.Append(MoveTemp(ExpiryFacts));
+		}
+		return true;
+	}
+
+	bool TryIsFieldSideConditionActiveForPhase(
+		FBattleEngineState& State,
+		const FConditionId& ConditionId,
+		const TOptional<EBattleSide>& Side,
+		const EBattleTriggerPhase Phase,
+		const TOptional<FActiveSlotId>& ActiveSlotId,
+		bool& bOutActive)
+	{
+		bOutActive = false;
+		FBattleTriggerSubject Owner;
+		if (FBattleFieldSideConditionRules::IsFieldOwned(ConditionId))
+		{
+			if (Side.IsSet())
+			{
+				return false;
+			}
+			Owner = FBattleTriggerSubject::CreateField();
+		}
+		else if (!Side.IsSet()
+			|| !FBattleTriggerSubject::TryCreateSide(Side.GetValue(), Owner))
+		{
+			return false;
+		}
+		TArray<FBattleTriggerEffectRequest> Requests;
+		TArray<FBattleTriggerLifecycleFact> Facts;
+		if (!TryDispatchFieldSidePhase(
+				State,
+				Owner,
+				Phase,
+				ConditionId,
+				ActiveSlotId,
+				Requests,
+				Facts))
+		{
+			return false;
+		}
+		bOutActive = Requests.ContainsByPredicate(
+			[&ConditionId, Phase](const FBattleTriggerEffectRequest& Request)
+			{
+				return Request.Phase == Phase
+					&& Request.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Request.SourceDefinition.ConditionId == ConditionId;
+			});
+		return true;
+	}
+
+	FBattleEventSource BuildFieldSideConditionSource(
+		const FBattleEngineState& State,
+		const FBattleTriggerSubject& Owner,
+		const FConditionId& ConditionId)
+	{
+		FBattleEventSource Source;
+		Source.DefinitionId = ConditionId.GetDefinitionId();
+		const FBattleConditionState* Condition = FindFieldSideCondition(
+			State,
+			Owner,
+			ConditionId);
+		const FBattleBattlerState* SourceBattler = Condition != nullptr
+			? State.FindBattler(Condition->SourceBattlerId)
+			: nullptr;
+		if (SourceBattler == nullptr)
+		{
+			return Source;
+		}
+
+		Source.TrainerId = SourceBattler->TrainerId;
+		Source.BattlerId = SourceBattler->BattlerId;
+		const FBattleActivePositionState* SourceActive =
+			State.ActivePositions.FindByPredicate(
+				[SourceBattler](const FBattleActivePositionState& Position)
+				{
+					return Position.BattlerId == SourceBattler->BattlerId;
+				});
+		if (SourceActive != nullptr)
+		{
+			Source.ActiveSlotId = SourceActive->ActiveSlotId;
+		}
+		return Source;
+	}
+
+	FBattleConditionState* FindMutableFieldSideCondition(
+		FBattleEngineState& State,
+		const FBattleTriggerSubject& Owner,
+		const FConditionId& ConditionId)
+	{
+		if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId))
+		{
+			return nullptr;
+		}
+		if (Owner.Kind == EBattleTriggerSubjectKind::Field)
+		{
+			if (State.Field.Weather.IsSet()
+				&& State.Field.Weather.GetValue().ConditionId == ConditionId)
+			{
+				return &State.Field.Weather.GetValue();
+			}
+			if (State.Field.Terrain.IsSet()
+				&& State.Field.Terrain.GetValue().ConditionId == ConditionId)
+			{
+				return &State.Field.Terrain.GetValue();
+			}
+			return State.Field.Rooms.FindByPredicate(
+				[&ConditionId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == ConditionId;
+				});
+		}
+		if (Owner.Kind != EBattleTriggerSubjectKind::Side || !Owner.bHasSide)
+		{
+			return nullptr;
+		}
+		FBattleSideState* Side = FindMutableSide(State, Owner.Side);
+		if (Side == nullptr)
+		{
+			return nullptr;
+		}
+		FBattleConditionState* Condition = Side->Conditions.FindByPredicate(
+			[&ConditionId](const FBattleConditionState& Candidate)
+			{
+				return Candidate.ConditionId == ConditionId;
+			});
+		return Condition != nullptr
+			? Condition
+			: Side->Hazards.FindByPredicate(
+				[&ConditionId](const FBattleConditionState& Candidate)
+				{
+					return Candidate.ConditionId == ConditionId;
+				});
+	}
+
+	bool RemoveFieldSideConditionState(
+		FBattleEngineState& State,
+		const FBattleTriggerSubject& Owner,
+		const FConditionId& ConditionId)
+	{
+		if (Owner.Kind == EBattleTriggerSubjectKind::Field)
+		{
+			if (State.Field.Weather.IsSet()
+				&& State.Field.Weather.GetValue().ConditionId == ConditionId)
+			{
+				State.Field.Weather.Reset();
+				return true;
+			}
+			if (State.Field.Terrain.IsSet()
+				&& State.Field.Terrain.GetValue().ConditionId == ConditionId)
+			{
+				State.Field.Terrain.Reset();
+				return true;
+			}
+			return State.Field.Rooms.RemoveAll(
+				[&ConditionId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == ConditionId;
+				}) == 1;
+		}
+		if (Owner.Kind != EBattleTriggerSubjectKind::Side || !Owner.bHasSide)
+		{
+			return false;
+		}
+		FBattleSideState* Side = FindMutableSide(State, Owner.Side);
+		if (Side == nullptr)
+		{
+			return false;
+		}
+		const int32 RemovedConditions = Side->Conditions.RemoveAll(
+			[&ConditionId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == ConditionId;
+			});
+		const int32 RemovedHazards = Side->Hazards.RemoveAll(
+			[&ConditionId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == ConditionId;
+			});
+		return RemovedConditions + RemovedHazards == 1;
+	}
+
+	bool TryResolveGrounded(
+		const FBattleEngineState& State,
+		const FBattleBattlerState& Battler,
+		bool& bOutGrounded)
+	{
+		const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+			Battler.SpeciesFormId);
+		if (Species == nullptr)
+		{
+			bOutGrounded = false;
+			return false;
+		}
+		FBattleGroundedFacts Facts;
+		Facts.PrimaryType = Species->PrimaryType;
+		Facts.SecondaryType = Species->SecondaryType;
+		Facts.bAirborneSemiInvulnerable = HasVolatile(
+			Battler,
+			FBattleVolatileRules::GetFlySemiInvulnerableId());
+		return FBattleFieldSideConditionRules::TryResolveGrounded(Facts, bOutGrounded);
+	}
+
+	bool TryCleanupFieldSideTriggers(
+		FBattleEngineState& State,
+		const FConditionId& ConditionId,
+		const TOptional<EBattleSide>& Side,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId))
+		{
+			return true;
+		}
+		FBattleTriggerSubject Owner;
+		if (FBattleFieldSideConditionRules::IsFieldOwned(ConditionId))
+		{
+			if (Side.IsSet())
+			{
+				return false;
+			}
+			Owner = FBattleTriggerSubject::CreateField();
+		}
+		else if (!Side.IsSet()
+			|| !FBattleTriggerSubject::TryCreateSide(Side.GetValue(), Owner))
+		{
+			return false;
+		}
+		FBattleTriggerOperationContext Operation;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		if (!Owner.IsValid()
+			|| !TryTakeTriggerOperationContext(State, Operation)
+			|| !FBattleFieldSideConditionRules::TryCleanupTriggers(
+				State.TriggerFramework,
+				ConditionId,
+				Owner,
+				Reason,
+				Operation,
+				Error))
+		{
+			return false;
+		}
+		DrainTriggerOutputs(State);
+		return true;
 	}
 
 	bool TryCleanupVolatileTriggers(
@@ -928,7 +1350,9 @@ namespace
 		Spec.Type = Record.Type;
 		Spec.Cause = Record.Cause;
 		Spec.CauseActionKind = EBattleActionKind::Fight;
-		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Source = Record.SourceOverride.IsSet()
+			? Record.SourceOverride.GetValue()
+			: SourceFromLockedAction(State, Action);
 		Spec.Targets = Record.Targets;
 		Spec.NumericBefore = Record.NumericBefore;
 		Spec.NumericAfter = Record.NumericAfter;
@@ -955,7 +1379,8 @@ namespace
 		const EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None,
 		const TOptional<uint64> SimultaneousGroupId = TOptional<uint64>(),
 		const TOptional<uint16> HitIndex = TOptional<uint16>(),
-		const TOptional<uint16> HitCount = TOptional<uint16>())
+		const TOptional<uint16> HitCount = TOptional<uint16>(),
+		const FBattleEventSource* SourceOverride = nullptr)
 	{
 		FBattleEventSpec Spec;
 		Spec.EventOrdinal = State.NextEventOrdinal;
@@ -967,7 +1392,9 @@ namespace
 		Spec.Cause = Cause;
 		Spec.CauseActionKind = Action.Decision.GetActionKind();
 		Spec.OutcomeCause = OutcomeCause;
-		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Source = SourceOverride != nullptr
+			? *SourceOverride
+			: SourceFromLockedAction(State, Action);
 		Spec.Targets.Add(Target);
 		Spec.SimultaneousGroupId = SimultaneousGroupId;
 		Spec.HitIndex = HitIndex;
@@ -1034,6 +1461,38 @@ namespace
 		Spec.NumericDelta = NumericDelta;
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeRuleMutationEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const EBattleEventType Type,
+		const EBattleActionKind ActionKind,
+		const FBattleEventSource& Source,
+		const FBattleEventTarget& Target,
+		const int64 NumericBefore,
+		const int64 NumericAfter,
+		const int64 NumericDelta)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = EBattleEventCause::Rule;
+		Spec.CauseActionKind = ActionKind;
+		Spec.Source = Source;
+		Spec.Targets.Add(Target);
+		Spec.NumericBefore = NumericBefore;
+		Spec.NumericAfter = NumericAfter;
+		Spec.NumericDelta = NumericDelta;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
 		check(bCreated);
@@ -1125,7 +1584,8 @@ namespace
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
 		const FBattleLockedActionState& Action,
-		const EBattleOutcomeCause OutcomeCause)
+		const EBattleOutcomeCause OutcomeCause,
+		const FBattleEventSource* SourceOverride = nullptr)
 	{
 		FBattleEventSpec Spec;
 		Spec.EventOrdinal = State.NextEventOrdinal;
@@ -1137,7 +1597,9 @@ namespace
 		Spec.Cause = EBattleEventCause::Outcome;
 		Spec.CauseActionKind = Action.Decision.GetActionKind();
 		Spec.OutcomeCause = OutcomeCause;
-		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Source = SourceOverride != nullptr
+			? *SourceOverride
+			: SourceFromLockedAction(State, Action);
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 
 		FBattleEvent Event;
@@ -1147,11 +1609,505 @@ namespace
 		return Event;
 	}
 
+	bool TryResolveEntryHazards(
+		FBattleEngineState& State,
+		const FBattlerId IncomingBattlerId,
+		const FActiveSlotId ActiveSlotId,
+		const FResolutionId ResolutionId,
+		TArray<FBattleEvent>& Events)
+	{
+		FBattleBattlerState* Incoming = State.FindMutableBattler(IncomingBattlerId);
+		const FBattleActivePositionState* Active = State.FindActivePosition(ActiveSlotId);
+		FBattleSideState* Side = FindMutableSide(State, ActiveSlotId.GetSide());
+		const FBattleSpeciesFormDefinition* Species = Incoming != nullptr
+			? State.Catalog.FindSpeciesForm(Incoming->SpeciesFormId)
+			: nullptr;
+		if (Incoming == nullptr
+			|| Active == nullptr
+			|| Active->BattlerId != IncomingBattlerId
+			|| Side == nullptr
+			|| Species == nullptr)
+		{
+			return false;
+		}
+
+		FBattleTriggerSubject SideOwner;
+		TArray<FBattleTriggerEffectRequest> HazardRequests;
+		TArray<FBattleTriggerLifecycleFact> HazardFacts;
+		if (!FBattleTriggerSubject::TryCreateSide(ActiveSlotId.GetSide(), SideOwner)
+			|| !TryDispatchFieldSidePhase(
+				State,
+				SideOwner,
+				EBattleTriggerPhase::SwitchIn,
+				FConditionId(),
+				ActiveSlotId,
+				HazardRequests,
+				HazardFacts))
+		{
+			return false;
+		}
+		for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
+		{
+			if (Incoming->CurrentHP <= 0 || Incoming->bFainted || State.Phase == EBattlePhase::Terminal)
+			{
+				break;
+			}
+			if (HazardRequest.Phase != EBattleTriggerPhase::SwitchIn
+				|| HazardRequest.SourceDefinition.Kind
+					!= EBattleTriggerSourceDefinitionKind::Condition)
+			{
+				return false;
+			}
+			const FConditionId HazardId = HazardRequest.SourceDefinition.ConditionId;
+			const FBattleConditionState* Hazard = Side->Hazards.FindByPredicate(
+				[&HazardId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == HazardId;
+				});
+			if (Hazard == nullptr
+				|| !FBattleFieldSideConditionRules::IsCanonical(HazardId))
+			{
+				continue;
+			}
+
+			bool bGrounded = false;
+			if (!TryResolveGrounded(State, *Incoming, bGrounded))
+			{
+				return false;
+			}
+			FBattleTypeEffectiveness RockEffectiveness{1, 1};
+			if (HazardId == FBattleFieldSideConditionRules::GetStealthRockId())
+			{
+				const bool bTypeFound = Species->SecondaryType == EPokemonType::Invalid
+					? State.Catalog.GetTypeChart().TryGetEffectiveness(
+						EPokemonType::Rock,
+						Species->PrimaryType,
+						RockEffectiveness)
+					: State.Catalog.GetTypeChart().TryGetDualEffectiveness(
+						EPokemonType::Rock,
+						Species->PrimaryType,
+						Species->SecondaryType,
+						RockEffectiveness);
+				if (!bTypeFound)
+				{
+					return false;
+				}
+			}
+
+			const FConditionId HazardStatusId = HazardRequest.Layers >= 2
+				? FBattleMajorStatusRules::GetToxicId()
+				: FBattleMajorStatusRules::GetPoisonId();
+			const FBattleBattlerState* HazardSourceBattler =
+				State.FindBattler(HazardRequest.Source.BattlerId);
+			const FBattleTrainerState* HazardSourceTrainer = HazardSourceBattler != nullptr
+				? State.FindTrainer(HazardSourceBattler->TrainerId)
+				: nullptr;
+			const bool bHazardAppliedByOpponent = HazardSourceTrainer == nullptr
+				|| HazardSourceTrainer->Side != ActiveSlotId.GetSide();
+			FBattleMajorStatusApplicationFacts StatusFacts;
+			StatusFacts.RequestedStatusId = HazardStatusId;
+			StatusFacts.ExistingMajorStatusId = Incoming->MajorStatusId;
+			StatusFacts.PrimaryType = Species->PrimaryType;
+			StatusFacts.SecondaryType = Species->SecondaryType;
+			const FConditionId TerrainId = State.Field.Terrain.IsSet()
+				? State.Field.Terrain.GetValue().ConditionId
+				: FConditionId();
+			bool bTerrainTriggerActive = false;
+			if (FBattleFieldSideConditionRules::IsCanonical(TerrainId)
+				&& !TryIsFieldSideConditionActiveForPhase(
+						State,
+						TerrainId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerPhase::BeforeHit,
+						ActiveSlotId,
+						bTerrainTriggerActive))
+			{
+				return false;
+			}
+			StatusFacts.Prevention.bTerrainPrevents =
+				bTerrainTriggerActive
+				&& FBattleFieldSideConditionRules::ShouldTerrainPreventMajorStatus(
+					TerrainId,
+					HazardStatusId,
+					bGrounded);
+			bool bSafeguardTriggerActive = false;
+			if (!TryIsFieldSideConditionActiveForPhase(
+					State,
+					FBattleFieldSideConditionRules::GetSafeguardId(),
+					ActiveSlotId.GetSide(),
+					EBattleTriggerPhase::BeforeHit,
+					ActiveSlotId,
+					bSafeguardTriggerActive))
+			{
+				return false;
+			}
+			StatusFacts.Prevention.bSafeguardPrevents =
+				FBattleFieldSideConditionRules::ShouldSafeguardPrevent(
+					bSafeguardTriggerActive,
+					bHazardAppliedByOpponent,
+					false);
+			FBattleMajorStatusApplicationResult StatusApplication;
+			if (!FBattleMajorStatusRules::TryEvaluateApplication(StatusFacts, StatusApplication))
+			{
+				return false;
+			}
+
+			FBattleHazardSwitchInFacts Facts;
+			Facts.HazardId = HazardId;
+			Facts.Layers = HazardRequest.Layers;
+			Facts.BaseMaximumHP = Incoming->PermanentStats.MaxHP;
+			Facts.CurrentHP = Incoming->CurrentHP;
+			Facts.PrimaryType = Species->PrimaryType;
+			Facts.SecondaryType = Species->SecondaryType;
+			Facts.bGrounded = bGrounded;
+			Facts.bMajorStatusPrevented = StatusApplication.Outcome
+				!= EBattleMajorStatusApplicationOutcome::CanApply;
+			bool bMistTriggerActive = false;
+			if (!TryIsFieldSideConditionActiveForPhase(
+					State,
+					FBattleFieldSideConditionRules::GetMistId(),
+					ActiveSlotId.GetSide(),
+					EBattleTriggerPhase::BeforeHit,
+					ActiveSlotId,
+					bMistTriggerActive))
+			{
+				return false;
+			}
+			Facts.bStatStageDropPrevented =
+				FBattleFieldSideConditionRules::ShouldMistPreventStatDrop(
+					bMistTriggerActive,
+					bHazardAppliedByOpponent,
+					false,
+					-1);
+			Facts.RockEffectiveness = RockEffectiveness;
+			FBattleHazardSwitchInResult HazardResult;
+			if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(Facts, HazardResult))
+			{
+				return false;
+			}
+
+			FBattleEventSource Source;
+			Source.DefinitionId = HazardId.GetDefinitionId();
+			if (HazardSourceBattler != nullptr)
+			{
+				Source.TrainerId = HazardSourceBattler->TrainerId;
+				Source.BattlerId = HazardSourceBattler->BattlerId;
+				const FBattleActivePositionState* SourceActive = FindActiveForBattler(
+					State,
+					HazardSourceBattler->BattlerId);
+				if (SourceActive != nullptr)
+				{
+					Source.ActiveSlotId = SourceActive->ActiveSlotId;
+				}
+			}
+			FBattleEventTarget Target;
+			Target.TrainerId = Incoming->TrainerId;
+			Target.BattlerId = Incoming->BattlerId;
+			Target.ActiveSlotId = ActiveSlotId;
+
+			FBattleEffectExecutionResult FaintInput;
+			FaintInput.bValid = true;
+			if (HazardResult.EffectKind == EBattleHazardSwitchInEffectKind::Damage)
+			{
+				const int32 PreviousHP = Incoming->CurrentHP;
+				const int32 AppliedDamage = FMath::Min(PreviousHP, HazardResult.Damage);
+				Incoming->CurrentHP -= AppliedDamage;
+				if (Incoming->CurrentHP == 0)
+				{
+					Incoming->bFainted = true;
+					Incoming->bFaintTransitionPending = true;
+				}
+				for (const EBattleEventType Type : {EBattleEventType::Damage, EBattleEventType::HPChanged})
+				{
+					Events.Add(MakeRuleMutationEvent(
+						State,
+						ResolutionId,
+						Type,
+						EBattleActionKind::Switch,
+						Source,
+						Target,
+						PreviousHP,
+						Incoming->CurrentHP,
+						-AppliedDamage));
+					FBattleEffectExecutionEvent& Record = FaintInput.Events.AddDefaulted_GetRef();
+					Record.Type = Type;
+					Record.Cause = EBattleEventCause::Rule;
+					Record.Outcome = EBattleEffectExecutionOutcome::Applied;
+					Record.Targets.Add(Target);
+					Record.NumericBefore = PreviousHP;
+					Record.NumericAfter = Incoming->CurrentHP;
+					Record.NumericDelta = -AppliedDamage;
+				}
+			}
+			else if (HazardResult.EffectKind
+				== EBattleHazardSwitchInEffectKind::ApplyMajorStatus)
+			{
+				FBattleTriggerSubject Owner;
+				EBattleTriggerError Error = EBattleTriggerError::None;
+				if (!FBattleTriggerSubject::TryCreateBattler(Incoming->BattlerId, Owner)
+					|| !FBattleMajorStatusRules::TryRegisterTriggers(
+						State.TriggerFramework,
+						HazardResult.MajorStatusId,
+						Owner,
+						TOptional<int32>(),
+						Error))
+				{
+					return false;
+				}
+				DrainTriggerOutputs(State);
+				Incoming->MajorStatusId = HazardResult.MajorStatusId;
+				Events.Add(MakeRuleMutationEvent(
+					State,
+					ResolutionId,
+					EBattleEventType::StatusChanged,
+					EBattleActionKind::Switch,
+					Source,
+					Target,
+					0,
+					1,
+					1));
+			}
+			else if (HazardResult.EffectKind
+				== EBattleHazardSwitchInEffectKind::ModifyStatStage)
+			{
+				const FBattleStatStageChangeResult Change = Incoming->Stages.ApplyChange(
+					HazardResult.Stat,
+					HazardResult.StatStageDelta);
+				if (Change.Outcome == EBattleStatStageChangeOutcome::Applied)
+				{
+					Events.Add(MakeRuleMutationEvent(
+						State,
+						ResolutionId,
+						EBattleEventType::StatStageChanged,
+						EBattleActionKind::Switch,
+						Source,
+						Target,
+						Change.PreviousStage,
+						Change.NewStage,
+						Change.AppliedDelta));
+				}
+			}
+			else if (HazardResult.EffectKind
+				== EBattleHazardSwitchInEffectKind::RemoveHazard)
+			{
+				const int32 PreviousLayers = HazardRequest.Layers;
+				if (!TryCleanupFieldSideTriggers(
+						State,
+						HazardId,
+						ActiveSlotId.GetSide(),
+						EBattleTriggerCleanupReason::Removal))
+				{
+					return false;
+				}
+				Side->Hazards.RemoveAll(
+					[&HazardId](const FBattleConditionState& Condition)
+					{
+						return Condition.ConditionId == HazardId;
+					});
+				FBattleEventTarget SideTarget;
+				SideTarget.Side = ActiveSlotId.GetSide();
+				SideTarget.bHasSide = true;
+				Events.Add(MakeRuleMutationEvent(
+					State,
+					ResolutionId,
+					EBattleEventType::FieldEffectChanged,
+					EBattleActionKind::Switch,
+					Source,
+					SideTarget,
+					PreviousLayers,
+					0,
+					-PreviousLayers));
+			}
+
+			if (Incoming->bFaintTransitionPending)
+			{
+				const FConditionId PendingStatus = Incoming->MajorStatusId;
+				TArray<FConditionId> PendingVolatiles;
+				for (const FBattleConditionState& Condition : Incoming->Volatiles)
+				{
+					if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+					{
+						PendingVolatiles.Add(Condition.ConditionId);
+					}
+				}
+				Incoming->LastMoveId = FMoveId();
+				if (!TryCleanupSourceDependentVolatiles(
+						State,
+						Incoming->BattlerId,
+						EBattleTriggerCleanupReason::Removal))
+				{
+					return false;
+				}
+				FBattleFaintOutcomeResolution FaintResolution;
+				if (!FBattleFaintOutcomeResolver::TryResolveAction(
+						FaintInput,
+						EBattleTargetClass::SelectedOpponent,
+						ResolutionId,
+						State,
+						FaintResolution))
+				{
+					return false;
+				}
+				if (!FaintResolution.Removals.IsEmpty())
+				{
+					if (FBattleMajorStatusRules::IsCanonical(PendingStatus)
+						&& !TryCleanupMajorStatusTriggers(
+							State,
+							PendingStatus,
+							IncomingBattlerId,
+							EBattleTriggerCleanupReason::Faint))
+					{
+						return false;
+					}
+					for (const FConditionId& VolatileId : PendingVolatiles)
+					{
+						if (!TryCleanupVolatileTriggers(
+							State,
+							VolatileId,
+							IncomingBattlerId,
+							EBattleTriggerCleanupReason::Faint))
+						{
+							return false;
+						}
+					}
+				}
+				for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
+				{
+					Events.Add(MakeTargetedActionlessEvent(
+						State,
+						ResolutionId,
+						EBattleEventType::Fainted,
+						EBattleEventCause::Rule,
+						EBattleActionKind::Switch,
+						Source,
+						Faint.Target));
+				}
+				for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
+				{
+					Events.Add(MakeTargetedActionlessEvent(
+						State,
+						ResolutionId,
+						EBattleEventType::LeftActiveSlot,
+						EBattleEventCause::Rule,
+						EBattleActionKind::Switch,
+						Source,
+						Removal.Target));
+					Events.Add(MakeTargetedActionlessEvent(
+						State,
+						ResolutionId,
+						EBattleEventType::Removed,
+						EBattleEventCause::Rule,
+						EBattleActionKind::Switch,
+						Source,
+						Removal.Target));
+					if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
+					{
+						FBattleEvent Checkpoint = MakeTargetedActionlessEvent(
+							State,
+							ResolutionId,
+							EBattleEventType::OpponentRemovalCheckpoint,
+							EBattleEventCause::Rule,
+							EBattleActionKind::Switch,
+							Source,
+							Removal.Target);
+						State.AvailableOpponentRemovalCheckpoints.Add(
+							Checkpoint.GetEventOrdinal());
+						Events.Add(MoveTemp(Checkpoint));
+					}
+				}
+				if (FaintResolution.bBattleEnded)
+				{
+					Events.Add(MakeEvent(
+						State,
+						ResolutionId,
+						FActionId(),
+						EBattleEventType::BattleEnded,
+						EBattleEventCause::Outcome,
+						EBattleActionKind::Switch,
+						FaintResolution.OutcomeCause,
+						Source));
+				}
+			}
+		}
+		return true;
+	}
+
 	bool TryBuildReplacementCheckpointRequests(
 		const FBattleEngineState& State,
 		uint64 StateVersion,
 		bool bAllowShiftPrompt,
 		TArray<FBattleDecisionRequest>& OutRequests);
+
+	bool TryRebuildReplacementCheckpointAfterEntryHazards(
+		FBattleEngineState& State,
+		const uint64 RequestStateVersion,
+		const FResolutionId ResolutionId,
+		const EBattleActionKind ActionKind,
+		const FBattleEventSource& Source,
+		TArray<FBattleEvent>& Events)
+	{
+		if (RequestStateVersion == 0 || !ResolutionId.IsValid())
+		{
+			return false;
+		}
+
+		State.PendingReplacements.Reset();
+		State.PendingDecision.Reset();
+		State.PendingDecisionRequests.Reset();
+		if (State.Phase == EBattlePhase::Terminal)
+		{
+			return true;
+		}
+
+		State.Phase = EBattlePhase::Resolving;
+		State.CurrentLockedActionIndex = State.LockedActions.Num();
+		TArray<FBattleReplacementRequirement> Requirements;
+		FBattleFaintOutcomeResolver::ResolveQueueBoundary(State, Requirements);
+		if (State.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			if (Requirements.IsEmpty())
+			{
+				return false;
+			}
+			for (const FBattleReplacementRequirement& Requirement : Requirements)
+			{
+				FBattlePendingReplacementState& Pending =
+					State.PendingReplacements.AddDefaulted_GetRef();
+				Pending.TrainerId = Requirement.Target.TrainerId;
+				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
+			}
+
+			TArray<FBattleDecisionRequest> Requests;
+			if (!TryBuildReplacementCheckpointRequests(
+					State,
+					RequestStateVersion,
+					false,
+					Requests)
+				|| Requests.IsEmpty())
+			{
+				return false;
+			}
+			State.PendingDecisionRequests = MoveTemp(Requests);
+			State.PendingDecision = State.PendingDecisionRequests[0];
+		}
+		else if (State.Phase != EBattlePhase::EndOfTurn)
+		{
+			return false;
+		}
+
+		for (const FBattleReplacementRequirement& Requirement : Requirements)
+		{
+			Events.Add(MakeTargetedActionlessEvent(
+				State,
+				ResolutionId,
+				EBattleEventType::ReplacementRequired,
+				EBattleEventCause::Rule,
+				ActionKind,
+				Source,
+				Requirement.Target));
+		}
+		return true;
+	}
 
 	void AppendPostActionBoundaryEvents(
 		FBattleEngineState& State,
@@ -1609,9 +2565,11 @@ namespace
 		FBattleEngineState& State,
 		const TArray<FBattleDecision>& Selections,
 		const FResolutionId ResolutionId,
-		TArray<FBattleLockedActionState>& OutActions)
+		TArray<FBattleLockedActionState>& OutActions,
+		bool& bOutReverseSpeed)
 	{
 		OutActions.Reset();
+		bOutReverseSpeed = false;
 		const uint64 NextActionIdAfterLock = State.NextActionId + static_cast<uint64>(Selections.Num());
 		if (Selections.IsEmpty()
 			|| Selections.Num() > 4
@@ -1625,7 +2583,20 @@ namespace
 		LockSpec.BattleId = State.Setup.GetBattleId();
 		LockSpec.TurnId = State.TurnId;
 		LockSpec.ResolutionId = ResolutionId;
-		LockSpec.bReverseSpeed = false;
+		bool bTrickRoomTriggerActive = false;
+		if (!TryIsFieldSideConditionActiveForPhase(
+				State,
+				FBattleFieldSideConditionRules::GetTrickRoomId(),
+				TOptional<EBattleSide>(),
+				EBattleTriggerPhase::ActionOrderCalculation,
+				TOptional<FActiveSlotId>(),
+				bTrickRoomTriggerActive))
+		{
+			return false;
+		}
+		LockSpec.bReverseSpeed = FBattleFieldSideConditionRules::ShouldReverseSpeedOrder(
+			bTrickRoomTriggerActive);
+		bOutReverseSpeed = LockSpec.bReverseSpeed;
 		LockSpec.Candidates.Reserve(Selections.Num());
 
 		for (int32 Index = 0; Index < Selections.Num(); ++Index)
@@ -1688,6 +2659,21 @@ namespace
 				{
 					return false;
 				}
+			}
+			bool bTailwindTriggerActive = false;
+			if (!TryIsFieldSideConditionActiveForPhase(
+					State,
+					FBattleFieldSideConditionRules::GetTailwindId(),
+					Active->ActiveSlotId.GetSide(),
+					EBattleTriggerPhase::ActionOrderCalculation,
+					Active->ActiveSlotId,
+					bTailwindTriggerActive)
+				|| !FBattleFieldSideConditionRules::TryApplyTailwindSpeed(
+					bTailwindTriggerActive,
+					Candidate.OrderKey.EffectiveSpeed,
+					Candidate.OrderKey.EffectiveSpeed))
+			{
+				return false;
 			}
 
 			if (Decision.GetActionKind() == EBattleActionKind::Fight)
@@ -2840,41 +3826,33 @@ namespace
 				EBattleActionKind::Replacement,
 				Source,
 				IncomingTarget));
-		}
-
-		for (const FBattleDecision& Decision : Batch.GetDecisions())
-		{
-			State.PendingReplacements.RemoveAll(
-				[&Decision](const FBattlePendingReplacementState& Pending)
-				{
-					return Pending.TrainerId == Decision.GetDecisionOwnerTrainerId()
-						&& Pending.ActiveSlotId == Decision.GetActiveTargetId();
-				});
-		}
-
-		State.PendingDecision.Reset();
-		State.PendingDecisionRequests.Reset();
-		if (State.PendingReplacements.IsEmpty())
-		{
-			State.Phase = EBattlePhase::EndOfTurn;
-		}
-		else
-		{
-			TArray<FBattleDecisionRequest> NextRequests;
-			const bool bBuiltNextRequests = TryBuildReplacementCheckpointRequests(
+			const bool bHazardsResolved = TryResolveEntryHazards(
 				State,
-				AfterStateVersion,
-				false,
-				NextRequests);
-			if (!bBuiltNextRequests || NextRequests.IsEmpty())
+				IncomingTarget.BattlerId,
+				IncomingTarget.ActiveSlotId,
+				ResolutionId,
+				Events);
+			if (!bHazardsResolved)
 			{
 				UE_LOG(
 					LogTemp,
 					Fatal,
-					TEXT("C06B could not expose the next frozen replacement owner group."));
+					TEXT("Validated C07D replacement entry hazards could not be resolved."));
 			}
-			State.PendingDecisionRequests = MoveTemp(NextRequests);
-			State.PendingDecision = State.PendingDecisionRequests[0];
+		}
+
+		if (!TryRebuildReplacementCheckpointAfterEntryHazards(
+				State,
+				AfterStateVersion,
+				ResolutionId,
+				EBattleActionKind::Replacement,
+				FallbackSource,
+				Events))
+		{
+			UE_LOG(
+				LogTemp,
+				Fatal,
+				TEXT("C07D could not rebuild replacement requests after entry hazards."));
 		}
 		State.StateVersion = AfterStateVersion;
 
@@ -2997,23 +3975,34 @@ namespace
 				OutgoingTarget,
 				IncomingTarget,
 				Events);
+			const bool bHazardsResolved = TryResolveEntryHazards(
+				State,
+				IncomingTarget.BattlerId,
+				IncomingTarget.ActiveSlotId,
+				ResolutionId,
+				Events);
+			if (!bHazardsResolved)
+			{
+				UE_LOG(
+					LogTemp,
+					Fatal,
+					TEXT("Validated C07D Shift entry hazards could not be resolved."));
+			}
 		}
 
-		TArray<FBattleDecisionRequest> ReplacementRequests;
-		const bool bBuiltRequests = TryBuildReplacementCheckpointRequests(
-			State,
-			AfterStateVersion,
-			false,
-			ReplacementRequests);
-		if (!bBuiltRequests || ReplacementRequests.IsEmpty())
+		if (!TryRebuildReplacementCheckpointAfterEntryHazards(
+				State,
+				AfterStateVersion,
+				ResolutionId,
+				EBattleActionKind::Switch,
+				Source,
+				Events))
 		{
 			UE_LOG(
 				LogTemp,
 				Fatal,
-				TEXT("C06B Shift response could not expose opponent replacements."));
+				TEXT("C07D could not rebuild Shift replacement requests after entry hazards."));
 		}
-		State.PendingDecisionRequests = MoveTemp(ReplacementRequests);
-		State.PendingDecision = State.PendingDecisionRequests[0];
 		State.StateVersion = AfterStateVersion;
 
 		EBattleStateValidationError StateError = EBattleStateValidationError::None;
@@ -3812,6 +4801,36 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 			ActionKind,
 			FallbackSource);
 	}
+	if (StartResult.Outcome == EBattleActionStartOutcome::Proceed)
+	{
+		bool bMagicRoomTriggerActive = false;
+		if (!TryIsFieldSideConditionActiveForPhase(
+				*State,
+				FBattleFieldSideConditionRules::GetMagicRoomId(),
+				TOptional<EBattleSide>(),
+				EBattleTriggerPhase::BeforeAction,
+				Active != nullptr
+					? TOptional<FActiveSlotId>(Active->ActiveSlotId)
+					: TOptional<FActiveSlotId>(),
+				bMagicRoomTriggerActive))
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Action,
+				ActionKind,
+				FallbackSource);
+		}
+		for (FBattleBattlerState& Candidate : State->Battlers)
+		{
+			Candidate.HeldItem.bSuppressed = bMagicRoomTriggerActive
+				&& Candidate.HeldItem.CurrentItemId.IsValid()
+				&& !Candidate.HeldItem.bConsumed;
+		}
+	}
 
 	bool bRechargeDeniedAction = false;
 	if (StartResult.Outcome == EBattleActionStartOutcome::Proceed
@@ -4133,6 +5152,19 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 			OutgoingTarget,
 			IncomingTarget,
 			Events);
+		const bool bHazardsResolved = TryResolveEntryHazards(
+			*State,
+			IncomingTarget.BattlerId,
+			IncomingTarget.ActiveSlotId,
+			ResolutionId,
+			Events);
+		if (!bHazardsResolved)
+		{
+			UE_LOG(
+				LogTemp,
+				Fatal,
+				TEXT("Validated C07D voluntary-switch entry hazards could not be resolved."));
+		}
 	}
 	else
 	{
@@ -5379,6 +6411,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 			});
 		if (Faint != nullptr)
 		{
+			const FBattleEventSource* FaintSource = Record.SourceOverride.IsSet()
+				? &Record.SourceOverride.GetValue()
+				: nullptr;
 			Events.Add(MakeTargetedActionEvent(
 				*State,
 				ResolutionId,
@@ -5389,12 +6424,21 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				EBattleOutcomeCause::None,
 				Faint->SimultaneousGroupId,
 				Faint->HitIndex,
-				Faint->HitCount));
+				Faint->HitCount,
+				FaintSource));
 		}
 	}
 
 	for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
 	{
+		const FBattleEffectExecutionEvent* RemovalRecord =
+			EffectResult.Events.IsValidIndex(Removal.EffectEventIndex)
+				? &EffectResult.Events[Removal.EffectEventIndex]
+				: nullptr;
+		const FBattleEventSource* RemovalSource = RemovalRecord != nullptr
+			&& RemovalRecord->SourceOverride.IsSet()
+				? &RemovalRecord->SourceOverride.GetValue()
+				: nullptr;
 		Events.Add(MakeTargetedActionEvent(
 			*State,
 			ResolutionId,
@@ -5403,7 +6447,10 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 			EBattleEventCause::Rule,
 			Removal.Target,
 			EBattleOutcomeCause::None,
-			Removal.SimultaneousGroupId));
+			Removal.SimultaneousGroupId,
+			TOptional<uint16>(),
+			TOptional<uint16>(),
+			RemovalSource));
 		Events.Add(MakeTargetedActionEvent(
 			*State,
 			ResolutionId,
@@ -5412,7 +6459,10 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 			EBattleEventCause::Rule,
 			Removal.Target,
 			EBattleOutcomeCause::None,
-			Removal.SimultaneousGroupId));
+			Removal.SimultaneousGroupId,
+			TOptional<uint16>(),
+			TOptional<uint16>(),
+			RemovalSource));
 		if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
 		{
 			FBattleEvent Checkpoint = MakeTargetedActionEvent(
@@ -5423,7 +6473,10 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				EBattleEventCause::Rule,
 				Removal.Target,
 				EBattleOutcomeCause::None,
-				Removal.SimultaneousGroupId);
+				Removal.SimultaneousGroupId,
+				TOptional<uint16>(),
+				TOptional<uint16>(),
+				RemovalSource);
 			State->AvailableOpponentRemovalCheckpoints.Add(Checkpoint.GetEventOrdinal());
 			Events.Add(MoveTemp(Checkpoint));
 		}
@@ -5449,11 +6502,23 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 		++State->CurrentLockedActionIndex;
 		if (FaintResolution.bBattleEnded)
 		{
+			const FBattleEventSource* BattleEndSource = nullptr;
+			for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
+			{
+				if (EffectResult.Events.IsValidIndex(Faint.EffectEventIndex)
+					&& EffectResult.Events[Faint.EffectEventIndex].SourceOverride.IsSet())
+				{
+					BattleEndSource = &EffectResult.Events[Faint.EffectEventIndex]
+						.SourceOverride.GetValue();
+					break;
+				}
+			}
 			Events.Add(MakeBattleEndedEvent(
 				*State,
 				ResolutionId,
 				*Action,
-				FaintResolution.OutcomeCause));
+				FaintResolution.OutcomeCause,
+				BattleEndSource));
 		}
 		else
 		{
@@ -5530,36 +6595,59 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			State->TriggerFramework.GetActiveRegistrations())
 		{
 			if (Registration.Spec.Rule.Phase != EBattleTriggerPhase::EndTurn
-				|| Registration.Spec.Owner.Kind != EBattleTriggerSubjectKind::Battler)
+				|| Registration.Spec.SourceDefinition.Kind
+					!= EBattleTriggerSourceDefinitionKind::Condition)
 			{
 				continue;
 			}
-			const FBattleBattlerState* Battler = State->FindBattler(
-				Registration.Spec.Owner.BattlerId);
-			const FBattleActivePositionState* Active = Battler != nullptr
-				? FindActiveForBattler(*State, Battler->BattlerId)
-				: nullptr;
-			const bool bSourceMatchesBattler = Battler != nullptr
-				&& Registration.Spec.SourceDefinition.Kind
-					== EBattleTriggerSourceDefinitionKind::Condition
-				&& (Registration.Spec.SourceDefinition.ConditionId == Battler->MajorStatusId
-					|| HasVolatile(
-						*Battler,
-						Registration.Spec.SourceDefinition.ConditionId));
-			if (Battler == nullptr
-				|| Active == nullptr
-				|| Battler->CurrentHP <= 0
-				|| Battler->bFainted
-				|| Battler->bCaptured
-				|| Battler->bRemoved
-				|| !bSourceMatchesBattler)
+			const FConditionId ConditionId =
+				Registration.Spec.SourceDefinition.ConditionId;
+			const bool bFieldSideOwner =
+				Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Field
+				|| Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Side;
+			if (bFieldSideOwner)
 			{
-				continue;
+				if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId)
+					|| FindFieldSideCondition(
+						*State,
+						Registration.Spec.Owner,
+						ConditionId) == nullptr)
+				{
+					continue;
+				}
+				FBattleTriggerDispatchParticipant& Participant =
+					Dispatch.Participants.AddDefaulted_GetRef();
+				Participant.RegistrationId = Registration.RegistrationId;
 			}
-			FBattleTriggerDispatchParticipant& Participant =
-				Dispatch.Participants.AddDefaulted_GetRef();
-			Participant.RegistrationId = Registration.RegistrationId;
-			Participant.ActiveSlotId = Active->ActiveSlotId;
+			else
+			{
+				if (Registration.Spec.Owner.Kind != EBattleTriggerSubjectKind::Battler)
+				{
+					continue;
+				}
+				const FBattleBattlerState* Battler = State->FindBattler(
+					Registration.Spec.Owner.BattlerId);
+				const FBattleActivePositionState* Active = Battler != nullptr
+					? FindActiveForBattler(*State, Battler->BattlerId)
+					: nullptr;
+				const bool bSourceMatchesBattler = Battler != nullptr
+					&& (ConditionId == Battler->MajorStatusId
+						|| HasVolatile(*Battler, ConditionId));
+				if (Battler == nullptr
+					|| Active == nullptr
+					|| Battler->CurrentHP <= 0
+					|| Battler->bFainted
+					|| Battler->bCaptured
+					|| Battler->bRemoved
+					|| !bSourceMatchesBattler)
+				{
+					continue;
+				}
+				FBattleTriggerDispatchParticipant& Participant =
+					Dispatch.Participants.AddDefaulted_GetRef();
+				Participant.RegistrationId = Registration.RegistrationId;
+				Participant.ActiveSlotId = Active->ActiveSlotId;
+			}
 			if (!Dispatch.DurationTickOwners.Contains(Registration.Spec.Owner))
 			{
 				Dispatch.DurationTickOwners.Add(Registration.Spec.Owner);
@@ -5613,7 +6701,8 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			const int32 Damage,
 			FBattleBattlerState* HealRecipient,
 			const FBattleActivePositionState* HealActive,
-			const int32 HealAmount)
+			const int32 HealAmount,
+			const FBattleEventSource* SourceOverride)
 		{
 			const int32 PreviousHP = TargetBattler.CurrentHP;
 			const int32 AppliedDamage = FMath::Min(PreviousHP, Damage);
@@ -5624,10 +6713,15 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				TargetBattler.bFaintTransitionPending = true;
 			}
 
-			FBattleEventSource Source;
-			Source.TrainerId = TargetBattler.TrainerId;
-			Source.BattlerId = TargetBattler.BattlerId;
-			Source.ActiveSlotId = TargetActive.ActiveSlotId;
+			FBattleEventSource Source = SourceOverride != nullptr
+				? *SourceOverride
+				: FBattleEventSource();
+			if (SourceOverride == nullptr)
+			{
+				Source.TrainerId = TargetBattler.TrainerId;
+				Source.BattlerId = TargetBattler.BattlerId;
+				Source.ActiveSlotId = TargetActive.ActiveSlotId;
+			}
 			Source.DefinitionId = ConditionId.GetDefinitionId();
 			FBattleEventTarget Target;
 			Target.TrainerId = TargetBattler.TrainerId;
@@ -5807,20 +6901,184 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			return true;
 		};
 
+		auto ApplyFieldHealing = [
+			this,
+			&Events,
+			&ResolutionId](
+			FBattleBattlerState& TargetBattler,
+			const FBattleActivePositionState& TargetActive,
+			const FConditionId& ConditionId,
+			const int32 HealAmount)
+		{
+			const int32 PreviousHP = TargetBattler.CurrentHP;
+			const int32 AppliedHeal = FMath::Min(
+				HealAmount,
+				TargetBattler.PermanentStats.MaxHP - PreviousHP);
+			if (AppliedHeal <= 0)
+			{
+				return;
+			}
+			TargetBattler.CurrentHP += AppliedHeal;
+
+			FBattleTriggerSubject FieldOwner = FBattleTriggerSubject::CreateField();
+			const FBattleEventSource Source = BuildFieldSideConditionSource(
+				*State,
+				FieldOwner,
+				ConditionId);
+
+			FBattleEventTarget Target;
+			Target.TrainerId = TargetBattler.TrainerId;
+			Target.BattlerId = TargetBattler.BattlerId;
+			Target.ActiveSlotId = TargetActive.ActiveSlotId;
+			for (const EBattleEventType Type : {
+				EBattleEventType::Healing,
+				EBattleEventType::HPChanged})
+			{
+				Events.Add(MakeResidualMutationEvent(
+					*State,
+					ResolutionId,
+					Type,
+					Source,
+					Target,
+					PreviousHP,
+					TargetBattler.CurrentHP,
+					AppliedHeal));
+			}
+		};
+
 		for (const FBattleTriggerEffectRequest& Request : ResidualRequests)
 		{
-			if (State->Phase == EBattlePhase::Terminal
-				|| Request.Owner.Kind != EBattleTriggerSubjectKind::Battler
-				|| Request.SourceDefinition.Kind
-					!= EBattleTriggerSourceDefinitionKind::Condition)
+			if (State->Phase == EBattlePhase::Terminal)
 			{
 				break;
+			}
+			if (Request.SourceDefinition.Kind
+				!= EBattleTriggerSourceDefinitionKind::Condition)
+			{
+				continue;
+			}
+			const FConditionId RequestConditionId =
+				Request.SourceDefinition.ConditionId;
+			const bool bFieldSideOwner =
+				Request.Owner.Kind == EBattleTriggerSubjectKind::Field
+				|| Request.Owner.Kind == EBattleTriggerSubjectKind::Side;
+			if (bFieldSideOwner)
+			{
+				FBattleConditionState* Condition = FindMutableFieldSideCondition(
+					*State,
+					Request.Owner,
+					RequestConditionId);
+				if (Condition == nullptr)
+				{
+					continue;
+				}
+				if (Request.RemainingTurns.IsSet())
+				{
+					Condition->RemainingTurns = Request.RemainingTurns;
+				}
+
+				FBattleTriggerEffectId ResidualEffectId;
+				if (!FBattleFieldSideConditionRules::TryGetTriggerEffectId(
+						RequestConditionId,
+						EBattleTriggerPhase::EndTurn,
+						ResidualEffectId)
+					|| Request.EffectId != ResidualEffectId)
+				{
+					continue;
+				}
+				const FBattleEventSource FieldSource = BuildFieldSideConditionSource(
+					*State,
+					Request.Owner,
+					RequestConditionId);
+
+				TArray<FActiveSlotId> ActiveSlotIds;
+				for (const FBattleActivePositionState& Position : State->ActivePositions)
+				{
+					if (Position.bAvailable && Position.BattlerId.IsValid())
+					{
+						ActiveSlotIds.Add(Position.ActiveSlotId);
+					}
+				}
+				ActiveSlotIds.Sort(
+					[](const FActiveSlotId& Left, const FActiveSlotId& Right)
+					{
+						return ActiveSlotLess(Left, Right);
+					});
+				for (const FActiveSlotId ActiveSlotId : ActiveSlotIds)
+				{
+					const FBattleActivePositionState* FieldActive =
+						State->FindActivePosition(ActiveSlotId);
+					FBattleBattlerState* FieldBattler = FieldActive != nullptr
+						? State->FindMutableBattler(FieldActive->BattlerId)
+						: nullptr;
+					const FBattleSpeciesFormDefinition* Species = FieldBattler != nullptr
+						? State->Catalog.FindSpeciesForm(FieldBattler->SpeciesFormId)
+						: nullptr;
+					if (FieldActive == nullptr
+						|| FieldBattler == nullptr
+						|| Species == nullptr
+						|| FieldBattler->CurrentHP <= 0
+						|| FieldBattler->bFainted
+						|| FieldBattler->bCaptured
+						|| FieldBattler->bRemoved)
+					{
+						continue;
+					}
+
+					bool bGrounded = false;
+					if (!TryResolveGrounded(*State, *FieldBattler, bGrounded))
+					{
+						continue;
+					}
+					FBattleFieldResidualFacts Facts;
+					Facts.ConditionId = RequestConditionId;
+					Facts.BaseMaximumHP = FieldBattler->PermanentStats.MaxHP;
+					Facts.CurrentHP = FieldBattler->CurrentHP;
+					Facts.PrimaryType = Species->PrimaryType;
+					Facts.SecondaryType = Species->SecondaryType;
+					Facts.bGrounded = bGrounded;
+					FBattleFieldResidualResult Result;
+					if (!FBattleFieldSideConditionRules::TryResolveFieldResidual(
+						Facts,
+						Result))
+					{
+						continue;
+					}
+					if (Result.EffectKind == EBattleFieldResidualEffectKind::Damage)
+					{
+						if (!ApplyVolatileResidual(
+							*FieldBattler,
+							*FieldActive,
+							RequestConditionId,
+							Result.Amount,
+							nullptr,
+							nullptr,
+							0,
+							&FieldSource))
+						{
+							break;
+						}
+					}
+					else if (Result.EffectKind == EBattleFieldResidualEffectKind::Heal)
+					{
+						ApplyFieldHealing(
+							*FieldBattler,
+							*FieldActive,
+							RequestConditionId,
+							Result.Amount);
+					}
+				}
+				continue;
+			}
+			if (Request.Owner.Kind != EBattleTriggerSubjectKind::Battler)
+			{
+				continue;
 			}
 			FBattleBattlerState* Battler = State->FindMutableBattler(Request.Owner.BattlerId);
 			const FBattleActivePositionState* Active = Battler != nullptr
 				? FindActiveForBattler(*State, Battler->BattlerId)
 				: nullptr;
-			const FConditionId StatusId = Request.SourceDefinition.ConditionId;
+			const FConditionId StatusId = RequestConditionId;
 			const bool bMajorStatusRequest = Battler != nullptr
 				&& Battler->MajorStatusId == StatusId
 				&& FBattleMajorStatusRules::IsCanonical(StatusId);
@@ -5895,7 +7153,8 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 							Residual.RequestedDamage,
 							bLivingRecipient ? Recipient : nullptr,
 							bLivingRecipient ? SourceActive : nullptr,
-							Residual.Heal))
+							Residual.Heal,
+							nullptr))
 					{
 						break;
 					}
@@ -5935,7 +7194,8 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 							Residual.RequestedDamage,
 							nullptr,
 							nullptr,
-							0))
+							0,
+							nullptr))
 					{
 						break;
 					}
@@ -6155,26 +7415,75 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 		}
 		for (const FBattleTriggerLifecycleFact& Fact : ResidualLifecycleFacts)
 		{
+			if (Fact.SourceDefinition.Kind
+				!= EBattleTriggerSourceDefinitionKind::Condition)
+			{
+				continue;
+			}
+			const FConditionId ConditionId = Fact.SourceDefinition.ConditionId;
+			const bool bFieldSideOwner = Fact.Owner.Kind == EBattleTriggerSubjectKind::Field
+				|| Fact.Owner.Kind == EBattleTriggerSubjectKind::Side;
+			if (bFieldSideOwner
+				&& FBattleFieldSideConditionRules::IsCanonical(ConditionId))
+			{
+				FBattleConditionState* Condition = FindMutableFieldSideCondition(
+					*State,
+					Fact.Owner,
+					ConditionId);
+				if (Condition != nullptr
+					&& Fact.Kind == EBattleTriggerLifecycleFactKind::DurationChanged
+					&& Fact.RemainingTurns.IsSet())
+				{
+					Condition->RemainingTurns = Fact.RemainingTurns;
+				}
+				const bool bExpired = Fact.Kind == EBattleTriggerLifecycleFactKind::Ended
+					&& Fact.EndReason.IsSet()
+					&& Fact.EndReason.GetValue() == EBattleTriggerEndReason::Expired;
+				if (!bExpired || Condition == nullptr)
+				{
+					continue;
+				}
+				const TOptional<EBattleSide> Side =
+					Fact.Owner.Kind == EBattleTriggerSubjectKind::Side
+						? TOptional<EBattleSide>(Fact.Owner.Side)
+						: TOptional<EBattleSide>();
+				const bool bCleaned = TryCleanupFieldSideTriggers(
+					*State,
+					ConditionId,
+					Side,
+					EBattleTriggerCleanupReason::Removal);
+				check(bCleaned);
+				if (ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
+				{
+					for (FBattleBattlerState& Battler : State->Battlers)
+					{
+						Battler.HeldItem.bSuppressed = false;
+					}
+				}
+				const bool bRemoved = RemoveFieldSideConditionState(
+					*State,
+					Fact.Owner,
+					ConditionId);
+				check(bRemoved);
+				continue;
+			}
 			if (Fact.Kind != EBattleTriggerLifecycleFactKind::Ended
 				|| !Fact.EndReason.IsSet()
 				|| Fact.EndReason.GetValue() != EBattleTriggerEndReason::Expired
 				|| Fact.Owner.Kind != EBattleTriggerSubjectKind::Battler
-				|| Fact.SourceDefinition.Kind
-					!= EBattleTriggerSourceDefinitionKind::Condition
-				|| !FBattleVolatileRules::IsCanonical(
-					Fact.SourceDefinition.ConditionId))
+				|| !FBattleVolatileRules::IsCanonical(ConditionId))
 			{
 				continue;
 			}
 			FBattleBattlerState* Owner = State->FindMutableBattler(Fact.Owner.BattlerId);
 			if (Owner == nullptr
-				|| !HasVolatile(*Owner, Fact.SourceDefinition.ConditionId))
+				|| !HasVolatile(*Owner, ConditionId))
 			{
 				continue;
 			}
 			const bool bCleaned = TryCleanupVolatileTriggers(
 				*State,
-				Fact.SourceDefinition.ConditionId,
+				ConditionId,
 				Owner->BattlerId,
 				EBattleTriggerCleanupReason::Removal);
 			check(bCleaned);
@@ -6351,13 +7660,16 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 		if (Sequence.IsEmpty())
 		{
 			TArray<FBattleLockedActionState> NewLockedActions;
+			bool bReverseSpeed = false;
 			const bool bLocked = TryBuildLockedActions(
 				*State,
 				State->AcceptedSelections,
 				ResolutionId,
-				NewLockedActions);
+				NewLockedActions,
+				bReverseSpeed);
 			check(bLocked && !NewLockedActions.IsEmpty());
 			State->LockedActions = MoveTemp(NewLockedActions);
+			State->bLockedOrderReversesSpeed = bReverseSpeed;
 			State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
 			State->Phase = EBattlePhase::Locked;
 			for (const FBattleLockedActionState& Action : State->LockedActions)
@@ -6577,6 +7889,7 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 
 	const bool bLocksQueue = NextRequests.IsEmpty();
 	TArray<FBattleLockedActionState> NewLockedActions;
+	bool bReverseSpeed = false;
 	if (bLocksQueue)
 	{
 		TArray<FBattleDecision> AllSelections = State->AcceptedSelections;
@@ -6584,7 +7897,12 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 		{
 			AllSelections.Add(Decision);
 		}
-		if (!TryBuildLockedActions(*State, AllSelections, ResolutionId, NewLockedActions))
+		if (!TryBuildLockedActions(
+				*State,
+				AllSelections,
+				ResolutionId,
+				NewLockedActions,
+				bReverseSpeed))
 		{
 			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
 			return MakeRejectedResolution(
@@ -6623,7 +7941,7 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 	{
 		State->PendingDecision.Reset();
 		State->LockedActions = MoveTemp(NewLockedActions);
-		State->bLockedOrderReversesSpeed = false;
+		State->bLockedOrderReversesSpeed = bReverseSpeed;
 		State->CurrentLockedActionIndex = 0;
 		State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
 		State->Phase = EBattlePhase::Locked;
@@ -6835,6 +8153,19 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 			OutgoingTarget,
 			IncomingTarget,
 			Events);
+		const bool bHazardsResolved = TryResolveEntryHazards(
+			*State,
+			IncomingTarget.BattlerId,
+			IncomingTarget.ActiveSlotId,
+			ResolutionId,
+			Events);
+		if (!bHazardsResolved)
+		{
+			UE_LOG(
+				LogTemp,
+				Fatal,
+				TEXT("Validated C07D pivot entry hazards could not be resolved."));
+		}
 		Action->EffectExecutionState = EBattleLockedEffectExecutionState::Completed;
 		Action->bFinished = true;
 		Events.Add(MakeActionDetailEvent(

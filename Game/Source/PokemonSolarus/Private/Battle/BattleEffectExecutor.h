@@ -61,6 +61,7 @@ struct FBattleEffectExecutionEvent
 	EBattleEventType Type = EBattleEventType::EffectFailed;
 	EBattleEventCause Cause = EBattleEventCause::Move;
 	EBattleEffectExecutionOutcome Outcome = EBattleEffectExecutionOutcome::Invalid;
+	TOptional<FBattleEventSource> SourceOverride;
 	TArray<FBattleEventTarget> Targets;
 	TOptional<int64> NumericBefore;
 	TOptional<int64> NumericAfter;

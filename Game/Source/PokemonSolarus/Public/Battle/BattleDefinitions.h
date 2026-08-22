@@ -115,7 +115,11 @@ enum class EBattleMoveFlags : uint32
 	/** Doubles move power when the target is in a Fly-style airborne semi-invulnerable state. */
 	DoublesPowerAgainstAirborneSemiInvulnerableTarget = 1U << 12,
 	/** Passes Protect, then breaks its current shield at the post-accuracy checkpoint. */
-	BreaksProtection = 1U << 13
+	BreaksProtection = 1U << 13,
+	/** Bypasses side-owned protection such as Safeguard and Mist. */
+	BypassesSideProtection = 1U << 14,
+	/** Receives the Grassy Terrain reduction used by affected Ground-type moves. */
+	ReducedByGrassyTerrain = 1U << 15
 };
 ENUM_CLASS_FLAGS(EBattleMoveFlags);
 

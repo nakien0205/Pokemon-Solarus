@@ -1,5 +1,6 @@
 #include "Battle/BattleState.h"
 
+#include "Battle/BattleFieldSideConditions.h"
 namespace
 {
 	bool IsKnownSide(const EBattleSide Value)
@@ -125,6 +126,69 @@ namespace
 		}
 
 		return Catalog == nullptr || Catalog->FindCondition(Condition.ConditionId) != nullptr;
+	}
+
+	bool IsConditionValidForFamily(
+		const FBattleConditionState& Condition,
+		const FBattleDefinitionCatalog* Catalog,
+		const TArray<EBattleConditionKind>& AllowedFamilies)
+	{
+		if (!IsConditionValid(Condition, Catalog))
+		{
+			return false;
+		}
+		const FBattleConditionDefinition* Definition = Catalog != nullptr
+			? Catalog->FindCondition(Condition.ConditionId)
+			: nullptr;
+		if (Definition != nullptr && !AllowedFamilies.Contains(Definition->Kind))
+		{
+			return false;
+		}
+		if (!FBattleFieldSideConditionRules::IsCanonical(Condition.ConditionId))
+		{
+			return true;
+		}
+		if (Definition != nullptr
+			&& Definition->Kind
+				!= FBattleFieldSideConditionRules::GetConditionFamily(Condition.ConditionId))
+		{
+			return false;
+		}
+		int32 MaximumLayers = 0;
+		TOptional<int32> OrdinaryDuration;
+		if (!FBattleFieldSideConditionRules::TryGetMaximumLayers(
+				Condition.ConditionId,
+				MaximumLayers)
+			|| Condition.LayerCount <= 0
+			|| Condition.LayerCount > MaximumLayers
+			|| !FBattleFieldSideConditionRules::TryGetDuration(
+				Condition.ConditionId,
+				false,
+				OrdinaryDuration))
+		{
+			return false;
+		}
+		if (!OrdinaryDuration.IsSet())
+		{
+			return !Condition.RemainingTurns.IsSet();
+		}
+		if (!Condition.RemainingTurns.IsSet())
+		{
+			return false;
+		}
+		int32 MaximumDuration = OrdinaryDuration.GetValue();
+		TOptional<int32> ExtendedDuration;
+		if (FBattleFieldSideConditionRules::SupportsDurationExtension(Condition.ConditionId)
+			&& FBattleFieldSideConditionRules::TryGetDuration(
+				Condition.ConditionId,
+				true,
+				ExtendedDuration)
+			&& ExtendedDuration.IsSet())
+		{
+			MaximumDuration = ExtendedDuration.GetValue();
+		}
+		return Condition.RemainingTurns.GetValue() > 0
+			&& Condition.RemainingTurns.GetValue() <= MaximumDuration;
 	}
 
 	bool IsWildFleeModeKnown(const EBattleWildFleeMode Value)
@@ -868,24 +932,50 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		return Fail(EBattleStateValidationError::InvalidCondition);
 	}
 	const FBattleDefinitionCatalog* ConditionCatalog = bHasCatalog ? &Catalog : nullptr;
-	auto ValidateConditionArray = [ConditionCatalog](const TArray<FBattleConditionState>& Conditions)
+	auto ValidateConditionArray = [ConditionCatalog](
+		const TArray<FBattleConditionState>& Conditions,
+		const TArray<EBattleConditionKind>& AllowedFamilies)
 	{
-		return !Conditions.ContainsByPredicate(
+		return !HasDuplicatePair(
+				Conditions,
+				[](const FBattleConditionState& Left, const FBattleConditionState& Right)
+				{
+					return Left.ConditionId == Right.ConditionId;
+				})
+			&& !Conditions.ContainsByPredicate(
+			[ConditionCatalog, &AllowedFamilies](const FBattleConditionState& Condition)
+			{
+				return !IsConditionValidForFamily(
+					Condition,
+					ConditionCatalog,
+					AllowedFamilies);
+			});
+	};
+	if ((Field.Weather.IsSet()
+			&& !IsConditionValidForFamily(
+				Field.Weather.GetValue(),
+				ConditionCatalog,
+				{EBattleConditionKind::Weather}))
+		|| (Field.Terrain.IsSet()
+			&& !IsConditionValidForFamily(
+				Field.Terrain.GetValue(),
+				ConditionCatalog,
+				{EBattleConditionKind::Terrain}))
+		|| !ValidateConditionArray(Field.Rooms, {EBattleConditionKind::Room})
+		|| Field.Effects.ContainsByPredicate(
 			[ConditionCatalog](const FBattleConditionState& Condition)
 			{
 				return !IsConditionValid(Condition, ConditionCatalog);
-			});
-	};
-	if ((Field.Weather.IsSet() && !IsConditionValid(Field.Weather.GetValue(), ConditionCatalog))
-		|| (Field.Terrain.IsSet() && !IsConditionValid(Field.Terrain.GetValue(), ConditionCatalog))
-		|| !ValidateConditionArray(Field.Rooms)
-		|| !ValidateConditionArray(Field.Effects))
+			}))
 	{
 		return Fail(EBattleStateValidationError::InvalidCondition);
 	}
 	for (const FBattleSideState& Side : Sides)
 	{
-		if (!ValidateConditionArray(Side.Conditions) || !ValidateConditionArray(Side.Hazards))
+		if (!ValidateConditionArray(
+				Side.Conditions,
+				{EBattleConditionKind::Screen, EBattleConditionKind::SideCondition})
+			|| !ValidateConditionArray(Side.Hazards, {EBattleConditionKind::Hazard}))
 		{
 			return Fail(EBattleStateValidationError::InvalidCondition);
 		}

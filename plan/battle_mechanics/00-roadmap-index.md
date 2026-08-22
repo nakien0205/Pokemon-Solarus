@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-22
-Roadmap status: Approved and materialized; B00 through C07C complete under focused validation
-Next package: C07D; later packages remain dependency-blocked
+Roadmap status: Approved and materialized; B00 through C07D complete under focused validation
+Next package: C08A; later packages remain dependency-blocked
 
 ## Current Truth
 
@@ -80,15 +80,19 @@ The live battle source now contains:
   selection/action/hit/damage/end-turn integration, deterministic charge and
   fainted-target fallback, private last-move/payload state, and eight
   `PokemonSolarus.Battle.C07C.*` Automation tests.
+- C07D's 21 approved weather, terrain, hazard, screen, room, and side
+  conditions; shared trigger lifecycles; live damage, order, status, item-
+  suppression, switch-in, faint-boundary, duration, expiry, and snapshot
+  integration; and nine `PokemonSolarus.Battle.C07D.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
-trigger scheduling, major-status, and approved volatile seam, plus the frozen public
-setup/decision/event/snapshot/replay, stat, type, move, definition, adapter,
-and pure hit/damage language needed by later packages. There is still no C07D
-field/side-condition behavior, broader encounter flow, Ability/item execution,
-or presentation seam. The
-completed Story 001 and its 33-test report describe an older source state and
+trigger scheduling, major-status, approved volatile, and field/side-condition
+seams, plus the frozen public setup/decision/event/snapshot/replay, stat, type,
+move, definition, adapter, and pure hit/damage language needed by later
+packages. There is still no broader encounter flow, concrete Ability/item
+execution, or presentation seam. The completed Story 001 and its 33-test report
+describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
 already existed, so it cannot explain or restore those missing files.
@@ -103,7 +107,7 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C07C gates are clear. C07D is dependency-clear and next;
+- The B00 through C07D gates are clear. C08A is dependency-clear and next;
   later packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
@@ -751,6 +755,40 @@ B00B accepted evidence:
   modified. No `dev-story`, commit, older battle filter, full battle suite, or
   project-wide test run was used.
 - C07C is complete under the approved focused-validation scope. C07D is
+  dependency-clear and next; later packages remain blocked or not started.
+
+## C07D Execution Status
+
+- C07D completed on 2026-08-22 from `main` baseline
+  `011acf8d20aea3d85119dee9a46e6dc592f6c057`, while preserving the
+  pre-existing `FoundationMap.umap` modification.
+- `BattleFieldSideConditions` defines exactly the 21 approved conditions and
+  registers their shared source, owner, duration, layer, expiry, and cleanup
+  lifecycles through C07A.
+- The live engine now applies weather/terrain damage and residual rules,
+  grounded checks, screens, rooms, Tailwind, Safeguard, Mist, public duration
+  and layer snapshots, and deterministic condition event sourcing. Entry
+  hazards execute by creation order on voluntary, forced, Pivot, Shift, and
+  mandatory replacement entry, with a faint boundary after every HP mutation.
+- Damage, order, status, item, and switch-in hazard behavior is admitted through
+  emitted C07A trigger requests, so suppressed registrations do not act from
+  stored condition state alone.
+- Two generic move flags expose side-protection bypass and Grassy Terrain move
+  reduction. Neutral Ability/item prevention, grounding, duration-extension,
+  and priority hooks remain available for C08 without implementing C08 content.
+- The final forced-unity `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA` and exit code `0`:
+  `Game/Saved/Automation/C07D-final-20260822-060928Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C07D` was run for final
+  acceptance. The report at
+  `Game/Saved/Automation/C07D-final-20260822-060928Z/report/index.json`
+  records exactly 9 succeeded, 0 failed, 0 not run, and 0 in process; every
+  entry has 0 warnings and 0 errors, and the process exited `0`.
+- Excluded field content, concrete Ability/item behavior, assets, UI,
+  configuration, module rules, existing tests, the B00B snapshot, the Solarus
+  interview handoff, and Git history were not modified. No `dev-story`, commit,
+  older battle filter, full battle suite, or project-wide test run was used.
+- C07 is complete under the approved focused-validation scope. C08A is
   dependency-clear and next; later packages remain blocked or not started.
 
 ## Goal

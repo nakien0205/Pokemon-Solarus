@@ -16,7 +16,9 @@ namespace
 		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage)
 		| static_cast<uint32>(EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget)
 		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
-		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection);
+		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection)
+		| static_cast<uint32>(EBattleMoveFlags::BypassesSideProtection)
+		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain);
 
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)

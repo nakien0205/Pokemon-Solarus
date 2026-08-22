@@ -1,8 +1,8 @@
 # C07 — Status, Volatiles, Field, and Side Conditions
 
 Priority: P1/P2  
-Status: C07A, C07B, and C07C complete under focused validation; C07D next
-Required order: C07D
+Status: C07A through C07D complete under focused validation
+Required order: Complete
 
 ## Objective
 
@@ -205,6 +205,44 @@ framework for damage/order/status/item interactions.
 
 Gravity, pledge fields, Water Sport, Mud Sport, and other uncommon global/side
 effects are framework-only and excluded from this proof set.
+
+### C07D Completion Record
+
+- C07D completed on 2026-08-22 from `main` baseline
+  `011acf8d20aea3d85119dee9a46e6dc592f6c057`. The pre-existing
+  `Game/Content/Maps/FoundationMap.umap` modification was not touched.
+- `BattleFieldSideConditions` defines exactly the 21 approved weather,
+  terrain, hazard, screen, room, and side-condition IDs. The shared C07A
+  framework owns their source, owner, duration, layer, expiry, and cleanup
+  registrations.
+- The live engine applies canonical weather/terrain damage rules, grounded
+  rules, ordered Sandstorm and Grassy Terrain residuals, screens, Wonder Room,
+  Magic Room suppression, Safeguard/Mist prevention, Tailwind and Trick Room
+  ordering, and exact public snapshot duration/layer facts. Neutral hooks remain
+  available for later Ability/item packages without implementing C08 content.
+- Damage, order, status, item, and switch-in hazard interactions now require an
+  emitted shared-trigger request; a suppressed registration cannot act only
+  because its condition state remains present.
+- Entry hazards run by creation order after voluntary, forced, Pivot, Shift,
+  and mandatory-replacement installation. Every HP change reaches the faint
+  boundary before a later hazard, and hazard-caused events preserve the
+  condition ID and original setter as their source.
+- The required forced-unity `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA` and exit code `0`.
+  Evidence is
+  `Game/Saved/Automation/C07D-final-20260822-060928Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C07D` was run for final
+  acceptance. The exported
+  `Game/Saved/Automation/C07D-final-20260822-060928Z/report/index.json`
+  records exactly 9 succeeded, 0 failed, 0 not run, and 0 in process; every
+  test entry has 0 warnings and 0 errors. The matching process exited `0`.
+- Gravity and other excluded field content, concrete Ability/item activation,
+  assets, UI, configuration, module rules, existing test files, the B00B
+  snapshot, the Solarus interview handoff, and Git history were not modified.
+  No `dev-story`, commit, older battle filter, full battle suite, or
+  project-wide test run was used.
+- C07 is complete under the approved focused-validation scope. C08A is
+  dependency-clear and next.
 
 ## Safe Session Split
 

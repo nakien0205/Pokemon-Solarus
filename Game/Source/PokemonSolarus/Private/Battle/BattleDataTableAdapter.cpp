@@ -391,6 +391,8 @@ namespace
 			else if (Name == FName(TEXT("ReachesAirborneSemiInvulnerableTarget"))) Flag = EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget;
 			else if (Name == FName(TEXT("DoublesPowerAgainstAirborneSemiInvulnerableTarget"))) Flag = EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget;
 			else if (Name == FName(TEXT("BreaksProtection"))) Flag = EBattleMoveFlags::BreaksProtection;
+			else if (Name == FName(TEXT("BypassesSideProtection"))) Flag = EBattleMoveFlags::BypassesSideProtection;
+			else if (Name == FName(TEXT("ReducedByGrassyTerrain"))) Flag = EBattleMoveFlags::ReducedByGrassyTerrain;
 			else return false;
 
 			if (EnumHasAnyFlags(OutFlags, Flag))

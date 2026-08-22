@@ -1,5 +1,6 @@
 #include "Battle/BattleEffectExecutor.h"
 
+#include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
@@ -21,7 +22,9 @@ namespace BattleEffectExecutorPrivate
 		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage)
 		| static_cast<uint32>(EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget)
 		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
-		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection);
+		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection)
+		| static_cast<uint32>(EBattleMoveFlags::BypassesSideProtection)
+		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain);
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
@@ -927,6 +930,11 @@ namespace BattleEffectExecutorPrivate
 				Outgoing->Volatiles.Reset();
 				Outgoing->LastMoveId = FMoveId();
 				Active->BattlerId = Incoming->BattlerId;
+				if (!TryApplyEntryHazards(*Incoming, *Active))
+				{
+					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					return false;
+				}
 				Intent.bApplied = true;
 			}
 			return true;
@@ -1115,8 +1123,50 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
-			(void)Target;
+			if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
+			{
+				const FBattleBattlerState* TargetBattler = FindBattler(
+					Target.GetBattler().BattlerId);
+				bool bTargetGrounded = false;
+				if (TargetBattler == nullptr || !TryIsGrounded(*TargetBattler, bTargetGrounded))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				int32 IntegerPriority = Move.Priority;
+				int32 FractionalPriorityTenths = 0;
+				const FBattleLockedActionState* LockedAction = State.LockedActions.FindByPredicate(
+					[this](const FBattleLockedActionState& Candidate)
+					{
+						return Candidate.ActionId == Request.ActionId;
+					});
+				if (LockedAction != nullptr)
+				{
+					IntegerPriority = LockedAction->OrderKey.MovePriority;
+					FractionalPriorityTenths = LockedAction->OrderKey.FractionalPriorityTenths;
+				}
+				const FConditionId TerrainId = GetTerrainId();
+				bool bTerrainTriggerActive = false;
+				if (FBattleFieldSideConditionRules::IsCanonical(TerrainId)
+					&& !TryIsFieldSideConditionActiveForPhase(
+						TerrainId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerPhase::BeforeHit,
+						Target.GetBattler().ActiveSlotId,
+						bTerrainTriggerActive))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (bTerrainTriggerActive
+					&& FBattleFieldSideConditionRules::ShouldPsychicTerrainBlockMove(
+						TerrainId,
+						Target.GetBattler().ActiveSlotId.GetSide() != Request.UserSlotId.GetSide(),
+						bTargetGrounded,
+						IntegerPriority,
+						FractionalPriorityTenths))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Blocked);
+				}
+			}
 			return Applied();
 		}
 
@@ -1259,7 +1309,14 @@ namespace BattleEffectExecutorPrivate
 			}
 			const FBattleBattlerState* User = FindBattler(Request.UserBattlerId);
 			const FBattleBattlerState* TargetBattler = FindBattler(Target.GetBattler().BattlerId);
-			if (User == nullptr || TargetBattler == nullptr)
+			const FBattleSpeciesFormDefinition* UserSpecies = User != nullptr
+				? State.Catalog.FindSpeciesForm(User->SpeciesFormId)
+				: nullptr;
+			const FBattleSpeciesFormDefinition* TargetSpecies = TargetBattler != nullptr
+				? State.Catalog.FindSpeciesForm(TargetBattler->SpeciesFormId)
+				: nullptr;
+			if (User == nullptr || TargetBattler == nullptr
+				|| UserSpecies == nullptr || TargetSpecies == nullptr)
 			{
 				return false;
 			}
@@ -1269,6 +1326,45 @@ namespace BattleEffectExecutorPrivate
 			OutInput.DefenderStats = TargetBattler->PermanentStats;
 			OutInput.AttackerStages = User->Stages;
 			OutInput.DefenderStages = TargetBattler->Stages;
+			bool bWonderRoomTriggerActive = false;
+			if (!TryIsFieldSideConditionActiveForPhase(
+					FBattleFieldSideConditionRules::GetWonderRoomId(),
+					TOptional<EBattleSide>(),
+					EBattleTriggerPhase::BeforeDamage,
+					Target.GetBattler().ActiveSlotId,
+					bWonderRoomTriggerActive))
+			{
+				return false;
+			}
+			if (bWonderRoomTriggerActive)
+			{
+				Swap(OutInput.DefenderStats.Defense, OutInput.DefenderStats.SpecialDefense);
+				int32 DefenseStage = 0;
+				int32 SpecialDefenseStage = 0;
+				if (!OutInput.DefenderStages.TryGetStage(EBattleStat::Defense, DefenseStage)
+					|| !OutInput.DefenderStages.TryGetStage(
+						EBattleStat::SpecialDefense,
+						SpecialDefenseStage))
+				{
+					return false;
+				}
+				if (DefenseStage != SpecialDefenseStage)
+				{
+					const FBattleStatStageChangeResult DefenseSwap =
+						OutInput.DefenderStages.ApplyChange(
+							EBattleStat::Defense,
+							SpecialDefenseStage - DefenseStage);
+					const FBattleStatStageChangeResult SpecialDefenseSwap =
+						OutInput.DefenderStages.ApplyChange(
+							EBattleStat::SpecialDefense,
+							DefenseStage - SpecialDefenseStage);
+					if (DefenseSwap.Outcome != EBattleStatStageChangeOutcome::Applied
+						|| SpecialDefenseSwap.Outcome != EBattleStatStageChangeOutcome::Applied)
+					{
+						return false;
+					}
+				}
+			}
 			OutInput.MoveCategory = Move.Category;
 			OutInput.MovePower = Move.Power;
 			if (IsVolatileActiveForPhase(
@@ -1292,6 +1388,148 @@ namespace BattleEffectExecutorPrivate
 			OutInput.WeatherModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 			OutInput.StabModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 			OutInput.TypeEffectiveness = {1, 1};
+
+			bool bAttackerGrounded = false;
+			bool bDefenderGrounded = false;
+			if (!TryIsGrounded(*User, bAttackerGrounded)
+				|| !TryIsGrounded(*TargetBattler, bDefenderGrounded))
+			{
+				return false;
+			}
+			const FConditionId WeatherId = GetWeatherId();
+			bool bWeatherTriggerActive = false;
+			if (WeatherId.IsValid()
+				&& FBattleFieldSideConditionRules::IsCanonical(WeatherId))
+			{
+				if (!TryIsFieldSideConditionActiveForPhase(
+						WeatherId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerPhase::BeforeDamage,
+						Target.GetBattler().ActiveSlotId,
+						bWeatherTriggerActive))
+				{
+					return false;
+				}
+			}
+			if (bWeatherTriggerActive)
+			{
+				if (!FBattleFieldSideConditionRules::TryGetWeatherDamageModifierQ12(
+					WeatherId,
+					Move.Type,
+					OutInput.WeatherModifierQ12))
+				{
+					return false;
+				}
+				int32 DefensiveModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+				if (!FBattleFieldSideConditionRules::TryGetWeatherDirectDefensiveModifierQ12(
+						WeatherId,
+						TargetSpecies->PrimaryType,
+						TargetSpecies->SecondaryType,
+						Move.Category,
+						DefensiveModifierQ12))
+				{
+					return false;
+				}
+				if (DefensiveModifierQ12 != FBattleFinalDamageCalculator::Q12Neutral)
+				{
+					OutInput.DirectDefensiveStatModifiers.Add({
+						WeatherId.GetDefinitionId(),
+						DefensiveModifierQ12,
+						false});
+				}
+			}
+
+			const FConditionId TerrainId = GetTerrainId();
+			bool bTerrainTriggerActive = false;
+			if (TerrainId.IsValid()
+				&& FBattleFieldSideConditionRules::IsCanonical(TerrainId))
+			{
+				if (!TryIsFieldSideConditionActiveForPhase(
+						TerrainId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerPhase::BeforeDamage,
+						Target.GetBattler().ActiveSlotId,
+						bTerrainTriggerActive))
+				{
+					return false;
+				}
+			}
+			if (bTerrainTriggerActive)
+			{
+				int32 PowerModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+				if (!FBattleFieldSideConditionRules::TryGetTerrainPowerModifierQ12(
+						TerrainId,
+						Move.Type,
+						bAttackerGrounded,
+						PowerModifierQ12))
+				{
+					return false;
+				}
+				if (PowerModifierQ12 != FBattleFinalDamageCalculator::Q12Neutral)
+				{
+					OutInput.PowerModifiers.Add({
+						TerrainId.GetDefinitionId(),
+						PowerModifierQ12,
+						false});
+				}
+				int32 TerrainDamageModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+				if (!FBattleFieldSideConditionRules::TryGetTerrainFinalDamageModifierQ12(
+						TerrainId,
+						Move.Type,
+						bDefenderGrounded,
+						EnumHasAllFlags(Move.Flags, EBattleMoveFlags::ReducedByGrassyTerrain),
+						TerrainDamageModifierQ12))
+				{
+					return false;
+				}
+				if (TerrainDamageModifierQ12 != FBattleFinalDamageCalculator::Q12Neutral)
+				{
+					OutInput.FinalModifiers.Add({
+						TerrainId.GetDefinitionId(),
+						TerrainDamageModifierQ12,
+						false});
+				}
+			}
+
+			int32 ScreenModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+			TArray<FConditionId> DefenderSideConditions;
+			for (const FConditionId& ScreenId : {
+				FBattleFieldSideConditionRules::GetReflectId(),
+				FBattleFieldSideConditionRules::GetLightScreenId(),
+				FBattleFieldSideConditionRules::GetAuroraVeilId()})
+			{
+				bool bScreenTriggerActive = false;
+				if (!TryIsFieldSideConditionActiveForPhase(
+						ScreenId,
+						Target.GetBattler().ActiveSlotId.GetSide(),
+						EBattleTriggerPhase::BeforeDamage,
+						Target.GetBattler().ActiveSlotId,
+						bScreenTriggerActive))
+				{
+					return false;
+				}
+				if (bScreenTriggerActive)
+				{
+					DefenderSideConditions.Add(ScreenId);
+				}
+			}
+			if (!FBattleFieldSideConditionRules::TryGetScreenDamageModifierQ12(
+					DefenderSideConditions,
+					Move.Category,
+					State.Format != EBattleFormat::Single,
+					false,
+					EnumHasAllFlags(Move.Flags, EBattleMoveFlags::BypassesSideProtection),
+					ScreenModifierQ12))
+			{
+				return false;
+			}
+			if (ScreenModifierQ12 != FBattleFinalDamageCalculator::Q12Neutral)
+			{
+				OutInput.FinalModifiers.Add({
+					MakeRuleId(TEXT("Rule.C07D.Screen")),
+					ScreenModifierQ12,
+					true});
+			}
 			bool bBurnPenalty = FBattleMajorStatusRules::ShouldApplyBurnPhysicalPenalty(
 				User->MajorStatusId,
 				Move.Category,
@@ -1321,14 +1559,6 @@ namespace BattleEffectExecutorPrivate
 
 			if (!OutInput.bBypassTypeImmunity)
 			{
-				const FBattleSpeciesFormDefinition* UserSpecies = State.Catalog.FindSpeciesForm(
-					User->SpeciesFormId);
-				const FBattleSpeciesFormDefinition* TargetSpecies = State.Catalog.FindSpeciesForm(
-					TargetBattler->SpeciesFormId);
-				if (UserSpecies == nullptr || TargetSpecies == nullptr)
-				{
-					return false;
-				}
 				if (UserSpecies->PrimaryType == Move.Type || UserSpecies->SecondaryType == Move.Type)
 				{
 					OutInput.StabModifierQ12 = 6144;
@@ -1459,7 +1689,64 @@ namespace BattleEffectExecutorPrivate
 						Facts.ExistingMajorStatusId = Battler->MajorStatusId;
 						Facts.PrimaryType = Species->PrimaryType;
 						Facts.SecondaryType = Species->SecondaryType;
-						// Later Sun, terrain, Safeguard, Ability, and item inputs remain neutral.
+						bool bTargetGrounded = false;
+						if (!TryIsGrounded(*Battler, bTargetGrounded))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						const bool bAppliedByOpponent =
+							Target.GetBattler().ActiveSlotId.GetSide()
+							!= Request.UserSlotId.GetSide();
+						const FConditionId WeatherId = GetWeatherId();
+						bool bWeatherTriggerActive = false;
+						if (FBattleFieldSideConditionRules::IsCanonical(WeatherId)
+							&& !TryIsFieldSideConditionActiveForPhase(
+								WeatherId,
+								TOptional<EBattleSide>(),
+								EBattleTriggerPhase::BeforeHit,
+								Target.GetBattler().ActiveSlotId,
+								bWeatherTriggerActive))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						Facts.Prevention.bSunActive =
+							bWeatherTriggerActive
+							&& FBattleFieldSideConditionRules::ShouldSunPreventFreeze(WeatherId);
+						const FConditionId TerrainId = GetTerrainId();
+						bool bTerrainTriggerActive = false;
+						if (FBattleFieldSideConditionRules::IsCanonical(TerrainId)
+							&& !TryIsFieldSideConditionActiveForPhase(
+								TerrainId,
+								TOptional<EBattleSide>(),
+								EBattleTriggerPhase::BeforeHit,
+								Target.GetBattler().ActiveSlotId,
+								bTerrainTriggerActive))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						Facts.Prevention.bTerrainPrevents =
+							bTerrainTriggerActive
+							&& FBattleFieldSideConditionRules::ShouldTerrainPreventMajorStatus(
+								TerrainId,
+								Effect.ConditionId,
+								bTargetGrounded);
+						bool bSafeguardTriggerActive = false;
+						if (!TryIsFieldSideConditionActiveForPhase(
+								FBattleFieldSideConditionRules::GetSafeguardId(),
+								Target.GetBattler().ActiveSlotId.GetSide(),
+								EBattleTriggerPhase::BeforeHit,
+								Target.GetBattler().ActiveSlotId,
+								bSafeguardTriggerActive))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						Facts.Prevention.bSafeguardPrevents =
+							FBattleFieldSideConditionRules::ShouldSafeguardPrevent(
+								bSafeguardTriggerActive,
+								bAppliedByOpponent,
+								EnumHasAllFlags(
+									Request.Move->Flags,
+									EBattleMoveFlags::BypassesSideProtection));
 						FBattleMajorStatusApplicationResult Application;
 						if (!FBattleMajorStatusRules::TryEvaluateApplication(Facts, Application))
 						{
@@ -1493,6 +1780,29 @@ namespace BattleEffectExecutorPrivate
 				}
 				if (Effect.Kind == EBattleMoveEffectKind::ModifyStatStage)
 				{
+					const bool bAppliedByOpponent =
+						Target.GetBattler().ActiveSlotId.GetSide()
+						!= Request.UserSlotId.GetSide();
+					bool bMistTriggerActive = false;
+					if (!TryIsFieldSideConditionActiveForPhase(
+							FBattleFieldSideConditionRules::GetMistId(),
+							Target.GetBattler().ActiveSlotId.GetSide(),
+							EBattleTriggerPhase::BeforeHit,
+							Target.GetBattler().ActiveSlotId,
+							bMistTriggerActive))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					if (FBattleFieldSideConditionRules::ShouldMistPreventStatDrop(
+							bMistTriggerActive,
+							bAppliedByOpponent,
+							EnumHasAllFlags(
+								Request.Move->Flags,
+								EBattleMoveFlags::BypassesSideProtection),
+							Effect.MagnitudeNumerator))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Prevented);
+					}
 					int32 Stage = 0;
 					if (!Battler->Stages.TryGetStage(Effect.Stat, Stage))
 					{
@@ -1541,6 +1851,43 @@ namespace BattleEffectExecutorPrivate
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
+				if (Effect.Kind == EBattleMoveEffectKind::SetSideCondition
+					&& FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
+				{
+					const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(
+						Effect.ConditionId);
+					if (Definition == nullptr
+						|| Definition->Kind
+							!= FBattleFieldSideConditionRules::GetConditionFamily(Effect.ConditionId))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					const TArray<FBattleConditionState>& Collection =
+						Definition->Kind == EBattleConditionKind::Hazard
+						? Side->Hazards
+						: Side->Conditions;
+					const FBattleConditionState* Existing = Collection.FindByPredicate(
+						[&Effect](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId == Effect.ConditionId;
+						});
+					FBattleFieldSideApplicationFacts Facts;
+					Facts.RequestedConditionId = Effect.ConditionId;
+					Facts.bRequestedAlreadyActive = Existing != nullptr;
+					Facts.ExistingLayers = Existing != nullptr ? Existing->LayerCount : 0;
+					Facts.bSnowActive = GetWeatherId()
+						== FBattleFieldSideConditionRules::GetSnowId();
+					Facts.bDurationExtensionActive = Effect.DurationTurns == 8;
+					FBattleFieldSideApplicationResult Application;
+					if (!FBattleFieldSideConditionRules::TryEvaluateApplication(Facts, Application))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					return Application.Outcome == EBattleFieldSideApplicationOutcome::Create
+						|| Application.Outcome == EBattleFieldSideApplicationOutcome::AddLayer
+						? Applied()
+						: Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 				const bool bPresent = Side->Conditions.ContainsByPredicate(
 					[&Effect](const FBattleConditionState& Existing)
 					{
@@ -1560,6 +1907,49 @@ namespace BattleEffectExecutorPrivate
 
 			if (Target.GetKind() == EBattleResolvedTargetKind::Field)
 			{
+				if (Effect.Kind == EBattleMoveEffectKind::SetFieldCondition
+					&& FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
+				{
+					const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(
+						Effect.ConditionId);
+					const EBattleConditionKind Family =
+						FBattleFieldSideConditionRules::GetConditionFamily(Effect.ConditionId);
+					if (Definition == nullptr || Definition->Kind != Family)
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					FBattleFieldSideApplicationFacts Facts;
+					Facts.RequestedConditionId = Effect.ConditionId;
+					if (Family == EBattleConditionKind::Weather && Field.Weather.IsSet())
+					{
+						Facts.ExistingExclusiveConditionId = Field.Weather.GetValue().ConditionId;
+					}
+					else if (Family == EBattleConditionKind::Terrain && Field.Terrain.IsSet())
+					{
+						Facts.ExistingExclusiveConditionId = Field.Terrain.GetValue().ConditionId;
+					}
+					Facts.bRequestedAlreadyActive =
+						(Family == EBattleConditionKind::Weather
+							&& Field.Weather.IsSet()
+							&& Field.Weather.GetValue().ConditionId == Effect.ConditionId)
+						|| (Family == EBattleConditionKind::Terrain
+							&& Field.Terrain.IsSet()
+							&& Field.Terrain.GetValue().ConditionId == Effect.ConditionId)
+						|| (Family == EBattleConditionKind::Room && HasRoom(Effect.ConditionId));
+					Facts.bSnowActive = GetWeatherId()
+						== FBattleFieldSideConditionRules::GetSnowId();
+					Facts.bDurationExtensionActive = Effect.DurationTurns == 8;
+					FBattleFieldSideApplicationResult Application;
+					if (!FBattleFieldSideConditionRules::TryEvaluateApplication(Facts, Application))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					return Application.Outcome == EBattleFieldSideApplicationOutcome::Create
+						|| Application.Outcome == EBattleFieldSideApplicationOutcome::ReplaceExclusive
+						|| Application.Outcome == EBattleFieldSideApplicationOutcome::ToggleOff
+						? Applied()
+						: Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 				const bool bPresent = (Field.Weather.IsSet()
 						&& Field.Weather.GetValue().ConditionId == Effect.ConditionId)
 					|| (Field.Terrain.IsSet()
@@ -1902,6 +2292,668 @@ namespace BattleEffectExecutorPrivate
 				{
 					return Entry.Side == Side;
 				});
+		}
+
+		const FBattleSideState* FindSide(const EBattleSide Side) const
+		{
+			return Sides.FindByPredicate(
+				[Side](const FBattleSideState& Entry)
+				{
+					return Entry.Side == Side;
+				});
+		}
+
+		FConditionId GetWeatherId() const
+		{
+			return Field.Weather.IsSet() ? Field.Weather.GetValue().ConditionId : FConditionId();
+		}
+
+		FConditionId GetTerrainId() const
+		{
+			return Field.Terrain.IsSet() ? Field.Terrain.GetValue().ConditionId : FConditionId();
+		}
+
+		bool HasRoom(const FConditionId& RoomId) const
+		{
+			return Field.Rooms.ContainsByPredicate(
+				[&RoomId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == RoomId;
+				});
+		}
+
+		bool HasSideCondition(const EBattleSide Side, const FConditionId& ConditionId) const
+		{
+			const FBattleSideState* SideState = FindSide(Side);
+			return SideState != nullptr && SideState->Conditions.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == ConditionId;
+				});
+		}
+
+		TArray<FConditionId> GetSideConditionIds(const EBattleSide Side) const
+		{
+			TArray<FConditionId> Result;
+			const FBattleSideState* SideState = FindSide(Side);
+			if (SideState != nullptr)
+			{
+				for (const FBattleConditionState& Condition : SideState->Conditions)
+				{
+					Result.Add(Condition.ConditionId);
+				}
+			}
+			return Result;
+		}
+
+		bool TryIsGrounded(const FBattleBattlerState& Battler, bool& bOutGrounded) const
+		{
+			const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+				Battler.SpeciesFormId);
+			if (Species == nullptr)
+			{
+				bOutGrounded = false;
+				return false;
+			}
+			FBattleGroundedFacts Facts;
+			Facts.PrimaryType = Species->PrimaryType;
+			Facts.SecondaryType = Species->SecondaryType;
+			Facts.bAirborneSemiInvulnerable = HasVolatile(
+				Battler,
+				FBattleVolatileRules::GetFlySemiInvulnerableId());
+			return FBattleFieldSideConditionRules::TryResolveGrounded(Facts, bOutGrounded);
+		}
+
+		FBattleConditionState MakeCanonicalConditionState(
+			const FConditionId& ConditionId,
+			const TOptional<int32>& RemainingTurns,
+			const int32 Layers)
+		{
+			FBattleConditionState Condition;
+			Condition.ConditionId = ConditionId;
+			Condition.RemainingTurns = RemainingTurns;
+			Condition.LayerCount = Layers;
+			Condition.CreationOrdinal = NextConditionCreationOrdinal++;
+			Condition.SourceBattlerId = Request.UserBattlerId;
+			return Condition;
+		}
+
+		bool TryBuildFieldSideOwner(
+			const FConditionId& ConditionId,
+			const TOptional<EBattleSide>& Side,
+			FBattleTriggerSubject& OutOwner) const
+		{
+			if (FBattleFieldSideConditionRules::IsFieldOwned(ConditionId))
+			{
+				OutOwner = FBattleTriggerSubject::CreateField();
+				return OutOwner.IsValid() && !Side.IsSet();
+			}
+			return FBattleFieldSideConditionRules::IsSideOwned(ConditionId)
+				&& Side.IsSet()
+				&& FBattleTriggerSubject::TryCreateSide(Side.GetValue(), OutOwner);
+		}
+
+		const FBattleConditionState* FindFieldSideConditionState(
+			const FBattleTriggerSubject& Owner,
+			const FConditionId& ConditionId) const
+		{
+			if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId))
+			{
+				return nullptr;
+			}
+			if (Owner.Kind == EBattleTriggerSubjectKind::Field)
+			{
+				if (Field.Weather.IsSet()
+					&& Field.Weather.GetValue().ConditionId == ConditionId)
+				{
+					return &Field.Weather.GetValue();
+				}
+				if (Field.Terrain.IsSet()
+					&& Field.Terrain.GetValue().ConditionId == ConditionId)
+				{
+					return &Field.Terrain.GetValue();
+				}
+				return Field.Rooms.FindByPredicate(
+					[&ConditionId](const FBattleConditionState& Condition)
+					{
+						return Condition.ConditionId == ConditionId;
+					});
+			}
+			if (Owner.Kind != EBattleTriggerSubjectKind::Side || !Owner.bHasSide)
+			{
+				return nullptr;
+			}
+			const FBattleSideState* Side = FindSide(Owner.Side);
+			if (Side == nullptr)
+			{
+				return nullptr;
+			}
+			const FBattleConditionState* Condition = Side->Conditions.FindByPredicate(
+				[&ConditionId](const FBattleConditionState& Candidate)
+				{
+					return Candidate.ConditionId == ConditionId;
+				});
+			return Condition != nullptr
+				? Condition
+				: Side->Hazards.FindByPredicate(
+					[&ConditionId](const FBattleConditionState& Candidate)
+					{
+						return Candidate.ConditionId == ConditionId;
+					});
+		}
+
+		bool TryDispatchFieldSidePhase(
+			const FBattleTriggerSubject& Owner,
+			const EBattleTriggerPhase Phase,
+			const FConditionId& FilterConditionId,
+			const TOptional<FActiveSlotId>& ActiveSlotId,
+			TArray<FBattleTriggerEffectRequest>& OutRequests)
+		{
+			OutRequests.Reset();
+			if (!Owner.IsValid()
+				|| (Owner.Kind != EBattleTriggerSubjectKind::Field
+					&& Owner.Kind != EBattleTriggerSubjectKind::Side))
+			{
+				return false;
+			}
+			FBattleTriggerDispatchSpec Dispatch;
+			Dispatch.Phase = Phase;
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (Registration.Spec.Owner != Owner
+					|| Registration.Spec.Rule.Phase != Phase
+					|| Registration.Spec.SourceDefinition.Kind
+						!= EBattleTriggerSourceDefinitionKind::Condition)
+				{
+					continue;
+				}
+				const FConditionId& ConditionId =
+					Registration.Spec.SourceDefinition.ConditionId;
+				if (!FBattleFieldSideConditionRules::IsCanonical(ConditionId)
+					|| (FilterConditionId.IsValid() && ConditionId != FilterConditionId)
+					|| FindFieldSideConditionState(Owner, ConditionId) == nullptr)
+				{
+					continue;
+				}
+				FBattleTriggerDispatchParticipant& Participant =
+					Dispatch.Participants.AddDefaulted_GetRef();
+				Participant.RegistrationId = Registration.RegistrationId;
+				Participant.ActiveSlotId = ActiveSlotId;
+			}
+			if (Dispatch.Participants.IsEmpty())
+			{
+				return true;
+			}
+
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			FBattleTriggerDispatchResult Result;
+			if (!TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+			if (!TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+				|| !TriggerFramework.TryResolveNextDispatch(Result, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerLifecycleFact> Facts;
+			TriggerFramework.DrainEffectRequests(OutRequests);
+			TriggerFramework.DrainLifecycleFacts(Facts);
+			if (Result.bQueuedExpiryDispatch)
+			{
+				FBattleTriggerDispatchResult ExpiryResult;
+				if (!TriggerFramework.TryResolveNextDispatch(ExpiryResult, Error))
+				{
+					return false;
+				}
+				TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+				TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+				TriggerFramework.DrainEffectRequests(ExpiryRequests);
+				TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+				OutRequests.Append(MoveTemp(ExpiryRequests));
+			}
+			return true;
+		}
+
+		bool TryIsFieldSideConditionActiveForPhase(
+			const FConditionId& ConditionId,
+			const TOptional<EBattleSide>& Side,
+			const EBattleTriggerPhase Phase,
+			const TOptional<FActiveSlotId>& ActiveSlotId,
+			bool& bOutActive)
+		{
+			bOutActive = false;
+			FBattleTriggerSubject Owner;
+			if (!TryBuildFieldSideOwner(ConditionId, Side, Owner))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerEffectRequest> Requests;
+			if (!TryDispatchFieldSidePhase(
+					Owner,
+					Phase,
+					ConditionId,
+					ActiveSlotId,
+					Requests))
+			{
+				return false;
+			}
+			bOutActive = Requests.ContainsByPredicate(
+				[&ConditionId, Phase](const FBattleTriggerEffectRequest& Request)
+				{
+					return Request.Phase == Phase
+						&& Request.SourceDefinition.Kind
+							== EBattleTriggerSourceDefinitionKind::Condition
+						&& Request.SourceDefinition.ConditionId == ConditionId;
+				});
+			return true;
+		}
+
+		bool TryRegisterFieldSideCondition(
+			const FConditionId& ConditionId,
+			const TOptional<EBattleSide>& Side,
+			const TOptional<int32>& RemainingTurns,
+			const int32 Layers)
+		{
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSubject Source;
+			if (!TryBuildFieldSideOwner(ConditionId, Side, Owner)
+				|| !FBattleTriggerSubject::TryCreateBattler(Request.UserBattlerId, Source))
+			{
+				return false;
+			}
+			FBattleFieldSideTriggerRegistrationFacts Facts;
+			Facts.ConditionId = ConditionId;
+			Facts.PayloadId = ConditionId.GetDefinitionId();
+			Facts.Owner = Owner;
+			Facts.Source = Source;
+			Facts.RemainingTurns = RemainingTurns;
+			Facts.Layers = Layers;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!FBattleFieldSideConditionRules::TryRegisterTriggers(
+				TriggerFramework,
+				Facts,
+				Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryCleanupFieldSideCondition(
+			const FConditionId& ConditionId,
+			const TOptional<EBattleSide>& Side,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			FBattleTriggerSubject Owner;
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!TryBuildFieldSideOwner(ConditionId, Side, Owner)
+				|| !TryTakeTriggerContext(Operation)
+				|| !FBattleFieldSideConditionRules::TryCleanupTriggers(
+					TriggerFramework,
+					ConditionId,
+					Owner,
+					Reason,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryUpdateFieldSideLayers(
+			const FConditionId& ConditionId,
+			const EBattleSide Side,
+			const int32 Layers)
+		{
+			FBattleTriggerSubject Owner;
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!FBattleTriggerSubject::TryCreateSide(Side, Owner)
+				|| !TryTakeTriggerContext(Operation)
+				|| !FBattleFieldSideConditionRules::TryUpdateTriggerLayers(
+					TriggerFramework,
+					ConditionId,
+					Owner,
+					Layers,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		void SetMagicRoomSuppression(const bool bSuppressed)
+		{
+			for (FBattleBattlerState& Battler : Battlers)
+			{
+				Battler.HeldItem.bSuppressed = bSuppressed
+					&& Battler.HeldItem.CurrentItemId.IsValid()
+					&& !Battler.HeldItem.bConsumed;
+			}
+		}
+
+		bool TryApplyEntryHazards(
+			FBattleBattlerState& Incoming,
+			const FBattleActivePositionState& Active)
+		{
+			if (ExecutionResult == nullptr)
+			{
+				return false;
+			}
+			FBattleSideState* Side = FindMutableSide(Active.ActiveSlotId.GetSide());
+			const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+				Incoming.SpeciesFormId);
+			if (Side == nullptr || Species == nullptr)
+			{
+				return false;
+			}
+			FBattleTriggerSubject SideOwner;
+			TArray<FBattleTriggerEffectRequest> HazardRequests;
+			if (!FBattleTriggerSubject::TryCreateSide(Active.ActiveSlotId.GetSide(), SideOwner)
+				|| !TryDispatchFieldSidePhase(
+					SideOwner,
+					EBattleTriggerPhase::SwitchIn,
+					FConditionId(),
+					Active.ActiveSlotId,
+					HazardRequests))
+			{
+				return false;
+			}
+
+			for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
+			{
+				if (Incoming.CurrentHP <= 0 || Incoming.bFainted)
+				{
+					break;
+				}
+				if (HazardRequest.Phase != EBattleTriggerPhase::SwitchIn
+					|| HazardRequest.SourceDefinition.Kind
+						!= EBattleTriggerSourceDefinitionKind::Condition)
+				{
+					return false;
+				}
+				const FConditionId HazardId = HazardRequest.SourceDefinition.ConditionId;
+				const FBattleConditionState* CurrentHazard = Side->Hazards.FindByPredicate(
+					[&HazardId](const FBattleConditionState& Condition)
+					{
+						return Condition.ConditionId == HazardId;
+					});
+				if (CurrentHazard == nullptr
+					|| !FBattleFieldSideConditionRules::IsCanonical(HazardId))
+				{
+					continue;
+				}
+
+				bool bGrounded = false;
+				if (!TryIsGrounded(Incoming, bGrounded))
+				{
+					return false;
+				}
+				FBattleTypeEffectiveness RockEffectiveness{1, 1};
+				if (HazardId == FBattleFieldSideConditionRules::GetStealthRockId())
+				{
+					const bool bTypeFound = Species->SecondaryType == EPokemonType::Invalid
+						? State.Catalog.GetTypeChart().TryGetEffectiveness(
+							EPokemonType::Rock,
+							Species->PrimaryType,
+							RockEffectiveness)
+						: State.Catalog.GetTypeChart().TryGetDualEffectiveness(
+							EPokemonType::Rock,
+							Species->PrimaryType,
+							Species->SecondaryType,
+							RockEffectiveness);
+					if (!bTypeFound)
+					{
+						return false;
+					}
+				}
+
+				const FConditionId HazardStatusId = HazardRequest.Layers >= 2
+					? FBattleMajorStatusRules::GetToxicId()
+					: FBattleMajorStatusRules::GetPoisonId();
+				const FBattleBattlerState* SourceBattler = FindBattler(
+					HazardRequest.Source.BattlerId);
+				const FBattleTrainerState* SourceTrainer = SourceBattler != nullptr
+					? State.FindTrainer(SourceBattler->TrainerId)
+					: nullptr;
+				const bool bHazardAppliedByOpponent = SourceTrainer == nullptr
+					|| SourceTrainer->Side != Active.ActiveSlotId.GetSide();
+				FBattleMajorStatusApplicationFacts StatusFacts;
+				StatusFacts.RequestedStatusId = HazardStatusId;
+				StatusFacts.ExistingMajorStatusId = Incoming.MajorStatusId;
+				StatusFacts.PrimaryType = Species->PrimaryType;
+				StatusFacts.SecondaryType = Species->SecondaryType;
+				const FConditionId TerrainId = GetTerrainId();
+				bool bTerrainTriggerActive = false;
+				if (FBattleFieldSideConditionRules::IsCanonical(TerrainId)
+					&& !TryIsFieldSideConditionActiveForPhase(
+						TerrainId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerPhase::BeforeHit,
+						Active.ActiveSlotId,
+						bTerrainTriggerActive))
+				{
+					return false;
+				}
+				StatusFacts.Prevention.bTerrainPrevents =
+					bTerrainTriggerActive
+					&& FBattleFieldSideConditionRules::ShouldTerrainPreventMajorStatus(
+						TerrainId,
+						HazardStatusId,
+						bGrounded);
+				bool bSafeguardTriggerActive = false;
+				if (!TryIsFieldSideConditionActiveForPhase(
+						FBattleFieldSideConditionRules::GetSafeguardId(),
+						Active.ActiveSlotId.GetSide(),
+						EBattleTriggerPhase::BeforeHit,
+						Active.ActiveSlotId,
+						bSafeguardTriggerActive))
+				{
+					return false;
+				}
+				StatusFacts.Prevention.bSafeguardPrevents =
+					FBattleFieldSideConditionRules::ShouldSafeguardPrevent(
+						bSafeguardTriggerActive,
+						bHazardAppliedByOpponent,
+						false);
+				FBattleMajorStatusApplicationResult StatusApplication;
+				if (!FBattleMajorStatusRules::TryEvaluateApplication(
+					StatusFacts,
+					StatusApplication))
+				{
+					return false;
+				}
+
+				FBattleHazardSwitchInFacts Facts;
+				Facts.HazardId = HazardId;
+				Facts.Layers = HazardRequest.Layers;
+				Facts.BaseMaximumHP = Incoming.PermanentStats.MaxHP;
+				Facts.CurrentHP = Incoming.CurrentHP;
+				Facts.PrimaryType = Species->PrimaryType;
+				Facts.SecondaryType = Species->SecondaryType;
+				Facts.bGrounded = bGrounded;
+				Facts.bMajorStatusPrevented = StatusApplication.Outcome
+					!= EBattleMajorStatusApplicationOutcome::CanApply;
+				bool bMistTriggerActive = false;
+				if (!TryIsFieldSideConditionActiveForPhase(
+						FBattleFieldSideConditionRules::GetMistId(),
+						Active.ActiveSlotId.GetSide(),
+						EBattleTriggerPhase::BeforeHit,
+						Active.ActiveSlotId,
+						bMistTriggerActive))
+				{
+					return false;
+				}
+				Facts.bStatStageDropPrevented =
+					FBattleFieldSideConditionRules::ShouldMistPreventStatDrop(
+						bMistTriggerActive,
+						bHazardAppliedByOpponent,
+						false,
+						-1);
+				Facts.RockEffectiveness = RockEffectiveness;
+				FBattleHazardSwitchInResult HazardResult;
+				if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
+					Facts,
+					HazardResult))
+				{
+					return false;
+				}
+
+				FBattleResolvedTarget ResolvedIncoming;
+				FBattleBattlerTarget IncomingTarget;
+				IncomingTarget.ActiveSlotId = Active.ActiveSlotId;
+				IncomingTarget.BattlerId = Incoming.BattlerId;
+				if (!FBattleResolvedTarget::TryCreateBattler(
+						IncomingTarget,
+						ResolvedIncoming))
+				{
+					return false;
+				}
+				FBattleEventTarget EventTarget;
+				if (!TryBuildEventTarget(ResolvedIncoming, EventTarget))
+				{
+					return false;
+				}
+				FBattleEventSource HazardSource;
+				HazardSource.DefinitionId = HazardId.GetDefinitionId();
+				if (SourceBattler != nullptr)
+				{
+					HazardSource.TrainerId = SourceBattler->TrainerId;
+					HazardSource.BattlerId = SourceBattler->BattlerId;
+					const FBattleActivePositionState* SourceActive = FindActiveForBattler(
+						SourceBattler->BattlerId);
+					if (SourceActive != nullptr)
+					{
+						HazardSource.ActiveSlotId = SourceActive->ActiveSlotId;
+					}
+				}
+
+				if (HazardResult.EffectKind == EBattleHazardSwitchInEffectKind::Damage)
+				{
+					const int32 PreviousHP = Incoming.CurrentHP;
+					const int32 AppliedDamage = FMath::Min(PreviousHP, HazardResult.Damage);
+					Incoming.CurrentHP -= AppliedDamage;
+					if (Incoming.CurrentHP == 0)
+					{
+						Incoming.bFainted = true;
+						Incoming.bFaintTransitionPending = true;
+					}
+					for (const EBattleEventType EventType : {
+						EBattleEventType::Damage,
+						EBattleEventType::HPChanged})
+					{
+						FBattleEffectExecutionEvent& Event =
+							ExecutionResult->Events.AddDefaulted_GetRef();
+						Event.Type = EventType;
+						Event.Cause = EBattleEventCause::Rule;
+						Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+						Event.SourceOverride = HazardSource;
+						Event.Targets.Add(EventTarget);
+						Event.NumericBefore = PreviousHP;
+						Event.NumericAfter = Incoming.CurrentHP;
+						Event.NumericDelta = -AppliedDamage;
+					}
+				}
+				else if (HazardResult.EffectKind
+					== EBattleHazardSwitchInEffectKind::ApplyMajorStatus)
+				{
+					FBattleTriggerSubject Owner;
+					EBattleTriggerError Error = EBattleTriggerError::None;
+					if (!FBattleTriggerSubject::TryCreateBattler(Incoming.BattlerId, Owner)
+						|| !FBattleMajorStatusRules::TryRegisterTriggers(
+							TriggerFramework,
+							HazardResult.MajorStatusId,
+							Owner,
+							TOptional<int32>(),
+							Error))
+					{
+						return false;
+					}
+					DrainTriggerOutputs();
+					Incoming.MajorStatusId = HazardResult.MajorStatusId;
+					FBattleEffectExecutionEvent& Event =
+						ExecutionResult->Events.AddDefaulted_GetRef();
+					Event.Type = EBattleEventType::StatusChanged;
+					Event.Cause = EBattleEventCause::Rule;
+					Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+					Event.SourceOverride = HazardSource;
+					Event.Targets.Add(EventTarget);
+					Event.NumericBefore = 0;
+					Event.NumericAfter = 1;
+					Event.NumericDelta = 1;
+				}
+				else if (HazardResult.EffectKind
+					== EBattleHazardSwitchInEffectKind::ModifyStatStage)
+				{
+					const FBattleStatStageChangeResult Change = Incoming.Stages.ApplyChange(
+						HazardResult.Stat,
+						HazardResult.StatStageDelta);
+					if (Change.Outcome == EBattleStatStageChangeOutcome::Applied)
+					{
+						FBattleEffectExecutionEvent& Event =
+							ExecutionResult->Events.AddDefaulted_GetRef();
+						Event.Type = EBattleEventType::StatStageChanged;
+						Event.Cause = EBattleEventCause::Rule;
+						Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+						Event.SourceOverride = HazardSource;
+						Event.Targets.Add(EventTarget);
+						Event.NumericBefore = Change.PreviousStage;
+						Event.NumericAfter = Change.NewStage;
+						Event.NumericDelta = Change.AppliedDelta;
+					}
+				}
+				else if (HazardResult.EffectKind
+					== EBattleHazardSwitchInEffectKind::RemoveHazard)
+				{
+					if (!TryCleanupFieldSideCondition(
+							HazardId,
+							Active.ActiveSlotId.GetSide(),
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return false;
+					}
+					const int32 PreviousLayers = HazardRequest.Layers;
+					const FConditionId RemovedId = HazardId;
+					Side->Hazards.RemoveAll(
+						[&RemovedId](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId == RemovedId;
+						});
+					FBattleResolvedTarget ResolvedSide;
+					if (!FBattleResolvedTarget::TryCreateSide(
+							Active.ActiveSlotId.GetSide(),
+							ResolvedSide))
+					{
+						return false;
+					}
+					FBattleEventTarget SideTarget;
+					if (!TryBuildEventTarget(ResolvedSide, SideTarget))
+					{
+						return false;
+					}
+					FBattleEffectExecutionEvent& Event =
+						ExecutionResult->Events.AddDefaulted_GetRef();
+					Event.Type = EBattleEventType::FieldEffectChanged;
+					Event.Cause = EBattleEventCause::Rule;
+					Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+					Event.SourceOverride = HazardSource;
+					Event.Targets.Add(SideTarget);
+					Event.NumericBefore = PreviousLayers;
+					Event.NumericAfter = 0;
+					Event.NumericDelta = -PreviousLayers;
+				}
+			}
+			return true;
 		}
 
 		FBattleConditionState MakeConditionState(const FBattleMoveEffectDescriptor& Effect)
@@ -2298,11 +3350,40 @@ namespace BattleEffectExecutorPrivate
 			Facts.bAlreadyPresent = HasVolatile(Battler, Effect.ConditionId);
 			Facts.PrimaryType = Species->PrimaryType;
 			Facts.SecondaryType = Species->SecondaryType;
-			Facts.bTargetGrounded = Species->PrimaryType != EPokemonType::Flying
-				&& Species->SecondaryType != EPokemonType::Flying
-				&& !HasVolatile(Battler, FBattleVolatileRules::GetFlySemiInvulnerableId());
+			if (!TryIsGrounded(Battler, Facts.bTargetGrounded))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			const FConditionId TerrainId = GetTerrainId();
+			bool bTerrainTriggerActive = false;
+			if (FBattleFieldSideConditionRules::IsCanonical(TerrainId)
+				&& !TryIsFieldSideConditionActiveForPhase(
+					TerrainId,
+					TOptional<EBattleSide>(),
+					EBattleTriggerPhase::BeforeHit,
+					Target.GetBattler().ActiveSlotId,
+					bTerrainTriggerActive))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			Facts.bMistyTerrainActive = bTerrainTriggerActive
+				&& FBattleFieldSideConditionRules::ShouldTerrainPreventConfusion(
+					TerrainId,
+					Facts.bTargetGrounded);
 			Facts.bAppliedByOpponent = Target.GetBattler().ActiveSlotId.GetSide()
 				!= Request.UserSlotId.GetSide();
+			if (!TryIsFieldSideConditionActiveForPhase(
+					FBattleFieldSideConditionRules::GetSafeguardId(),
+					Target.GetBattler().ActiveSlotId.GetSide(),
+					EBattleTriggerPhase::BeforeHit,
+					Target.GetBattler().ActiveSlotId,
+					Facts.bSafeguardActive))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			Facts.bBypassesSafeguard = EnumHasAllFlags(
+				Request.Move->Flags,
+				EBattleMoveFlags::BypassesSideProtection);
 			Facts.bTargetAlreadyActed = HasActedThisTurn(Battler.BattlerId);
 			Facts.LastMoveId = Battler.LastMoveId;
 			Facts.LastMoveCurrentPP = GetCurrentPP(Battler, Battler.LastMoveId);
@@ -2835,10 +3916,141 @@ namespace BattleEffectExecutorPrivate
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
+			if (FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
+			{
+				const EBattleConditionKind Family =
+					FBattleFieldSideConditionRules::GetConditionFamily(Effect.ConditionId);
+				if (Definition->Kind != Family
+					|| (Family != EBattleConditionKind::Weather
+						&& Family != EBattleConditionKind::Terrain
+						&& Family != EBattleConditionKind::Room))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				FBattleFieldSideApplicationFacts Facts;
+				Facts.RequestedConditionId = Effect.ConditionId;
+				if (Family == EBattleConditionKind::Weather && Field.Weather.IsSet())
+				{
+					Facts.ExistingExclusiveConditionId = Field.Weather.GetValue().ConditionId;
+				}
+				else if (Family == EBattleConditionKind::Terrain && Field.Terrain.IsSet())
+				{
+					Facts.ExistingExclusiveConditionId = Field.Terrain.GetValue().ConditionId;
+				}
+				Facts.bRequestedAlreadyActive =
+					(Family == EBattleConditionKind::Weather
+						&& Field.Weather.IsSet()
+						&& Field.Weather.GetValue().ConditionId == Effect.ConditionId)
+					|| (Family == EBattleConditionKind::Terrain
+						&& Field.Terrain.IsSet()
+						&& Field.Terrain.GetValue().ConditionId == Effect.ConditionId)
+					|| (Family == EBattleConditionKind::Room && HasRoom(Effect.ConditionId));
+				Facts.bSnowActive = GetWeatherId()
+					== FBattleFieldSideConditionRules::GetSnowId();
+				Facts.bDurationExtensionActive = Effect.DurationTurns == 8;
+				FBattleFieldSideApplicationResult Application;
+				if (!FBattleFieldSideConditionRules::TryEvaluateApplication(Facts, Application))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+
+				if (Application.Outcome == EBattleFieldSideApplicationOutcome::ToggleOff)
+				{
+					if (!TryCleanupFieldSideCondition(
+							Effect.ConditionId,
+							TOptional<EBattleSide>(),
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					Field.Rooms.RemoveAll(
+						[&Effect](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId == Effect.ConditionId;
+						});
+					if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
+					{
+						SetMagicRoomSuppression(false);
+					}
+					FBattleEffectHookResult Result = Applied();
+					Result.NumericBefore = 1;
+					Result.NumericAfter = 0;
+					Result.NumericDelta = -1;
+					Result.bStateMutated = true;
+					return Result;
+				}
+				if (Application.Outcome != EBattleFieldSideApplicationOutcome::Create
+					&& Application.Outcome
+						!= EBattleFieldSideApplicationOutcome::ReplaceExclusive)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+
+				if (Application.Outcome == EBattleFieldSideApplicationOutcome::ReplaceExclusive)
+				{
+					const FConditionId ExistingId = Family == EBattleConditionKind::Weather
+						? Field.Weather.GetValue().ConditionId
+						: Field.Terrain.GetValue().ConditionId;
+					if (FBattleFieldSideConditionRules::IsCanonical(ExistingId)
+						&& !TryCleanupFieldSideCondition(
+							ExistingId,
+							TOptional<EBattleSide>(),
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+				}
+				if (!TryRegisterFieldSideCondition(
+						Effect.ConditionId,
+						TOptional<EBattleSide>(),
+						Application.DurationTurns,
+						Application.Layers))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				FBattleConditionState NewCondition = MakeCanonicalConditionState(
+					Effect.ConditionId,
+					Application.DurationTurns,
+					Application.Layers);
+				if (Family == EBattleConditionKind::Weather)
+				{
+					Field.Weather = MoveTemp(NewCondition);
+				}
+				else if (Family == EBattleConditionKind::Terrain)
+				{
+					Field.Terrain = MoveTemp(NewCondition);
+				}
+				else
+				{
+					Field.Rooms.Add(MoveTemp(NewCondition));
+				}
+				if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
+				{
+					SetMagicRoomSuppression(true);
+				}
+				FBattleEffectHookResult Result = Applied();
+				Result.NumericBefore = Application.Outcome
+					== EBattleFieldSideApplicationOutcome::ReplaceExclusive ? 1 : 0;
+				Result.NumericAfter = 1;
+				Result.NumericDelta = Application.Outcome
+					== EBattleFieldSideApplicationOutcome::ReplaceExclusive ? 0 : 1;
+				Result.bStateMutated = true;
+				return Result;
+			}
 			if (Definition->Kind == EBattleConditionKind::Weather)
 			{
 				if (Field.Weather.IsSet()
 					&& Field.Weather.GetValue().ConditionId == Effect.ConditionId)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (Field.Weather.IsSet()
+					&& FBattleFieldSideConditionRules::IsCanonical(
+						Field.Weather.GetValue().ConditionId)
+					&& !TryCleanupFieldSideCondition(
+						Field.Weather.GetValue().ConditionId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerCleanupReason::Removal))
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
@@ -2848,6 +4060,16 @@ namespace BattleEffectExecutorPrivate
 			{
 				if (Field.Terrain.IsSet()
 					&& Field.Terrain.GetValue().ConditionId == Effect.ConditionId)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (Field.Terrain.IsSet()
+					&& FBattleFieldSideConditionRules::IsCanonical(
+						Field.Terrain.GetValue().ConditionId)
+					&& !TryCleanupFieldSideCondition(
+						Field.Terrain.GetValue().ConditionId,
+						TOptional<EBattleSide>(),
+						EBattleTriggerCleanupReason::Removal))
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
@@ -2894,6 +4116,69 @@ namespace BattleEffectExecutorPrivate
 			TArray<FBattleConditionState>* Collection = Definition->Kind == EBattleConditionKind::Hazard
 				? &Side->Hazards
 				: &Side->Conditions;
+			if (FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
+			{
+				if (Definition->Kind
+					!= FBattleFieldSideConditionRules::GetConditionFamily(Effect.ConditionId))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				FBattleConditionState* Existing = Collection->FindByPredicate(
+					[&Effect](const FBattleConditionState& Condition)
+					{
+						return Condition.ConditionId == Effect.ConditionId;
+					});
+				FBattleFieldSideApplicationFacts Facts;
+				Facts.RequestedConditionId = Effect.ConditionId;
+				Facts.bRequestedAlreadyActive = Existing != nullptr;
+				Facts.ExistingLayers = Existing != nullptr ? Existing->LayerCount : 0;
+				Facts.bSnowActive = GetWeatherId()
+					== FBattleFieldSideConditionRules::GetSnowId();
+				Facts.bDurationExtensionActive = Effect.DurationTurns == 8;
+				FBattleFieldSideApplicationResult Application;
+				if (!FBattleFieldSideConditionRules::TryEvaluateApplication(Facts, Application))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (Application.Outcome == EBattleFieldSideApplicationOutcome::AddLayer)
+				{
+					if (Existing == nullptr
+						|| !TryUpdateFieldSideLayers(
+							Effect.ConditionId,
+							Target.GetSide(),
+							Application.Layers))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					const int32 PreviousLayers = Existing->LayerCount;
+					Existing->LayerCount = Application.Layers;
+					FBattleEffectHookResult Result = Applied();
+					Result.NumericBefore = PreviousLayers;
+					Result.NumericAfter = Application.Layers;
+					Result.NumericDelta = Application.Layers - PreviousLayers;
+					Result.bStateMutated = true;
+					return Result;
+				}
+				if (Application.Outcome != EBattleFieldSideApplicationOutcome::Create
+					|| !TryRegisterFieldSideCondition(
+						Effect.ConditionId,
+						Target.GetSide(),
+						Application.DurationTurns,
+						Application.Layers))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				Collection->Add(MakeCanonicalConditionState(
+					Effect.ConditionId,
+					Application.DurationTurns,
+					Application.Layers));
+				FBattleEffectHookResult Result = Applied();
+				Result.NumericBefore = 0;
+				Result.NumericAfter = Application.Layers;
+				Result.NumericDelta = Application.Layers;
+				Result.bStateMutated = true;
+				return Result;
+			}
 			if (Collection->ContainsByPredicate(
 				[&Effect](const FBattleConditionState& Existing)
 				{
@@ -2919,6 +4204,21 @@ namespace BattleEffectExecutorPrivate
 			if (Definition == nullptr)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
+			{
+				TOptional<EBattleSide> SideOwner;
+				if (Target.GetKind() == EBattleResolvedTargetKind::Side)
+				{
+					SideOwner = Target.GetSide();
+				}
+				if (!TryCleanupFieldSideCondition(
+						Effect.ConditionId,
+						SideOwner,
+						EBattleTriggerCleanupReason::Removal))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 			}
 			bool bRemoved = false;
 			if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
@@ -3005,6 +4305,10 @@ namespace BattleEffectExecutorPrivate
 			if (!bRemoved)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
+			{
+				SetMagicRoomSuppression(false);
 			}
 			FBattleEffectHookResult Result = Applied();
 			Result.NumericBefore = 1;
