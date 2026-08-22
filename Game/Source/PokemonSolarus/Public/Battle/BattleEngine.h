@@ -10,6 +10,7 @@ class FBattleStateTestFixture;
 class FBattleSnapshotDecisionTestFixture;
 class FBattleC05BEngineFixture;
 class FBattleC06AEngineFixture;
+class FBattleC07BEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -91,6 +92,9 @@ public:
 	/** Executes the current committed Fight action's frozen C05B effect descriptors exactly once. */
 	[[nodiscard]] FBattleResolution ExecuteCurrentMoveEffects();
 
+	/** Resolves the ordered C07B residual pass, replacements, or the next turn. */
+	[[nodiscard]] FBattleResolution ResolveEndTurn();
+
 	/** Applies a validated between-actions stat refresh at one unused matching checkpoint. */
 	[[nodiscard]] FBattleResolution ApplyBetweenActionsStatRefresh(
 		const FBattleBetweenActionsStatRefresh& Refresh);
@@ -111,6 +115,7 @@ private:
 	friend class FBattleSnapshotDecisionTestFixture;
 	friend class FBattleC05BEngineFixture;
 	friend class FBattleC06AEngineFixture;
+	friend class FBattleC07BEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

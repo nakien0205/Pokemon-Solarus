@@ -42,7 +42,9 @@ enum class EBattleActionKind : uint8
 	WildFlee = 4,
 	Replacement = 5,
 	ScriptedEnd = 6,
-	Abandon = 7
+	Abandon = 7,
+	/** Actionless C07B end-turn work; prior action ordinals remain unchanged. */
+	Residual = 8
 };
 
 /** Terminal or non-terminal battle outcome. */

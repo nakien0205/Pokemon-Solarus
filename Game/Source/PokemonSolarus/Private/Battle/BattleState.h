@@ -4,6 +4,7 @@
 #include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleStatStages.h"
+#include "Battle/BattleTriggerFramework.h"
 
 /** Typed result from validating the authoritative internal battle state. */
 enum class EBattleStateValidationError : uint8
@@ -307,11 +308,16 @@ public:
 	TArray<FBattleDecisionRequest> PendingDecisionRequests;
 	TArray<FBattlePendingReplacementState> PendingReplacements;
 	TArray<FBattleDecision> AcceptedSelections;
+	/** C07A runtime facts remain private and are never projected into snapshots. */
+	FBattleTriggerFramework TriggerFramework;
 	TUniquePtr<IBattleRandom> Random;
 	uint64 NextResolutionId = 1;
 	uint64 NextActionId = 1;
 	uint64 NextEventOrdinal = 1;
 	uint64 NextConditionCreationOrdinal = 1;
+	uint64 NextTriggerReentrancyToken = 1;
+	/** True after residuals ran and any residual-caused replacements are pending. */
+	bool bEndTurnTriggerPassComplete = false;
 	TArray<uint64> AvailableOpponentRemovalCheckpoints;
 	TArray<FBattleDecision> SubmittedDecisions;
 	TArray<FBattleBetweenActionsStatRefresh> SubmittedStatRefreshes;

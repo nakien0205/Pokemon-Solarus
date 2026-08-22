@@ -15,7 +15,7 @@ namespace
 
 	bool IsKnownAction(const EBattleActionKind Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleActionKind::Abandon);
+		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleActionKind::Residual);
 	}
 
 	bool IsKnownOutcomeCause(const EBattleOutcomeCause Value)
@@ -64,7 +64,7 @@ namespace
 		if (Metadata.QueueOrdinal == 0
 			|| !bKnownBand
 			|| !Metadata.OrderKey.ActingSlotId.IsValid()
-			|| Metadata.OrderKey.EffectiveSpeed <= 0)
+			|| Metadata.OrderKey.EffectiveSpeed < 0)
 		{
 			return false;
 		}

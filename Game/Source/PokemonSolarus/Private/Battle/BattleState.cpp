@@ -519,6 +519,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		|| NextActionId == 0
 		|| NextEventOrdinal == 0
 		|| NextConditionCreationOrdinal == 0
+		|| NextTriggerReentrancyToken == 0
 		|| EscapeAttemptCount == 0)
 	{
 		return Fail(EBattleStateValidationError::InvalidCounter);
@@ -944,7 +945,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			|| !Action.Decision.IsValid()
 			|| !IsKnownCommandBand(Action.OrderKey.CommandBand)
 			|| !Action.OrderKey.ActingSlotId.IsValid()
-			|| Action.OrderKey.EffectiveSpeed <= 0
+			|| Action.OrderKey.EffectiveSpeed < 0
 			|| bMoveBand != bFight
 			|| (bMoveBand
 				&& (!IsBattleStateKnownTargetClass(Action.TargetClass)

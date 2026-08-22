@@ -937,6 +937,12 @@ bool FBattleTriggerFramework::TryApplyCleanup(
 			return false;
 		}
 	}
+	if (Request.SourceDefinitionFilter.IsSet()
+		&& !Request.SourceDefinitionFilter.GetValue().IsValid())
+	{
+		OutError = EBattleTriggerError::InvalidDefinition;
+		return false;
+	}
 
 	const EBattleTriggerCleanupPolicy RequiredPolicy =
 		BattleTriggerFrameworkPrivate::PolicyForReason(Request.Reason);
@@ -948,7 +954,9 @@ bool FBattleTriggerFramework::TryApplyCleanup(
 			|| BattleTriggerFrameworkPrivate::ContainsSubject(
 				Request.AffectedOwners,
 				Runtime.Spec.Owner);
-		if (bPolicyMatches && bOwnerMatches)
+		const bool bSourceMatches = !Request.SourceDefinitionFilter.IsSet()
+			|| Runtime.Spec.SourceDefinition == Request.SourceDefinitionFilter.GetValue();
+		if (bPolicyMatches && bOwnerMatches && bSourceMatches)
 		{
 			ToRemove.Add(Runtime.RegistrationId);
 		}

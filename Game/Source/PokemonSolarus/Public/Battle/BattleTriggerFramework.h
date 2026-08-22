@@ -262,6 +262,8 @@ struct POKEMONSOLARUS_API FBattleTriggerCleanupRequest
 {
 	EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal;
 	TArray<FBattleTriggerSubject> AffectedOwners;
+	/** Optional exact authored-source filter used when one owner has several conditions. */
+	TOptional<FBattleTriggerSourceDefinition> SourceDefinitionFilter;
 	FBattleTriggerOperationContext Context;
 };
 

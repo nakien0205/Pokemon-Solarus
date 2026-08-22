@@ -1,8 +1,8 @@
 # C07 — Status, Volatiles, Field, and Side Conditions
 
 Priority: P1/P2  
-Status: C07A complete under focused validation; C07B and C07C next
-Required order: C07B/C; then C07D
+Status: C07A and C07B complete under focused validation; C07C next
+Required order: C07C; then C07D
 
 ## Objective
 
@@ -87,6 +87,34 @@ as B00B specifies.
 
 Solarus has no overworld poison or other status damage. Battle status events do
 not modify persistent records directly.
+
+### C07B Execution Status
+
+- Completed on 2026-08-22 from clean `main` baseline
+  `5d1085b7cf2f6797e2d70919ce2f5fd766cc61fd`.
+- Added the typed `BattleMajorStatus` rules and integrated only the six
+  canonical IDs through C07A and the live battle engine. Existing arbitrary
+  `MajorStatus` fixture IDs retain generic storage behavior.
+- Application checks mutual exclusion, Fire/Electric/Ice/Poison/Steel immunity,
+  and explicit neutral future hooks before status RNG. Sleep, Freeze, and
+  Paralysis deny actions before PP; Paralysis modifies post-stage Speed; Burn
+  modifies final Physical damage; Freeze target thaw occurs only after a
+  reached eligible hit; and ordered residuals process every HP mutation before
+  replacement, terminal, or next-turn flow.
+- Sleep duration and Toxic stage remain hidden C07A runtime facts. Event types,
+  replay schema `4`, and the observer snapshot wire shape remain unchanged.
+- The required forced-unity editor build with adaptive unity disabled and UBA
+  disabled succeeded with exit code `0`.
+- Only `Automation RunTests PokemonSolarus.Battle.C07B` was used for final
+  acceptance. `Game/Saved/Automation/C07B-20260822-092726/index.json` records
+  exactly nine successes and zero warnings, failures, not-run, or in-process
+  entries; every test entry has zero warnings and errors.
+- Protected authorities, existing tests, module rules, `.uproject`,
+  configuration, assets, and Git history were unchanged. No `dev-story`,
+  subagent writing, commit, older battle filter, full battle suite, or
+  project-wide test run was used.
+- C07C, C07D, C08 behavior, Data Table schemas/assets, UI, and presentation
+  remain excluded. Work stopped before C07C.
 
 ## C07C — Approved Volatile Proof Set
 

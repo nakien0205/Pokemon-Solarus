@@ -56,7 +56,7 @@ namespace
 		if (!Candidate.ActionId.IsValid()
 			|| !Candidate.Decision.IsValid()
 			|| !Candidate.OrderKey.ActingSlotId.IsValid()
-			|| Candidate.OrderKey.EffectiveSpeed <= 0
+			|| Candidate.OrderKey.EffectiveSpeed < 0
 			|| !IsKnownBand(Candidate.OrderKey.CommandBand))
 		{
 			return false;

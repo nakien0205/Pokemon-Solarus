@@ -1,5 +1,6 @@
 #include "Battle/BattleEffectExecutor.h"
 
+#include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Math/NumericLimits.h"
 
@@ -726,7 +727,9 @@ namespace BattleEffectExecutorPrivate
 			, ActivePositions(InState.ActivePositions)
 			, Field(InState.Field)
 			, Sides(InState.Sides)
+			, TriggerFramework(InState.TriggerFramework)
 			, NextConditionCreationOrdinal(InState.NextConditionCreationOrdinal)
+			, NextTriggerReentrancyToken(InState.NextTriggerReentrancyToken)
 		{
 		}
 
@@ -736,7 +739,14 @@ namespace BattleEffectExecutorPrivate
 			State.ActivePositions = MoveTemp(ActivePositions);
 			State.Field = MoveTemp(Field);
 			State.Sides = MoveTemp(Sides);
+			State.TriggerFramework = MoveTemp(TriggerFramework);
 			State.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
+			State.NextTriggerReentrancyToken = NextTriggerReentrancyToken;
+		}
+
+		void BindExecutionResult(FBattleEffectExecutionResult& InResult)
+		{
+			ExecutionResult = &InResult;
 		}
 
 		bool TryResolveForcedSwitches(
@@ -854,6 +864,11 @@ namespace BattleEffectExecutorPrivate
 				Intent.SelectedPartySlotId = Resolution.GetSelectedPartySlotId();
 				Intent.IncomingBattlerId = Incoming->BattlerId;
 
+				if (!TryRunSwitchOutStatus(*Outgoing))
+				{
+					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					return false;
+				}
 				Outgoing->Stages = FBattleStatStages();
 				Outgoing->Volatiles.Reset();
 				Active->BattlerId = Incoming->BattlerId;
@@ -1138,6 +1153,32 @@ namespace BattleEffectExecutorPrivate
 			OutInput.WeatherModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 			OutInput.StabModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 			OutInput.TypeEffectiveness = {1, 1};
+			bool bBurnPenalty = FBattleMajorStatusRules::ShouldApplyBurnPhysicalPenalty(
+				User->MajorStatusId,
+				Move.Category,
+				false);
+			if (bBurnPenalty)
+			{
+				int32& BuildCount = DamageInputBuildCounts.FindOrAdd(
+					Target.GetBattler().BattlerId);
+				++BuildCount;
+				// The first build is the pre-accuracy type-immunity probe. Later builds
+				// are the actual per-hit BeforeDamage checkpoints.
+				if (BuildCount > 1)
+				{
+					bool bEmitted = false;
+					if (!TryDispatchStatusPhase(
+						*User,
+						EBattleTriggerPhase::BeforeDamage,
+						bEmitted))
+					{
+						return false;
+					}
+					bBurnPenalty = bEmitted;
+				}
+			}
+			OutInput.bAttackerBurned = bBurnPenalty;
+			OutInput.bBypassBurnPenalty = false;
 
 			if (!OutInput.bBypassTypeImmunity)
 			{
@@ -1232,6 +1273,40 @@ namespace BattleEffectExecutorPrivate
 					if (Definition == nullptr)
 					{
 						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					if (Definition->Kind == EBattleConditionKind::MajorStatus
+						&& FBattleMajorStatusRules::IsCanonical(Effect.ConditionId))
+					{
+						const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+							Battler->SpeciesFormId);
+						if (Species == nullptr)
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						FBattleMajorStatusApplicationFacts Facts;
+						Facts.RequestedStatusId = Effect.ConditionId;
+						Facts.ExistingMajorStatusId = Battler->MajorStatusId;
+						Facts.PrimaryType = Species->PrimaryType;
+						Facts.SecondaryType = Species->SecondaryType;
+						// Later Sun, terrain, Safeguard, Ability, and item inputs remain neutral.
+						FBattleMajorStatusApplicationResult Application;
+						if (!FBattleMajorStatusRules::TryEvaluateApplication(Facts, Application))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						if (Application.Outcome == EBattleMajorStatusApplicationOutcome::TypeImmune)
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Immune);
+						}
+						if (Application.Outcome == EBattleMajorStatusApplicationOutcome::Prevented)
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Prevented);
+						}
+						if (Application.Outcome
+							!= EBattleMajorStatusApplicationOutcome::CanApply)
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
 					}
 					if ((Definition->Kind == EBattleConditionKind::MajorStatus
 							&& Battler->MajorStatusId.IsValid())
@@ -1456,7 +1531,49 @@ namespace BattleEffectExecutorPrivate
 
 		virtual void RunImmediateUpdate(const FBattleResolvedTarget& Target) override
 		{
-			(void)Target;
+			if (Target.GetKind() != EBattleResolvedTargetKind::Battler)
+			{
+				return;
+			}
+			const FBattlerId TargetId = Target.GetBattler().BattlerId;
+			const bool bOriginalReachedTarget = Request.Targets.ContainsByPredicate(
+				[TargetId](const FBattleResolvedTarget& Candidate)
+				{
+					return Candidate.GetKind() == EBattleResolvedTargetKind::Battler
+						&& Candidate.GetBattler().BattlerId == TargetId;
+				});
+			FBattleBattlerState* Battler = FindMutableBattler(TargetId);
+			const bool bDamagingMove = Request.Move->Category == EBattleMoveCategory::Physical
+				|| Request.Move->Category == EBattleMoveCategory::Special;
+			if (ExecutionResult != nullptr
+				&& Battler != nullptr
+				&& Battler->CurrentHP > 0
+				&& !Battler->bFainted
+				&& !Battler->bCaptured
+				&& !Battler->bRemoved
+				&& FBattleMajorStatusRules::ShouldThawReachedTarget(
+					Battler->MajorStatusId,
+					Request.Move->Type,
+					bDamagingMove,
+					EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::ThawsTarget),
+					bOriginalReachedTarget)
+				&& TryCleanupCanonicalStatus(*Battler))
+			{
+				FBattleEventTarget EventTarget;
+				EventTarget.TrainerId = Battler->TrainerId;
+				EventTarget.BattlerId = Battler->BattlerId;
+				EventTarget.ActiveSlotId = Target.GetBattler().ActiveSlotId;
+				Battler->MajorStatusId = FConditionId();
+				FBattleEffectExecutionEvent& Event =
+					ExecutionResult->Events.AddDefaulted_GetRef();
+				Event.Type = EBattleEventType::StatusChanged;
+				Event.Cause = EBattleEventCause::Rule;
+				Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+				Event.Targets.Add(MoveTemp(EventTarget));
+				Event.NumericBefore = 1;
+				Event.NumericAfter = 0;
+				Event.NumericDelta = -1;
+			}
 		}
 
 		virtual bool TryBuildEventTarget(
@@ -1586,6 +1703,42 @@ namespace BattleEffectExecutorPrivate
 				if (Battler->MajorStatusId.IsValid())
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (FBattleMajorStatusRules::IsCanonical(Effect.ConditionId))
+				{
+					TOptional<int32> SleepTurns;
+					if (Effect.ConditionId == FBattleMajorStatusRules::GetSleepId())
+					{
+						FBattleRandomContext BaseContext;
+						BaseContext.BattleId = Request.BattleId;
+						BaseContext.TurnId = Request.TurnId;
+						BaseContext.ActionId = Request.ActionId;
+						BaseContext.ResolutionId = Request.ResolutionId;
+						BaseContext.RulePurpose = FBattleMajorStatusRules::GetSleepDurationPurpose();
+						FBattleSleepDurationResult Duration;
+						if (!State.Random.IsValid()
+							|| !FBattleMajorStatusRules::TryRollSleepDuration(
+								BaseContext,
+								*State.Random,
+								Duration))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						SleepTurns = Duration.Turns;
+					}
+					FBattleTriggerSubject Owner;
+					EBattleTriggerError TriggerError = EBattleTriggerError::None;
+					if (!FBattleTriggerSubject::TryCreateBattler(Battler->BattlerId, Owner)
+						|| !FBattleMajorStatusRules::TryRegisterTriggers(
+							TriggerFramework,
+							Effect.ConditionId,
+							Owner,
+							SleepTurns,
+							TriggerError))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					DrainTriggerOutputs();
 				}
 				Battler->MajorStatusId = Effect.ConditionId;
 				return Result;
@@ -1752,6 +1905,11 @@ namespace BattleEffectExecutorPrivate
 				if (Definition->Kind == EBattleConditionKind::MajorStatus
 					&& Battler->MajorStatusId == Effect.ConditionId)
 				{
+					if (FBattleMajorStatusRules::IsCanonical(Effect.ConditionId)
+						&& !TryCleanupCanonicalStatus(*Battler))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
 					Battler->MajorStatusId = FConditionId();
 					bRemoved = true;
 				}
@@ -1821,13 +1979,179 @@ namespace BattleEffectExecutorPrivate
 			return Result;
 		}
 
+		bool TryTakeTriggerContext(FBattleTriggerOperationContext& OutContext)
+		{
+			OutContext = FBattleTriggerOperationContext();
+			if (NextTriggerReentrancyToken == 0
+				|| NextTriggerReentrancyToken == TNumericLimits<uint64>::Max()
+				|| !FBattleTriggerReentrancyToken::TryCreate(
+					NextTriggerReentrancyToken,
+					OutContext.ReentrancyToken))
+			{
+				return false;
+			}
+			++NextTriggerReentrancyToken;
+			return true;
+		}
+
+		bool TryDispatchStatusPhase(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			bool& bOutEmitted)
+		{
+			bOutEmitted = false;
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			FBattleTriggerOperationContext Operation;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateCondition(
+					Battler.MajorStatusId,
+					SourceDefinition)
+				|| !TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			FBattleTriggerDispatchSpec Dispatch;
+			Dispatch.Phase = Phase;
+			Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (Registration.Spec.SourceDefinition == SourceDefinition
+					&& Registration.Spec.Owner == Owner
+					&& Registration.Spec.Rule.Phase == Phase)
+				{
+					FBattleTriggerDispatchParticipant& Participant =
+						Dispatch.Participants.AddDefaulted_GetRef();
+					Participant.RegistrationId = Registration.RegistrationId;
+				}
+			}
+			if (Dispatch.Participants.IsEmpty())
+			{
+				return true;
+			}
+
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			FBattleTriggerDispatchResult Result;
+			if (!TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+				|| !TriggerFramework.TryResolveNextDispatch(Result, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerEffectRequest> Requests;
+			TArray<FBattleTriggerLifecycleFact> Facts;
+			TriggerFramework.DrainEffectRequests(Requests);
+			TriggerFramework.DrainLifecycleFacts(Facts);
+			bOutEmitted = !Requests.IsEmpty();
+			return true;
+		}
+
+		void DrainTriggerOutputs()
+		{
+			TArray<FBattleTriggerEffectRequest> IgnoredRequests;
+			TArray<FBattleTriggerLifecycleFact> IgnoredFacts;
+			TriggerFramework.DrainEffectRequests(IgnoredRequests);
+			TriggerFramework.DrainLifecycleFacts(IgnoredFacts);
+		}
+
+		bool TryCleanupCanonicalStatus(const FBattleBattlerState& Battler)
+		{
+			if (!FBattleMajorStatusRules::IsCanonical(Battler.MajorStatusId))
+			{
+				return true;
+			}
+			FBattleTriggerSubject Owner;
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !TryTakeTriggerContext(Operation)
+				|| !FBattleMajorStatusRules::TryCleanupTriggers(
+					TriggerFramework,
+					Battler.MajorStatusId,
+					Owner,
+					EBattleTriggerCleanupReason::Removal,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryRunSwitchOutStatus(const FBattleBattlerState& Battler)
+		{
+			if (Battler.MajorStatusId != FBattleMajorStatusRules::GetToxicId())
+			{
+				return true;
+			}
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			FBattleTriggerOperationContext Operation;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateCondition(
+					Battler.MajorStatusId,
+					SourceDefinition)
+				|| !TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+
+			const TArray<FBattleTriggerRegistrationState> Registrations =
+				TriggerFramework.GetActiveRegistrations();
+			FBattleTriggerDispatchSpec Dispatch;
+			Dispatch.Phase = EBattleTriggerPhase::SwitchOut;
+			Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+			for (const FBattleTriggerRegistrationState& Registration : Registrations)
+			{
+				if (Registration.Spec.SourceDefinition == SourceDefinition
+					&& Registration.Spec.Owner == Owner
+					&& Registration.Spec.Rule.Phase == EBattleTriggerPhase::SwitchOut)
+				{
+					FBattleTriggerDispatchParticipant& Participant =
+						Dispatch.Participants.AddDefaulted_GetRef();
+					Participant.RegistrationId = Registration.RegistrationId;
+				}
+			}
+
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!Dispatch.Participants.IsEmpty())
+			{
+				FBattleTriggerDispatchResult Result;
+				if (!TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+					|| !TriggerFramework.TryResolveNextDispatch(Result, Error))
+				{
+					return false;
+				}
+			}
+			for (const FBattleTriggerRegistrationState& Registration : Registrations)
+			{
+				if (Registration.Spec.SourceDefinition == SourceDefinition
+					&& Registration.Spec.Owner == Owner
+					&& !TriggerFramework.TryUpdateLayers(
+						Registration.RegistrationId,
+						FBattleMajorStatusRules::GetResetToxicLayerEncoding(),
+						Operation,
+						Error))
+				{
+					return false;
+				}
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
 		const FBattleEffectExecutionRequest& Request;
 		FBattleEngineState& State;
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
 		FBattleFieldState Field;
 		TArray<FBattleSideState> Sides;
+		FBattleTriggerFramework TriggerFramework;
+		TMap<FBattlerId, int32> DamageInputBuildCounts;
+		FBattleEffectExecutionResult* ExecutionResult = nullptr;
 		uint64 NextConditionCreationOrdinal = 1;
+		uint64 NextTriggerReentrancyToken = 1;
 	};
 
 	EBattleEventType MutationEventType(
@@ -2610,6 +2934,10 @@ bool FBattleEffectExecutor::TryExecute(
 					return false;
 				}
 			}
+			if (EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::ThawsTarget))
+			{
+				Context.RunImmediateUpdate(Target);
+			}
 			continue;
 		}
 
@@ -3041,6 +3369,7 @@ bool FBattleEffectExecutor::TryExecuteAgainstState(
 		return false;
 	}
 	BattleEffectExecutorPrivate::FStateExecutionContext Context(Request, State);
+	Context.BindExecutionResult(OutResult);
 	if (!TryExecute(Request, Context, *State.Random, OutResult, OutError))
 	{
 		return false;
