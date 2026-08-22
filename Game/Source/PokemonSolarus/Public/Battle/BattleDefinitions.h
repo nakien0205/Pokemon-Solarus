@@ -109,7 +109,13 @@ enum class EBattleMoveFlags : uint32
 	NeverCritical = 1U << 8,
 	UsesPerHitAccuracy = 1U << 9,
 	/** Reserved for engine-owned damage definitions such as Struggle. */
-	TypelessDamage = 1U << 10
+	TypelessDamage = 1U << 10,
+	/** Reaches a target in a Fly-style airborne semi-invulnerable state. */
+	ReachesAirborneSemiInvulnerableTarget = 1U << 11,
+	/** Doubles move power when the target is in a Fly-style airborne semi-invulnerable state. */
+	DoublesPowerAgainstAirborneSemiInvulnerableTarget = 1U << 12,
+	/** Passes Protect, then breaks its current shield at the post-accuracy checkpoint. */
+	BreaksProtection = 1U << 13
 };
 ENUM_CLASS_FLAGS(EBattleMoveFlags);
 

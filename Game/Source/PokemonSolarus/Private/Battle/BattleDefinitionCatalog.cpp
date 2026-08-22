@@ -13,7 +13,10 @@ namespace
 		| static_cast<uint32>(EBattleMoveFlags::AlwaysCritical)
 		| static_cast<uint32>(EBattleMoveFlags::NeverCritical)
 		| static_cast<uint32>(EBattleMoveFlags::UsesPerHitAccuracy)
-		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage);
+		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage)
+		| static_cast<uint32>(EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget)
+		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
+		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection);
 
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
@@ -549,9 +552,15 @@ namespace
 
 		int32 DamageEffectCount = 0;
 		int32 MultiHitEffectCount = 0;
+		int32 ChargeEffectCount = 0;
+		int32 SemiInvulnerabilityEffectCount = 0;
 		const FBattleMoveEffectDescriptor* DamageEffect = nullptr;
 		const FBattleMoveEffectDescriptor* MultiHitEffect = nullptr;
+		const FBattleMoveEffectDescriptor* ChargeEffect = nullptr;
+		const FBattleMoveEffectDescriptor* SemiInvulnerabilityEffect = nullptr;
 		int32 MultiHitEffectIndex = INDEX_NONE;
+		int32 ChargeEffectIndex = INDEX_NONE;
+		int32 SemiInvulnerabilityEffectIndex = INDEX_NONE;
 		for (int32 EffectIndex = 0; EffectIndex < Move.Effects.Num(); ++EffectIndex)
 		{
 			const FBattleMoveEffectDescriptor& Effect = Move.Effects[EffectIndex];
@@ -576,6 +585,18 @@ namespace
 				MultiHitEffect = &Effect;
 				MultiHitEffectIndex = EffectIndex;
 			}
+			else if (Effect.Kind == EBattleMoveEffectKind::Charge)
+			{
+				++ChargeEffectCount;
+				ChargeEffect = &Effect;
+				ChargeEffectIndex = EffectIndex;
+			}
+			else if (Effect.Kind == EBattleMoveEffectKind::SemiInvulnerability)
+			{
+				++SemiInvulnerabilityEffectCount;
+				SemiInvulnerabilityEffect = &Effect;
+				SemiInvulnerabilityEffectIndex = EffectIndex;
+			}
 			ValidateEffect(Move, Effect, EffectIndex, Conditions, Items, Diagnostics);
 		}
 
@@ -593,6 +614,16 @@ namespace
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.MultiHit"));
 		}
+		if (ChargeEffectCount > 1)
+		{
+			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Charge"));
+		}
+		if (SemiInvulnerabilityEffectCount > 1)
+		{
+			AddMoveDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.SemiInvulnerability"));
+		}
 		if (MultiHitEffect != nullptr
 			&& (DamageEffect == nullptr
 				|| MultiHitEffect->ChanceNumerator != 1
@@ -608,6 +639,36 @@ namespace
 				MoveId,
 				FName(TEXT("Effects.MultiHit")),
 				MultiHitEffectIndex);
+		}
+		if (ChargeEffect != nullptr
+			&& (DamageEffect == nullptr
+				|| ChargeEffect->ChanceNumerator != 1
+				|| ChargeEffect->ChanceDenominator != 1
+				|| ChargeEffect->Order >= DamageEffect->Order))
+		{
+			AddDiagnostic(
+				Diagnostics,
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				EBattleDefinitionFamily::Move,
+				MoveId,
+				FName(TEXT("Effects.Charge")),
+				ChargeEffectIndex);
+		}
+		if (SemiInvulnerabilityEffect != nullptr
+			&& (ChargeEffect == nullptr
+				|| DamageEffect == nullptr
+				|| SemiInvulnerabilityEffect->ChanceNumerator != 1
+				|| SemiInvulnerabilityEffect->ChanceDenominator != 1
+				|| SemiInvulnerabilityEffect->Order <= ChargeEffect->Order
+				|| SemiInvulnerabilityEffect->Order >= DamageEffect->Order))
+		{
+			AddDiagnostic(
+				Diagnostics,
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				EBattleDefinitionFamily::Move,
+				MoveId,
+				FName(TEXT("Effects.SemiInvulnerability")),
+				SemiInvulnerabilityEffectIndex);
 		}
 	}
 }

@@ -119,6 +119,8 @@ struct FBattleBattlerState
 	FAbilityId AbilityId;
 	FBattleHeldItemState HeldItem;
 	TArray<FBattleMoveSlotState> Moves;
+	/** Most recent move that passed pre-move gates; cleared with switch/capture/faint transient state. */
+	FMoveId LastMoveId;
 	FBattleObedienceState Obedience;
 };
 

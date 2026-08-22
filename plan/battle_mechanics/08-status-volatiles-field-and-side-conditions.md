@@ -1,8 +1,8 @@
 # C07 — Status, Volatiles, Field, and Side Conditions
 
 Priority: P1/P2  
-Status: C07A and C07B complete under focused validation; C07C next
-Required order: C07C; then C07D
+Status: C07A, C07B, and C07C complete under focused validation; C07D next
+Required order: C07D
 
 ## Objective
 
@@ -138,6 +138,39 @@ Implement:
 Official coexistence and conflict rules come from B00B. Unsupported volatile
 content uses the framework later; do not add infatuation, Perish Song, Yawn,
 Torment, Destiny Bond, or unrelated canonical conditions now.
+
+### C07C Execution Status
+
+- Completed on 2026-08-22 from clean `main` baseline
+  `0ca58edd5a180e08501adb13b2f84e35db204eb7`.
+- Added typed rules and C07A registrations for exactly the 13 approved
+  volatiles: Confusion, Flinch, Protect, Leech Seed, Partial Trap, Trap,
+  Taunt, Encore, Disable, Substitute, Charging, Recharge, and Fly-style
+  semi-invulnerability.
+- The live engine now applies the approved selection, before-action,
+  reachability, protection, damage-routing, switch-legality, charge-lock,
+  faint-target fallback, end-turn residual, duration, and cleanup behavior.
+  Protect-breaking disables only the current shield while preserving a
+  successful chain; Leech Seed checkpoints target fainting before linked
+  healing; and a denied or aborted charged release clears its charge and
+  semi-invulnerable state without a second PP cost.
+- Added the three required move flags, validated their catalog/adapter masks,
+  rejected malformed charge descriptor order, kept Struggle available through
+  Encore/Disable deadlocks, and retained last-move/volatile payload facts in
+  private runtime state. Snapshot, event, and replay wire contracts remain
+  unchanged.
+- The required `PokemonSolarusEditor Win64 Development` forced-unity build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA` and exit code `0`.
+- Only `Automation RunTests PokemonSolarus.Battle.C07C` was run for final
+  acceptance. `Game/Saved/Automation/C07C-final-20260822-114857/index.json`
+  records exactly 8 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process; every test entry has 0 warnings and 0 errors.
+- C07D behavior, assets, UI, configuration, module rules, existing tests, the
+  B00B snapshot, the Solarus interview handoff, and Git history were not
+  modified. No `dev-story`, commit, older battle filter, full battle suite, or
+  project-wide test run was used.
+- C07C is complete under its approved focused scope. C07D is dependency-clear
+  and next; later packages remain blocked or not started.
 
 ## C07D — Approved Field and Side Content
 

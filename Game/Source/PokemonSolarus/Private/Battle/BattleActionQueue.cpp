@@ -331,7 +331,7 @@ const FBattleMoveDefinition& FBattleBuiltInMoveDefinitions::GetStruggle()
 		Value.bAllowsPPBoosts = false;
 		Value.Priority = 0;
 		Value.TargetClass = EBattleTargetClass::SelectedOpponent;
-		Value.Flags = EBattleMoveFlags::TypelessDamage;
+		Value.Flags = EBattleMoveFlags::TypelessDamage | EBattleMoveFlags::Unencoreable;
 
 		FBattleMoveEffectDescriptor Damage;
 		Damage.Order = 0;

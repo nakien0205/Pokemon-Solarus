@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-22
-Roadmap status: Approved and materialized; B00 through C07B complete under focused validation
-Next package: C07C; C07D remains later and dependency-blocked
+Roadmap status: Approved and materialized; B00 through C07C complete under focused validation
+Next package: C07D; later packages remain dependency-blocked
 
 ## Current Truth
 
@@ -72,14 +72,22 @@ The live battle source now contains:
   requests, reentrancy guards, duration/expiry/layer/suppression state, typed
   cleanup, fact-only lifecycle output, and seven
   `PokemonSolarus.Battle.C07A.*` Automation tests.
+- C07B's six canonical major statuses, deterministic application/action/
+  residual rules, trigger integration, private Sleep/Toxic state, ordered
+  faint/replacement continuation, and nine `PokemonSolarus.Battle.C07B.*`
+  Automation tests.
+- C07C's 13 approved canonical volatiles, shared trigger registrations,
+  selection/action/hit/damage/end-turn integration, deterministic charge and
+  fainted-target fallback, private last-move/payload state, and eight
+  `PokemonSolarus.Battle.C07C.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
-normal-turn selection, queue-lock, action-start, final-target, switching, and
-standalone trigger-scheduling seam, plus the frozen public
+normal-turn selection, queue-lock, action-start, final-target, switching,
+trigger scheduling, major-status, and approved volatile seam, plus the frozen public
 setup/decision/event/snapshot/replay, stat, type, move, definition, adapter,
-and pure hit/damage language needed by later packages. There is still no
-concrete condition behavior or trigger-to-engine integration, encounter flow,
-Ability/item execution, or presentation seam. The
+and pure hit/damage language needed by later packages. There is still no C07D
+field/side-condition behavior, broader encounter flow, Ability/item execution,
+or presentation seam. The
 completed Story 001 and its 33-test report describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -95,8 +103,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C07B gates are clear. C07C is dependency-clear and next;
-  C07D and later packages remain blocked or not started.
+- The B00 through C07C gates are clear. C07D is dependency-clear and next;
+  later packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -711,6 +719,39 @@ B00B accepted evidence:
   project-wide test run was used.
 - C07B is complete under the approved focused-validation scope. C07C is next
   and was not started; C07D remains later.
+
+## C07C Execution Status
+
+- C07C completed on 2026-08-22 from clean `main` baseline
+  `0ca58edd5a180e08501adb13b2f84e35db204eb7`.
+- `BattleVolatile` defines exactly the 13 approved canonical volatiles, their
+  typed application/action/residual rules, deterministic RNG purposes,
+  duration/layer contracts, and C07A trigger registrations.
+- The live engine integrates volatile selection legality, action gates,
+  Protect and Fly reachability, Substitute damage routing, trapping switch
+  blocks, charge/recharge locks, fainted-target fallback, ordered Leech Seed
+  and bind residuals, and typed switch/faint/battle-end cleanup. Successful
+  Protect chains survive protection-breaking, while denied or aborted charged
+  releases clear Charging and Fly state without a second PP cost.
+- Three explicit move flags cover Fly reach/double-power and protection
+  breaking. Catalog and runtime validation reject malformed charge effect
+  ordering. Private last-move and charge payload facts support Encore,
+  Disable, and forced releases without changing snapshot, event, or replay wire
+  contracts.
+- The required `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -NoUBA` and exit code `0`.
+- Only `Automation RunTests PokemonSolarus.Battle.C07C` was run for final
+  acceptance. The exported report at
+  `Game/Saved/Automation/C07C-final-20260822-114857/index.json` records exactly
+  8 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in
+  process; every test path uses the C07C prefix and every entry has 0 warnings
+  and 0 errors.
+- C07D behavior, assets, UI, configuration, module rules, existing tests, the
+  B00B snapshot, the Solarus interview handoff, and Git history were not
+  modified. No `dev-story`, commit, older battle filter, full battle suite, or
+  project-wide test run was used.
+- C07C is complete under the approved focused-validation scope. C07D is
+  dependency-clear and next; later packages remain blocked or not started.
 
 ## Goal
 

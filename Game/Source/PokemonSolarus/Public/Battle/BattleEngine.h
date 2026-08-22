@@ -11,6 +11,7 @@ class FBattleSnapshotDecisionTestFixture;
 class FBattleC05BEngineFixture;
 class FBattleC06AEngineFixture;
 class FBattleC07BEngineFixture;
+class FBattleC07CEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -116,6 +117,7 @@ private:
 	friend class FBattleC05BEngineFixture;
 	friend class FBattleC06AEngineFixture;
 	friend class FBattleC07BEngineFixture;
+	friend class FBattleC07CEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

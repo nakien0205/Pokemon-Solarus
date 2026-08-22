@@ -72,7 +72,10 @@ enum class EBattleOptionUnavailableReason : uint8
 	WrongOwner = 15,
 	AlreadyReserved = 16,
 	Trapped = 17,
-	SwitchRestricted = 18
+	SwitchRestricted = 18,
+	Taunted = 19,
+	Encored = 20,
+	Disabled = 21
 };
 
 /** One unavailable option and its typed reason. Exactly one identity family is populated. */

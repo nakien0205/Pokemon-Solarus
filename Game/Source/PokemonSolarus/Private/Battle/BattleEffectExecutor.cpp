@@ -2,6 +2,7 @@
 
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleVolatile.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEffectExecutorPrivate
@@ -17,7 +18,10 @@ namespace BattleEffectExecutorPrivate
 		| static_cast<uint32>(EBattleMoveFlags::AlwaysCritical)
 		| static_cast<uint32>(EBattleMoveFlags::NeverCritical)
 		| static_cast<uint32>(EBattleMoveFlags::UsesPerHitAccuracy)
-		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage);
+		| static_cast<uint32>(EBattleMoveFlags::TypelessDamage)
+		| static_cast<uint32>(EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget)
+		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
+		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection);
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
@@ -452,6 +456,10 @@ namespace BattleEffectExecutorPrivate
 
 		int32 DamageCount = 0;
 		int32 MultiHitCount = 0;
+		int32 ChargeCount = 0;
+		int32 SemiInvulnerabilityCount = 0;
+		const FBattleMoveEffectDescriptor* ChargeEffect = nullptr;
+		const FBattleMoveEffectDescriptor* SemiInvulnerabilityEffect = nullptr;
 		for (int32 Index = 0; Index < Move.Effects.Num(); ++Index)
 		{
 			const FBattleMoveEffectDescriptor& Effect = Move.Effects[Index];
@@ -505,6 +513,27 @@ namespace BattleEffectExecutorPrivate
 					return false;
 				}
 			}
+			else if (Effect.Kind == EBattleMoveEffectKind::Charge)
+			{
+				++ChargeCount;
+				ChargeEffect = &Effect;
+				if (!bPrimary
+					|| Effect.ConditionId != FBattleVolatileRules::GetChargingId())
+				{
+					return false;
+				}
+			}
+			else if (Effect.Kind == EBattleMoveEffectKind::SemiInvulnerability)
+			{
+				++SemiInvulnerabilityCount;
+				SemiInvulnerabilityEffect = &Effect;
+				if (!bPrimary
+					|| Effect.ConditionId
+						!= FBattleVolatileRules::GetFlySemiInvulnerableId())
+				{
+					return false;
+				}
+			}
 			else if ((Effect.Kind == EBattleMoveEffectKind::Heal
 					|| Effect.Kind == EBattleMoveEffectKind::Drain
 					|| Effect.Kind == EBattleMoveEffectKind::Recoil)
@@ -539,7 +568,22 @@ namespace BattleEffectExecutorPrivate
 
 		if ((bDamaging && DamageCount != 1)
 			|| (!bDamaging && DamageCount != 0)
-			|| MultiHitCount > 1)
+			|| MultiHitCount > 1
+			|| ChargeCount > 1
+			|| SemiInvulnerabilityCount > 1)
+		{
+			return false;
+		}
+		if (ChargeEffect != nullptr
+			&& (OutDamage == nullptr || ChargeEffect->Order >= OutDamage->Order))
+		{
+			return false;
+		}
+		if (SemiInvulnerabilityEffect != nullptr
+			&& (ChargeEffect == nullptr
+				|| OutDamage == nullptr
+				|| SemiInvulnerabilityEffect->Order <= ChargeEffect->Order
+				|| SemiInvulnerabilityEffect->Order >= OutDamage->Order))
 		{
 			return false;
 		}
@@ -869,8 +913,19 @@ namespace BattleEffectExecutorPrivate
 					OutError = EBattleEffectExecutorError::InvalidHookResult;
 					return false;
 				}
+				if (!TryCleanupAllOwnedVolatiles(
+						*Outgoing,
+						EBattleTriggerCleanupReason::Switch)
+					|| !TryCleanupSourceDependentVolatiles(
+						Outgoing->BattlerId,
+						EBattleTriggerCleanupReason::Removal))
+				{
+					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					return false;
+				}
 				Outgoing->Stages = FBattleStatStages();
 				Outgoing->Volatiles.Reset();
+				Outgoing->LastMoveId = FMoveId();
 				Active->BattlerId = Incoming->BattlerId;
 				Intent.bApplied = true;
 			}
@@ -995,7 +1050,6 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
 			if (Target.GetKind() != EBattleResolvedTargetKind::Battler)
 			{
 				return Applied();
@@ -1015,6 +1069,26 @@ namespace BattleEffectExecutorPrivate
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Unreachable);
 			}
+			FBattleFlyReachabilityFacts Facts;
+			Facts.bTargetFlySemiInvulnerable = IsVolatileActiveForPhase(
+				Battler->BattlerId,
+				FBattleVolatileRules::GetFlySemiInvulnerableId(),
+				EBattleTriggerPhase::BeforeHit);
+			Facts.bMoveReachesFlyTarget = EnumHasAllFlags(
+				Move.Flags,
+				EBattleMoveFlags::ReachesAirborneSemiInvulnerableTarget);
+			Facts.bMoveDoublesPowerAgainstFlyTarget = EnumHasAllFlags(
+				Move.Flags,
+				EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget);
+			FBattleFlyReachabilityResult Reachability;
+			if (!FBattleVolatileRules::TryResolveFlyReachability(Facts, Reachability))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (!Reachability.bReachable)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Unreachable);
+			}
 			return Applied();
 		}
 
@@ -1022,8 +1096,18 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
-			(void)Target;
+			if (Target.GetKind() == EBattleResolvedTargetKind::Battler
+				&& FBattleVolatileRules::ShouldProtectBlockEffect(
+					IsVolatileActiveForPhase(
+						Target.GetBattler().BattlerId,
+						FBattleVolatileRules::GetProtectId(),
+						EBattleTriggerPhase::BeforeHit),
+					EnumHasAllFlags(Move.Flags, EBattleMoveFlags::BlockedByProtect),
+					EnumHasAllFlags(Move.Flags, EBattleMoveFlags::BypassesProtect)
+						|| EnumHasAllFlags(Move.Flags, EBattleMoveFlags::BreaksProtection)))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Protected);
+			}
 			return Applied();
 		}
 
@@ -1067,9 +1151,50 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
-			(void)Target;
-			return Applied();
+			if (!EnumHasAllFlags(Move.Flags, EBattleMoveFlags::BreaksProtection)
+				|| Target.GetKind() != EBattleResolvedTargetKind::Battler)
+			{
+				return Applied();
+			}
+			FBattleBattlerState* Battler = FindMutableBattler(
+				Target.GetBattler().BattlerId);
+			if (Battler == nullptr
+				|| !HasVolatile(*Battler, FBattleVolatileRules::GetProtectId()))
+			{
+				return Applied();
+			}
+			if (!TrySetVolatilePhaseSuppressed(
+					Battler->BattlerId,
+					FBattleVolatileRules::GetProtectId(),
+					EBattleTriggerPhase::BeforeHit,
+					true))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (ExecutionResult == nullptr)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleEventTarget EventTarget;
+			if (!TryBuildEventTarget(Target, EventTarget))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleEffectExecutionEvent& Event =
+				ExecutionResult->Events.AddDefaulted_GetRef();
+			Event.Type = EBattleEventType::StatusChanged;
+			Event.Cause = EBattleEventCause::Move;
+			Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+			Event.Targets.Add(MoveTemp(EventTarget));
+			Event.NumericBefore = 1;
+			Event.NumericAfter = 0;
+			Event.NumericDelta = -1;
+			FBattleEffectHookResult Result = Applied();
+			Result.bStateMutated = true;
+			Result.NumericBefore = 1;
+			Result.NumericAfter = 0;
+			Result.NumericDelta = -1;
+			return Result;
 		}
 
 		virtual bool TryBuildAccuracyInput(
@@ -1146,6 +1271,20 @@ namespace BattleEffectExecutorPrivate
 			OutInput.DefenderStages = TargetBattler->Stages;
 			OutInput.MoveCategory = Move.Category;
 			OutInput.MovePower = Move.Power;
+			if (IsVolatileActiveForPhase(
+					TargetBattler->BattlerId,
+					FBattleVolatileRules::GetFlySemiInvulnerableId(),
+					EBattleTriggerPhase::BeforeHit)
+				&& EnumHasAllFlags(
+					Move.Flags,
+					EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget))
+			{
+				if (OutInput.MovePower > TNumericLimits<int32>::Max() / 2)
+				{
+					return false;
+				}
+				OutInput.MovePower *= 2;
+			}
 			OutInput.bSpreadAcrossMultipleTargets = bSpreadAcrossMultipleTargets;
 			OutInput.bBypassTypeImmunity = EnumHasAllFlags(
 				Move.Flags,
@@ -1236,6 +1375,22 @@ namespace BattleEffectExecutorPrivate
 				&& !Battler->bRemoved;
 		}
 
+		virtual bool ShouldSkipEffectDescriptor(
+			const FBattleMoveEffectDescriptor& Effect) const override
+		{
+			if (Effect.Kind != EBattleMoveEffectKind::Charge
+				&& Effect.Kind != EBattleMoveEffectKind::SemiInvulnerability)
+			{
+				return false;
+			}
+			FMoveId LockedMoveId;
+			return TryGetVolatilePayloadMoveId(
+				Request.UserBattlerId,
+				FBattleVolatileRules::GetChargingId(),
+				LockedMoveId)
+				&& LockedMoveId == Request.Move->Id;
+		}
+
 		virtual FBattleEffectHookResult CheckEffectEligibility(
 			const FBattleMoveEffectDescriptor& Effect,
 			const FBattleResolvedTarget& Target) override
@@ -1254,6 +1409,22 @@ namespace BattleEffectExecutorPrivate
 					|| Battler->bRemoved)
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Prevented);
+				}
+				const bool bEffectFromOpponent = Target.GetBattler().ActiveSlotId.GetSide()
+					!= Request.UserSlotId.GetSide();
+				const bool bBypassesSubstitute = EnumHasAllFlags(
+					Request.Move->Flags,
+					EBattleMoveFlags::BypassesSubstitute)
+					|| EnumHasAllFlags(
+						Effect.Flags,
+						EBattleMoveEffectFlags::BypassesSubstitute);
+				if (FBattleVolatileRules::ShouldSubstituteBlockEffect(
+						HasVolatile(*Battler, FBattleVolatileRules::GetSubstituteId())
+							|| SubstituteProtectedTargets.Contains(Battler->BattlerId),
+						bEffectFromOpponent,
+						bBypassesSubstitute))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Blocked);
 				}
 				if ((Effect.Kind == EBattleMoveEffectKind::Heal
 						|| Effect.Kind == EBattleMoveEffectKind::Drain)
@@ -1485,6 +1656,64 @@ namespace BattleEffectExecutorPrivate
 				Result.NumericDelta = 0;
 				return Result;
 			}
+			FBattleConditionState* Substitute = FindMutableVolatile(
+				*Battler,
+				FBattleVolatileRules::GetSubstituteId());
+			const bool bOpposingMoveDamage = Target.GetBattler().ActiveSlotId.GetSide()
+				!= Request.UserSlotId.GetSide();
+			const bool bBypassesSubstitute = EnumHasAllFlags(
+				Request.Move->Flags,
+				EBattleMoveFlags::BypassesSubstitute);
+			if (Substitute != nullptr && bOpposingMoveDamage && !bBypassesSubstitute)
+			{
+				FBattleSubstituteDamageFacts Facts;
+				Facts.SubstituteHP = Substitute->LayerCount;
+				Facts.OwnerCurrentHP = Battler->CurrentHP;
+				Facts.IncomingDamage = RequestedDamage > TNumericLimits<int32>::Max()
+					? TNumericLimits<int32>::Max()
+					: static_cast<int32>(RequestedDamage);
+				FBattleSubstituteDamageResult Routed;
+				if (!FBattleVolatileRules::TryResolveSubstituteDamage(Facts, Routed))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				SubstituteProtectedTargets.Add(Battler->BattlerId);
+				Result.Outcome = EBattleEffectExecutionOutcome::Applied;
+				Result.NumericBefore = Facts.SubstituteHP;
+				Result.NumericAfter = Routed.RemainingSubstituteHP;
+				Result.NumericDelta = -static_cast<int64>(Routed.DamageToSubstitute);
+				Result.bStateMutated = Routed.DamageToSubstitute > 0;
+				Result.bAffectsSubstitute = true;
+				Result.bSubstituteBroken = Routed.bBrokeSubstitute;
+				if (Routed.bBrokeSubstitute)
+				{
+					if (!TryCleanupVolatile(
+							*Battler,
+							FBattleVolatileRules::GetSubstituteId(),
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					Battler->Volatiles.RemoveAll(
+						[](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId
+								== FBattleVolatileRules::GetSubstituteId();
+						});
+				}
+				else if (!TrySetVolatileLayers(
+					Battler->BattlerId,
+					FBattleVolatileRules::GetSubstituteId(),
+					Routed.RemainingSubstituteHP))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				else
+				{
+					Substitute->LayerCount = Routed.RemainingSubstituteHP;
+				}
+				return Result;
+			}
 			const int32 AppliedDamage = static_cast<int32>(FMath::Min<int64>(
 				RequestedDamage,
 				Battler->CurrentHP));
@@ -1517,12 +1746,22 @@ namespace BattleEffectExecutorPrivate
 				return SetSideCondition(Effect, Target);
 			case EBattleMoveEffectKind::RemoveCondition:
 				return RemoveCondition(Effect, Target);
+			case EBattleMoveEffectKind::Charge:
+				return ApplyCharge(Effect, Target);
+			case EBattleMoveEffectKind::Recharge:
+				return ApplySimpleSpecialVolatile(
+					Effect,
+					Target,
+					FBattleVolatileRules::GetRechargeId());
+			case EBattleMoveEffectKind::Protect:
+				return ApplyProtect(Effect, Target);
+			case EBattleMoveEffectKind::SemiInvulnerability:
+				return ApplySimpleSpecialVolatile(
+					Effect,
+					Target,
+					FBattleVolatileRules::GetFlySemiInvulnerableId());
 			case EBattleMoveEffectKind::Switch:
 			case EBattleMoveEffectKind::ChangeItem:
-			case EBattleMoveEffectKind::Charge:
-			case EBattleMoveEffectKind::Recharge:
-			case EBattleMoveEffectKind::Protect:
-			case EBattleMoveEffectKind::SemiInvulnerability:
 				return Outcome(EBattleEffectExecutionOutcome::Deferred);
 			default:
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
@@ -1679,6 +1918,789 @@ namespace BattleEffectExecutorPrivate
 			return Condition;
 		}
 
+		static const FBattleConditionState* FindVolatile(
+			const FBattleBattlerState& Battler,
+			const FConditionId& VolatileId)
+		{
+			return Battler.Volatiles.FindByPredicate(
+				[&VolatileId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == VolatileId;
+				});
+		}
+
+		static FBattleConditionState* FindMutableVolatile(
+			FBattleBattlerState& Battler,
+			const FConditionId& VolatileId)
+		{
+			return Battler.Volatiles.FindByPredicate(
+				[&VolatileId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == VolatileId;
+				});
+		}
+
+		static bool HasVolatile(
+			const FBattleBattlerState& Battler,
+			const FConditionId& VolatileId)
+		{
+			return FindVolatile(Battler, VolatileId) != nullptr;
+		}
+
+		bool IsVolatileActiveForPhase(
+			const FBattlerId BattlerId,
+			const FConditionId& VolatileId,
+			const EBattleTriggerPhase Phase) const
+		{
+			const FBattleBattlerState* Battler = FindBattler(BattlerId);
+			if (Battler == nullptr || !HasVolatile(*Battler, VolatileId))
+			{
+				return false;
+			}
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (!Registration.bSuppressed
+					&& Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+					&& Registration.Spec.Rule.Phase == Phase)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		bool TryGetVolatilePayloadMoveId(
+			const FBattlerId BattlerId,
+			const FConditionId& VolatileId,
+			FMoveId& OutMoveId) const
+		{
+			OutMoveId = FMoveId();
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Registration.Spec.SourceDefinition.ConditionId == VolatileId)
+				{
+					return FMoveId::TryCreate(
+						Registration.Spec.Rule.PayloadId,
+						OutMoveId);
+				}
+			}
+			return false;
+		}
+
+		bool TryAppendRandomDraw(
+			const FBattleResolvedTarget& Target,
+			const FBattleRandomDraw& Draw)
+		{
+			return ExecutionResult != nullptr
+				&& TryAddRandomEvent(
+					*this,
+					*ExecutionResult,
+					Target,
+					Draw,
+					EBattleEffectExecutionOutcome::Applied);
+		}
+
+		bool TryRegisterVolatile(
+			FBattleBattlerState& Battler,
+			const FConditionId& VolatileId,
+			const FDefinitionId& PayloadId,
+			const FBattleTriggerSubject& Source,
+			const TArray<FBattleTriggerSubject>& Targets,
+			const TOptional<int32>& RemainingTurns,
+			const int32 Layers,
+			const bool bSuppressed = false)
+		{
+			FBattleTriggerSubject Owner;
+			FBattleVolatileTriggerRegistrationFacts Facts;
+			Facts.VolatileId = VolatileId;
+			Facts.PayloadId = PayloadId;
+			Facts.Source = Source;
+			Facts.Targets = Targets;
+			Facts.RemainingTurns = RemainingTurns;
+			Facts.Layers = Layers;
+			Facts.bSuppressed = bSuppressed;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner))
+			{
+				return false;
+			}
+			Facts.Owner = Owner;
+			if (!FBattleVolatileRules::TryRegisterTriggers(
+				TriggerFramework,
+				Facts,
+				Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+
+			FBattleConditionState Condition;
+			Condition.ConditionId = VolatileId;
+			Condition.RemainingTurns = RemainingTurns;
+			Condition.LayerCount = Layers;
+			Condition.CreationOrdinal = NextConditionCreationOrdinal++;
+			Condition.SourceBattlerId = Request.UserBattlerId;
+			Battler.Volatiles.Add(MoveTemp(Condition));
+			return true;
+		}
+
+		bool TryCleanupVolatile(
+			const FBattleBattlerState& Battler,
+			const FConditionId& VolatileId,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			FBattleTriggerSubject Owner;
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !TryTakeTriggerContext(Operation)
+				|| !FBattleVolatileRules::TryCleanupTriggers(
+					TriggerFramework,
+					VolatileId,
+					Owner,
+					Reason,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryCleanupAllOwnedVolatiles(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			TArray<FConditionId> Ids;
+			for (const FBattleConditionState& Condition : Battler.Volatiles)
+			{
+				if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+				{
+					Ids.Add(Condition.ConditionId);
+				}
+			}
+			for (const FConditionId& Id : Ids)
+			{
+				if (!TryCleanupVolatile(Battler, Id, Reason))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		bool TryCleanupSourceDependentVolatiles(
+			const FBattlerId SourceBattlerId,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			for (FBattleBattlerState& Candidate : Battlers)
+			{
+				TArray<FConditionId> ToRemove;
+				for (const FBattleConditionState& Condition : Candidate.Volatiles)
+				{
+					if (Condition.SourceBattlerId == SourceBattlerId
+						&& (Condition.ConditionId == FBattleVolatileRules::GetPartialTrapId()
+							|| Condition.ConditionId == FBattleVolatileRules::GetTrapId()))
+					{
+						ToRemove.Add(Condition.ConditionId);
+					}
+				}
+				for (const FConditionId& Id : ToRemove)
+				{
+					if (!TryCleanupVolatile(Candidate, Id, Reason))
+					{
+						return false;
+					}
+					Candidate.Volatiles.RemoveAll(
+						[&Id](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId == Id;
+						});
+				}
+			}
+			return true;
+		}
+
+		bool TrySetVolatileLayers(
+			const FBattlerId BattlerId,
+			const FConditionId& VolatileId,
+			const int32 Layers)
+		{
+			FBattleTriggerOperationContext Operation;
+			if (Layers <= 0 || !TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			const TArray<FBattleTriggerRegistrationState> Registrations =
+				TriggerFramework.GetActiveRegistrations();
+			for (const FBattleTriggerRegistrationState& Registration : Registrations)
+			{
+				if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+					&& !TriggerFramework.TryUpdateLayers(
+						Registration.RegistrationId,
+						Layers,
+						Operation,
+						Error))
+				{
+					return false;
+				}
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TrySetVolatileSuppressed(
+			const FBattlerId BattlerId,
+			const FConditionId& VolatileId,
+			const bool bSuppressed)
+		{
+			FBattleTriggerOperationContext Operation;
+			if (!TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			const TArray<FBattleTriggerRegistrationState> Registrations =
+				TriggerFramework.GetActiveRegistrations();
+			for (const FBattleTriggerRegistrationState& Registration : Registrations)
+			{
+				if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+					&& !TriggerFramework.TrySetSuppressed(
+						Registration.RegistrationId,
+						bSuppressed,
+						Operation,
+						Error))
+				{
+					return false;
+				}
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TrySetVolatilePhaseSuppressed(
+			const FBattlerId BattlerId,
+			const FConditionId& VolatileId,
+			const EBattleTriggerPhase Phase,
+			const bool bSuppressed)
+		{
+			FBattleTriggerOperationContext Operation;
+			if (!TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			bool bUpdated = false;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			const TArray<FBattleTriggerRegistrationState> Registrations =
+				TriggerFramework.GetActiveRegistrations();
+			for (const FBattleTriggerRegistrationState& Registration : Registrations)
+			{
+				if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Condition
+					&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+					&& Registration.Spec.Rule.Phase == Phase)
+				{
+					if (!TriggerFramework.TrySetSuppressed(
+							Registration.RegistrationId,
+							bSuppressed,
+							Operation,
+							Error))
+					{
+						return false;
+					}
+					bUpdated = true;
+				}
+			}
+			DrainTriggerOutputs();
+			return bUpdated;
+		}
+
+		bool TryBuildVolatileSource(
+			const FConditionId& VolatileId,
+			FBattleTriggerSubject& OutSource) const
+		{
+			if (VolatileId == FBattleVolatileRules::GetLeechSeedId())
+			{
+				return FBattleTriggerSubject::TryCreateActiveSlot(
+					Request.UserSlotId,
+					OutSource);
+			}
+			return FBattleTriggerSubject::TryCreateBattler(
+				Request.UserBattlerId,
+				OutSource);
+		}
+
+		bool HasActedThisTurn(const FBattlerId BattlerId) const
+		{
+			return State.LockedActions.ContainsByPredicate(
+				[BattlerId](const FBattleLockedActionState& Action)
+				{
+					return Action.Decision.GetActingBattlerId() == BattlerId
+						&& (Action.bStarted || Action.bFinished);
+				});
+		}
+
+		int32 GetCurrentPP(const FBattleBattlerState& Battler, const FMoveId MoveId) const
+		{
+			if (!MoveId.IsValid())
+			{
+				return 0;
+			}
+			if (MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId())
+			{
+				return 1;
+			}
+			const FBattleMoveSlotState* Slot = Battler.Moves.FindByPredicate(
+				[MoveId](const FBattleMoveSlotState& Candidate)
+				{
+					return Candidate.MoveId == MoveId;
+				});
+			return Slot != nullptr ? Slot->CurrentPP : 0;
+		}
+
+		FBattleEffectHookResult ApplyCanonicalVolatile(
+			const FBattleMoveEffectDescriptor& Effect,
+			const FBattleResolvedTarget& Target,
+			FBattleBattlerState& Battler)
+		{
+			const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+				Battler.SpeciesFormId);
+			if (Species == nullptr)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			const EBattleVolatileKind Kind = FBattleVolatileRules::GetKind(Effect.ConditionId);
+			FBattleVolatileApplicationFacts Facts;
+			Facts.RequestedVolatileId = Effect.ConditionId;
+			Facts.bAlreadyPresent = HasVolatile(Battler, Effect.ConditionId);
+			Facts.PrimaryType = Species->PrimaryType;
+			Facts.SecondaryType = Species->SecondaryType;
+			Facts.bTargetGrounded = Species->PrimaryType != EPokemonType::Flying
+				&& Species->SecondaryType != EPokemonType::Flying
+				&& !HasVolatile(Battler, FBattleVolatileRules::GetFlySemiInvulnerableId());
+			Facts.bAppliedByOpponent = Target.GetBattler().ActiveSlotId.GetSide()
+				!= Request.UserSlotId.GetSide();
+			Facts.bTargetAlreadyActed = HasActedThisTurn(Battler.BattlerId);
+			Facts.LastMoveId = Battler.LastMoveId;
+			Facts.LastMoveCurrentPP = GetCurrentPP(Battler, Battler.LastMoveId);
+			Facts.bLastMoveIsStruggle = Battler.LastMoveId
+				== FBattleBuiltInMoveDefinitions::GetStruggleMoveId();
+			const FBattleMoveDefinition* LastMove = Facts.bLastMoveIsStruggle
+				? &FBattleBuiltInMoveDefinitions::GetStruggle()
+				: State.Catalog.FindMove(Battler.LastMoveId);
+			Facts.bLastMoveUnencoreable = LastMove != nullptr
+				&& EnumHasAllFlags(LastMove->Flags, EBattleMoveFlags::Unencoreable);
+			Facts.BaseMaximumHP = Battler.PermanentStats.MaxHP;
+			Facts.CurrentHP = Battler.CurrentHP;
+
+			FBattleVolatileApplicationResult Application;
+			if (!FBattleVolatileRules::TryEvaluateApplication(Facts, Application))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Application.Outcome == EBattleVolatileApplicationOutcome::TypeImmune)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Immune);
+			}
+			if (Application.Outcome == EBattleVolatileApplicationOutcome::PreventedByTerrain
+				|| Application.Outcome == EBattleVolatileApplicationOutcome::PreventedBySafeguard)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Prevented);
+			}
+			if (Application.Outcome != EBattleVolatileApplicationOutcome::CanApply)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			TOptional<int32> RemainingTurns;
+			int32 Layers = 1;
+			TOptional<FBattleRandomDraw> DurationDraw;
+			FBattleRandomContext RandomContext;
+			RandomContext.BattleId = Request.BattleId;
+			RandomContext.TurnId = Request.TurnId;
+			RandomContext.ActionId = Request.ActionId;
+			RandomContext.ResolutionId = Request.ResolutionId;
+			RandomContext.RulePurpose = Effect.ConditionId.GetDefinitionId();
+			if (Kind == EBattleVolatileKind::Confusion)
+			{
+				FBattleVolatileDurationResult Duration;
+				if (!State.Random.IsValid()
+					|| !FBattleVolatileRules::TryRollConfusionDuration(
+						RandomContext,
+						*State.Random,
+						Duration))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				RemainingTurns = Duration.Turns;
+				DurationDraw = Duration.Draw;
+			}
+			else if (Kind == EBattleVolatileKind::PartialTrap)
+			{
+				FBattleVolatileDurationResult Duration;
+				if (!State.Random.IsValid()
+					|| !FBattleVolatileRules::TryRollPartialTrapDuration(
+						RandomContext,
+						*State.Random,
+						Duration))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				RemainingTurns = Duration.Turns;
+				DurationDraw = Duration.Draw;
+			}
+			else if (Kind == EBattleVolatileKind::Taunt)
+			{
+				RemainingTurns = FBattleVolatileRules::GetTauntDuration(
+					Facts.bTargetAlreadyActed);
+			}
+			else if (Kind == EBattleVolatileKind::Encore)
+			{
+				RemainingTurns = FBattleVolatileRules::GetEncoreDuration();
+			}
+			else if (Kind == EBattleVolatileKind::Disable)
+			{
+				RemainingTurns = FBattleVolatileRules::GetDisableDuration();
+			}
+			else if (Kind == EBattleVolatileKind::Substitute)
+			{
+				FBattleSubstituteCreationResult Creation;
+				if (!FBattleVolatileRules::TryResolveSubstituteCreation(
+						Battler.PermanentStats.MaxHP,
+						Battler.CurrentHP,
+						Creation)
+					|| !Creation.bCanCreate)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				Layers = Creation.SubstituteHP;
+			}
+
+			FDefinitionId PayloadId = Effect.ConditionId.GetDefinitionId();
+			if (Kind == EBattleVolatileKind::Encore || Kind == EBattleVolatileKind::Disable)
+			{
+				PayloadId = Battler.LastMoveId.GetDefinitionId();
+			}
+			FBattleTriggerSubject Source;
+			TArray<FBattleTriggerSubject> Targets;
+			if (!TryBuildVolatileSource(Effect.ConditionId, Source)
+				|| !TryRegisterVolatile(
+					Battler,
+					Effect.ConditionId,
+					PayloadId,
+					Source,
+					Targets,
+					RemainingTurns,
+					Layers))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			if (DurationDraw.IsSet() && !TryAppendRandomDraw(Target, DurationDraw.GetValue()))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Kind == EBattleVolatileKind::Substitute)
+			{
+				const int32 PreviousHP = Battler.CurrentHP;
+				Battler.CurrentHP -= Layers;
+				if (ExecutionResult == nullptr)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				FBattleEffectExecutionEvent& CostEvent =
+					ExecutionResult->Events.AddDefaulted_GetRef();
+				CostEvent.Type = EBattleEventType::HPChanged;
+				CostEvent.Cause = EBattleEventCause::Move;
+				CostEvent.Outcome = EBattleEffectExecutionOutcome::Applied;
+				FBattleEventTarget EventTarget;
+				if (!TryBuildEventTarget(Target, EventTarget))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				CostEvent.Targets.Add(MoveTemp(EventTarget));
+				CostEvent.NumericBefore = PreviousHP;
+				CostEvent.NumericAfter = Battler.CurrentHP;
+				CostEvent.NumericDelta = -Layers;
+			}
+
+			FBattleEffectHookResult Result = Applied();
+			Result.NumericBefore = 0;
+			Result.NumericAfter = 1;
+			Result.NumericDelta = 1;
+			Result.bStateMutated = true;
+			return Result;
+		}
+
+		FBattleEffectHookResult ApplySimpleSpecialVolatile(
+			const FBattleMoveEffectDescriptor& Effect,
+			const FBattleResolvedTarget& Target,
+			const FConditionId& ExpectedId)
+		{
+			if (Effect.ConditionId != ExpectedId
+				|| Target.GetKind() != EBattleResolvedTargetKind::Battler
+				|| Target.GetBattler().BattlerId != Request.UserBattlerId)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleBattlerState* Battler = FindMutableBattler(Request.UserBattlerId);
+			const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(ExpectedId);
+			if (Battler == nullptr
+				|| Definition == nullptr
+				|| Definition->Kind != EBattleConditionKind::Volatile
+				|| HasVolatile(*Battler, ExpectedId))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleTriggerSubject Source;
+			TArray<FBattleTriggerSubject> Targets;
+			if (!FBattleTriggerSubject::TryCreateBattler(Request.UserBattlerId, Source)
+				|| !TryRegisterVolatile(
+					*Battler,
+					ExpectedId,
+					ExpectedId.GetDefinitionId(),
+					Source,
+					Targets,
+					TOptional<int32>(),
+					1))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleEffectHookResult Result = Applied();
+			Result.NumericBefore = 0;
+			Result.NumericAfter = 1;
+			Result.NumericDelta = 1;
+			Result.bStateMutated = true;
+			return Result;
+		}
+
+		FBattleEffectHookResult ApplyCharge(
+			const FBattleMoveEffectDescriptor& Effect,
+			const FBattleResolvedTarget& Target)
+		{
+			if (Effect.ConditionId != FBattleVolatileRules::GetChargingId()
+				|| Target.GetKind() != EBattleResolvedTargetKind::Battler
+				|| Target.GetBattler().BattlerId != Request.UserBattlerId)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleBattlerState* Battler = FindMutableBattler(Request.UserBattlerId);
+			const FBattleConditionDefinition* ChargeDefinition = State.Catalog.FindCondition(
+				FBattleVolatileRules::GetChargingId());
+			if (Battler == nullptr
+				|| ChargeDefinition == nullptr
+				|| ChargeDefinition->Kind != EBattleConditionKind::Volatile
+				|| HasVolatile(*Battler, FBattleVolatileRules::GetChargingId()))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			const FBattleMoveEffectDescriptor* FlyDescriptor = Request.Move->Effects.FindByPredicate(
+				[](const FBattleMoveEffectDescriptor& Candidate)
+				{
+					return Candidate.Kind == EBattleMoveEffectKind::SemiInvulnerability;
+				});
+			if (FlyDescriptor != nullptr)
+			{
+				const FBattleConditionDefinition* FlyDefinition = State.Catalog.FindCondition(
+					FlyDescriptor->ConditionId);
+				if (FlyDescriptor->ConditionId != FBattleVolatileRules::GetFlySemiInvulnerableId()
+					|| FlyDefinition == nullptr
+					|| FlyDefinition->Kind != EBattleConditionKind::Volatile
+					|| HasVolatile(*Battler, FlyDescriptor->ConditionId))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+			}
+
+			FBattleTriggerSubject Source;
+			TArray<FBattleTriggerSubject> LockedTargets;
+			if (!FBattleTriggerSubject::TryCreateBattler(Request.UserBattlerId, Source))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			for (const FBattleResolvedTarget& Resolved : Request.Targets)
+			{
+				if (Resolved.GetKind() == EBattleResolvedTargetKind::Battler)
+				{
+					FBattleTriggerSubject TargetSlotSubject;
+					FBattleTriggerSubject TargetBattlerSubject;
+					if (!FBattleTriggerSubject::TryCreateActiveSlot(
+							Resolved.GetBattler().ActiveSlotId,
+							TargetSlotSubject)
+						|| !FBattleTriggerSubject::TryCreateBattler(
+							Resolved.GetBattler().BattlerId,
+							TargetBattlerSubject))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					LockedTargets.Add(MoveTemp(TargetSlotSubject));
+					LockedTargets.Add(MoveTemp(TargetBattlerSubject));
+					break;
+				}
+			}
+
+			const FBattleTriggerFramework FrameworkBefore = TriggerFramework;
+			const TArray<FBattleConditionState> VolatilesBefore = Battler->Volatiles;
+			const uint64 OrdinalBefore = NextConditionCreationOrdinal;
+			if (!TryRegisterVolatile(
+					*Battler,
+					FBattleVolatileRules::GetChargingId(),
+					Request.Move->Id.GetDefinitionId(),
+					Source,
+					LockedTargets,
+					TOptional<int32>(),
+					1)
+				|| (FlyDescriptor != nullptr
+					&& !TryRegisterVolatile(
+						*Battler,
+						FlyDescriptor->ConditionId,
+						FlyDescriptor->ConditionId.GetDefinitionId(),
+						Source,
+						TArray<FBattleTriggerSubject>(),
+						TOptional<int32>(),
+						1)))
+			{
+				TriggerFramework = FrameworkBefore;
+				Battler->Volatiles = VolatilesBefore;
+				NextConditionCreationOrdinal = OrdinalBefore;
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			FBattleEffectHookResult Result = Applied();
+			Result.NumericBefore = 0;
+			Result.NumericAfter = 1;
+			Result.NumericDelta = 1;
+			Result.bStateMutated = true;
+			Result.bDefersMove = true;
+			return Result;
+		}
+
+		FBattleEffectHookResult ApplyProtect(
+			const FBattleMoveEffectDescriptor& Effect,
+			const FBattleResolvedTarget& Target)
+		{
+			if (Effect.ConditionId != FBattleVolatileRules::GetProtectId()
+				|| Target.GetKind() != EBattleResolvedTargetKind::Battler
+				|| Target.GetBattler().BattlerId != Request.UserBattlerId)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleBattlerState* Battler = FindMutableBattler(Request.UserBattlerId);
+			const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(
+				Effect.ConditionId);
+			if (Battler == nullptr
+				|| Definition == nullptr
+				|| Definition->Kind != EBattleConditionKind::Volatile)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleConditionState* Existing = FindMutableVolatile(*Battler, Effect.ConditionId);
+			FBattleProtectAttemptFacts Facts;
+			Facts.bHasQueuedAction = true;
+			Facts.bConsecutiveEligibleUse = Existing != nullptr;
+			Facts.ChainCounter = Existing != nullptr ? Existing->LayerCount : 0;
+			FBattleRandomContext RandomContext;
+			RandomContext.BattleId = Request.BattleId;
+			RandomContext.TurnId = Request.TurnId;
+			RandomContext.ActionId = Request.ActionId;
+			RandomContext.ResolutionId = Request.ResolutionId;
+			RandomContext.RulePurpose = FBattleVolatileRules::GetProtectConsecutiveUsePurpose();
+			FBattleProtectAttemptResult Attempt;
+			if (!State.Random.IsValid()
+				|| !FBattleVolatileRules::TryResolveProtectAttempt(
+					Facts,
+					RandomContext,
+					*State.Random,
+					Attempt)
+				|| (Attempt.bDrawConsumed && !TryAppendRandomDraw(Target, Attempt.Draw)))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			if (!Attempt.bSucceeded)
+			{
+				if (Existing != nullptr)
+				{
+					if (!TryCleanupVolatile(
+							*Battler,
+							Effect.ConditionId,
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					Battler->Volatiles.RemoveAll(
+						[&Effect](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId == Effect.ConditionId;
+						});
+				}
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			if (Existing == nullptr)
+			{
+				FBattleTriggerSubject Source;
+				if (!FBattleTriggerSubject::TryCreateBattler(Request.UserBattlerId, Source)
+					|| !TryRegisterVolatile(
+						*Battler,
+						Effect.ConditionId,
+						Effect.ConditionId.GetDefinitionId(),
+						Source,
+						TArray<FBattleTriggerSubject>(),
+						TOptional<int32>(),
+						Attempt.NextChainCounter))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+			}
+			else
+			{
+				if (!TrySetVolatileLayers(
+						Battler->BattlerId,
+						Effect.ConditionId,
+						Attempt.NextChainCounter)
+					|| !TrySetVolatileSuppressed(
+						Battler->BattlerId,
+						Effect.ConditionId,
+						false))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				Existing->LayerCount = Attempt.NextChainCounter;
+			}
+
+			FBattleEffectHookResult Result = Applied();
+			Result.NumericBefore = Facts.bConsecutiveEligibleUse ? Facts.ChainCounter : 0;
+			Result.NumericAfter = Attempt.NextChainCounter;
+			Result.NumericDelta = Attempt.NextChainCounter - Result.NumericBefore.GetValue();
+			Result.bStateMutated = true;
+			return Result;
+		}
+
 		FBattleEffectHookResult ApplyCondition(
 			const FBattleMoveEffectDescriptor& Effect,
 			const FBattleResolvedTarget& Target)
@@ -1745,6 +2767,10 @@ namespace BattleEffectExecutorPrivate
 			}
 			if (Definition->Kind == EBattleConditionKind::Volatile)
 			{
+				if (FBattleVolatileRules::IsCanonical(Effect.ConditionId))
+				{
+					return ApplyCanonicalVolatile(Effect, Target, *Battler);
+				}
 				if (Battler->Volatiles.ContainsByPredicate(
 					[&Effect](const FBattleConditionState& Condition)
 					{
@@ -1915,6 +2941,15 @@ namespace BattleEffectExecutorPrivate
 				}
 				else if (Definition->Kind == EBattleConditionKind::Volatile)
 				{
+					if (FBattleVolatileRules::IsCanonical(Effect.ConditionId)
+						&& HasVolatile(*Battler, Effect.ConditionId)
+						&& !TryCleanupVolatile(
+							*Battler,
+							Effect.ConditionId,
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
 					const int32 Removed = Battler->Volatiles.RemoveAll(
 						[&Effect](const FBattleConditionState& Existing)
 						{
@@ -2149,6 +3184,7 @@ namespace BattleEffectExecutorPrivate
 		TArray<FBattleSideState> Sides;
 		FBattleTriggerFramework TriggerFramework;
 		TMap<FBattlerId, int32> DamageInputBuildCounts;
+		TSet<FBattlerId> SubstituteProtectedTargets;
 		FBattleEffectExecutionResult* ExecutionResult = nullptr;
 		uint64 NextConditionCreationOrdinal = 1;
 		uint64 NextTriggerReentrancyToken = 1;
@@ -2166,6 +3202,10 @@ namespace BattleEffectExecutorPrivate
 		case EBattleMoveEffectKind::SetSideCondition:
 			return EBattleEventType::FieldEffectChanged;
 		case EBattleMoveEffectKind::ApplyCondition:
+		case EBattleMoveEffectKind::Charge:
+		case EBattleMoveEffectKind::Recharge:
+		case EBattleMoveEffectKind::Protect:
+		case EBattleMoveEffectKind::SemiInvulnerability:
 			return EBattleEventType::StatusChanged;
 		case EBattleMoveEffectKind::RemoveCondition:
 			return Target.GetKind() == EBattleResolvedTargetKind::Battler
@@ -2230,6 +3270,10 @@ namespace BattleEffectExecutorPrivate
 		EBattleEffectExecutorError& OutError,
 		TArray<FBattleResolvedTarget>* InOutAppliedTargets)
 	{
+		if (Context.ShouldSkipEffectDescriptor(Effect))
+		{
+			return true;
+		}
 		TArray<FBattleResolvedTarget> EffectTargets;
 		if (!TryExpandEffectTargets(Request, Effect, ReachedTarget, EffectTargets))
 		{
@@ -2403,6 +3447,10 @@ namespace BattleEffectExecutorPrivate
 			{
 				OutError = EBattleEffectExecutorError::InvalidHookResult;
 				return false;
+			}
+			if (Applied.bDefersMove)
+			{
+				Result.bMoveDeferred = true;
 			}
 			if (!TryAddTargetedEvent(
 				Context,
@@ -2693,6 +3741,32 @@ bool FBattleEffectExecutor::TryExecute(
 		}
 	}
 
+	const FBattleMoveEffectDescriptor* ChargeEffect = Request.Move->Effects.FindByPredicate(
+		[](const FBattleMoveEffectDescriptor& Effect)
+		{
+			return Effect.Kind == EBattleMoveEffectKind::Charge;
+		});
+	if (ChargeEffect != nullptr && !Context.ShouldSkipEffectDescriptor(*ChargeEffect))
+	{
+		if (!TryApplyOrdinaryDescriptor(
+				Request,
+				*ChargeEffect,
+				UserTarget,
+				TOptional<uint16>(),
+				Context,
+				Random,
+				OutResult,
+				OutError,
+				nullptr))
+		{
+			return false;
+		}
+		OutResult.TotalActualDamage = 0;
+		OutResult.bValid = true;
+		FailureResultGuard.bKeepResult = true;
+		return true;
+	}
+
 	const bool bDamagingMove = DamageEffect != nullptr;
 	const bool bSpread = Request.Move->TargetClass == EBattleTargetClass::FixedSpreadSet
 		&& Request.Targets.Num() > 1;
@@ -2933,6 +4007,12 @@ bool FBattleEffectExecutor::TryExecute(
 				{
 					return false;
 				}
+				if (OutResult.bMoveDeferred)
+				{
+					OutResult.bValid = true;
+					FailureResultGuard.bKeepResult = true;
+					return true;
+				}
 			}
 			if (EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::ThawsTarget))
 			{
@@ -2965,6 +4045,12 @@ bool FBattleEffectExecutor::TryExecute(
 				GetAppliedActionScopedTargets(Effect)))
 			{
 				return false;
+			}
+			if (OutResult.bMoveDeferred)
+			{
+				OutResult.bValid = true;
+				FailureResultGuard.bKeepResult = true;
+				return true;
 			}
 		}
 
@@ -3207,6 +4293,7 @@ bool FBattleEffectExecutor::TryExecute(
 				return false;
 			}
 			if (AppliedDamage.bStateMutated
+				&& !AppliedDamage.bAffectsSubstitute
 				&& !TryAddTargetedEvent(
 					Context,
 					OutResult,
@@ -3216,6 +4303,21 @@ bool FBattleEffectExecutor::TryExecute(
 					AppliedDamage.NumericBefore,
 					AppliedDamage.NumericAfter,
 					AppliedDamage.NumericDelta,
+					static_cast<uint16>(HitIndex)))
+			{
+				OutError = EBattleEffectExecutorError::InvalidTarget;
+				return false;
+			}
+			if (AppliedDamage.bSubstituteBroken
+				&& !TryAddTargetedEvent(
+					Context,
+					OutResult,
+					EBattleEventType::StatusChanged,
+					AppliedDamage.Outcome,
+					Target,
+					static_cast<int64>(1),
+					static_cast<int64>(0),
+					static_cast<int64>(-1),
 					static_cast<uint16>(HitIndex)))
 			{
 				OutError = EBattleEffectExecutorError::InvalidTarget;

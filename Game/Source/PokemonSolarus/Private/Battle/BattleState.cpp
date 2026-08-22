@@ -691,6 +691,12 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 					return Fail(EBattleStateValidationError::MissingCatalogReference);
 				}
 			}
+			if (Battler.LastMoveId.IsValid()
+				&& Catalog.FindMove(Battler.LastMoveId) == nullptr
+				&& Battler.LastMoveId != FBattleBuiltInMoveDefinitions::GetStruggleMoveId())
+			{
+				return Fail(EBattleStateValidationError::MissingCatalogReference);
+			}
 			if ((Battler.HeldItem.OriginalItemId.IsValid()
 					&& Catalog.FindItem(Battler.HeldItem.OriginalItemId) == nullptr)
 				|| (Battler.HeldItem.CurrentItemId.IsValid()

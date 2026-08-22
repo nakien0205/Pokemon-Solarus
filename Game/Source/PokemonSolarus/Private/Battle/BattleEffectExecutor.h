@@ -50,6 +50,9 @@ struct FBattleEffectHookResult
 	TOptional<int64> NumericDelta;
 	bool bStateMutated = false;
 	bool bCapped = false;
+	bool bAffectsSubstitute = false;
+	bool bSubstituteBroken = false;
+	bool bDefersMove = false;
 };
 
 /** One ordered event-shaped record materialized by the engine after execution succeeds. */
@@ -101,6 +104,8 @@ struct FBattleEffectExecutionResult
 	TArray<int32> CompletedHitsPerDamageTarget;
 	TArray<FBattleEffectExecutionEvent> Events;
 	TArray<FBattleSwitchEffectIntent> SwitchIntents;
+	/** True when a first-turn charge was stored and the remaining move effects must wait. */
+	bool bMoveDeferred = false;
 };
 
 /**
@@ -153,6 +158,12 @@ public:
 
 	virtual bool IsSourceAbleToContinue() const = 0;
 	virtual bool IsTargetAbleToContinue(const FBattleResolvedTarget& Target) const = 0;
+	/** Allows a staged context to omit setup-only descriptors on a stored charge's release turn. */
+	virtual bool ShouldSkipEffectDescriptor(const FBattleMoveEffectDescriptor& Effect) const
+	{
+		(void)Effect;
+		return false;
+	}
 	virtual FBattleEffectHookResult CheckEffectEligibility(
 		const FBattleMoveEffectDescriptor& Effect,
 		const FBattleResolvedTarget& Target) = 0;

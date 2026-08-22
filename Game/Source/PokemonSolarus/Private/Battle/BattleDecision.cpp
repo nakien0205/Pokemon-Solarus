@@ -61,7 +61,7 @@ namespace
 	bool IsKnownUnavailableReason(const EBattleOptionUnavailableReason Value)
 	{
 		return Value >= EBattleOptionUnavailableReason::NoPP
-			&& Value <= EBattleOptionUnavailableReason::SwitchRestricted;
+			&& Value <= EBattleOptionUnavailableReason::Disabled;
 	}
 
 	bool IsUnavailableOptionValid(const FBattleUnavailableDecisionOption& Option)

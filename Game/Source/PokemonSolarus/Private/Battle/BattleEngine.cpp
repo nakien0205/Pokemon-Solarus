@@ -5,6 +5,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleStatCalculator.h"
 #include "Battle/BattleSwitching.h"
+#include "Battle/BattleVolatile.h"
 #include "Math/NumericLimits.h"
 
 namespace
@@ -175,6 +176,432 @@ namespace
 			return false;
 		}
 		DrainTriggerOutputs(State);
+		return true;
+	}
+
+	const FBattleConditionState* FindVolatile(
+		const FBattleBattlerState& Battler,
+		const FConditionId& VolatileId)
+	{
+		return Battler.Volatiles.FindByPredicate(
+			[&VolatileId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == VolatileId;
+			});
+	}
+
+	FBattleConditionState* FindMutableVolatile(
+		FBattleBattlerState& Battler,
+		const FConditionId& VolatileId)
+	{
+		return Battler.Volatiles.FindByPredicate(
+			[&VolatileId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == VolatileId;
+			});
+	}
+
+	bool HasVolatile(
+		const FBattleBattlerState& Battler,
+		const FConditionId& VolatileId)
+	{
+		return FindVolatile(Battler, VolatileId) != nullptr;
+	}
+
+	bool TryCleanupVolatileTriggers(
+		FBattleEngineState& State,
+		const FConditionId& VolatileId,
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		if (!FBattleVolatileRules::IsCanonical(VolatileId))
+		{
+			return true;
+		}
+		FBattleTriggerSubject Owner;
+		FBattleTriggerOperationContext Operation;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		if (!TryMakeBattlerTriggerSubject(BattlerId, Owner)
+			|| !TryTakeTriggerOperationContext(State, Operation)
+			|| !FBattleVolatileRules::TryCleanupTriggers(
+				State.TriggerFramework,
+				VolatileId,
+				Owner,
+				Reason,
+				Operation,
+				Error))
+		{
+			return false;
+		}
+		DrainTriggerOutputs(State);
+		return true;
+	}
+
+	bool TryCleanupAllOwnedVolatileTriggers(
+		FBattleEngineState& State,
+		const FBattleBattlerState& Battler,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		TArray<FConditionId> Ids;
+		for (const FBattleConditionState& Condition : Battler.Volatiles)
+		{
+			if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+			{
+				Ids.Add(Condition.ConditionId);
+			}
+		}
+		for (const FConditionId& Id : Ids)
+		{
+			if (!TryCleanupVolatileTriggers(State, Id, Battler.BattlerId, Reason))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool TryCleanupSourceDependentVolatiles(
+		FBattleEngineState& State,
+		const FBattlerId SourceBattlerId,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		for (FBattleBattlerState& Candidate : State.Battlers)
+		{
+			TArray<FConditionId> ToRemove;
+			for (const FBattleConditionState& Condition : Candidate.Volatiles)
+			{
+				if (Condition.SourceBattlerId == SourceBattlerId
+					&& (Condition.ConditionId == FBattleVolatileRules::GetPartialTrapId()
+						|| Condition.ConditionId == FBattleVolatileRules::GetTrapId()))
+				{
+					ToRemove.Add(Condition.ConditionId);
+				}
+			}
+			for (const FConditionId& Id : ToRemove)
+			{
+				if (!TryCleanupVolatileTriggers(State, Id, Candidate.BattlerId, Reason))
+				{
+					return false;
+				}
+				Candidate.Volatiles.RemoveAll(
+					[&Id](const FBattleConditionState& Condition)
+					{
+						return Condition.ConditionId == Id;
+					});
+			}
+		}
+		return true;
+	}
+
+	bool TrySetVolatileLayers(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FConditionId& VolatileId,
+		const int32 Layers)
+	{
+		FBattleTriggerOperationContext Operation;
+		if (Layers <= 0 || !TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		const TArray<FBattleTriggerRegistrationState> Registrations =
+			State.TriggerFramework.GetActiveRegistrations();
+		for (const FBattleTriggerRegistrationState& Registration : Registrations)
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+				&& !State.TriggerFramework.TryUpdateLayers(
+					Registration.RegistrationId,
+					Layers,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+		}
+		DrainTriggerOutputs(State);
+		return true;
+	}
+
+	bool TrySetVolatileSuppressed(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FConditionId& VolatileId,
+		const bool bSuppressed)
+	{
+		FBattleTriggerOperationContext Operation;
+		if (!TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		const TArray<FBattleTriggerRegistrationState> Registrations =
+			State.TriggerFramework.GetActiveRegistrations();
+		for (const FBattleTriggerRegistrationState& Registration : Registrations)
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId == VolatileId
+				&& !State.TriggerFramework.TrySetSuppressed(
+					Registration.RegistrationId,
+					bSuppressed,
+					Operation,
+					Error))
+			{
+				return false;
+			}
+		}
+		DrainTriggerOutputs(State);
+		return true;
+	}
+
+	bool IsVolatileSuppressed(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FConditionId& VolatileId)
+	{
+		bool bFound = false;
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId == VolatileId)
+			{
+				bFound = true;
+				if (!Registration.bSuppressed)
+				{
+					return false;
+				}
+			}
+		}
+		return bFound;
+	}
+
+	bool TryGetVolatilePayloadMoveId(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FConditionId& VolatileId,
+		FMoveId& OutMoveId)
+	{
+		OutMoveId = FMoveId();
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId == VolatileId)
+			{
+				return FMoveId::TryCreate(
+					Registration.Spec.Rule.PayloadId,
+					OutMoveId);
+			}
+		}
+		return false;
+	}
+
+	bool TryGetChargingTargetSlot(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		FActiveSlotId& OutTargetSlotId)
+	{
+		OutTargetSlotId = FActiveSlotId();
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId
+					== FBattleVolatileRules::GetChargingId())
+			{
+				const FBattleTriggerSubject* Target = Registration.Spec.Targets.FindByPredicate(
+					[](const FBattleTriggerSubject& Subject)
+					{
+						return Subject.Kind == EBattleTriggerSubjectKind::ActiveSlot;
+					});
+				if (Target != nullptr)
+				{
+					OutTargetSlotId = Target->ActiveSlotId;
+					return OutTargetSlotId.IsValid();
+				}
+			}
+		}
+		return false;
+	}
+
+	bool TryGetChargingTargetBattler(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		FBattlerId& OutTargetBattlerId)
+	{
+		OutTargetBattlerId = FBattlerId();
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& Registration.Spec.Owner.BattlerId == BattlerId
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Registration.Spec.SourceDefinition.ConditionId
+					== FBattleVolatileRules::GetChargingId())
+			{
+				const FBattleTriggerSubject* Target = Registration.Spec.Targets.FindByPredicate(
+					[](const FBattleTriggerSubject& Subject)
+					{
+						return Subject.Kind == EBattleTriggerSubjectKind::Battler;
+					});
+				if (Target != nullptr)
+				{
+					OutTargetBattlerId = Target->BattlerId;
+					return OutTargetBattlerId.IsValid();
+				}
+			}
+		}
+		return false;
+	}
+
+	bool IsReleasingCharge(
+		const FBattleEngineState& State,
+		const FBattleBattlerState& Battler,
+		const FMoveId MoveId)
+	{
+		FMoveId StoredMoveId;
+		return HasVolatile(Battler, FBattleVolatileRules::GetChargingId())
+			&& TryGetVolatilePayloadMoveId(
+				State,
+				Battler.BattlerId,
+				FBattleVolatileRules::GetChargingId(),
+				StoredMoveId)
+			&& StoredMoveId == MoveId;
+	}
+
+	bool TryClearChargeState(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+		if (Battler == nullptr)
+		{
+			return false;
+		}
+		for (const FConditionId& Id : {
+			FBattleVolatileRules::GetChargingId(),
+			FBattleVolatileRules::GetFlySemiInvulnerableId()})
+		{
+			if (!HasVolatile(*Battler, Id))
+			{
+				continue;
+			}
+			if (!TryCleanupVolatileTriggers(State, Id, BattlerId, Reason))
+			{
+				return false;
+			}
+			Battler->Volatiles.RemoveAll(
+				[&Id](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == Id;
+				});
+		}
+		return true;
+	}
+
+	bool TryDispatchBattlerVolatilePhase(
+		FBattleEngineState& State,
+		const FBattleBattlerState& Battler,
+		const EBattleTriggerPhase Phase,
+		const bool bTickDuration,
+		TArray<FBattleTriggerEffectRequest>& OutRequests,
+		TArray<FBattleTriggerLifecycleFact>& OutFacts,
+		const FConditionId FilterVolatileId = FConditionId())
+	{
+		OutRequests.Reset();
+		OutFacts.Reset();
+		FBattleTriggerSubject Owner;
+		if (!TryMakeBattlerTriggerSubject(Battler.BattlerId, Owner))
+		{
+			return false;
+		}
+		FBattleTriggerDispatchSpec Dispatch;
+		Dispatch.Phase = Phase;
+		if (bTickDuration)
+		{
+			Dispatch.DurationTickOwners.Add(Owner);
+		}
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Owner == Owner
+				&& Registration.Spec.Rule.Phase == Phase
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& FBattleVolatileRules::IsCanonical(
+					Registration.Spec.SourceDefinition.ConditionId)
+				&& (!FilterVolatileId.IsValid()
+					|| Registration.Spec.SourceDefinition.ConditionId == FilterVolatileId)
+				&& HasVolatile(
+					Battler,
+					Registration.Spec.SourceDefinition.ConditionId))
+			{
+				FBattleTriggerDispatchParticipant& Participant =
+					Dispatch.Participants.AddDefaulted_GetRef();
+				Participant.RegistrationId = Registration.RegistrationId;
+				const FBattleActivePositionState* Active = State.ActivePositions.FindByPredicate(
+					[&Battler](const FBattleActivePositionState& Position)
+					{
+						return Position.BattlerId == Battler.BattlerId;
+					});
+				if (Active != nullptr)
+				{
+					Participant.ActiveSlotId = Active->ActiveSlotId;
+				}
+			}
+		}
+		if (Dispatch.Participants.IsEmpty())
+		{
+			return true;
+		}
+		FBattleTriggerOperationContext Operation;
+		if (!TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+		Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		FBattleTriggerDispatchResult Result;
+		if (!State.TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+			|| !State.TriggerFramework.TryResolveNextDispatch(Result, Error))
+		{
+			return false;
+		}
+		State.TriggerFramework.DrainEffectRequests(OutRequests);
+		State.TriggerFramework.DrainLifecycleFacts(OutFacts);
+		if (Result.bQueuedExpiryDispatch)
+		{
+			FBattleTriggerDispatchResult ExpiryResult;
+			if (!State.TriggerFramework.TryResolveNextDispatch(ExpiryResult, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+			TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+			State.TriggerFramework.DrainEffectRequests(ExpiryRequests);
+			State.TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+			OutRequests.Append(MoveTemp(ExpiryRequests));
+			OutFacts.Append(MoveTemp(ExpiryFacts));
+		}
 		return true;
 	}
 
@@ -906,6 +1333,49 @@ namespace
 		{
 			Spec.Blockers.EncounterPolicyRuleId = GetWildOpponentSwitchRestrictionRuleId();
 		}
+		if (Kind == EBattleSwitchKind::Voluntary && Battler != nullptr)
+		{
+			const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
+				Battler->SpeciesFormId);
+			if (Species == nullptr)
+			{
+				return false;
+			}
+			for (const FBattleConditionState& Condition : Battler->Volatiles)
+			{
+				if (Condition.ConditionId != FBattleVolatileRules::GetPartialTrapId()
+					&& Condition.ConditionId != FBattleVolatileRules::GetTrapId())
+				{
+					continue;
+				}
+				const FBattleBattlerState* Source = State.FindBattler(
+					Condition.SourceBattlerId);
+				const FBattleActivePositionState* SourceActive = Source != nullptr
+					? State.ActivePositions.FindByPredicate(
+						[Source](const FBattleActivePositionState& Position)
+						{
+							return Position.BattlerId == Source->BattlerId;
+						})
+					: nullptr;
+				const bool bSourceActiveAndLiving = Source != nullptr
+					&& SourceActive != nullptr
+					&& Source->CurrentHP > 0
+					&& !Source->bFainted
+					&& !Source->bCaptured
+					&& !Source->bRemoved;
+				if (FBattleVolatileRules::ShouldBlockVoluntarySwitch(
+						Condition.ConditionId,
+						Species->PrimaryType,
+						Species->SecondaryType,
+						bSourceActiveAndLiving,
+						true))
+				{
+					Spec.Blockers.bTrapped = true;
+					Spec.Blockers.TrappingRuleId = Condition.ConditionId.GetDefinitionId();
+					break;
+				}
+			}
+		}
 
 		Spec.Candidates.Reserve(Trainer->PartySlots.Num());
 		for (const FBattlePartySlotState& PartySlot : Trainer->PartySlots)
@@ -998,6 +1468,17 @@ namespace
 		{
 			return false;
 		}
+		if (!TryCleanupAllOwnedVolatileTriggers(
+				State,
+				*Outgoing,
+				EBattleTriggerCleanupReason::Switch)
+			|| !TryCleanupSourceDependentVolatiles(
+				State,
+				Outgoing->BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		{
+			return false;
+		}
 
 		OutOutgoingTarget.TrainerId = Outgoing->TrainerId;
 		OutOutgoingTarget.BattlerId = Outgoing->BattlerId;
@@ -1007,6 +1488,7 @@ namespace
 		OutIncomingTarget.ActiveSlotId = Active->ActiveSlotId;
 		Outgoing->Stages = FBattleStatStages();
 		Outgoing->Volatiles.Reset();
+		Outgoing->LastMoveId = FMoveId();
 		Active->BattlerId = Incoming->BattlerId;
 		return true;
 	}
@@ -1225,11 +1707,36 @@ namespace
 				{
 					const FBattleActivePositionState* Target = State.FindActivePosition(
 						Decision.GetActiveTargetId());
-					if (Target == nullptr || !Target->BattlerId.IsValid())
+					if (Target == nullptr)
 					{
 						return false;
 					}
-					Candidate.SelectedTargetBattlerId = Target->BattlerId;
+					if (Target->BattlerId.IsValid())
+					{
+						Candidate.SelectedTargetBattlerId = Target->BattlerId;
+					}
+					else
+					{
+						FMoveId StoredChargeMoveId;
+						FBattlerId StoredTargetBattlerId;
+						if (!HasVolatile(
+								*Battler,
+								FBattleVolatileRules::GetChargingId())
+							|| !TryGetVolatilePayloadMoveId(
+								State,
+								Battler->BattlerId,
+								FBattleVolatileRules::GetChargingId(),
+								StoredChargeMoveId)
+							|| StoredChargeMoveId != MoveId
+							|| !TryGetChargingTargetBattler(
+								State,
+								Battler->BattlerId,
+								StoredTargetBattlerId))
+						{
+							return false;
+						}
+						Candidate.SelectedTargetBattlerId = StoredTargetBattlerId;
+					}
 				}
 			}
 			LockSpec.Candidates.Add(MoveTemp(Candidate));
@@ -1585,6 +2092,95 @@ namespace
 		return true;
 	}
 
+	int32 GetMoveCurrentPP(
+		const FBattleBattlerState& Battler,
+		const FMoveId MoveId)
+	{
+		if (!MoveId.IsValid())
+		{
+			return 0;
+		}
+		if (MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId())
+		{
+			return 1;
+		}
+		const FBattleMoveSlotState* Slot = Battler.Moves.FindByPredicate(
+			[MoveId](const FBattleMoveSlotState& Candidate)
+			{
+				return Candidate.MoveId == MoveId;
+			});
+		return Slot != nullptr ? Slot->CurrentPP : 0;
+	}
+
+	bool TryResolveVolatileMoveGate(
+		const FBattleEngineState& State,
+		const FBattleBattlerState& Battler,
+		const FBattleMoveDefinition& SelectedMove,
+		const bool bNoUsableOrdinaryMove,
+		FBattleVolatileMoveGateResult& OutResult)
+	{
+		FBattleVolatileMoveGateFacts Facts;
+		Facts.SelectedMoveId = SelectedMove.Id;
+		Facts.SelectedMoveCategory = SelectedMove.Category;
+		Facts.bSelectedMoveIsStruggle = SelectedMove.Id
+			== FBattleBuiltInMoveDefinitions::GetStruggleMoveId();
+		Facts.bNoUsableOrdinaryMove = bNoUsableOrdinaryMove;
+		Facts.bTauntActive = HasVolatile(Battler, FBattleVolatileRules::GetTauntId());
+
+		FMoveId EncoreMoveId;
+		if (HasVolatile(Battler, FBattleVolatileRules::GetEncoreId())
+			&& TryGetVolatilePayloadMoveId(
+				State,
+				Battler.BattlerId,
+				FBattleVolatileRules::GetEncoreId(),
+				EncoreMoveId))
+		{
+			Facts.EncoreMoveId = EncoreMoveId;
+			Facts.bEncoreMoveStillValid = State.Catalog.FindMove(EncoreMoveId) != nullptr
+				&& Battler.Moves.ContainsByPredicate(
+					[EncoreMoveId](const FBattleMoveSlotState& Slot)
+					{
+						return Slot.MoveId == EncoreMoveId;
+					});
+			Facts.EncoreMoveCurrentPP = GetMoveCurrentPP(Battler, EncoreMoveId);
+		}
+
+		FMoveId DisabledMoveId;
+		if (HasVolatile(Battler, FBattleVolatileRules::GetDisableId())
+			&& TryGetVolatilePayloadMoveId(
+				State,
+				Battler.BattlerId,
+				FBattleVolatileRules::GetDisableId(),
+				DisabledMoveId))
+		{
+			Facts.DisabledMoveId = DisabledMoveId;
+			Facts.bDisabledMoveStillValid = State.Catalog.FindMove(DisabledMoveId) != nullptr
+				&& Battler.Moves.ContainsByPredicate(
+					[DisabledMoveId](const FBattleMoveSlotState& Slot)
+					{
+						return Slot.MoveId == DisabledMoveId;
+					});
+			Facts.DisabledMoveCurrentPP = GetMoveCurrentPP(Battler, DisabledMoveId);
+		}
+		return FBattleVolatileRules::TryResolveMoveGate(Facts, OutResult);
+	}
+
+	EBattleOptionUnavailableReason ToUnavailableReason(
+		const EBattleVolatileMoveGateOutcome Outcome)
+	{
+		switch (Outcome)
+		{
+		case EBattleVolatileMoveGateOutcome::Taunted:
+			return EBattleOptionUnavailableReason::Taunted;
+		case EBattleVolatileMoveGateOutcome::EncoreLocked:
+			return EBattleOptionUnavailableReason::Encored;
+		case EBattleVolatileMoveGateOutcome::Disabled:
+			return EBattleOptionUnavailableReason::Disabled;
+		default:
+			return EBattleOptionUnavailableReason::Removed;
+		}
+	}
+
 	bool TryBuildDecisionRequest(
 		const FBattleEngineState& State,
 		const FBattleDecisionActorState& Actor,
@@ -1631,6 +2227,26 @@ namespace
 			if (Move.CurrentPP <= 0)
 			{
 				AddUnavailableMove(Spec, Move.MoveId, EBattleOptionUnavailableReason::NoPP);
+				continue;
+			}
+			FBattleVolatileMoveGateResult MoveGate;
+			if (!TryResolveVolatileMoveGate(
+					State,
+					*Battler,
+					*Definition,
+					false,
+					MoveGate))
+			{
+				OutRejection = FBattleRejection();
+				OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+				return false;
+			}
+			if (MoveGate.Outcome != EBattleVolatileMoveGateOutcome::Allowed)
+			{
+				AddUnavailableMove(
+					Spec,
+					Move.MoveId,
+					ToUnavailableReason(MoveGate.Outcome));
 				continue;
 			}
 			bool bHasLegalTarget = false;
@@ -3152,6 +3768,12 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 	}
 
 	check(ExistingAction != nullptr && Battler != nullptr && Trainer != nullptr);
+	const bool bChargedFight = ExistingAction->Decision.GetActionKind()
+			== EBattleActionKind::Fight
+		&& IsReleasingCharge(
+			*State,
+			*Battler,
+			ExistingAction->Decision.GetMoveId());
 	const FBattleActivePositionState* Active = State->FindActivePosition(
 		ExistingAction->OrderKey.ActingSlotId);
 	const FBattleBattlerState* SelectedTarget = ExistingAction->SelectedTargetBattlerId.IsValid()
@@ -3191,6 +3813,72 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 			FallbackSource);
 	}
 
+	bool bRechargeDeniedAction = false;
+	if (StartResult.Outcome == EBattleActionStartOutcome::Proceed
+		&& HasVolatile(*Battler, FBattleVolatileRules::GetRechargeId()))
+	{
+		const FBattleTriggerFramework FrameworkBeforeGate = State->TriggerFramework;
+		const uint64 TriggerTokenBeforeGate = State->NextTriggerReentrancyToken;
+		const TArray<FBattleConditionState> VolatilesBeforeGate = Battler->Volatiles;
+		TArray<FBattleTriggerEffectRequest> Requests;
+		TArray<FBattleTriggerLifecycleFact> FactsAtGate;
+		FBattleVolatileActionResult Gate;
+		bool bGateValid = TryDispatchBattlerVolatilePhase(
+			*State,
+			*Battler,
+			EBattleTriggerPhase::BeforeAction,
+			false,
+			Requests,
+			FactsAtGate,
+			FBattleVolatileRules::GetRechargeId())
+			&& Requests.Num() == 1
+			&& FactsAtGate.IsEmpty()
+			&& Requests[0].SourceDefinition.Kind
+				== EBattleTriggerSourceDefinitionKind::Condition
+			&& Requests[0].SourceDefinition.ConditionId
+				== FBattleVolatileRules::GetRechargeId()
+			&& FBattleVolatileRules::TryResolveSimpleBeforeAction(
+				FBattleVolatileRules::GetRechargeId(),
+				Gate)
+			&& Gate.Outcome == EBattleVolatileActionOutcome::Denied
+			&& Gate.bRemoveVolatile;
+		FBattleBattlerState* MutableBattler = State->FindMutableBattler(Battler->BattlerId);
+		bGateValid = bGateValid
+			&& MutableBattler != nullptr
+			&& TryCleanupVolatileTriggers(
+				*State,
+				FBattleVolatileRules::GetRechargeId(),
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+		if (bGateValid)
+		{
+			bGateValid = MutableBattler->Volatiles.RemoveAll(
+				[](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == FBattleVolatileRules::GetRechargeId();
+				}) == 1;
+		}
+		if (!bGateValid)
+		{
+			State->TriggerFramework = FrameworkBeforeGate;
+			State->NextTriggerReentrancyToken = TriggerTokenBeforeGate;
+			if (MutableBattler != nullptr)
+			{
+				MutableBattler->Volatiles = VolatilesBeforeGate;
+			}
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Rule,
+				ActionKind,
+				FallbackSource);
+		}
+		bRechargeDeniedAction = true;
+	}
+
 	const uint64 BeforeStateVersion = State->StateVersion;
 	FBattleLockedActionState& Action = State->LockedActions[State->CurrentLockedActionIndex];
 	FBattleTrainerState* MutableTrainer = State->FindMutableTrainer(Trainer->TrainerId);
@@ -3198,7 +3886,56 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 	--MutableTrainer->ActionAllowance.RemainingActions;
 
 	TArray<FBattleEvent> Events;
-	if (StartResult.Outcome == EBattleActionStartOutcome::Proceed)
+	if (bRechargeDeniedAction)
+	{
+		Action.bStarted = true;
+		Action.bFinished = true;
+		State->Phase = EBattlePhase::Resolving;
+		if (bChargedFight)
+		{
+			const bool bChargeCleared = TryClearChargeState(
+				*State,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bChargeCleared);
+		}
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionStarted,
+			EBattleEventCause::Action));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::StatusChanged,
+			EBattleEventCause::Rule,
+			static_cast<int64>(1),
+			static_cast<int64>(0),
+			static_cast<int64>(-1)));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::EffectPrevented,
+			EBattleEventCause::Rule));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Rule));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, Action, Events);
+	}
+	else if (StartResult.Outcome == EBattleActionStartOutcome::Proceed)
 	{
 		Action.bStarted = true;
 		State->Phase = EBattlePhase::Resolving;
@@ -3271,6 +4008,14 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 			EBattleEventCause::Action));
 		++State->CurrentLockedActionIndex;
 		AppendPostActionBoundaryEvents(*State, ResolutionId, Action, Events);
+	}
+	if (StartResult.Outcome != EBattleActionStartOutcome::Proceed && bChargedFight)
+	{
+		const bool bChargeCleared = TryClearChargeState(
+			*State,
+			Battler->BattlerId,
+			EBattleTriggerCleanupReason::Removal);
+		check(bChargeCleared);
 	}
 
 	++State->StateVersion;
@@ -3497,6 +4242,10 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 	}
 
 	check(Action != nullptr && Battler != nullptr && Move != nullptr);
+	const bool bReleasingCharge = IsReleasingCharge(
+		*State,
+		*Battler,
+		Move->Id);
 	const uint64 BeforeStateVersion = State->StateVersion;
 	TArray<FBattleEvent> Events;
 	bool bStatusDeniedAction = false;
@@ -3631,6 +4380,14 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 	}
 	if (bStatusDeniedAction)
 	{
+		if (bReleasingCharge)
+		{
+			const bool bChargeCleared = TryClearChargeState(
+				*State,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bChargeCleared);
+		}
 		Action->bFinished = true;
 		Events.Add(MakeActionDetailEvent(
 			*State,
@@ -3668,7 +4425,416 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		State->AppendResolution(Resolution);
 		return Resolution;
 	}
-	if (!bStruggle && (MoveSlot == nullptr || MoveSlot->CurrentPP <= 0))
+
+	const FBattleTriggerFramework VolatileFrameworkBeforeGate = State->TriggerFramework;
+	const uint64 VolatileTokenBeforeGate = State->NextTriggerReentrancyToken;
+	const TArray<FBattleConditionState> VolatilesBeforeGate = Battler->Volatiles;
+	TArray<FBattleTriggerEffectRequest> VolatileRequests;
+	TArray<FBattleTriggerLifecycleFact> VolatileFacts;
+	bool bVolatileGateValid = TryDispatchBattlerVolatilePhase(
+		*State,
+		*Battler,
+		EBattleTriggerPhase::BeforeAction,
+		true,
+		VolatileRequests,
+		VolatileFacts);
+	bool bVolatileDeniedAction = false;
+	bool bConfusionSelfHit = false;
+	bool bVolatileRemoved = false;
+
+	auto RemoveVolatile = [&](const FConditionId& VolatileId)
+	{
+		if (!TryCleanupVolatileTriggers(
+				*State,
+				VolatileId,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		{
+			return false;
+		}
+		Battler->Volatiles.RemoveAll(
+			[&VolatileId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == VolatileId;
+			});
+		bVolatileRemoved = true;
+		return true;
+	};
+
+	if (bVolatileGateValid)
+	{
+		for (const FBattleTriggerLifecycleFact& Fact : VolatileFacts)
+		{
+			if (Fact.Kind == EBattleTriggerLifecycleFactKind::Ended
+				&& Fact.EndReason.IsSet()
+				&& Fact.EndReason.GetValue() == EBattleTriggerEndReason::Expired
+				&& Fact.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& Fact.SourceDefinition.ConditionId
+					== FBattleVolatileRules::GetConfusionId())
+			{
+				bVolatileGateValid = RemoveVolatile(
+					FBattleVolatileRules::GetConfusionId());
+				break;
+			}
+		}
+	}
+
+	for (const FBattleTriggerEffectRequest& Request : VolatileRequests)
+	{
+		if (!bVolatileGateValid || bVolatileDeniedAction)
+		{
+			break;
+		}
+		if (Request.SourceDefinition.Kind
+			!= EBattleTriggerSourceDefinitionKind::Condition)
+		{
+			bVolatileGateValid = false;
+			break;
+		}
+		const FConditionId VolatileId = Request.SourceDefinition.ConditionId;
+		if (VolatileId == FBattleVolatileRules::GetConfusionId())
+		{
+			FBattleConditionState* Confusion = FindMutableVolatile(*Battler, VolatileId);
+			if (Confusion == nullptr || !Confusion->RemainingTurns.IsSet())
+			{
+				bVolatileGateValid = false;
+				break;
+			}
+			FBattleRandomContext RandomContext;
+			RandomContext.BattleId = State->Setup.GetBattleId();
+			RandomContext.TurnId = State->TurnId;
+			RandomContext.ActionId = Action->ActionId;
+			RandomContext.ResolutionId = ResolutionId;
+			RandomContext.RulePurpose = FBattleVolatileRules::GetConfusionActionGatePurpose();
+			FBattleVolatileActionResult Gate;
+			bVolatileGateValid = FBattleVolatileRules::TryResolveConfusionBeforeAction(
+				Confusion->RemainingTurns.GetValue(),
+				RandomContext,
+				*State->Random,
+				Gate)
+				&& Request.RemainingTurns.IsSet()
+				&& Gate.RemainingTurns.IsSet()
+				&& Request.RemainingTurns.GetValue() == Gate.RemainingTurns.GetValue();
+			if (!bVolatileGateValid)
+			{
+				break;
+			}
+			Confusion->RemainingTurns = Gate.RemainingTurns;
+			if (Gate.bDrawConsumed)
+			{
+				Events.Add(MakeActionDetailEvent(
+					*State,
+					ResolutionId,
+					*Action,
+					EBattleEventType::RandomCheck,
+					EBattleEventCause::Rule,
+					static_cast<int64>(Gate.Draw.InclusiveMinimum),
+					static_cast<int64>(Gate.Draw.Result),
+					static_cast<int64>(Gate.Draw.InclusiveMaximum)));
+			}
+			bConfusionSelfHit = Gate.Outcome
+				== EBattleVolatileActionOutcome::ConfusionSelfHit;
+			bVolatileDeniedAction = bConfusionSelfHit;
+		}
+		else if (VolatileId == FBattleVolatileRules::GetFlinchId()
+			|| VolatileId == FBattleVolatileRules::GetRechargeId())
+		{
+			FBattleVolatileActionResult Gate;
+			bVolatileGateValid = FBattleVolatileRules::TryResolveSimpleBeforeAction(
+				VolatileId,
+				Gate)
+				&& Gate.bRemoveVolatile
+				&& RemoveVolatile(VolatileId);
+			bVolatileDeniedAction = bVolatileGateValid;
+		}
+		else if (VolatileId == FBattleVolatileRules::GetTauntId()
+			|| VolatileId == FBattleVolatileRules::GetEncoreId()
+			|| VolatileId == FBattleVolatileRules::GetDisableId())
+		{
+			FBattleVolatileMoveGateResult Gate;
+			bVolatileGateValid = TryResolveVolatileMoveGate(
+				*State,
+				*Battler,
+				*Move,
+				bStruggle,
+				Gate);
+			if (!bVolatileGateValid)
+			{
+				break;
+			}
+			if (Gate.bEndEncore
+				&& HasVolatile(*Battler, FBattleVolatileRules::GetEncoreId()))
+			{
+				bVolatileGateValid = RemoveVolatile(
+					FBattleVolatileRules::GetEncoreId());
+			}
+			if (bVolatileGateValid
+				&& Gate.bEndDisable
+				&& HasVolatile(*Battler, FBattleVolatileRules::GetDisableId()))
+			{
+				bVolatileGateValid = RemoveVolatile(
+					FBattleVolatileRules::GetDisableId());
+			}
+			bVolatileDeniedAction = bVolatileGateValid
+				&& Gate.Outcome != EBattleVolatileMoveGateOutcome::Allowed;
+		}
+	}
+
+	if (!bVolatileGateValid)
+	{
+		State->TriggerFramework = VolatileFrameworkBeforeGate;
+		State->NextTriggerReentrancyToken = VolatileTokenBeforeGate;
+		Battler->Volatiles = VolatilesBeforeGate;
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Rule,
+			EBattleActionKind::Fight,
+			FallbackSource);
+	}
+	if (bVolatileRemoved)
+	{
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::StatusChanged,
+			EBattleEventCause::Rule,
+			static_cast<int64>(1),
+			static_cast<int64>(0),
+			static_cast<int64>(-1)));
+	}
+
+	FBattleFaintOutcomeResolution ConfusionFaintResolution;
+	if (bConfusionSelfHit)
+	{
+		FBattleFinalDamageInput DamageInput;
+		DamageInput.AttackerLevel = Battler->Level;
+		DamageInput.AttackerStats = Battler->PermanentStats;
+		DamageInput.DefenderStats = Battler->PermanentStats;
+		DamageInput.AttackerStages = Battler->Stages;
+		DamageInput.DefenderStages = Battler->Stages;
+		DamageInput.MoveCategory = EBattleMoveCategory::Physical;
+		DamageInput.MovePower = FBattleVolatileRules::GetConfusionSelfHitBasePower();
+		DamageInput.bAttackerBurned = FBattleMajorStatusRules::ShouldApplyBurnPhysicalPenalty(
+			Battler->MajorStatusId,
+			EBattleMoveCategory::Physical,
+			false);
+		DamageInput.bBypassTypeImmunity = true;
+		DamageInput.WeatherModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+		DamageInput.StabModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
+		DamageInput.TypeEffectiveness = {1, 1};
+		DamageInput.RandomContext.BattleId = State->Setup.GetBattleId();
+		DamageInput.RandomContext.TurnId = State->TurnId;
+		DamageInput.RandomContext.ActionId = Action->ActionId;
+		DamageInput.RandomContext.ResolutionId = ResolutionId;
+		DamageInput.RandomContext.RulePurpose =
+			FBattleVolatileRules::GetConfusionSelfHitDamagePurpose();
+		FBattleFinalDamageResult DamageResult;
+		EBattleDamageCalculationError DamageError = EBattleDamageCalculationError::None;
+		if (!FBattleFinalDamageCalculator::TryCalculateFinalDamage(
+				DamageInput,
+				*State->Random,
+				DamageResult,
+				DamageError)
+			|| DamageResult.Outcome != EBattleDamageOutcome::Damage)
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Rule,
+				EBattleActionKind::Fight,
+				FallbackSource);
+		}
+		if (DamageResult.bRandomDrawConsumed)
+		{
+			Events.Add(MakeActionDetailEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::RandomCheck,
+				EBattleEventCause::Rule,
+				static_cast<int64>(DamageResult.RandomDraw.InclusiveMinimum),
+				static_cast<int64>(DamageResult.RandomDraw.Result),
+				static_cast<int64>(DamageResult.RandomDraw.InclusiveMaximum)));
+		}
+		const int32 PreviousHP = Battler->CurrentHP;
+		const int32 AppliedDamage = FMath::Min(PreviousHP, DamageResult.Damage);
+		Battler->CurrentHP -= AppliedDamage;
+		if (Battler->CurrentHP == 0)
+		{
+			Battler->bFainted = true;
+			Battler->bFaintTransitionPending = true;
+		}
+		FBattleEventTarget SelfTarget;
+		SelfTarget.TrainerId = Battler->TrainerId;
+		SelfTarget.BattlerId = Battler->BattlerId;
+		SelfTarget.ActiveSlotId = Action->OrderKey.ActingSlotId;
+		FBattleEffectExecutionResult EffectResult;
+		EffectResult.bValid = true;
+		for (const EBattleEventType Type : {EBattleEventType::Damage, EBattleEventType::HPChanged})
+		{
+			FBattleEffectExecutionEvent& Record = EffectResult.Events.AddDefaulted_GetRef();
+			Record.Type = Type;
+			Record.Cause = EBattleEventCause::Rule;
+			Record.Outcome = EBattleEffectExecutionOutcome::Applied;
+			Record.Targets.Add(SelfTarget);
+			Record.NumericBefore = PreviousHP;
+			Record.NumericAfter = Battler->CurrentHP;
+			Record.NumericDelta = -AppliedDamage;
+			Events.Add(MakeBattleEffectEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				Record,
+				TOptional<uint64>()));
+		}
+
+		if (Battler->bFaintTransitionPending)
+		{
+			const FConditionId PendingStatus = Battler->MajorStatusId;
+			TArray<FConditionId> PendingVolatiles;
+			for (const FBattleConditionState& Condition : Battler->Volatiles)
+			{
+				if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+				{
+					PendingVolatiles.Add(Condition.ConditionId);
+				}
+			}
+			Battler->LastMoveId = FMoveId();
+			const bool bSourceEffectsCleaned = TryCleanupSourceDependentVolatiles(
+				*State,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bSourceEffectsCleaned);
+			const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
+				EffectResult,
+				EBattleTargetClass::Self,
+				ResolutionId,
+				*State,
+				ConfusionFaintResolution);
+			check(bFaintsResolved);
+			if (FBattleMajorStatusRules::IsCanonical(PendingStatus))
+			{
+				const bool bCleaned = TryCleanupMajorStatusTriggers(
+					*State,
+					PendingStatus,
+					SelfTarget.BattlerId,
+					EBattleTriggerCleanupReason::Faint);
+				check(bCleaned);
+			}
+			for (const FConditionId& VolatileId : PendingVolatiles)
+			{
+				const bool bCleaned = TryCleanupVolatileTriggers(
+					*State,
+					VolatileId,
+					SelfTarget.BattlerId,
+					EBattleTriggerCleanupReason::Faint);
+				check(bCleaned);
+			}
+			for (const FBattleFaintTransitionRecord& Faint : ConfusionFaintResolution.Faints)
+			{
+				Events.Add(MakeTargetedActionEvent(
+					*State,
+					ResolutionId,
+					*Action,
+					EBattleEventType::Fainted,
+					EBattleEventCause::Rule,
+					Faint.Target));
+			}
+			for (const FBattleFaintTransitionRecord& Removal : ConfusionFaintResolution.Removals)
+			{
+				Events.Add(MakeTargetedActionEvent(
+					*State,
+					ResolutionId,
+					*Action,
+					EBattleEventType::LeftActiveSlot,
+					EBattleEventCause::Rule,
+					Removal.Target));
+				Events.Add(MakeTargetedActionEvent(
+					*State,
+					ResolutionId,
+					*Action,
+					EBattleEventType::Removed,
+					EBattleEventCause::Rule,
+					Removal.Target));
+			}
+			if (ConfusionFaintResolution.bBattleEnded)
+			{
+				const bool bBattleEndCleaned = TryCleanupBattleEndTriggers(*State);
+				check(bBattleEndCleaned);
+			}
+		}
+	}
+
+	if (bVolatileDeniedAction)
+	{
+		if (bReleasingCharge)
+		{
+			const bool bChargeCleared = TryClearChargeState(
+				*State,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bChargeCleared);
+		}
+		Action->bFinished = true;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::EffectPrevented,
+			EBattleEventCause::Rule));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Rule));
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+		if (ConfusionFaintResolution.bBattleEnded)
+		{
+			Events.Add(MakeBattleEndedEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				ConfusionFaintResolution.OutcomeCause));
+		}
+		else
+		{
+			AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+		}
+		++State->StateVersion;
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State->StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(
+			ResolutionSpec,
+			Resolution);
+		check(bResolutionCreated);
+		State->AppendResolution(Resolution);
+		return Resolution;
+	}
+	if (!bStruggle
+		&& !bReleasingCharge
+		&& (MoveSlot == nullptr || MoveSlot->CurrentPP <= 0))
 	{
 		Action->bFinished = true;
 		Events.Add(MakeActionDetailEvent(
@@ -3700,7 +4866,7 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		return Resolution;
 	}
 
-	if (MoveSlot != nullptr)
+	if (MoveSlot != nullptr && !bReleasingCharge)
 	{
 		const int32 PreviousPP = MoveSlot->CurrentPP;
 		--MoveSlot->CurrentPP;
@@ -3720,6 +4886,7 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		*Action,
 		EBattleEventType::MoveUsed,
 		EBattleEventCause::Move));
+	Battler->LastMoveId = Move->Id;
 	Action->bMoveCommitted = true;
 	++State->StateVersion;
 
@@ -3875,6 +5042,17 @@ FBattleResolution FBattleEngine::ResolveCurrentMoveTargets()
 		TargetResolution));
 	if (TargetResolution.Outcome == EBattleTargetResolutionOutcome::NoLegalTarget)
 	{
+		if (IsReleasingCharge(
+				*State,
+				*User,
+				Action->Decision.GetMoveId()))
+		{
+			const bool bChargeCleared = TryClearChargeState(
+				*State,
+				User->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bChargeCleared);
+		}
 		Action->bFinished = true;
 		Events.Add(MakeActionDetailEvent(
 			*State,
@@ -3975,6 +5153,16 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 	}
 
 	check(Action != nullptr && User != nullptr && Move != nullptr);
+	FMoveId StoredChargeMoveId;
+	const bool bWasChargedRelease = HasVolatile(
+			*User,
+			FBattleVolatileRules::GetChargingId())
+		&& TryGetVolatilePayloadMoveId(
+			*State,
+			User->BattlerId,
+			FBattleVolatileRules::GetChargingId(),
+			StoredChargeMoveId)
+		&& StoredChargeMoveId == Move->Id;
 	Action->EffectExecutionState = EBattleLockedEffectExecutionState::Executing;
 
 	FBattleEffectExecutionRequest Request;
@@ -4009,16 +5197,50 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 			EBattleActionKind::Fight,
 			FallbackSource);
 	}
+	if (bWasChargedRelease)
+	{
+		const bool bChargeCleared = TryClearChargeState(
+			*State,
+			User->BattlerId,
+			EBattleTriggerCleanupReason::Removal);
+		check(bChargeCleared);
+	}
 
 	const uint64 BeforeStateVersion = State->StateVersion;
 	TMap<FBattlerId, FConditionId> PendingFaintStatuses;
+	TMap<FBattlerId, TArray<FConditionId>> PendingFaintVolatiles;
 	for (const FBattleBattlerState& Candidate : State->Battlers)
 	{
-		if (Candidate.bFaintTransitionPending
-			&& FBattleMajorStatusRules::IsCanonical(Candidate.MajorStatusId))
+		if (!Candidate.bFaintTransitionPending)
+		{
+			continue;
+		}
+		if (FBattleMajorStatusRules::IsCanonical(Candidate.MajorStatusId))
 		{
 			PendingFaintStatuses.Add(Candidate.BattlerId, Candidate.MajorStatusId);
 		}
+		TArray<FConditionId>& VolatileIds = PendingFaintVolatiles.FindOrAdd(
+			Candidate.BattlerId);
+		for (const FBattleConditionState& Condition : Candidate.Volatiles)
+		{
+			if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+			{
+				VolatileIds.Add(Condition.ConditionId);
+			}
+		}
+	}
+	for (const TPair<FBattlerId, TArray<FConditionId>>& Pending : PendingFaintVolatiles)
+	{
+		FBattleBattlerState* PendingBattler = State->FindMutableBattler(Pending.Key);
+		if (PendingBattler != nullptr)
+		{
+			PendingBattler->LastMoveId = FMoveId();
+		}
+		const bool bSourceEffectsCleaned = TryCleanupSourceDependentVolatiles(
+			*State,
+			Pending.Key,
+			EBattleTriggerCleanupReason::Removal);
+		check(bSourceEffectsCleaned);
 	}
 	FBattleFaintOutcomeResolution FaintResolution;
 	const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
@@ -4045,6 +5267,19 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				Removal.Target.BattlerId,
 				EBattleTriggerCleanupReason::Faint);
 			check(bCleaned);
+		}
+		if (const TArray<FConditionId>* VolatileIds = PendingFaintVolatiles.Find(
+			Removal.Target.BattlerId))
+		{
+			for (const FConditionId& VolatileId : *VolatileIds)
+			{
+				const bool bCleaned = TryCleanupVolatileTriggers(
+					*State,
+					VolatileId,
+					Removal.Target.BattlerId,
+					EBattleTriggerCleanupReason::Faint);
+				check(bCleaned);
+			}
 		}
 	}
 	if (FaintResolution.bBattleEnded)
@@ -4277,6 +5512,18 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 
 	if (!State->bEndTurnTriggerPassComplete)
 	{
+		TSet<FBattlerId> SuppressedProtectAtStart;
+		for (const FBattleBattlerState& Battler : State->Battlers)
+		{
+			if (HasVolatile(Battler, FBattleVolatileRules::GetProtectId())
+				&& IsVolatileSuppressed(
+					*State,
+					Battler.BattlerId,
+					FBattleVolatileRules::GetProtectId()))
+			{
+				SuppressedProtectAtStart.Add(Battler.BattlerId);
+			}
+		}
 		FBattleTriggerDispatchSpec Dispatch;
 		Dispatch.Phase = EBattleTriggerPhase::EndTurn;
 		for (const FBattleTriggerRegistrationState& Registration :
@@ -4292,15 +5539,20 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			const FBattleActivePositionState* Active = Battler != nullptr
 				? FindActiveForBattler(*State, Battler->BattlerId)
 				: nullptr;
+			const bool bSourceMatchesBattler = Battler != nullptr
+				&& Registration.Spec.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Condition
+				&& (Registration.Spec.SourceDefinition.ConditionId == Battler->MajorStatusId
+					|| HasVolatile(
+						*Battler,
+						Registration.Spec.SourceDefinition.ConditionId));
 			if (Battler == nullptr
 				|| Active == nullptr
 				|| Battler->CurrentHP <= 0
 				|| Battler->bFainted
 				|| Battler->bCaptured
 				|| Battler->bRemoved
-				|| Registration.Spec.SourceDefinition.Kind
-					!= EBattleTriggerSourceDefinitionKind::Condition
-				|| Registration.Spec.SourceDefinition.ConditionId != Battler->MajorStatusId)
+				|| !bSourceMatchesBattler)
 			{
 				continue;
 			}
@@ -4308,9 +5560,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				Dispatch.Participants.AddDefaulted_GetRef();
 			Participant.RegistrationId = Registration.RegistrationId;
 			Participant.ActiveSlotId = Active->ActiveSlotId;
+			if (!Dispatch.DurationTickOwners.Contains(Registration.Spec.Owner))
+			{
+				Dispatch.DurationTickOwners.Add(Registration.Spec.Owner);
+			}
 		}
 
 		TArray<FBattleTriggerEffectRequest> ResidualRequests;
+		TArray<FBattleTriggerLifecycleFact> ResidualLifecycleFacts;
 		FBattleTriggerOperationContext ResidualOperation;
 		if (!Dispatch.Participants.IsEmpty())
 		{
@@ -4329,9 +5586,226 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					TriggerError);
 			check(bDispatched);
 			State->TriggerFramework.DrainEffectRequests(ResidualRequests);
-			TArray<FBattleTriggerLifecycleFact> InitialFacts;
-			State->TriggerFramework.DrainLifecycleFacts(InitialFacts);
+			State->TriggerFramework.DrainLifecycleFacts(ResidualLifecycleFacts);
+			if (DispatchResult.bQueuedExpiryDispatch)
+			{
+				FBattleTriggerDispatchResult ExpiryResult;
+				const bool bExpiryResolved = State->TriggerFramework.TryResolveNextDispatch(
+					ExpiryResult,
+					TriggerError);
+				check(bExpiryResolved);
+				TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+				TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+				State->TriggerFramework.DrainEffectRequests(ExpiryRequests);
+				State->TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+				ResidualRequests.Append(MoveTemp(ExpiryRequests));
+				ResidualLifecycleFacts.Append(MoveTemp(ExpiryFacts));
+			}
 		}
+
+		auto ApplyVolatileResidual = [
+			this,
+			&Events,
+			&ResolutionId](
+			FBattleBattlerState& TargetBattler,
+			const FBattleActivePositionState& TargetActive,
+			const FConditionId& ConditionId,
+			const int32 Damage,
+			FBattleBattlerState* HealRecipient,
+			const FBattleActivePositionState* HealActive,
+			const int32 HealAmount)
+		{
+			const int32 PreviousHP = TargetBattler.CurrentHP;
+			const int32 AppliedDamage = FMath::Min(PreviousHP, Damage);
+			TargetBattler.CurrentHP -= AppliedDamage;
+			if (TargetBattler.CurrentHP == 0)
+			{
+				TargetBattler.bFainted = true;
+				TargetBattler.bFaintTransitionPending = true;
+			}
+
+			FBattleEventSource Source;
+			Source.TrainerId = TargetBattler.TrainerId;
+			Source.BattlerId = TargetBattler.BattlerId;
+			Source.ActiveSlotId = TargetActive.ActiveSlotId;
+			Source.DefinitionId = ConditionId.GetDefinitionId();
+			FBattleEventTarget Target;
+			Target.TrainerId = TargetBattler.TrainerId;
+			Target.BattlerId = TargetBattler.BattlerId;
+			Target.ActiveSlotId = TargetActive.ActiveSlotId;
+			Events.Add(MakeResidualMutationEvent(
+				*State,
+				ResolutionId,
+				EBattleEventType::Damage,
+				Source,
+				Target,
+				PreviousHP,
+				TargetBattler.CurrentHP,
+				-AppliedDamage));
+			Events.Add(MakeResidualMutationEvent(
+				*State,
+				ResolutionId,
+				EBattleEventType::HPChanged,
+				Source,
+				Target,
+				PreviousHP,
+				TargetBattler.CurrentHP,
+				-AppliedDamage));
+
+			FBattleEffectExecutionResult EffectResult;
+			EffectResult.bValid = true;
+			for (const EBattleEventType Type : {
+				EBattleEventType::Damage,
+				EBattleEventType::HPChanged})
+			{
+				FBattleEffectExecutionEvent& Record =
+					EffectResult.Events.AddDefaulted_GetRef();
+				Record.Type = Type;
+				Record.Cause = EBattleEventCause::Rule;
+				Record.Outcome = EBattleEffectExecutionOutcome::Applied;
+				Record.Targets.Add(Target);
+				Record.NumericBefore = PreviousHP;
+				Record.NumericAfter = TargetBattler.CurrentHP;
+				Record.NumericDelta = -AppliedDamage;
+			}
+
+			const FConditionId PendingStatus = TargetBattler.MajorStatusId;
+			TArray<FConditionId> PendingVolatiles;
+			for (const FBattleConditionState& Condition : TargetBattler.Volatiles)
+			{
+				if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+				{
+					PendingVolatiles.Add(Condition.ConditionId);
+				}
+			}
+			if (TargetBattler.bFaintTransitionPending)
+			{
+				TargetBattler.LastMoveId = FMoveId();
+				const bool bSourceEffectsCleaned = TryCleanupSourceDependentVolatiles(
+					*State,
+					TargetBattler.BattlerId,
+					EBattleTriggerCleanupReason::Removal);
+				check(bSourceEffectsCleaned);
+			}
+
+			FBattleFaintOutcomeResolution FaintResolution;
+			const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
+				EffectResult,
+				EBattleTargetClass::SelectedOpponent,
+				ResolutionId,
+				*State,
+				FaintResolution);
+			check(bFaintsResolved);
+			if (!FaintResolution.Removals.IsEmpty())
+			{
+				if (FBattleMajorStatusRules::IsCanonical(PendingStatus))
+				{
+					const bool bCleaned = TryCleanupMajorStatusTriggers(
+						*State,
+						PendingStatus,
+						Target.BattlerId,
+						EBattleTriggerCleanupReason::Faint);
+					check(bCleaned);
+				}
+				for (const FConditionId& VolatileId : PendingVolatiles)
+				{
+					const bool bCleaned = TryCleanupVolatileTriggers(
+						*State,
+						VolatileId,
+						Target.BattlerId,
+						EBattleTriggerCleanupReason::Faint);
+					check(bCleaned);
+				}
+			}
+			for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
+			{
+				Events.Add(MakeTargetedActionlessEvent(
+					*State,
+					ResolutionId,
+					EBattleEventType::Fainted,
+					EBattleEventCause::Rule,
+					EBattleActionKind::Residual,
+					Source,
+					Faint.Target));
+			}
+			for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
+			{
+				Events.Add(MakeTargetedActionlessEvent(
+					*State,
+					ResolutionId,
+					EBattleEventType::LeftActiveSlot,
+					EBattleEventCause::Rule,
+					EBattleActionKind::Residual,
+					Source,
+					Removal.Target));
+				Events.Add(MakeTargetedActionlessEvent(
+					*State,
+					ResolutionId,
+					EBattleEventType::Removed,
+					EBattleEventCause::Rule,
+					EBattleActionKind::Residual,
+					Source,
+					Removal.Target));
+				if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
+				{
+					FBattleEvent Checkpoint = MakeTargetedActionlessEvent(
+						*State,
+						ResolutionId,
+						EBattleEventType::OpponentRemovalCheckpoint,
+						EBattleEventCause::Rule,
+						EBattleActionKind::Residual,
+						Source,
+						Removal.Target);
+					State->AvailableOpponentRemovalCheckpoints.Add(
+						Checkpoint.GetEventOrdinal());
+					Events.Add(MoveTemp(Checkpoint));
+				}
+			}
+			if (HealRecipient != nullptr && HealActive != nullptr && HealAmount > 0)
+			{
+				const int32 PreviousRecipientHP = HealRecipient->CurrentHP;
+				const int32 AppliedHeal = FMath::Min(
+					HealAmount,
+					HealRecipient->PermanentStats.MaxHP - HealRecipient->CurrentHP);
+				HealRecipient->CurrentHP += AppliedHeal;
+				FBattleEventTarget RecipientTarget;
+				RecipientTarget.TrainerId = HealRecipient->TrainerId;
+				RecipientTarget.BattlerId = HealRecipient->BattlerId;
+				RecipientTarget.ActiveSlotId = HealActive->ActiveSlotId;
+				Events.Add(MakeResidualMutationEvent(
+					*State,
+					ResolutionId,
+					EBattleEventType::Healing,
+					Source,
+					RecipientTarget,
+					PreviousRecipientHP,
+					HealRecipient->CurrentHP,
+					AppliedHeal));
+				Events.Add(MakeResidualMutationEvent(
+					*State,
+					ResolutionId,
+					EBattleEventType::HPChanged,
+					Source,
+					RecipientTarget,
+					PreviousRecipientHP,
+					HealRecipient->CurrentHP,
+					AppliedHeal));
+			}
+			if (FaintResolution.bBattleEnded)
+			{
+				Events.Add(MakeEvent(
+					*State,
+					ResolutionId,
+					FActionId(),
+					EBattleEventType::BattleEnded,
+					EBattleEventCause::Outcome,
+					EBattleActionKind::Residual,
+					FaintResolution.OutcomeCause,
+					Source));
+				return false;
+			}
+			return true;
+		};
 
 		for (const FBattleTriggerEffectRequest& Request : ResidualRequests)
 		{
@@ -4347,14 +5821,157 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				? FindActiveForBattler(*State, Battler->BattlerId)
 				: nullptr;
 			const FConditionId StatusId = Request.SourceDefinition.ConditionId;
+			const bool bMajorStatusRequest = Battler != nullptr
+				&& Battler->MajorStatusId == StatusId
+				&& FBattleMajorStatusRules::IsCanonical(StatusId);
+			const bool bVolatileRequest = Battler != nullptr
+				&& HasVolatile(*Battler, StatusId)
+				&& FBattleVolatileRules::IsCanonical(StatusId);
 			if (Battler == nullptr
 				|| Active == nullptr
-				|| Battler->MajorStatusId != StatusId
+				|| (!bMajorStatusRequest && !bVolatileRequest)
 				|| Battler->CurrentHP <= 0
 				|| Battler->bFainted
 				|| Battler->bCaptured
 				|| Battler->bRemoved)
 			{
+				continue;
+			}
+			if (bVolatileRequest)
+			{
+				FBattleConditionState* Condition = FindMutableVolatile(*Battler, StatusId);
+				check(Condition != nullptr);
+				if (Request.RemainingTurns.IsSet())
+				{
+					Condition->RemainingTurns = Request.RemainingTurns;
+				}
+
+				auto RemoveCurrentVolatile = [&]()
+				{
+					const bool bCleaned = TryCleanupVolatileTriggers(
+						*State,
+						StatusId,
+						Battler->BattlerId,
+						EBattleTriggerCleanupReason::Removal);
+					check(bCleaned);
+					Battler->Volatiles.RemoveAll(
+						[&StatusId](const FBattleConditionState& Candidate)
+						{
+							return Candidate.ConditionId == StatusId;
+						});
+				};
+
+				if (StatusId == FBattleVolatileRules::GetLeechSeedId())
+				{
+					const FBattleActivePositionState* SourceActive =
+						Request.Source.Kind == EBattleTriggerSubjectKind::ActiveSlot
+						? State->FindActivePosition(Request.Source.ActiveSlotId)
+						: nullptr;
+					FBattleBattlerState* Recipient = SourceActive != nullptr
+						? State->FindMutableBattler(SourceActive->BattlerId)
+						: nullptr;
+					const bool bLivingRecipient = Recipient != nullptr
+						&& Recipient->CurrentHP > 0
+						&& !Recipient->bFainted
+						&& !Recipient->bCaptured
+						&& !Recipient->bRemoved;
+					FBattleLeechSeedResidualFacts Facts;
+					Facts.TargetBaseMaximumHP = Battler->PermanentStats.MaxHP;
+					Facts.TargetCurrentHP = Battler->CurrentHP;
+					Facts.bSourceSlotHasLivingRecipient = bLivingRecipient;
+					Facts.RecipientMissingHP = bLivingRecipient
+						? Recipient->PermanentStats.MaxHP - Recipient->CurrentHP
+						: 0;
+					FBattleLeechSeedResidualResult Residual;
+					const bool bResolved = FBattleVolatileRules::TryResolveLeechSeedResidual(
+						Facts,
+						Residual);
+					check(bResolved);
+					if (Residual.bApplies
+						&& !ApplyVolatileResidual(
+							*Battler,
+							*Active,
+							StatusId,
+							Residual.RequestedDamage,
+							bLivingRecipient ? Recipient : nullptr,
+							bLivingRecipient ? SourceActive : nullptr,
+							Residual.Heal))
+					{
+						break;
+					}
+				}
+				else if (StatusId == FBattleVolatileRules::GetPartialTrapId())
+				{
+					const FBattleBattlerState* SourceBattler =
+						Request.Source.Kind == EBattleTriggerSubjectKind::Battler
+						? State->FindBattler(Request.Source.BattlerId)
+						: nullptr;
+					const FBattleActivePositionState* SourceActive = SourceBattler != nullptr
+						? FindActiveForBattler(*State, SourceBattler->BattlerId)
+						: nullptr;
+					FBattlePartialTrapResidualFacts Facts;
+					Facts.TargetBaseMaximumHP = Battler->PermanentStats.MaxHP;
+					Facts.TargetCurrentHP = Battler->CurrentHP;
+					Facts.bBindingSourceActiveAndLiving = SourceBattler != nullptr
+						&& SourceActive != nullptr
+						&& SourceBattler->CurrentHP > 0
+						&& !SourceBattler->bFainted
+						&& !SourceBattler->bCaptured
+						&& !SourceBattler->bRemoved;
+					FBattlePartialTrapResidualResult Residual;
+					const bool bResolved = FBattleVolatileRules::TryResolvePartialTrapResidual(
+						Facts,
+						Residual);
+					check(bResolved);
+					if (Residual.bEndsEarly)
+					{
+						RemoveCurrentVolatile();
+					}
+					else if (Residual.bAppliesDamage
+						&& !ApplyVolatileResidual(
+							*Battler,
+							*Active,
+							StatusId,
+							Residual.RequestedDamage,
+							nullptr,
+							nullptr,
+							0))
+					{
+						break;
+					}
+				}
+				else if (StatusId == FBattleVolatileRules::GetFlinchId())
+				{
+					RemoveCurrentVolatile();
+				}
+				else if (StatusId == FBattleVolatileRules::GetProtectId())
+				{
+					const bool bSuppressed = TrySetVolatileSuppressed(
+						*State,
+						Battler->BattlerId,
+						StatusId,
+						true);
+					check(bSuppressed);
+				}
+				else if (StatusId == FBattleVolatileRules::GetEncoreId()
+					|| StatusId == FBattleVolatileRules::GetDisableId())
+				{
+					FMoveId LockedMoveId;
+					const bool bPayloadValid = FMoveId::TryCreate(
+						Request.PayloadId,
+						LockedMoveId)
+						&& State->Catalog.FindMove(LockedMoveId) != nullptr
+						&& Battler->Moves.ContainsByPredicate(
+							[LockedMoveId](const FBattleMoveSlotState& Slot)
+							{
+								return Slot.MoveId == LockedMoveId
+									&& Slot.CurrentPP > 0;
+							});
+					if (!bPayloadValid)
+					{
+						RemoveCurrentVolatile();
+					}
+				}
 				continue;
 			}
 
@@ -4434,6 +6051,23 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			HpRecord.NumericBefore = PreviousHP;
 			HpRecord.NumericAfter = Battler->CurrentHP;
 			HpRecord.NumericDelta = -AppliedDamage;
+			TArray<FConditionId> PendingVolatileIds;
+			if (Battler->bFaintTransitionPending)
+			{
+				for (const FBattleConditionState& Condition : Battler->Volatiles)
+				{
+					if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+					{
+						PendingVolatileIds.Add(Condition.ConditionId);
+					}
+				}
+				Battler->LastMoveId = FMoveId();
+				const bool bSourceEffectsCleaned = TryCleanupSourceDependentVolatiles(
+					*State,
+					Battler->BattlerId,
+					EBattleTriggerCleanupReason::Removal);
+				check(bSourceEffectsCleaned);
+			}
 
 			FBattleFaintOutcomeResolution FaintResolution;
 			const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
@@ -4451,6 +6085,15 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					Target.BattlerId,
 					EBattleTriggerCleanupReason::Faint);
 				check(bCleaned);
+				for (const FConditionId& VolatileId : PendingVolatileIds)
+				{
+					const bool bVolatileCleaned = TryCleanupVolatileTriggers(
+						*State,
+						VolatileId,
+						Target.BattlerId,
+						EBattleTriggerCleanupReason::Faint);
+					check(bVolatileCleaned);
+				}
 			}
 			for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
 			{
@@ -4509,6 +6152,57 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					Source));
 				break;
 			}
+		}
+		for (const FBattleTriggerLifecycleFact& Fact : ResidualLifecycleFacts)
+		{
+			if (Fact.Kind != EBattleTriggerLifecycleFactKind::Ended
+				|| !Fact.EndReason.IsSet()
+				|| Fact.EndReason.GetValue() != EBattleTriggerEndReason::Expired
+				|| Fact.Owner.Kind != EBattleTriggerSubjectKind::Battler
+				|| Fact.SourceDefinition.Kind
+					!= EBattleTriggerSourceDefinitionKind::Condition
+				|| !FBattleVolatileRules::IsCanonical(
+					Fact.SourceDefinition.ConditionId))
+			{
+				continue;
+			}
+			FBattleBattlerState* Owner = State->FindMutableBattler(Fact.Owner.BattlerId);
+			if (Owner == nullptr
+				|| !HasVolatile(*Owner, Fact.SourceDefinition.ConditionId))
+			{
+				continue;
+			}
+			const bool bCleaned = TryCleanupVolatileTriggers(
+				*State,
+				Fact.SourceDefinition.ConditionId,
+				Owner->BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bCleaned);
+			Owner->Volatiles.RemoveAll(
+				[&Fact](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == Fact.SourceDefinition.ConditionId;
+				});
+		}
+		for (const FBattlerId BattlerId : SuppressedProtectAtStart)
+		{
+			FBattleBattlerState* Owner = State->FindMutableBattler(BattlerId);
+			if (Owner == nullptr
+				|| !HasVolatile(*Owner, FBattleVolatileRules::GetProtectId()))
+			{
+				continue;
+			}
+			const bool bCleaned = TryCleanupVolatileTriggers(
+				*State,
+				FBattleVolatileRules::GetProtectId(),
+				BattlerId,
+				EBattleTriggerCleanupReason::Removal);
+			check(bCleaned);
+			Owner->Volatiles.RemoveAll(
+				[](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == FBattleVolatileRules::GetProtectId();
+				});
 		}
 		DrainTriggerOutputs(*State);
 		State->bEndTurnTriggerPassComplete = true;
@@ -4597,10 +6291,85 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 		State->PendingDecisionRequests.Reset();
 		State->PendingReplacements.Reset();
 		TArray<FBattleDecisionOwnerState> Sequence = BuildDecisionOwnerSequence(*State);
-		TArray<FBattleDecisionRequest> Requests;
-		FBattleRejection BuildRejection;
-		const bool bRequestsBuilt = !Sequence.IsEmpty()
-			&& TryBuildPendingRequests(
+		for (int32 OwnerIndex = Sequence.Num() - 1; OwnerIndex >= 0; --OwnerIndex)
+		{
+			FBattleDecisionOwnerState& Owner = Sequence[OwnerIndex];
+			for (int32 ActorIndex = Owner.Actors.Num() - 1; ActorIndex >= 0; --ActorIndex)
+			{
+				const FBattleDecisionActorState Actor = Owner.Actors[ActorIndex];
+				const FBattleBattlerState* Battler = State->FindBattler(Actor.BattlerId);
+				FMoveId ChargedMoveId;
+				if (Battler == nullptr
+					|| !HasVolatile(*Battler, FBattleVolatileRules::GetChargingId())
+					|| !TryGetVolatilePayloadMoveId(
+						*State,
+						Battler->BattlerId,
+						FBattleVolatileRules::GetChargingId(),
+						ChargedMoveId))
+				{
+					continue;
+				}
+				const FBattleMoveDefinition* ChargedMove = State->Catalog.FindMove(
+					ChargedMoveId);
+				FBattleDecision ForcedDecision;
+				bool bDecisionCreated = false;
+				if (ChargedMove != nullptr
+					&& IsBattleEngineExplicitTargetClass(ChargedMove->TargetClass))
+				{
+					FActiveSlotId TargetSlotId;
+					bDecisionCreated = TryGetChargingTargetSlot(
+						*State,
+						Battler->BattlerId,
+						TargetSlotId)
+						&& FBattleDecision::TryCreateFight(
+							AfterStateVersion,
+							Battler->TrainerId,
+							Battler->BattlerId,
+							ChargedMoveId,
+							TargetSlotId,
+							ForcedDecision);
+				}
+				else if (ChargedMove != nullptr)
+				{
+					bDecisionCreated = FBattleDecision::TryCreateAutomaticallyTargetedFight(
+						AfterStateVersion,
+						Battler->TrainerId,
+						Battler->BattlerId,
+						ChargedMoveId,
+						ForcedDecision);
+				}
+				check(bDecisionCreated);
+				State->AcceptedSelections.Add(MoveTemp(ForcedDecision));
+				Owner.Actors.RemoveAt(ActorIndex);
+			}
+			if (Owner.Actors.IsEmpty())
+			{
+				Sequence.RemoveAt(OwnerIndex);
+			}
+		}
+
+		if (Sequence.IsEmpty())
+		{
+			TArray<FBattleLockedActionState> NewLockedActions;
+			const bool bLocked = TryBuildLockedActions(
+				*State,
+				State->AcceptedSelections,
+				ResolutionId,
+				NewLockedActions);
+			check(bLocked && !NewLockedActions.IsEmpty());
+			State->LockedActions = MoveTemp(NewLockedActions);
+			State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
+			State->Phase = EBattlePhase::Locked;
+			for (const FBattleLockedActionState& Action : State->LockedActions)
+			{
+				Events.Add(MakeActionOrderLockedEvent(*State, ResolutionId, Action));
+			}
+		}
+		else
+		{
+			TArray<FBattleDecisionRequest> Requests;
+			FBattleRejection BuildRejection;
+			const bool bRequestsBuilt = TryBuildPendingRequests(
 				*State,
 				Sequence,
 				0,
@@ -4609,13 +6378,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				TConstArrayView<FBattleDecision>(),
 				Requests,
 				BuildRejection);
-		check(bRequestsBuilt && !Requests.IsEmpty());
-		State->DecisionOwnerSequence = MoveTemp(Sequence);
-		State->CurrentDecisionOwnerIndex = 0;
-		State->CurrentDecisionActorOffset = 0;
-		State->PendingDecisionRequests = MoveTemp(Requests);
-		State->PendingDecision = State->PendingDecisionRequests[0];
-		State->Phase = EBattlePhase::Selecting;
+			check(bRequestsBuilt && !Requests.IsEmpty());
+			State->DecisionOwnerSequence = MoveTemp(Sequence);
+			State->CurrentDecisionOwnerIndex = 0;
+			State->CurrentDecisionActorOffset = 0;
+			State->PendingDecisionRequests = MoveTemp(Requests);
+			State->PendingDecision = State->PendingDecisionRequests[0];
+			State->Phase = EBattlePhase::Selecting;
+		}
 		State->bEndTurnTriggerPassComplete = false;
 	}
 
