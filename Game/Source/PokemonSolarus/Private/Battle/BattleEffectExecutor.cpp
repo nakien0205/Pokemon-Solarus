@@ -1,5 +1,6 @@
 #include "Battle/BattleEffectExecutor.h"
 
+#include "Battle/BattleAbility.h"
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
@@ -775,6 +776,7 @@ namespace BattleEffectExecutorPrivate
 			, Field(InState.Field)
 			, Sides(InState.Sides)
 			, TriggerFramework(InState.TriggerFramework)
+			, AbilityItemRevealTracker(InState.AbilityItemRevealTracker)
 			, NextConditionCreationOrdinal(InState.NextConditionCreationOrdinal)
 			, NextTriggerReentrancyToken(InState.NextTriggerReentrancyToken)
 		{
@@ -787,6 +789,7 @@ namespace BattleEffectExecutorPrivate
 			State.Field = MoveTemp(Field);
 			State.Sides = MoveTemp(Sides);
 			State.TriggerFramework = MoveTemp(TriggerFramework);
+			State.AbilityItemRevealTracker = MoveTemp(AbilityItemRevealTracker);
 			State.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
 			State.NextTriggerReentrancyToken = NextTriggerReentrancyToken;
 		}
@@ -921,7 +924,10 @@ namespace BattleEffectExecutorPrivate
 						EBattleTriggerCleanupReason::Switch)
 					|| !TryCleanupSourceDependentVolatiles(
 						Outgoing->BattlerId,
-						EBattleTriggerCleanupReason::Removal))
+						EBattleTriggerCleanupReason::Removal)
+					|| !TryCleanupAbilityHooks(
+						*Outgoing,
+						EBattleTriggerCleanupReason::Switch))
 				{
 					OutError = EBattleEffectExecutorError::InvalidHookResult;
 					return false;
@@ -929,8 +935,13 @@ namespace BattleEffectExecutorPrivate
 				Outgoing->Stages = FBattleStatStages();
 				Outgoing->Volatiles.Reset();
 				Outgoing->LastMoveId = FMoveId();
+				Outgoing->bAbilitySuppressed = false;
+				Outgoing->EnteredActiveOnTurnId = FTurnId();
 				Active->BattlerId = Incoming->BattlerId;
-				if (!TryApplyEntryHazards(*Incoming, *Active))
+				Incoming->bAbilitySuppressed = false;
+				Incoming->EnteredActiveOnTurnId = Request.TurnId;
+				if (!TryRegisterAbilityHooks(*Incoming, *Active)
+					|| !TryApplyEntryHazards(*Incoming, *Active))
 				{
 					OutError = EBattleEffectExecutorError::InvalidHookResult;
 					return false;
@@ -1128,7 +1139,13 @@ namespace BattleEffectExecutorPrivate
 				const FBattleBattlerState* TargetBattler = FindBattler(
 					Target.GetBattler().BattlerId);
 				bool bTargetGrounded = false;
-				if (TargetBattler == nullptr || !TryIsGrounded(*TargetBattler, bTargetGrounded))
+				bool bLevitateMadeAirborne = false;
+				if (TargetBattler == nullptr
+					|| !TryIsGrounded(
+						*TargetBattler,
+						bTargetGrounded,
+						ShouldIgnoreLevitateForCurrentMove(*TargetBattler),
+						&bLevitateMadeAirborne))
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
@@ -1156,15 +1173,31 @@ namespace BattleEffectExecutorPrivate
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
-				if (bTerrainTriggerActive
+				const bool bBlockedByTerrain = bTerrainTriggerActive
 					&& FBattleFieldSideConditionRules::ShouldPsychicTerrainBlockMove(
 						TerrainId,
 						Target.GetBattler().ActiveSlotId.GetSide() != Request.UserSlotId.GetSide(),
 						bTargetGrounded,
 						IntegerPriority,
-						FractionalPriorityTenths))
+						FractionalPriorityTenths);
+				if (bBlockedByTerrain)
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Blocked);
+				}
+				if (bLevitateMadeAirborne
+					&& bTerrainTriggerActive
+					&& FBattleFieldSideConditionRules::ShouldPsychicTerrainBlockMove(
+						TerrainId,
+						Target.GetBattler().ActiveSlotId.GetSide() != Request.UserSlotId.GetSide(),
+						true,
+						IntegerPriority,
+						FractionalPriorityTenths)
+					&& !TryRecordLevitateGroundedActivation(
+						*TargetBattler,
+						EBattleTriggerPhase::BeforeHit,
+						EBattleAbilityItemHookPoint::TypeImmunity))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
 			}
 			return Applied();
@@ -1183,9 +1216,86 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
-			(void)Target;
-			return Applied();
+			if (Target.GetKind() != EBattleResolvedTargetKind::Battler
+				|| Move.Type != EPokemonType::Ground
+				|| EnumHasAllFlags(Move.Flags, EBattleMoveFlags::TypelessDamage))
+			{
+				return Applied();
+			}
+
+			const FBattleBattlerState* User = FindBattler(Request.UserBattlerId);
+			const FBattleBattlerState* Defender = FindBattler(
+				Target.GetBattler().BattlerId);
+			if (User == nullptr || Defender == nullptr)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Defender->AbilityId != FBattleAbilityRules::GetLevitateId())
+			{
+				return Applied();
+			}
+
+			TArray<FBattleAbilityItemHookDefinition> DefenderHooks;
+			if (!FBattleAbilityRules::TryGetHookDefinitionsForPhase(
+					Defender->AbilityId,
+					EBattleTriggerPhase::BeforeHit,
+					DefenderHooks)
+				|| DefenderHooks.Num() != 1
+				|| DefenderHooks[0].HookPoint
+					!= EBattleAbilityItemHookPoint::TypeImmunity)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			const bool bIgnoredForMove =
+				FBattleAbilityRules::ShouldMoldBreakerIgnoreDefenderHookForMove(
+					User->AbilityId,
+					User->bAbilitySuppressed,
+					Defender->AbilityId,
+					DefenderHooks[0]);
+			if (!FBattleAbilityRules::ShouldLevitatePreventMove(
+					Defender->AbilityId,
+					Move.Type,
+					Defender->bAbilitySuppressed,
+					bIgnoredForMove))
+			{
+				if (bIgnoredForMove)
+				{
+					FBattleAbilityItemEffectRequest IgnoredRequest;
+					if (!TryGetAbilityEffectRequest(
+							*Defender,
+							EBattleTriggerPhase::BeforeHit,
+							EBattleAbilityItemHookPoint::TypeImmunity,
+							IgnoredRequest)
+						|| !TryRecordAbilityActivation(
+							IgnoredRequest,
+							EBattleAbilityItemActivationOutcome::Ignored,
+							*Defender))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+				}
+				return Applied();
+			}
+
+			FBattleAbilityItemEffectRequest AbilityRequest;
+			if (!TryGetAbilityEffectRequest(
+					*Defender,
+					EBattleTriggerPhase::BeforeHit,
+					EBattleAbilityItemHookPoint::TypeImmunity,
+					AbilityRequest)
+				|| !TryRecordAbilityActivation(
+					AbilityRequest,
+					EBattleAbilityItemActivationOutcome::Applied,
+					*Defender))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+
+			FBattleEffectHookResult Result = Outcome(
+				EBattleEffectExecutionOutcome::Immune);
+			Result.RuleId = Defender->AbilityId.GetDefinitionId();
+			return Result;
 		}
 
 		virtual FBattleEffectHookResult CheckItemImmunity(
@@ -1320,6 +1430,12 @@ namespace BattleEffectExecutorPrivate
 			{
 				return false;
 			}
+			int32& DamageInputBuildCount = DamageInputBuildCounts.FindOrAdd(
+				Target.GetBattler().BattlerId);
+			++DamageInputBuildCount;
+			// The first build is the pre-accuracy type-immunity probe. Every later
+			// build is an actual per-hit BeforeDamage checkpoint.
+			const bool bActualDamageBuild = DamageInputBuildCount > 1;
 
 			OutInput.AttackerLevel = User->Level;
 			OutInput.AttackerStats = User->PermanentStats;
@@ -1389,10 +1505,62 @@ namespace BattleEffectExecutorPrivate
 			OutInput.StabModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 			OutInput.TypeEffectiveness = {1, 1};
 
+			FBattleAbilityOffensiveStatFacts AbilityFacts;
+			AbilityFacts.AbilityId = User->AbilityId;
+			AbilityFacts.MoveType = Move.Type;
+			AbilityFacts.CurrentHP = User->CurrentHP;
+			AbilityFacts.BaseMaximumHP = User->PermanentStats.MaxHP;
+			AbilityFacts.bSuppressed = User->bAbilitySuppressed;
+			FBattleAbilityOffensiveStatResult AbilityResult;
+			const EBattleAbilityKind UserAbilityKind = FBattleAbilityRules::GetKind(
+				User->AbilityId);
+			if ((UserAbilityKind == EBattleAbilityKind::Blaze
+					|| UserAbilityKind == EBattleAbilityKind::Overgrow)
+				&& (!FBattleAbilityRules::TryEvaluateOffensiveStatModifier(
+						AbilityFacts,
+						AbilityResult)
+					|| !AbilityResult.bValid))
+			{
+				return false;
+			}
+			if (AbilityResult.bApplies)
+			{
+				OutInput.OffensiveStatModifiers.Add({
+					User->AbilityId.GetDefinitionId(),
+					AbilityResult.ModifierQ12,
+					false});
+				if (bActualDamageBuild)
+				{
+					FBattleAbilityItemEffectRequest AbilityRequest;
+					if (!TryGetAbilityEffectRequest(
+							*User,
+							EBattleTriggerPhase::BeforeDamage,
+							EBattleAbilityItemHookPoint::OffensiveStat,
+							AbilityRequest)
+						|| !TryRecordAbilityActivation(
+							AbilityRequest,
+							AbilityResult.Outcome,
+							*User))
+					{
+						return false;
+					}
+				}
+			}
+
 			bool bAttackerGrounded = false;
 			bool bDefenderGrounded = false;
-			if (!TryIsGrounded(*User, bAttackerGrounded)
-				|| !TryIsGrounded(*TargetBattler, bDefenderGrounded))
+			bool bAttackerLevitateMadeAirborne = false;
+			bool bDefenderLevitateMadeAirborne = false;
+			if (!TryIsGrounded(
+					*User,
+					bAttackerGrounded,
+					false,
+					&bAttackerLevitateMadeAirborne)
+				|| !TryIsGrounded(
+					*TargetBattler,
+					bDefenderGrounded,
+					ShouldIgnoreLevitateForCurrentMove(*TargetBattler),
+					&bDefenderLevitateMadeAirborne))
 			{
 				return false;
 			}
@@ -1456,6 +1624,8 @@ namespace BattleEffectExecutorPrivate
 			}
 			if (bTerrainTriggerActive)
 			{
+				bool bAttackerTerrainEffectSkippedByLevitate = false;
+				bool bDefenderTerrainEffectSkippedByLevitate = false;
 				int32 PowerModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 				if (!FBattleFieldSideConditionRules::TryGetTerrainPowerModifierQ12(
 						TerrainId,
@@ -1471,6 +1641,21 @@ namespace BattleEffectExecutorPrivate
 						TerrainId.GetDefinitionId(),
 						PowerModifierQ12,
 						false});
+				}
+				if (bAttackerLevitateMadeAirborne)
+				{
+					int32 GroundedPowerModifierQ12 =
+						FBattleFinalDamageCalculator::Q12Neutral;
+					if (!FBattleFieldSideConditionRules::TryGetTerrainPowerModifierQ12(
+							TerrainId,
+							Move.Type,
+							true,
+							GroundedPowerModifierQ12))
+					{
+						return false;
+					}
+					bAttackerTerrainEffectSkippedByLevitate =
+						GroundedPowerModifierQ12 != PowerModifierQ12;
 				}
 				int32 TerrainDamageModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;
 				if (!FBattleFieldSideConditionRules::TryGetTerrainFinalDamageModifierQ12(
@@ -1488,6 +1673,42 @@ namespace BattleEffectExecutorPrivate
 						TerrainId.GetDefinitionId(),
 						TerrainDamageModifierQ12,
 						false});
+				}
+				if (bDefenderLevitateMadeAirborne)
+				{
+					int32 GroundedDamageModifierQ12 =
+						FBattleFinalDamageCalculator::Q12Neutral;
+					if (!FBattleFieldSideConditionRules::TryGetTerrainFinalDamageModifierQ12(
+							TerrainId,
+							Move.Type,
+							true,
+							EnumHasAllFlags(
+								Move.Flags,
+								EBattleMoveFlags::ReducedByGrassyTerrain),
+							GroundedDamageModifierQ12))
+					{
+						return false;
+					}
+					bDefenderTerrainEffectSkippedByLevitate =
+						GroundedDamageModifierQ12 != TerrainDamageModifierQ12;
+				}
+				if (bActualDamageBuild
+					&& bAttackerTerrainEffectSkippedByLevitate
+					&& !TryRecordLevitateGroundedActivation(
+						*User,
+						EBattleTriggerPhase::BeforeHit,
+						EBattleAbilityItemHookPoint::TypeImmunity))
+				{
+					return false;
+				}
+				if (bActualDamageBuild
+					&& bDefenderTerrainEffectSkippedByLevitate
+					&& !TryRecordLevitateGroundedActivation(
+						*TargetBattler,
+						EBattleTriggerPhase::BeforeHit,
+						EBattleAbilityItemHookPoint::TypeImmunity))
+				{
+					return false;
 				}
 			}
 
@@ -1536,12 +1757,7 @@ namespace BattleEffectExecutorPrivate
 				false);
 			if (bBurnPenalty)
 			{
-				int32& BuildCount = DamageInputBuildCounts.FindOrAdd(
-					Target.GetBattler().BattlerId);
-				++BuildCount;
-				// The first build is the pre-accuracy type-immunity probe. Later builds
-				// are the actual per-hit BeforeDamage checkpoints.
-				if (BuildCount > 1)
+				if (bActualDamageBuild)
 				{
 					bool bEmitted = false;
 					if (!TryDispatchStatusPhase(
@@ -1690,7 +1906,12 @@ namespace BattleEffectExecutorPrivate
 						Facts.PrimaryType = Species->PrimaryType;
 						Facts.SecondaryType = Species->SecondaryType;
 						bool bTargetGrounded = false;
-						if (!TryIsGrounded(*Battler, bTargetGrounded))
+						bool bLevitateMadeAirborne = false;
+						if (!TryIsGrounded(
+							*Battler,
+							bTargetGrounded,
+							ShouldIgnoreLevitateForCurrentMove(*Battler),
+							&bLevitateMadeAirborne))
 						{
 							return Outcome(EBattleEffectExecutionOutcome::Failed);
 						}
@@ -1762,6 +1983,19 @@ namespace BattleEffectExecutorPrivate
 						}
 						if (Application.Outcome
 							!= EBattleMajorStatusApplicationOutcome::CanApply)
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
+						if (bLevitateMadeAirborne
+							&& bTerrainTriggerActive
+							&& FBattleFieldSideConditionRules::ShouldTerrainPreventMajorStatus(
+								TerrainId,
+								Effect.ConditionId,
+								true)
+							&& !TryRecordLevitateGroundedActivation(
+								*Battler,
+								EBattleTriggerPhase::BeforeHit,
+								EBattleAbilityItemHookPoint::TypeImmunity))
 						{
 							return Outcome(EBattleEffectExecutionOutcome::Failed);
 						}
@@ -2346,8 +2580,16 @@ namespace BattleEffectExecutorPrivate
 			return Result;
 		}
 
-		bool TryIsGrounded(const FBattleBattlerState& Battler, bool& bOutGrounded) const
+		bool TryIsGrounded(
+			const FBattleBattlerState& Battler,
+			bool& bOutGrounded,
+			const bool bAbilityIgnoredForMove = false,
+			bool* bOutLevitateMadeAirborne = nullptr) const
 		{
+			if (bOutLevitateMadeAirborne != nullptr)
+			{
+				*bOutLevitateMadeAirborne = false;
+			}
 			const FBattleSpeciesFormDefinition* Species = State.Catalog.FindSpeciesForm(
 				Battler.SpeciesFormId);
 			if (Species == nullptr)
@@ -2358,10 +2600,388 @@ namespace BattleEffectExecutorPrivate
 			FBattleGroundedFacts Facts;
 			Facts.PrimaryType = Species->PrimaryType;
 			Facts.SecondaryType = Species->SecondaryType;
+			Facts.bAbilityMakesAirborne = FBattleAbilityRules::IsLevitateAirborne(
+				Battler.AbilityId,
+				false,
+				bAbilityIgnoredForMove);
+			Facts.bAbilitySuppressed = Battler.bAbilitySuppressed;
 			Facts.bAirborneSemiInvulnerable = HasVolatile(
 				Battler,
 				FBattleVolatileRules::GetFlySemiInvulnerableId());
-			return FBattleFieldSideConditionRules::TryResolveGrounded(Facts, bOutGrounded);
+			if (!FBattleFieldSideConditionRules::TryResolveGrounded(Facts, bOutGrounded))
+			{
+				return false;
+			}
+			if (bOutLevitateMadeAirborne != nullptr && Facts.bAbilityMakesAirborne)
+			{
+				FBattleGroundedFacts WithoutLevitate = Facts;
+				WithoutLevitate.bAbilityMakesAirborne = false;
+				bool bGroundedWithoutLevitate = false;
+				if (!FBattleFieldSideConditionRules::TryResolveGrounded(
+						WithoutLevitate,
+						bGroundedWithoutLevitate))
+				{
+					return false;
+				}
+				*bOutLevitateMadeAirborne = bGroundedWithoutLevitate && !bOutGrounded;
+			}
+			return true;
+		}
+
+		bool ShouldIgnoreLevitateForCurrentMove(
+			const FBattleBattlerState& Defender) const
+		{
+			if (Defender.AbilityId != FBattleAbilityRules::GetLevitateId())
+			{
+				return false;
+			}
+			const FBattleBattlerState* User = FindBattler(Request.UserBattlerId);
+			TArray<FBattleAbilityItemHookDefinition> Hooks;
+			if (User == nullptr
+				|| !FBattleAbilityRules::TryGetHookDefinitionsForPhase(
+					Defender.AbilityId,
+					EBattleTriggerPhase::BeforeHit,
+					Hooks))
+			{
+				return false;
+			}
+			const FBattleAbilityItemHookDefinition* TypeImmunityHook =
+				Hooks.FindByPredicate(
+					[](const FBattleAbilityItemHookDefinition& Hook)
+					{
+						return Hook.HookPoint
+							== EBattleAbilityItemHookPoint::TypeImmunity;
+					});
+			return TypeImmunityHook != nullptr
+				&& FBattleAbilityRules::ShouldMoldBreakerIgnoreDefenderHookForMove(
+					User->AbilityId,
+					User->bAbilitySuppressed,
+					Defender.AbilityId,
+					*TypeImmunityHook);
+		}
+
+		bool TryCleanupAbilityHooks(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			if (!FBattleAbilityRules::IsCanonical(Battler.AbilityId))
+			{
+				return true;
+			}
+
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			FBattleTriggerOperationContext Operation;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateAbility(
+					Battler.AbilityId,
+					SourceDefinition)
+				|| !TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+
+			FBattleTriggerCleanupRequest Cleanup;
+			Cleanup.Reason = Reason;
+			Cleanup.AffectedOwners.Add(Owner);
+			Cleanup.SourceDefinitionFilter = SourceDefinition;
+			Cleanup.Context = Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!TriggerFramework.TryApplyCleanup(Cleanup, Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryRegisterAbilityHooks(
+			const FBattleBattlerState& Battler,
+			const FBattleActivePositionState& Active)
+		{
+			if (!FBattleAbilityRules::IsCanonical(Battler.AbilityId))
+			{
+				return true;
+			}
+			if (!Active.bAvailable
+				|| Active.BattlerId != Battler.BattlerId
+				|| Active.TrainerId != Battler.TrainerId
+				|| !TryCleanupAbilityHooks(
+					Battler,
+					EBattleTriggerCleanupReason::Removal))
+			{
+				return false;
+			}
+
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSubject Source;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Source))
+			{
+				return false;
+			}
+
+			FBattleAbilityRegistrationFacts Facts;
+			Facts.AbilityId = Battler.AbilityId;
+			Facts.Owner = Owner;
+			Facts.Source = Source;
+			Facts.bSuppressed = Battler.bAbilitySuppressed;
+			if (Battler.AbilityId == FBattleAbilityRules::GetIntimidateId())
+			{
+				TArray<const FBattleActivePositionState*> OpposingPositions;
+				for (const FBattleActivePositionState& Candidate : ActivePositions)
+				{
+					if (Candidate.bAvailable
+						&& Candidate.ActiveSlotId.GetSide()
+							!= Active.ActiveSlotId.GetSide())
+					{
+						OpposingPositions.Add(&Candidate);
+					}
+				}
+				OpposingPositions.Sort(
+					[](const FBattleActivePositionState& Left,
+						const FBattleActivePositionState& Right)
+					{
+						if (Left.ActiveSlotId.GetSide() != Right.ActiveSlotId.GetSide())
+						{
+							return static_cast<uint8>(Left.ActiveSlotId.GetSide())
+								< static_cast<uint8>(Right.ActiveSlotId.GetSide());
+						}
+						return static_cast<uint8>(Left.ActiveSlotId.GetPosition())
+							< static_cast<uint8>(Right.ActiveSlotId.GetPosition());
+					});
+				for (const FBattleActivePositionState* Position : OpposingPositions)
+				{
+					const FBattleBattlerState* TargetBattler = Position != nullptr
+						? FindBattler(Position->BattlerId)
+						: nullptr;
+					FBattleTriggerSubject Target;
+					if (TargetBattler == nullptr
+						|| TargetBattler->CurrentHP <= 0
+						|| TargetBattler->bFainted
+						|| TargetBattler->bCaptured
+						|| TargetBattler->bRemoved)
+					{
+						continue;
+					}
+					if (!FBattleTriggerSubject::TryCreateBattler(
+							TargetBattler->BattlerId,
+							Target))
+					{
+						return false;
+					}
+					Facts.Targets.Add(MoveTemp(Target));
+				}
+			}
+			else
+			{
+				Facts.Targets.Add(Owner);
+			}
+
+			EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+			if (!FBattleAbilityRules::TryRegisterHooks(
+					TriggerFramework,
+					Facts,
+					Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryDispatchAbilityPhase(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			TArray<FBattleTriggerEffectRequest>& OutRequests)
+		{
+			OutRequests.Reset();
+			if (!FBattleAbilityRules::IsCanonical(Battler.AbilityId))
+			{
+				return false;
+			}
+
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateAbility(
+					Battler.AbilityId,
+					SourceDefinition))
+			{
+				return false;
+			}
+
+			FBattleTriggerDispatchSpec Dispatch;
+			Dispatch.Phase = Phase;
+			const FBattleActivePositionState* Active = FindActiveForBattler(
+				Battler.BattlerId);
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (Registration.Spec.Owner == Owner
+					&& Registration.Spec.SourceDefinition == SourceDefinition
+					&& Registration.Spec.Rule.Phase == Phase)
+				{
+					FBattleTriggerDispatchParticipant& Participant =
+						Dispatch.Participants.AddDefaulted_GetRef();
+					Participant.RegistrationId = Registration.RegistrationId;
+					if (Active != nullptr)
+					{
+						Participant.ActiveSlotId = Active->ActiveSlotId;
+					}
+				}
+			}
+			if (Dispatch.Participants.IsEmpty())
+			{
+				return true;
+			}
+
+			FBattleTriggerOperationContext Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			FBattleTriggerDispatchResult Result;
+			if (!TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+			if (!TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+				|| !TriggerFramework.TryResolveNextDispatch(Result, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerLifecycleFact> Facts;
+			TriggerFramework.DrainEffectRequests(OutRequests);
+			TriggerFramework.DrainLifecycleFacts(Facts);
+			if (Result.bQueuedExpiryDispatch)
+			{
+				FBattleTriggerDispatchResult ExpiryResult;
+				if (!TriggerFramework.TryResolveNextDispatch(ExpiryResult, Error))
+				{
+					return false;
+				}
+				TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+				TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+				TriggerFramework.DrainEffectRequests(ExpiryRequests);
+				TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+				OutRequests.Append(MoveTemp(ExpiryRequests));
+			}
+			return true;
+		}
+
+		bool TryGetAbilityEffectRequest(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			const EBattleAbilityItemHookPoint HookPoint,
+			FBattleAbilityItemEffectRequest& OutRequest)
+		{
+			OutRequest = FBattleAbilityItemEffectRequest();
+			TArray<FBattleTriggerEffectRequest> Requests;
+			if (!TryDispatchAbilityPhase(Battler, Phase, Requests))
+			{
+				return false;
+			}
+
+			bool bFound = false;
+			for (const FBattleTriggerEffectRequest& TriggerRequest : Requests)
+			{
+				FBattleAbilityItemEffectRequest TypedRequest;
+				EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+				if (!FBattleAbilityRules::TryCreateTypedEffectRequest(
+						TriggerRequest,
+						TypedRequest,
+						Error))
+				{
+					return false;
+				}
+				if (TypedRequest.HookPoint == HookPoint)
+				{
+					if (bFound)
+					{
+						return false;
+					}
+					OutRequest = MoveTemp(TypedRequest);
+					bFound = true;
+				}
+			}
+			return bFound;
+		}
+
+		bool TryRecordAbilityActivation(
+			const FBattleAbilityItemEffectRequest& RequestToRecord,
+			const EBattleAbilityItemActivationOutcome Outcome,
+			const FBattleBattlerState& SourceBattler)
+		{
+			TOptional<FBattleAbilityItemActivationFact> Fact;
+			EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+			if (!AbilityItemRevealTracker.TryRecordActivation(
+					RequestToRecord,
+					Outcome,
+					Fact,
+					Error))
+			{
+				return false;
+			}
+			if (!Fact.IsSet())
+			{
+				return true;
+			}
+			if (ExecutionResult == nullptr
+				|| !Fact.GetValue().RevealedSourceDefinition.IsSet()
+				|| Fact.GetValue().RevealedSourceDefinition.GetValue().Kind
+					!= EBattleTriggerSourceDefinitionKind::Ability
+				|| Fact.GetValue().RevealedSourceDefinition.GetValue().AbilityId
+					!= SourceBattler.AbilityId)
+			{
+				return false;
+			}
+			const FBattleActivePositionState* Active = FindActiveForBattler(
+				SourceBattler.BattlerId);
+			if (Active == nullptr || !Active->bAvailable)
+			{
+				return false;
+			}
+
+			FBattleEventSource Source;
+			Source.TrainerId = SourceBattler.TrainerId;
+			Source.BattlerId = SourceBattler.BattlerId;
+			Source.ActiveSlotId = Active->ActiveSlotId;
+			Source.DefinitionId = SourceBattler.AbilityId.GetDefinitionId();
+			FBattleEventTarget Target;
+			Target.TrainerId = SourceBattler.TrainerId;
+			Target.BattlerId = SourceBattler.BattlerId;
+			Target.ActiveSlotId = Active->ActiveSlotId;
+
+			FBattleEffectExecutionEvent& Event =
+				ExecutionResult->Events.AddDefaulted_GetRef();
+			Event.Type = EBattleEventType::AbilityActivated;
+			Event.Cause = EBattleEventCause::Rule;
+			Event.Outcome = Outcome == EBattleAbilityItemActivationOutcome::Applied
+				? EBattleEffectExecutionOutcome::Applied
+				: EBattleEffectExecutionOutcome::Prevented;
+			Event.SourceOverride = MoveTemp(Source);
+			Event.Targets.Add(MoveTemp(Target));
+			Event.NumericBefore = Fact.GetValue().bFirstPublicReveal ? 0 : 1;
+			Event.NumericAfter = 1;
+			Event.NumericDelta = Fact.GetValue().bFirstPublicReveal ? 1 : 0;
+			return true;
+		}
+
+		bool TryRecordLevitateGroundedActivation(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			const EBattleAbilityItemHookPoint HookPoint)
+		{
+			FBattleAbilityItemEffectRequest AbilityRequest;
+			return Battler.AbilityId == FBattleAbilityRules::GetLevitateId()
+				&& TryGetAbilityEffectRequest(
+					Battler,
+					Phase,
+					HookPoint,
+					AbilityRequest)
+				&& TryRecordAbilityActivation(
+					AbilityRequest,
+					EBattleAbilityItemActivationOutcome::Applied,
+					Battler);
 		}
 
 		FBattleConditionState MakeCanonicalConditionState(
@@ -2695,7 +3315,12 @@ namespace BattleEffectExecutorPrivate
 				}
 
 				bool bGrounded = false;
-				if (!TryIsGrounded(Incoming, bGrounded))
+				bool bLevitateMadeAirborne = false;
+				if (!TryIsGrounded(
+						Incoming,
+						bGrounded,
+						false,
+						&bLevitateMadeAirborne))
 				{
 					return false;
 				}
@@ -2801,12 +3426,61 @@ namespace BattleEffectExecutorPrivate
 						false,
 						-1);
 				Facts.RockEffectiveness = RockEffectiveness;
+				const bool bDamagingHazardWouldApply =
+					(HazardId == FBattleFieldSideConditionRules::GetSpikesId()
+						&& bGrounded)
+					|| (HazardId
+							== FBattleFieldSideConditionRules::GetStealthRockId()
+						&& !RockEffectiveness.IsImmune());
+				Facts.bIndirectDamagePrevented = bDamagingHazardWouldApply
+					&& FBattleAbilityRules::ShouldMagicGuardPreventDamage(
+						Incoming.AbilityId,
+						EBattleHPChangeSourceKind::Condition,
+						Incoming.bAbilitySuppressed);
+				if (Facts.bIndirectDamagePrevented)
+				{
+					FBattleAbilityItemEffectRequest AbilityRequest;
+					if (!TryGetAbilityEffectRequest(
+							Incoming,
+							EBattleTriggerPhase::SwitchIn,
+							EBattleAbilityItemHookPoint::FinalDamage,
+							AbilityRequest)
+						|| !TryRecordAbilityActivation(
+							AbilityRequest,
+							EBattleAbilityItemActivationOutcome::Applied,
+							Incoming))
+					{
+						return false;
+					}
+				}
 				FBattleHazardSwitchInResult HazardResult;
 				if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
 					Facts,
 					HazardResult))
 				{
 					return false;
+				}
+				if (bLevitateMadeAirborne)
+				{
+					FBattleHazardSwitchInFacts GroundedFacts = Facts;
+					GroundedFacts.bGrounded = true;
+					FBattleHazardSwitchInResult GroundedResult;
+					if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
+							GroundedFacts,
+							GroundedResult))
+					{
+						return false;
+					}
+					if (HazardResult.EffectKind == EBattleHazardSwitchInEffectKind::None
+						&& GroundedResult.EffectKind
+							!= EBattleHazardSwitchInEffectKind::None
+						&& !TryRecordLevitateGroundedActivation(
+							Incoming,
+							EBattleTriggerPhase::SwitchIn,
+							EBattleAbilityItemHookPoint::SwitchIn))
+					{
+						return false;
+					}
 				}
 
 				FBattleResolvedTarget ResolvedIncoming;
@@ -3350,7 +4024,12 @@ namespace BattleEffectExecutorPrivate
 			Facts.bAlreadyPresent = HasVolatile(Battler, Effect.ConditionId);
 			Facts.PrimaryType = Species->PrimaryType;
 			Facts.SecondaryType = Species->SecondaryType;
-			if (!TryIsGrounded(Battler, Facts.bTargetGrounded))
+			bool bLevitateMadeAirborne = false;
+			if (!TryIsGrounded(
+					Battler,
+					Facts.bTargetGrounded,
+					ShouldIgnoreLevitateForCurrentMove(Battler),
+					&bLevitateMadeAirborne))
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
@@ -3412,6 +4091,19 @@ namespace BattleEffectExecutorPrivate
 				return Outcome(EBattleEffectExecutionOutcome::Prevented);
 			}
 			if (Application.Outcome != EBattleVolatileApplicationOutcome::CanApply)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Kind == EBattleVolatileKind::Confusion
+				&& bLevitateMadeAirborne
+				&& bTerrainTriggerActive
+				&& FBattleFieldSideConditionRules::ShouldTerrainPreventConfusion(
+					TerrainId,
+					true)
+				&& !TryRecordLevitateGroundedActivation(
+					Battler,
+					EBattleTriggerPhase::BeforeHit,
+					EBattleAbilityItemHookPoint::TypeImmunity))
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
@@ -4487,6 +5179,7 @@ namespace BattleEffectExecutorPrivate
 		FBattleFieldState Field;
 		TArray<FBattleSideState> Sides;
 		FBattleTriggerFramework TriggerFramework;
+		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 		TMap<FBattlerId, int32> DamageInputBuildCounts;
 		TSet<FBattlerId> SubstituteProtectedTargets;
 		FBattleEffectExecutionResult* ExecutionResult = nullptr;

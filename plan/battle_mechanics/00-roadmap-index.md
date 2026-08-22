@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-22
-Roadmap status: Approved and materialized; B00 through C07D complete under focused validation
-Next package: C08A; later packages remain dependency-blocked
+Roadmap status: Approved and materialized; B00 through C08B complete under focused validation
+Next package: C08C; C09 and later remain dependency-blocked
 
 ## Current Truth
 
@@ -84,14 +84,24 @@ The live battle source now contains:
   conditions; shared trigger lifecycles; live damage, order, status, item-
   suppression, switch-in, faint-boundary, duration, expiry, and snapshot
   integration; and nine `PokemonSolarus.Battle.C07D.*` Automation tests.
+- C08A's semantic Ability/item hook vocabulary, validated C07A request bridge,
+  no-leak reveal tracker, typed atomic held-item ownership ledger and final
+  facts, separate finite Trainer Bag snapshots and per-Trainer turn quotas, and
+  seven `PokemonSolarus.Battle.C08A.*` Automation tests.
+- C08B's eight approved concrete Abilities, reusable C08A/C07A hook
+  registrations, deterministic effective-Speed entry order, live move,
+  grounding, hazard, terrain, residual, switch, faint, suppression, and public
+  reveal integration, and twenty `PokemonSolarus.Battle.C08B.*` Automation
+  tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
 trigger scheduling, major-status, approved volatile, and field/side-condition
-seams, plus the frozen public setup/decision/event/snapshot/replay, stat, type,
-move, definition, adapter, and pure hit/damage language needed by later
-packages. There is still no broader encounter flow, concrete Ability/item
-execution, or presentation seam. The completed Story 001 and its 33-test report
+seams, plus concrete Ability execution and the frozen public setup/decision/
+event/snapshot/replay, stat, type, move, definition, adapter, and pure hit/
+damage language needed by later packages. There is still no broader encounter
+flow, concrete item execution, or presentation seam. The completed Story 001
+and its 33-test report
 describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
 `d302018d4cd7d11a40b55c2003e164345b5011f7`, after the numeric-only state
@@ -107,8 +117,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C07D gates are clear. C08A is dependency-clear and next;
-  later packages remain blocked or not started.
+- The B00 through C08B gates are clear. C08C is dependency-clear; C09 still
+  requires C08C, and later packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -790,6 +800,82 @@ B00B accepted evidence:
   older battle filter, full battle suite, or project-wide test run was used.
 - C07 is complete under the approved focused-validation scope. C08A is
   dependency-clear and next; later packages remain blocked or not started.
+
+## C08A Execution Status
+
+- C08A completed on 2026-08-22 from `main` baseline
+  `7f6503598849cb2b5efb4a33b097b9950a4fde4a`, while preserving the
+  pre-existing `FoundationMap.umap` modification.
+- `BattleAbilityItemContracts` defines the complete shared semantic hook-point
+  and typed effect-request vocabulary, validates registrations through C07A,
+  and converts matching deterministic trigger requests without executing
+  concrete Ability or item content.
+- Public-safe activation facts follow explicit reveal policy. Hidden
+  ineligible, suppressed, ignored, and non-public prevented activations emit no
+  fact; first and repeat public reveals are stable per source definition and
+  owner.
+- Stable held-item instances keep original owner/item separate from current
+  transient state. Typed atomic suppression, reveal, consume, restore, remove,
+  swap, and temporary-steal operations feed battle-end facts that preserve
+  consumption or restoration, reset temporary ownership, retain captured
+  original-owner items, and remove battle-generated items without persistence.
+- Separate finite Trainer Bag snapshots enforce one action per Trainer per
+  turn. Pre-use rejection consumes nothing; a legal use consumes the item and
+  action even when the later effect is prevented.
+- The final forced-unity `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -NoUBA` and exit code `0`:
+  `Game/Saved/Automation/C08A-Contracts-20260822T075240Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C08A` was run. The exported
+  report at
+  `Game/Saved/Automation/C08A-Contracts-20260822T075240Z/report/index.json`
+  records exactly 7 succeeded, 0 failed, 0 not run, and 0 in process; every
+  test has 0 warnings and 0 errors, and the process exited `0`.
+- Concrete C08B Abilities, concrete C08C held/Bag items, `FBattleEngine`
+  integration, event/replay/snapshot changes, persistent inventory writes,
+  catalogs/Data Tables, assets, UI, configuration, module rules, existing
+  tests, the B00B snapshot, and the Solarus interview handoff were not modified.
+  No `dev-story`, commit, older battle filter, full battle suite, or
+  project-wide test run was used.
+- C08A is complete under the approved focused-validation scope. C08B and C08C
+  are dependency-clear; C09 and later packages remain blocked or not started.
+
+## C08B Execution Status
+
+- C08B completed on 2026-08-22 from `main` baseline
+  `7f6503598849cb2b5efb4a33b097b9950a4fde4a`, with the completed C08A
+  worktree and pre-existing `FoundationMap.umap` modification preserved.
+- `BattleAbility` defines exactly the eight approved proof Abilities and maps
+  each one to reusable C08A/C07A hook definitions. The rules cover low-HP Q12
+  offense, entry stat/field effects, grounding immunity, end-turn Speed,
+  indirect-damage prevention, eligible defensive bypass, suppression, reveal,
+  and deterministic ordering without species branches.
+- The engine registers hooks for starting and incoming actives, resolves entry
+  Abilities by effective Speed, uses the same effective-Speed helper as action
+  ordering, integrates move/hazard/terrain/residual behavior, and cleans hooks
+  on switch and faint boundaries. `AbilityActivated` was appended without
+  renumbering existing events or changing the replay schema.
+- The final all-source `PokemonSolarusEditor Win64 Development` build succeeded
+  with `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` and exit
+  code `0`:
+  `Game/Saved/Automation/C08B-Abilities-Final-20260822T100431Z/build-single-source-unity.log`.
+  A packed-unity attempt without the one-source split exposed only pre-existing
+  ambiguous helper names between untouched `BattleActionQueueTests.cpp` and
+  `BattleFieldSideConditionTests.cpp`; those older tests were kept outside the
+  C08B write set.
+- Only `Automation RunTests PokemonSolarus.Battle.C08B` filters were run. The
+  final exported report at
+  `Game/Saved/Automation/C08B-Abilities-Final-20260822T100431Z/report-final/index.json`
+  records exactly 20 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process; all 20 paths use the C08B prefix, every entry has 0 warnings
+  and 0 errors, and the process exited `0`. The matching command log is
+  `Game/Saved/Automation/C08B-Abilities-Final-20260822T100431Z/automation-final.log`.
+- C08A source/tests, concrete C08C items, catalogs/Data Tables, assets, UI,
+  configuration, module rules, the `.uproject`, existing tests, the B00B
+  snapshot, and the Solarus interview handoff were not modified. No
+  `dev-story`, commit, older battle filter, full battle suite, or project-wide
+  test run was used.
+- C08B is complete under the approved focused-validation scope. C08C is
+  dependency-clear; C09 still requires C08C.
 
 ## Goal
 

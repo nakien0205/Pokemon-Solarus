@@ -5,7 +5,7 @@ namespace
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleEventType::SwitchTransientStateCleared);
+			<= static_cast<uint8>(EBattleEventType::AbilityActivated);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)

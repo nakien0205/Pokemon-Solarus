@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Battle/BattleAbilityItemContracts.h"
 #include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleStatStages.h"
@@ -117,6 +118,10 @@ struct FBattleBattlerState
 	FBattleStatStages Stages;
 	TArray<FBattleConditionState> Volatiles;
 	FAbilityId AbilityId;
+	/** Runtime suppression never changes the battler's owned Ability identity. */
+	bool bAbilitySuppressed = false;
+	/** Invalid for starting actives; otherwise the turn on which this battler most recently entered. */
+	FTurnId EnteredActiveOnTurnId;
 	FBattleHeldItemState HeldItem;
 	TArray<FBattleMoveSlotState> Moves;
 	/** Most recent move that passed pre-move gates; cleared with switch/capture/faint transient state. */
@@ -312,6 +317,8 @@ public:
 	TArray<FBattleDecision> AcceptedSelections;
 	/** C07A runtime facts remain private and are never projected into snapshots. */
 	FBattleTriggerFramework TriggerFramework;
+	/** C08A reveal ownership remains private and emits only public-safe activation facts. */
+	FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 	TUniquePtr<IBattleRandom> Random;
 	uint64 NextResolutionId = 1;
 	uint64 NextActionId = 1;
