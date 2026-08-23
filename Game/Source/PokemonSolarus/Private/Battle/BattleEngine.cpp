@@ -1,8 +1,10 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleAbility.h"
+#include "Battle/BattleBagItem.h"
 #include "Battle/BattleEffectExecutor.h"
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleFaintOutcomeResolver.h"
+#include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleStatCalculator.h"
@@ -333,6 +335,268 @@ namespace
 		return true;
 	}
 
+	bool IsHeldItemActive(const FBattleBattlerState& Battler)
+	{
+		return Battler.HeldItem.CurrentItemId.IsValid()
+			&& !Battler.HeldItem.bConsumed
+			&& !Battler.HeldItem.bTemporarilyRemoved;
+	}
+
+	bool TryCleanupItemTriggers(
+		FBattleEngineState& State,
+		const FItemId& ItemId,
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason)
+	{
+		if (!FBattleItemRules::IsCanonical(ItemId))
+		{
+			if (Reason == EBattleTriggerCleanupReason::Faint)
+			{
+				FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+				if (Battler != nullptr)
+				{
+					Battler->HeldItem.ChoiceLockedMoveId = FMoveId();
+				}
+			}
+			return true;
+		}
+		FBattleTriggerSubject Owner;
+		FBattleTriggerSourceDefinition SourceDefinition;
+		FBattleTriggerOperationContext Operation;
+		if (!TryMakeBattlerTriggerSubject(BattlerId, Owner)
+			|| !FBattleTriggerSourceDefinition::TryCreateItem(ItemId, SourceDefinition)
+			|| !TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+
+		FBattleTriggerCleanupRequest Cleanup;
+		Cleanup.Reason = Reason;
+		Cleanup.AffectedOwners.Add(Owner);
+		Cleanup.SourceDefinitionFilter = SourceDefinition;
+		Cleanup.Context = Operation;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		if (!State.TriggerFramework.TryApplyCleanup(Cleanup, Error))
+		{
+			return false;
+		}
+		DrainTriggerOutputs(State);
+		if (Reason == EBattleTriggerCleanupReason::Faint)
+		{
+			FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+			if (Battler == nullptr)
+			{
+				return false;
+			}
+			Battler->HeldItem.ChoiceLockedMoveId = FMoveId();
+		}
+		return true;
+	}
+
+	bool TryRegisterItemTriggers(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		const FBattleActivePositionState* Active = Battler != nullptr
+			? FindActiveForBattler(State, BattlerId)
+			: nullptr;
+		if (Battler == nullptr || Active == nullptr)
+		{
+			return false;
+		}
+		if (!IsHeldItemActive(*Battler)
+			|| !FBattleItemRules::IsCanonical(Battler->HeldItem.CurrentItemId))
+		{
+			return true;
+		}
+
+		const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+		const bool bAlreadyRegistered = State.TriggerFramework.GetActiveRegistrations().ContainsByPredicate(
+			[BattlerId, &ItemId](const FBattleTriggerRegistrationState& Registration)
+			{
+				return Registration.Spec.Owner.Kind == EBattleTriggerSubjectKind::Battler
+					&& Registration.Spec.Owner.BattlerId == BattlerId
+					&& Registration.Spec.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Item
+					&& Registration.Spec.SourceDefinition.ItemId == ItemId;
+			});
+		if (bAlreadyRegistered
+			&& !TryCleanupItemTriggers(
+				State,
+				ItemId,
+				BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		{
+			return false;
+		}
+
+		FBattleTriggerSubject Owner;
+		if (!TryMakeBattlerTriggerSubject(BattlerId, Owner))
+		{
+			return false;
+		}
+		FBattleItemRegistrationFacts Facts;
+		Facts.ItemId = ItemId;
+		Facts.Owner = Owner;
+		Facts.Source = Owner;
+		Facts.Targets.Add(Owner);
+		Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+		EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+		if (!FBattleItemRules::TryRegisterHooks(State.TriggerFramework, Facts, Error))
+		{
+			return false;
+		}
+		DrainTriggerOutputs(State);
+		return true;
+	}
+
+	bool TryApplyHeldItemLedgerOperation(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const EBattleHeldItemOperationKind Kind,
+		const bool bSuppressed = false)
+	{
+		FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+		if (Battler == nullptr || !Battler->HeldItem.InstanceId.IsValid())
+		{
+			return false;
+		}
+		FBattleHeldItemOperationRequest Request;
+		Request.Kind = Kind;
+		Request.PrimaryInstanceId = Battler->HeldItem.InstanceId;
+		Request.bSuppressed = bSuppressed;
+		FBattleHeldItemOperationFact Fact;
+		EBattleHeldItemContractError Error = EBattleHeldItemContractError::None;
+		if (!State.HeldItemLedger.TryApplyOperation(Request, Fact, Error))
+		{
+			return false;
+		}
+		Battler->HeldItem.CurrentItemId = Fact.PrimaryAfter.CurrentItemId;
+		Battler->HeldItem.bConsumed = Fact.PrimaryAfter.bConsumed;
+		Battler->HeldItem.bSuppressed = Fact.PrimaryAfter.bSuppressed;
+		Battler->HeldItem.bRevealed = Fact.PrimaryAfter.bRevealed;
+		Battler->HeldItem.bTemporarilyRemoved = Fact.PrimaryAfter.bTemporarilyRemoved;
+		if (Kind == EBattleHeldItemOperationKind::Consume
+			|| Kind == EBattleHeldItemOperationKind::Remove
+			|| (Kind == EBattleHeldItemOperationKind::Suppress && bSuppressed))
+		{
+			Battler->HeldItem.ChoiceLockedMoveId = FMoveId();
+		}
+		return true;
+	}
+
+	bool TryRevealHeldItem(FBattleEngineState& State, const FBattlerId BattlerId)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		return Battler != nullptr
+			&& (Battler->HeldItem.bRevealed
+				|| TryApplyHeldItemLedgerOperation(
+					State,
+					BattlerId,
+					EBattleHeldItemOperationKind::Reveal));
+	}
+
+	bool TryConsumeHeldItem(FBattleEngineState& State, const FBattlerId BattlerId)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		if (Battler == nullptr || !IsHeldItemActive(*Battler))
+		{
+			return false;
+		}
+		const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+		return TryCleanupItemTriggers(
+				State,
+				ItemId,
+				BattlerId,
+				EBattleTriggerCleanupReason::Removal)
+			&& TryApplyHeldItemLedgerOperation(
+				State,
+				BattlerId,
+				EBattleHeldItemOperationKind::Consume);
+	}
+
+	bool TryRemoveHeldItem(FBattleEngineState& State, const FBattlerId BattlerId)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		if (Battler == nullptr || !IsHeldItemActive(*Battler))
+		{
+			return false;
+		}
+		const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+		return TryCleanupItemTriggers(
+				State,
+				ItemId,
+				BattlerId,
+				EBattleTriggerCleanupReason::Removal)
+			&& TryApplyHeldItemLedgerOperation(
+				State,
+				BattlerId,
+				EBattleHeldItemOperationKind::Remove);
+	}
+
+	bool TrySetHeldItemSuppressed(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const bool bSuppressed)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		if (Battler == nullptr)
+		{
+			return false;
+		}
+		if (!IsHeldItemActive(*Battler))
+		{
+			return !Battler->HeldItem.bSuppressed;
+		}
+		if (Battler->HeldItem.bSuppressed == bSuppressed)
+		{
+			return true;
+		}
+		const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+		const bool bActive = FindActiveForBattler(State, BattlerId) != nullptr;
+		if (bActive
+			&& !TryCleanupItemTriggers(
+				State,
+				ItemId,
+				BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		{
+			return false;
+		}
+		if (!TryApplyHeldItemLedgerOperation(
+				State,
+				BattlerId,
+				EBattleHeldItemOperationKind::Suppress,
+				bSuppressed))
+		{
+			return false;
+		}
+		return !bActive || TryRegisterItemTriggers(State, BattlerId);
+	}
+
+	bool TrySetAllHeldItemsSuppressed(
+		FBattleEngineState& State,
+		const bool bSuppressed)
+	{
+		TArray<FBattlerId> BattlerIds;
+		for (const FBattleBattlerState& Battler : State.Battlers)
+		{
+			if (IsHeldItemActive(Battler))
+			{
+				BattlerIds.Add(Battler.BattlerId);
+			}
+		}
+		for (const FBattlerId BattlerId : BattlerIds)
+		{
+			if (!TrySetHeldItemSuppressed(State, BattlerId, bSuppressed))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool TryDispatchAbilityPhase(
 		FBattleEngineState& State,
 		const TConstArrayView<FBattlerId> Owners,
@@ -411,6 +675,86 @@ namespace
 		return !Result.bQueuedExpiryDispatch;
 	}
 
+	bool TryDispatchItemPhase(
+		FBattleEngineState& State,
+		const TConstArrayView<FBattlerId> Owners,
+		const EBattleTriggerPhase Phase,
+		TArray<FBattleTriggerEffectRequest>& OutRequests)
+	{
+		OutRequests.Reset();
+		if (Owners.IsEmpty())
+		{
+			return true;
+		}
+		FBattleTriggerDispatchSpec Dispatch;
+		Dispatch.Phase = Phase;
+		Dispatch.OrderPolicy.bUseEffectiveSpeed = true;
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			if (Registration.Spec.Rule.Phase != Phase
+				|| Registration.Spec.SourceDefinition.Kind
+					!= EBattleTriggerSourceDefinitionKind::Item
+				|| Registration.Spec.Owner.Kind != EBattleTriggerSubjectKind::Battler
+				|| !Owners.Contains(Registration.Spec.Owner.BattlerId))
+			{
+				continue;
+			}
+			const FBattleBattlerState* Battler = State.FindBattler(
+				Registration.Spec.Owner.BattlerId);
+			const FBattleActivePositionState* Active = Battler != nullptr
+				? FindActiveForBattler(State, Battler->BattlerId)
+				: nullptr;
+			if (Battler == nullptr
+				|| Active == nullptr
+				|| Battler->CurrentHP <= 0
+				|| Battler->bFainted
+				|| Battler->bCaptured
+				|| Battler->bRemoved
+				|| !IsHeldItemActive(*Battler)
+				|| Battler->HeldItem.CurrentItemId
+					!= Registration.Spec.SourceDefinition.ItemId)
+			{
+				continue;
+			}
+			int32 EffectiveSpeed = 0;
+			if (!TryCalculateEffectiveSpeedForOrdering(
+					State,
+					*Battler,
+					Active->ActiveSlotId,
+					EffectiveSpeed))
+			{
+				return false;
+			}
+			FBattleTriggerDispatchParticipant& Participant =
+				Dispatch.Participants.AddDefaulted_GetRef();
+			Participant.RegistrationId = Registration.RegistrationId;
+			Participant.EffectiveSpeed = EffectiveSpeed;
+			Participant.ActiveSlotId = Active->ActiveSlotId;
+		}
+		if (Dispatch.Participants.IsEmpty())
+		{
+			return true;
+		}
+		FBattleTriggerOperationContext Operation;
+		if (!TryTakeTriggerOperationContext(State, Operation))
+		{
+			return false;
+		}
+		Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		FBattleTriggerDispatchResult Result;
+		if (!State.TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+			|| !State.TriggerFramework.TryResolveNextDispatch(Result, Error))
+		{
+			return false;
+		}
+		State.TriggerFramework.DrainEffectRequests(OutRequests);
+		TArray<FBattleTriggerLifecycleFact> IgnoredFacts;
+		State.TriggerFramework.DrainLifecycleFacts(IgnoredFacts);
+		return !Result.bQueuedExpiryDispatch;
+	}
+
 	bool TryRecordAbilityActivation(
 		FBattleEngineState& State,
 		const FBattleTriggerEffectRequest& TriggerRequest,
@@ -429,6 +773,33 @@ namespace
 				Outcome,
 				OutFact,
 				Error);
+	}
+
+	bool TryRecordItemActivation(
+		FBattleEngineState& State,
+		const FBattleTriggerEffectRequest& TriggerRequest,
+		const EBattleAbilityItemActivationOutcome Outcome,
+		TOptional<FBattleAbilityItemActivationFact>& OutFact)
+	{
+		OutFact.Reset();
+		FBattleAbilityItemEffectRequest Request;
+		EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+		if (!FBattleItemRules::TryCreateTypedEffectRequest(
+				TriggerRequest,
+				Request,
+				Error)
+			|| !State.AbilityItemRevealTracker.TryRecordActivation(
+				Request,
+				Outcome,
+				OutFact,
+				Error))
+		{
+			return false;
+		}
+		return !OutFact.IsSet()
+			|| !OutFact.GetValue().RevealedSourceDefinition.IsSet()
+			|| (TriggerRequest.Owner.Kind == EBattleTriggerSubjectKind::Battler
+				&& TryRevealHeldItem(State, TriggerRequest.Owner.BattlerId));
 	}
 
 	const FBattleConditionState* FindVolatile(
@@ -890,6 +1261,11 @@ namespace
 			Battler.AbilityId,
 			Battler.bAbilitySuppressed);
 		Facts.bAbilitySuppressed = Battler.bAbilitySuppressed;
+		Facts.bItemMakesAirborne = IsHeldItemActive(Battler)
+			&& FBattleItemRules::IsAirBalloonAirborne(
+				Battler.HeldItem.CurrentItemId,
+				Battler.HeldItem.bSuppressed);
+		Facts.bItemSuppressed = Battler.HeldItem.bSuppressed;
 		Facts.bAirborneSemiInvulnerable = HasVolatile(
 			Battler,
 			FBattleVolatileRules::GetFlySemiInvulnerableId());
@@ -1597,6 +1973,42 @@ namespace
 		return Event;
 	}
 
+	FBattleEvent ReissueEventWithNextOrdinal(
+		FBattleEngineState& State,
+		const FBattleEvent& Existing)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = Existing.GetBattleId();
+		Spec.TurnId = Existing.GetTurnId();
+		Spec.ActionId = Existing.GetActionId();
+		Spec.ResolutionId = Existing.GetResolutionId();
+		Spec.Type = Existing.GetType();
+		Spec.Cause = Existing.GetCause();
+		Spec.CauseActionKind = Existing.GetCauseActionKind();
+		Spec.OutcomeCause = Existing.GetOutcomeCause();
+		Spec.Source = Existing.GetSource();
+		for (const FBattleEventTarget& Target : Existing.GetTargets())
+		{
+			Spec.Targets.Add(Target);
+		}
+		Spec.NumericBefore = Existing.GetNumericBefore();
+		Spec.NumericAfter = Existing.GetNumericAfter();
+		Spec.NumericDelta = Existing.GetNumericDelta();
+		Spec.SimultaneousGroupId = Existing.GetSimultaneousGroupId();
+		Spec.HitIndex = Existing.GetHitIndex();
+		Spec.HitCount = Existing.GetHitCount();
+		Spec.ActionOrder = Existing.GetActionOrder();
+		Spec.TargetResolution = Existing.GetTargetResolution();
+		Spec.Visibility = Existing.GetVisibility();
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
 	FBattleEvent MakeBattleEngineTargetsResolvedEvent(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
@@ -1687,7 +2099,9 @@ namespace
 		Spec.HitCount = Record.HitCount;
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
 		Spec.Visibility.bRevealSourceDefinition =
-			Record.Type == EBattleEventType::AbilityActivated;
+			Record.Type == EBattleEventType::AbilityActivated
+			|| Record.Type == EBattleEventType::ItemActivated
+			|| Record.Type == EBattleEventType::ItemRemoved;
 
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
@@ -1727,6 +2141,42 @@ namespace
 		Spec.HitIndex = HitIndex;
 		Spec.HitCount = HitCount;
 		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	FBattleEvent MakeBagItemMutationEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		const EBattleEventType Type,
+		const FBattleEventTarget& Target,
+		const TOptional<int64> NumericBefore = TOptional<int64>(),
+		const TOptional<int64> NumericAfter = TOptional<int64>(),
+		const TOptional<int64> NumericDelta = TOptional<int64>())
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = Action.ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = EBattleEventCause::Item;
+		Spec.CauseActionKind = EBattleActionKind::Bag;
+		Spec.Source = SourceFromLockedAction(State, Action);
+		Spec.Targets.Add(Target);
+		Spec.NumericBefore = NumericBefore;
+		Spec.NumericAfter = NumericAfter;
+		Spec.NumericDelta = NumericDelta;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+		Spec.Visibility.bRevealSourceDefinition =
+			Type == EBattleEventType::ItemUsed
+			|| Type == EBattleEventType::ItemConsumed;
 
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
@@ -1929,6 +2379,84 @@ namespace
 		return Event;
 	}
 
+	FBattleEvent MakeItemActivationEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		const FBattleTriggerEffectRequest& Request,
+		const FBattleAbilityItemActivationFact& Fact,
+		const FBattleEventTarget* ExplicitTarget = nullptr)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = EBattleEventType::ItemActivated;
+		Spec.Cause = EBattleEventCause::Item;
+		Spec.CauseActionKind = ActionKind;
+		const FBattleBattlerState* SourceBattler =
+			Request.Source.Kind == EBattleTriggerSubjectKind::Battler
+				? State.FindBattler(Request.Source.BattlerId)
+				: nullptr;
+		if (SourceBattler != nullptr)
+		{
+			Spec.Source.TrainerId = SourceBattler->TrainerId;
+			Spec.Source.BattlerId = SourceBattler->BattlerId;
+			const FBattleActivePositionState* SourceActive = FindActiveForBattler(
+				State,
+				SourceBattler->BattlerId);
+			if (SourceActive != nullptr)
+			{
+				Spec.Source.ActiveSlotId = SourceActive->ActiveSlotId;
+			}
+		}
+		Spec.Source.DefinitionId = Request.SourceDefinition.ItemId.GetDefinitionId();
+		if (ExplicitTarget != nullptr)
+		{
+			Spec.Targets.Add(*ExplicitTarget);
+		}
+		else
+		{
+			for (const FBattleTriggerSubject& Subject : Request.Targets)
+			{
+				if (Subject.Kind != EBattleTriggerSubjectKind::Battler)
+				{
+					continue;
+				}
+				const FBattleBattlerState* TargetBattler = State.FindBattler(Subject.BattlerId);
+				if (TargetBattler == nullptr)
+				{
+					continue;
+				}
+				FBattleEventTarget Target;
+				Target.TrainerId = TargetBattler->TrainerId;
+				Target.BattlerId = TargetBattler->BattlerId;
+				const FBattleActivePositionState* TargetActive = FindActiveForBattler(
+					State,
+					TargetBattler->BattlerId);
+				if (TargetActive != nullptr)
+				{
+					Target.ActiveSlotId = TargetActive->ActiveSlotId;
+				}
+				Spec.Targets.Add(MoveTemp(Target));
+			}
+		}
+		Spec.NumericBefore = Fact.bFirstPublicReveal ? 0 : 1;
+		Spec.NumericAfter = 1;
+		Spec.NumericDelta = Fact.bFirstPublicReveal ? 1 : 0;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+		Spec.Visibility.bRevealSourceDefinition = Fact.RevealedSourceDefinition.IsSet();
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
 	bool TryAppendAbilityActivationForPhase(
 		FBattleEngineState& State,
 		const FBattlerId BattlerId,
@@ -1977,6 +2505,370 @@ namespace
 				Fact.GetValue(),
 				ExplicitTarget));
 		}
+		return true;
+	}
+
+	bool TryAppendItemActivationForPhase(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const EBattleTriggerPhase Phase,
+		const EBattleAbilityItemActivationOutcome Outcome,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		TArray<FBattleEvent>& Events,
+		const FBattleEventTarget* ExplicitTarget = nullptr)
+	{
+		TArray<FBattleTriggerEffectRequest> Requests;
+		const TArray<FBattlerId> Owners{BattlerId};
+		if (!TryDispatchItemPhase(State, Owners, Phase, Requests))
+		{
+			return false;
+		}
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		const FBattleTriggerEffectRequest* Request = Battler != nullptr
+			? Requests.FindByPredicate(
+				[Battler](const FBattleTriggerEffectRequest& Candidate)
+				{
+					return Candidate.SourceDefinition.Kind
+						== EBattleTriggerSourceDefinitionKind::Item
+						&& Candidate.SourceDefinition.ItemId
+							== Battler->HeldItem.CurrentItemId;
+				})
+			: nullptr;
+		if (Request == nullptr)
+		{
+			return Outcome != EBattleAbilityItemActivationOutcome::Applied
+				&& Outcome != EBattleAbilityItemActivationOutcome::AttemptedButPrevented;
+		}
+		TOptional<FBattleAbilityItemActivationFact> Fact;
+		if (!TryRecordItemActivation(State, *Request, Outcome, Fact))
+		{
+			return false;
+		}
+		if (Fact.IsSet())
+		{
+			Events.Add(MakeItemActivationEvent(
+				State,
+				ResolutionId,
+				ActionId,
+				ActionKind,
+				*Request,
+				Fact.GetValue(),
+				ExplicitTarget));
+		}
+		return true;
+	}
+
+	FBattleEvent MakeHeldItemMutationEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		const EBattleEventType Type,
+		const FBattlerId BattlerId,
+		const FActiveSlotId ActiveSlotId,
+		const FItemId& ItemId,
+		const int64 NumericBefore,
+		const int64 NumericAfter,
+		const int64 NumericDelta)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		check(Battler != nullptr);
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = EBattleEventCause::Item;
+		Spec.CauseActionKind = ActionKind;
+		Spec.Source.TrainerId = Battler->TrainerId;
+		Spec.Source.BattlerId = BattlerId;
+		Spec.Source.ActiveSlotId = ActiveSlotId;
+		Spec.Source.DefinitionId = ItemId.GetDefinitionId();
+		FBattleEventTarget Target;
+		Target.TrainerId = Battler->TrainerId;
+		Target.BattlerId = BattlerId;
+		Target.ActiveSlotId = ActiveSlotId;
+		Spec.Targets.Add(Target);
+		Spec.NumericBefore = NumericBefore;
+		Spec.NumericAfter = NumericAfter;
+		Spec.NumericDelta = NumericDelta;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+		Spec.Visibility.bRevealSourceDefinition = true;
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated);
+		++State.NextEventOrdinal;
+		return Event;
+	}
+
+	bool TryFindItemRequestForPhase(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FItemId& ItemId,
+		const EBattleTriggerPhase Phase,
+		FBattleTriggerEffectRequest& OutRequest)
+	{
+		OutRequest = FBattleTriggerEffectRequest();
+		TArray<FBattleTriggerEffectRequest> Requests;
+		const TArray<FBattlerId> Owners{BattlerId};
+		if (!TryDispatchItemPhase(State, Owners, Phase, Requests))
+		{
+			return false;
+		}
+		const FBattleTriggerEffectRequest* Request = Requests.FindByPredicate(
+			[&ItemId](const FBattleTriggerEffectRequest& Candidate)
+			{
+				return Candidate.SourceDefinition.Kind
+					== EBattleTriggerSourceDefinitionKind::Item
+					&& Candidate.SourceDefinition.ItemId == ItemId;
+			});
+		if (Request == nullptr)
+		{
+			return false;
+		}
+		OutRequest = *Request;
+		return true;
+	}
+
+	bool TryResolveImmediateHeldItem(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		TArray<FBattleEvent>& Events)
+	{
+		FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+		const FBattleActivePositionState* Active = Battler != nullptr
+			? FindActiveForBattler(State, BattlerId)
+			: nullptr;
+		if (Battler == nullptr)
+		{
+			return false;
+		}
+		if (Active == nullptr)
+		{
+			return true;
+		}
+		if (!IsHeldItemActive(*Battler))
+		{
+			return true;
+		}
+		const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+		if (ItemId == FBattleItemRules::GetSitrusBerryId())
+		{
+			FBattleItemRecoveryFacts Facts;
+			Facts.ItemId = ItemId;
+			Facts.CurrentHP = Battler->CurrentHP;
+			Facts.BaseMaximumHP = Battler->PermanentStats.MaxHP;
+			Facts.bHealingPermitted = Battler->CurrentHP > 0
+				&& !Battler->bFainted
+				&& !Battler->bCaptured
+				&& !Battler->bRemoved;
+			Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+			FBattleItemRecoveryResult Result;
+			if (!FBattleItemRules::TryEvaluateRecovery(Facts, Result))
+			{
+				return false;
+			}
+			if (!Result.bApplies)
+			{
+				return true;
+			}
+			FBattleTriggerEffectRequest Request;
+			TOptional<FBattleAbilityItemActivationFact> Activation;
+			if (!TryFindItemRequestForPhase(
+					State,
+					BattlerId,
+					ItemId,
+					EBattleTriggerPhase::AfterDamage,
+					Request)
+				|| !TryRecordItemActivation(
+					State,
+					Request,
+					EBattleAbilityItemActivationOutcome::Applied,
+					Activation)
+				|| !Activation.IsSet())
+			{
+				return false;
+			}
+			const int32 PreviousHP = Battler->CurrentHP;
+			const FActiveSlotId ActiveSlotId = Active->ActiveSlotId;
+			if (!TryConsumeHeldItem(State, BattlerId))
+			{
+				return false;
+			}
+			Battler->CurrentHP += Result.HealAmount;
+			Events.Add(MakeItemActivationEvent(
+				State,
+				ResolutionId,
+				ActionId,
+				ActionKind,
+				Request,
+				Activation.GetValue()));
+			Events.Add(MakeHeldItemMutationEvent(
+				State, ResolutionId, ActionId, ActionKind,
+				EBattleEventType::ItemConsumed, BattlerId, ActiveSlotId, ItemId,
+				1, 0, -1));
+			for (const EBattleEventType Type : {
+				EBattleEventType::Healing,
+				EBattleEventType::HPChanged})
+			{
+				Events.Add(MakeHeldItemMutationEvent(
+					State, ResolutionId, ActionId, ActionKind,
+					Type, BattlerId, ActiveSlotId, ItemId,
+					PreviousHP, Battler->CurrentHP, Result.HealAmount));
+			}
+			return true;
+		}
+
+		if (ItemId != FBattleItemRules::GetLumBerryId())
+		{
+			return true;
+		}
+		const bool bHasMajorStatus = FBattleMajorStatusRules::IsCanonical(
+			Battler->MajorStatusId);
+		const bool bHasConfusion = HasVolatile(
+			*Battler,
+			FBattleVolatileRules::GetConfusionId());
+		FBattleLumBerryFacts Facts;
+		Facts.ItemId = ItemId;
+		Facts.bHolderAbleToBattle = Battler->CurrentHP > 0
+			&& !Battler->bFainted
+			&& !Battler->bCaptured
+			&& !Battler->bRemoved;
+		Facts.bHasMajorStatus = bHasMajorStatus;
+		Facts.bHasConfusion = bHasConfusion;
+		Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+		FBattleLumBerryResult Result;
+		if (!FBattleItemRules::TryEvaluateLumBerry(Facts, Result))
+		{
+			return false;
+		}
+		if (!Result.bApplies)
+		{
+			return true;
+		}
+		FBattleTriggerEffectRequest Request;
+		TOptional<FBattleAbilityItemActivationFact> Activation;
+		if (!TryFindItemRequestForPhase(
+				State,
+				BattlerId,
+				ItemId,
+				EBattleTriggerPhase::AfterHit,
+				Request)
+			|| !TryRecordItemActivation(
+				State,
+				Request,
+				EBattleAbilityItemActivationOutcome::Applied,
+				Activation)
+			|| !Activation.IsSet())
+		{
+			return false;
+		}
+		const FActiveSlotId ActiveSlotId = Active->ActiveSlotId;
+		const int32 CuredCount = (bHasMajorStatus ? 1 : 0) + (bHasConfusion ? 1 : 0);
+		const FConditionId MajorStatusId = Battler->MajorStatusId;
+		if (!TryConsumeHeldItem(State, BattlerId)
+			|| (bHasMajorStatus
+				&& !TryCleanupMajorStatusTriggers(
+					State,
+					MajorStatusId,
+					BattlerId,
+					EBattleTriggerCleanupReason::Removal))
+			|| (bHasConfusion
+				&& !TryCleanupVolatileTriggers(
+					State,
+					FBattleVolatileRules::GetConfusionId(),
+					BattlerId,
+					EBattleTriggerCleanupReason::Removal)))
+		{
+			return false;
+		}
+		if (bHasMajorStatus)
+		{
+			Battler->MajorStatusId = FConditionId();
+		}
+		if (bHasConfusion)
+		{
+			Battler->Volatiles.RemoveAll(
+				[](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == FBattleVolatileRules::GetConfusionId();
+				});
+		}
+		Events.Add(MakeItemActivationEvent(
+			State,
+			ResolutionId,
+			ActionId,
+			ActionKind,
+			Request,
+			Activation.GetValue()));
+		Events.Add(MakeHeldItemMutationEvent(
+			State, ResolutionId, ActionId, ActionKind,
+			EBattleEventType::ItemConsumed, BattlerId, ActiveSlotId, ItemId,
+			1, 0, -1));
+		Events.Add(MakeHeldItemMutationEvent(
+			State, ResolutionId, ActionId, ActionKind,
+			EBattleEventType::StatusChanged, BattlerId, ActiveSlotId, ItemId,
+			CuredCount, 0, -CuredCount));
+		return true;
+	}
+
+	bool TryRevealAirBalloonOnEntry(
+		FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FResolutionId ResolutionId,
+		const EBattleActionKind ActionKind,
+		TArray<FBattleEvent>& Events)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		const FBattleActivePositionState* Active = Battler != nullptr
+			? FindActiveForBattler(State, BattlerId)
+			: nullptr;
+		if (Battler == nullptr || Active == nullptr)
+		{
+			return false;
+		}
+		if (!IsHeldItemActive(*Battler)
+			|| Battler->HeldItem.CurrentItemId != FBattleItemRules::GetAirBalloonId()
+			|| Battler->HeldItem.bSuppressed)
+		{
+			return true;
+		}
+		FBattleTriggerEffectRequest Request;
+		TOptional<FBattleAbilityItemActivationFact> Activation;
+		if (!TryFindItemRequestForPhase(
+				State,
+				BattlerId,
+				Battler->HeldItem.CurrentItemId,
+				EBattleTriggerPhase::SwitchIn,
+				Request)
+			|| !TryRecordItemActivation(
+				State,
+				Request,
+				EBattleAbilityItemActivationOutcome::Applied,
+				Activation)
+			|| !Activation.IsSet())
+		{
+			return false;
+		}
+		FBattleEventTarget Target;
+		Target.TrainerId = Battler->TrainerId;
+		Target.BattlerId = BattlerId;
+		Target.ActiveSlotId = Active->ActiveSlotId;
+		Events.Add(MakeItemActivationEvent(
+			State,
+			ResolutionId,
+			FActionId(),
+			ActionKind,
+			Request,
+			Activation.GetValue(),
+			&Target));
 		return true;
 	}
 
@@ -2435,6 +3327,7 @@ namespace
 		{
 			return false;
 		}
+		bool bBootsActivationRecorded = false;
 		for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
 		{
 			if (Incoming->CurrentHP <= 0 || Incoming->bFainted || State.Phase == EBattlePhase::Terminal)
@@ -2574,10 +3467,42 @@ namespace
 					false,
 					-1);
 			Facts.RockEffectiveness = RockEffectiveness;
+			Facts.bBypassesEntryHazards = IsHeldItemActive(*Incoming)
+				&& FBattleItemRules::ShouldBypassEntryHazards(
+					Incoming->HeldItem.CurrentItemId,
+					Incoming->HeldItem.bSuppressed);
 			FBattleHazardSwitchInResult HazardResult;
 			if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(Facts, HazardResult))
 			{
 				return false;
+			}
+			if (Facts.bBypassesEntryHazards && !bBootsActivationRecorded)
+			{
+				FBattleHazardSwitchInFacts WithoutBoots = Facts;
+				WithoutBoots.bBypassesEntryHazards = false;
+				FBattleHazardSwitchInResult WithoutBootsResult;
+				if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
+						WithoutBoots,
+						WithoutBootsResult))
+				{
+					return false;
+				}
+				if (WithoutBootsResult.EffectKind != EBattleHazardSwitchInEffectKind::None)
+				{
+					if (!TryAppendItemActivationForPhase(
+							State,
+							Incoming->BattlerId,
+							EBattleTriggerPhase::SwitchIn,
+							EBattleAbilityItemActivationOutcome::Applied,
+							ResolutionId,
+							FActionId(),
+							EBattleActionKind::Switch,
+							Events))
+					{
+						return false;
+					}
+					bBootsActivationRecorded = true;
+				}
 			}
 			const bool bMagicGuardPreventedDamage =
 				HazardResult.EffectKind == EBattleHazardSwitchInEffectKind::Damage
@@ -2774,6 +3699,17 @@ namespace
 					-PreviousLayers));
 			}
 
+			if (!TryResolveImmediateHeldItem(
+					State,
+					Incoming->BattlerId,
+					ResolutionId,
+					FActionId(),
+					EBattleActionKind::Switch,
+					Events))
+			{
+				return false;
+			}
+
 			if (Incoming->bFaintTransitionPending)
 			{
 				const FConditionId PendingStatus = Incoming->MajorStatusId;
@@ -2808,6 +3744,11 @@ namespace
 					if (!TryCleanupAbilityTriggers(
 							State,
 							Incoming->AbilityId,
+							IncomingBattlerId,
+							EBattleTriggerCleanupReason::Faint)
+						|| !TryCleanupItemTriggers(
+							State,
+							Incoming->HeldItem.CurrentItemId,
 							IncomingBattlerId,
 							EBattleTriggerCleanupReason::Faint)
 						|| (FBattleMajorStatusRules::IsCanonical(PendingStatus)
@@ -3291,6 +4232,11 @@ namespace
 				Outgoing->AbilityId,
 				Outgoing->BattlerId,
 				EBattleTriggerCleanupReason::Switch)
+			|| !TryCleanupItemTriggers(
+				State,
+				Outgoing->HeldItem.CurrentItemId,
+				Outgoing->BattlerId,
+				EBattleTriggerCleanupReason::Switch)
 			|| !TryCleanupAllOwnedVolatileTriggers(
 				State,
 				*Outgoing,
@@ -3313,11 +4259,13 @@ namespace
 		Outgoing->Volatiles.Reset();
 		Outgoing->LastMoveId = FMoveId();
 		Outgoing->bAbilitySuppressed = false;
+		Outgoing->HeldItem.ChoiceLockedMoveId = FMoveId();
 		Outgoing->EnteredActiveOnTurnId = FTurnId();
 		Active->BattlerId = Incoming->BattlerId;
 		Incoming->bAbilitySuppressed = false;
 		Incoming->EnteredActiveOnTurnId = State.TurnId;
-		return TryRegisterAbilityTriggers(State, Incoming->BattlerId);
+		return TryRegisterAbilityTriggers(State, Incoming->BattlerId)
+			&& TryRegisterItemTriggers(State, Incoming->BattlerId);
 	}
 
 	bool TryApplyReplacementSelection(
@@ -3359,7 +4307,8 @@ namespace
 		OutIncomingTarget.TrainerId = Incoming->TrainerId;
 		OutIncomingTarget.BattlerId = Incoming->BattlerId;
 		OutIncomingTarget.ActiveSlotId = Active->ActiveSlotId;
-		return TryRegisterAbilityTriggers(State, Incoming->BattlerId);
+		return TryRegisterAbilityTriggers(State, Incoming->BattlerId)
+			&& TryRegisterItemTriggers(State, Incoming->BattlerId);
 	}
 
 	bool IsBattleEngineExplicitTargetClass(const EBattleTargetClass TargetClass)
@@ -3439,9 +4388,11 @@ namespace
 		const TArray<FBattleDecision>& Selections,
 		const FResolutionId ResolutionId,
 		TArray<FBattleLockedActionState>& OutActions,
+		TArray<FBattleEvent>& OutPreLockEvents,
 		bool& bOutReverseSpeed)
 	{
 		OutActions.Reset();
+		OutPreLockEvents.Reset();
 		bOutReverseSpeed = false;
 		const uint64 NextActionIdAfterLock = State.NextActionId + static_cast<uint64>(Selections.Num());
 		if (Selections.IsEmpty()
@@ -3562,7 +4513,140 @@ namespace
 					}
 				}
 			}
+			else if (Decision.GetActionKind() == EBattleActionKind::Bag)
+			{
+				if (Decision.GetItemPartyTargetId().IsValid()
+					&& !Decision.GetActiveTargetId().IsValid())
+				{
+					const FBattlePartySlotState* PartySlot = Trainer->PartySlots.FindByPredicate(
+						[&Decision](const FBattlePartySlotState& CandidateSlot)
+						{
+							return CandidateSlot.PartySlotId
+								== Decision.GetItemPartyTargetId();
+						});
+					if (PartySlot == nullptr || !PartySlot->BattlerId.IsValid())
+					{
+						return false;
+					}
+					Candidate.SelectedTargetBattlerId = PartySlot->BattlerId;
+				}
+				else if (Decision.GetActiveTargetId().IsValid()
+					&& !Decision.GetItemPartyTargetId().IsValid())
+				{
+					const FBattleActivePositionState* Target = State.FindActivePosition(
+						Decision.GetActiveTargetId());
+					if (Target == nullptr || !Target->BattlerId.IsValid())
+					{
+						return false;
+					}
+					Candidate.SelectedTargetBattlerId = Target->BattlerId;
+				}
+				else
+				{
+					return false;
+				}
+			}
 			LockSpec.Candidates.Add(MoveTemp(Candidate));
+		}
+
+		struct FQuickClawDrawRecord
+		{
+			FActionId ActionId;
+			FBattlerId BattlerId;
+			FBattleRandomDraw Draw;
+			bool bActivated = false;
+		};
+		TArray<int32> QuickClawCandidateIndices;
+		for (int32 CandidateIndex = 0;
+			CandidateIndex < LockSpec.Candidates.Num();
+			++CandidateIndex)
+		{
+			const FBattleActionOrderCandidate& Candidate = LockSpec.Candidates[CandidateIndex];
+			if (Candidate.Decision.GetActionKind() != EBattleActionKind::Fight)
+			{
+				continue;
+			}
+			const FBattleBattlerState* Battler = State.FindBattler(
+				Candidate.Decision.GetActingBattlerId());
+			if (Battler == nullptr || !IsHeldItemActive(*Battler))
+			{
+				continue;
+			}
+			FBattleQuickClawFacts Facts;
+			Facts.ItemId = Battler->HeldItem.CurrentItemId;
+			Facts.MovePriority = Candidate.OrderKey.MovePriority;
+			Facts.bSelectedMoveEligible = true;
+			Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+			FBattleQuickClawEligibilityResult Eligibility;
+			if (!FBattleItemRules::TryEvaluateQuickClawEligibility(Facts, Eligibility))
+			{
+				if (Battler->HeldItem.CurrentItemId == FBattleItemRules::GetQuickClawId())
+				{
+					return false;
+				}
+				continue;
+			}
+			if (Eligibility.bEligible && Eligibility.bConsumesRandomDraw)
+			{
+				QuickClawCandidateIndices.Add(CandidateIndex);
+			}
+		}
+		QuickClawCandidateIndices.Sort(
+			[&LockSpec](const int32 LeftIndex, const int32 RightIndex)
+			{
+				const FActiveSlotId Left =
+					LockSpec.Candidates[LeftIndex].OrderKey.ActingSlotId;
+				const FActiveSlotId Right =
+					LockSpec.Candidates[RightIndex].OrderKey.ActingSlotId;
+				const uint8 LeftSide = static_cast<uint8>(Left.GetSide());
+				const uint8 RightSide = static_cast<uint8>(Right.GetSide());
+				return LeftSide != RightSide
+					? LeftSide < RightSide
+					: static_cast<uint8>(Left.GetPosition())
+						< static_cast<uint8>(Right.GetPosition());
+			});
+		TArray<FQuickClawDrawRecord> QuickClawDraws;
+		for (const int32 CandidateIndex : QuickClawCandidateIndices)
+		{
+			FBattleActionOrderCandidate& Candidate = LockSpec.Candidates[CandidateIndex];
+			const FBattleBattlerState* Battler = State.FindBattler(
+				Candidate.Decision.GetActingBattlerId());
+			check(Battler != nullptr);
+			FBattleRandomContext RandomContext;
+			RandomContext.BattleId = State.Setup.GetBattleId();
+			RandomContext.TurnId = State.TurnId;
+			RandomContext.ActionId = Candidate.ActionId;
+			RandomContext.ResolutionId = ResolutionId;
+			RandomContext.RulePurpose = FBattleItemRules::GetQuickClawActivationPurpose();
+			FBattleRandomDraw Draw;
+			if (!State.Random->TryDrawUniform(
+					0,
+					FBattleItemRules::GetQuickClawRollMaxInclusive(),
+					RandomContext,
+					Draw))
+			{
+				return false;
+			}
+			FBattleQuickClawFacts Facts;
+			Facts.ItemId = Battler->HeldItem.CurrentItemId;
+			Facts.MovePriority = Candidate.OrderKey.MovePriority;
+			Facts.bSelectedMoveEligible = true;
+			Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+			FBattleQuickClawDrawResult DrawResult;
+			if (!FBattleItemRules::TryResolveQuickClawDraw(
+					Facts,
+					Draw.Result,
+					DrawResult))
+			{
+				return false;
+			}
+			Candidate.OrderKey.FractionalPriorityTenths =
+				DrawResult.FractionalPriorityTenths;
+			FQuickClawDrawRecord& Record = QuickClawDraws.AddDefaulted_GetRef();
+			Record.ActionId = Candidate.ActionId;
+			Record.BattlerId = Battler->BattlerId;
+			Record.Draw = Draw;
+			Record.bActivated = DrawResult.bApplies;
 		}
 
 		TArray<FBattleLockedAction> Locked;
@@ -3587,6 +4671,41 @@ namespace
 			StateAction.TargetClass = Action.TargetClass;
 			StateAction.SelectedTargetBattlerId = Action.SelectedTargetBattlerId;
 			OutActions.Add(MoveTemp(StateAction));
+		}
+		for (const FQuickClawDrawRecord& DrawRecord : QuickClawDraws)
+		{
+			const FBattleLockedActionState* LockedAction = OutActions.FindByPredicate(
+				[&DrawRecord](const FBattleLockedActionState& Candidate)
+				{
+					return Candidate.ActionId == DrawRecord.ActionId;
+				});
+			if (LockedAction == nullptr)
+			{
+				return false;
+			}
+			OutPreLockEvents.Add(MakeActionDetailEvent(
+				State,
+				ResolutionId,
+				*LockedAction,
+				EBattleEventType::RandomCheck,
+				EBattleEventCause::Rule,
+				static_cast<int64>(DrawRecord.Draw.InclusiveMinimum),
+				static_cast<int64>(DrawRecord.Draw.Result),
+				static_cast<int64>(DrawRecord.Draw.InclusiveMaximum),
+				EBattleVisibilityLevel::CoreOnly));
+			if (DrawRecord.bActivated
+				&& !TryAppendItemActivationForPhase(
+					State,
+					DrawRecord.BattlerId,
+					EBattleTriggerPhase::ActionOrderCalculation,
+					EBattleAbilityItemActivationOutcome::Applied,
+					ResolutionId,
+					DrawRecord.ActionId,
+					EBattleActionKind::Fight,
+					OutPreLockEvents))
+			{
+				return false;
+			}
 		}
 		return true;
 	}
@@ -4004,6 +5123,80 @@ namespace
 		}
 	}
 
+	bool TryBuildBagItemUseFacts(
+		const FBattleEngineState& State,
+		const FBattleTrainerState& ActingTrainer,
+		const FBattleBattlerState& ActingBattler,
+		const FBattleItemDefinition& ItemDefinition,
+		const EBattleBagItemTargetKind TargetKind,
+		const FBattleBattlerState& TargetBattler,
+		const FBattleActivePositionState* TargetActive,
+		FBattleBagItemUseFacts& OutFacts)
+	{
+		OutFacts = FBattleBagItemUseFacts();
+		int32 AttackStage = 0;
+		if (!TargetBattler.Stages.TryGetStage(EBattleStat::Attack, AttackStage))
+		{
+			return false;
+		}
+
+		OutFacts.ItemId = ItemDefinition.Id;
+		OutFacts.DefinitionKind = ItemDefinition.Kind;
+		OutFacts.TargetKind = TargetKind;
+		OutFacts.ActingTrainerRole = ActingTrainer.Role;
+		OutFacts.EncounterKind = State.EncounterKind;
+		OutFacts.bCaptureAllowed = State.EncounterPolicies.bCaptureAllowed;
+		OutFacts.bTargetOwnedByActingTrainer =
+			TargetBattler.TrainerId == ActingTrainer.TrainerId;
+		OutFacts.bTargetIsActingBattler =
+			TargetBattler.BattlerId == ActingBattler.BattlerId;
+		OutFacts.bTargetIsOpposingActive = TargetActive != nullptr
+			&& TargetActive->bAvailable
+			&& TargetActive->BattlerId == TargetBattler.BattlerId
+			&& TargetActive->ActiveSlotId.GetSide() != ActingTrainer.Side;
+		OutFacts.bTargetEgg = TargetBattler.bEgg;
+		OutFacts.bTargetCaptured = TargetBattler.bCaptured;
+		OutFacts.bTargetRemoved = TargetBattler.bRemoved;
+		OutFacts.bTargetFainted = TargetBattler.bFainted;
+		OutFacts.bTargetFaintTransitionPending = TargetBattler.bFaintTransitionPending;
+		OutFacts.CurrentHP = TargetBattler.CurrentHP;
+		OutFacts.MaximumHP = TargetBattler.PermanentStats.MaxHP;
+		OutFacts.bHasCanonicalMajorStatus =
+			FBattleMajorStatusRules::IsCanonical(TargetBattler.MajorStatusId);
+		OutFacts.bHasConfusion = HasVolatile(
+			TargetBattler,
+			FBattleVolatileRules::GetConfusionId());
+		OutFacts.AttackStage = AttackStage;
+		return true;
+	}
+
+	bool IsExactBagDecisionTargetShape(
+		const FBattleDecisionRequest& Request,
+		const FBattleDecision& Decision)
+	{
+		if (Decision.GetActionKind() != EBattleActionKind::Bag)
+		{
+			return true;
+		}
+		const bool bPartyPair = Decision.GetItemPartyTargetId().IsValid()
+			&& !Decision.GetActiveTargetId().IsValid()
+			&& Request.GetLegalItemPartyTargets().ContainsByPredicate(
+				[&Decision](const FBattleItemPartyTargetOption& Option)
+				{
+					return Option.ItemId == Decision.GetItemId()
+						&& Option.PartySlotId == Decision.GetItemPartyTargetId();
+				});
+		const bool bActivePair = Decision.GetActiveTargetId().IsValid()
+			&& !Decision.GetItemPartyTargetId().IsValid()
+			&& Request.GetLegalItemActiveTargets().ContainsByPredicate(
+				[&Decision](const FBattleItemActiveTargetOption& Option)
+				{
+					return Option.ItemId == Decision.GetItemId()
+						&& Option.ActiveSlotId == Decision.GetActiveTargetId();
+				});
+		return bPartyPair != bActivePair;
+	}
+
 	bool TryBuildDecisionRequest(
 		const FBattleEngineState& State,
 		const FBattleDecisionActorState& Actor,
@@ -4046,6 +5239,32 @@ namespace
 			{
 				AddUnavailableMove(Spec, Move.MoveId, EBattleOptionUnavailableReason::MissingCatalogReference);
 				continue;
+			}
+			if (IsHeldItemActive(*Battler)
+				&& Battler->HeldItem.CurrentItemId == FBattleItemRules::GetChoiceBandId())
+			{
+				FBattleChoiceBandMoveFacts ChoiceFacts;
+				ChoiceFacts.ItemId = Battler->HeldItem.CurrentItemId;
+				ChoiceFacts.SelectedMoveId = Move.MoveId;
+				ChoiceFacts.LockedMoveId = Battler->HeldItem.ChoiceLockedMoveId;
+				ChoiceFacts.bSuppressed = Battler->HeldItem.bSuppressed;
+				FBattleChoiceBandMoveResult ChoiceResult;
+				if (!FBattleItemRules::TryEvaluateChoiceBandMove(
+						ChoiceFacts,
+						ChoiceResult))
+				{
+					OutRejection = FBattleRejection();
+					OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+					return false;
+				}
+				if (!ChoiceResult.bMoveAllowed)
+				{
+					AddUnavailableMove(
+						Spec,
+						Move.MoveId,
+						EBattleOptionUnavailableReason::ChoiceLocked);
+					continue;
+				}
 			}
 			if (Move.CurrentPP <= 0)
 			{
@@ -4185,12 +5404,30 @@ namespace
 					: EBattleOptionUnavailableReason::NoLegalTarget);
 		}
 
-		if (!State.EncounterPolicies.bBagAllowed || !Trainer->ActionAllowance.bBagActionAvailable)
+		const auto HasTrainerBagSelection = [Trainer](
+			const TConstArrayView<FBattleDecision> Decisions)
+		{
+			for (const FBattleDecision& Decision : Decisions)
+			{
+				if (Decision.GetDecisionOwnerTrainerId() == Trainer->TrainerId
+					&& Decision.GetActionKind() == EBattleActionKind::Bag)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+		const bool bBagAlreadySelected = HasTrainerBagSelection(State.AcceptedSelections)
+			|| HasTrainerBagSelection(AdditionalSelections);
+		if (!State.EncounterPolicies.bBagAllowed
+			|| !Trainer->ActionAllowance.bBagActionAvailable
+			|| bBagAlreadySelected)
 		{
 			AddUnavailableAction(Spec, EBattleActionKind::Bag, EBattleOptionUnavailableReason::BagRestricted);
 		}
 		else
 		{
+			bool bAnyRemainingCanonicalItem = false;
 			for (const FBattleBagItemCount& ItemCount : Trainer->Bag)
 			{
 				const FBattleItemDefinition* Item = State.Catalog.FindItem(ItemCount.ItemId);
@@ -4204,46 +5441,94 @@ namespace
 					AddUnavailableItem(Spec, ItemCount.ItemId, EBattleOptionUnavailableReason::NoItemRemaining);
 					continue;
 				}
-				if (Item->Kind == EBattleItemKind::Held)
+				const EBattleBagItemRuleKind RuleKind =
+					FBattleBagItemRules::GetKind(ItemCount.ItemId);
+				if (RuleKind == EBattleBagItemRuleKind::None
+					|| RuleKind == EBattleBagItemRuleKind::Invalid
+					|| Item->Kind
+						!= FBattleBagItemRules::GetExpectedDefinitionKind(RuleKind))
 				{
 					AddUnavailableItem(Spec, ItemCount.ItemId, EBattleOptionUnavailableReason::WrongItemKind);
 					continue;
 				}
-				if (Item->Kind == EBattleItemKind::Capture
-					&& (!State.EncounterPolicies.bCaptureAllowed || Trainer->Role != EBattleTrainerRole::Player))
+				bAnyRemainingCanonicalItem = true;
+				if (RuleKind == EBattleBagItemRuleKind::PokeBall
+					&& (State.EncounterKind != EBattleEncounterKind::Wild
+						|| !State.EncounterPolicies.bCaptureAllowed
+						|| Trainer->Role != EBattleTrainerRole::Player))
 				{
-					AddUnavailableItem(Spec, ItemCount.ItemId, EBattleOptionUnavailableReason::CaptureRestricted);
+					AddUnavailableItem(
+						Spec,
+						ItemCount.ItemId,
+						EBattleOptionUnavailableReason::CaptureRestricted);
 					continue;
 				}
 
 				const int32 PartyPairStart = Spec.LegalItemPartyTargets.Num();
 				const int32 ActivePairStart = Spec.LegalItemActiveTargets.Num();
-				if (Item->Kind == EBattleItemKind::Battle)
+				if (FBattleBagItemRules::GetTargetKind(RuleKind)
+					== EBattleBagItemTargetKind::Party)
 				{
 					for (const FBattlePartySlotState& PartySlot : Trainer->PartySlots)
 					{
 						const FBattleBattlerState* Target = State.FindBattler(PartySlot.BattlerId);
-						if (Target != nullptr && !Target->bEgg && !Target->bCaptured && !Target->bRemoved)
+						if (Target == nullptr)
+						{
+							continue;
+						}
+						const FBattleActivePositionState* TargetActive =
+							FindActiveForBattler(State, Target->BattlerId);
+						FBattleBagItemUseFacts Facts;
+						FBattleBagItemUseResult Result;
+						if (!TryBuildBagItemUseFacts(
+								State,
+								*Trainer,
+								*Battler,
+								*Item,
+								EBattleBagItemTargetKind::Party,
+								*Target,
+								TargetActive,
+								Facts)
+							|| !FBattleBagItemRules::TryEvaluateUse(Facts, Result))
+						{
+							OutRejection = FBattleRejection();
+							OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+							return false;
+						}
+						if (Result.bLegal)
 						{
 							AddUnique(Spec.LegalPartyTargets, PartySlot.PartySlotId);
 							Spec.LegalItemPartyTargets.Add({ItemCount.ItemId, PartySlot.PartySlotId});
 						}
 					}
-					for (const FBattleActivePositionState& Position : State.ActivePositions)
-					{
-						if (Position.TrainerId == Trainer->TrainerId && Position.BattlerId.IsValid())
-						{
-							AddUnique(Spec.LegalActiveTargets, Position.ActiveSlotId);
-							Spec.LegalItemActiveTargets.Add({ItemCount.ItemId, Position.ActiveSlotId});
-						}
-					}
 				}
-				else if (Item->Kind == EBattleItemKind::Capture)
+				else
 				{
 					for (const FBattleActivePositionState& Position : State.ActivePositions)
 					{
-						if (Position.ActiveSlotId.GetSide() != Trainer->Side
-							&& IsLivingSelectableBattler(State.FindBattler(Position.BattlerId)))
+						const FBattleBattlerState* Target = State.FindBattler(Position.BattlerId);
+						if (Target == nullptr)
+						{
+							continue;
+						}
+						FBattleBagItemUseFacts Facts;
+						FBattleBagItemUseResult Result;
+						if (!TryBuildBagItemUseFacts(
+								State,
+								*Trainer,
+								*Battler,
+								*Item,
+								EBattleBagItemTargetKind::Active,
+								*Target,
+								&Position,
+								Facts)
+							|| !FBattleBagItemRules::TryEvaluateUse(Facts, Result))
+						{
+							OutRejection = FBattleRejection();
+							OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+							return false;
+						}
+						if (Result.bLegal)
 						{
 							AddUnique(Spec.LegalActiveTargets, Position.ActiveSlotId);
 							Spec.LegalItemActiveTargets.Add({ItemCount.ItemId, Position.ActiveSlotId});
@@ -4268,7 +5553,12 @@ namespace
 			}
 			else
 			{
-				AddUnavailableAction(Spec, EBattleActionKind::Bag, EBattleOptionUnavailableReason::NoItemRemaining);
+				AddUnavailableAction(
+					Spec,
+					EBattleActionKind::Bag,
+					bAnyRemainingCanonicalItem
+						? EBattleOptionUnavailableReason::NoLegalTarget
+						: EBattleOptionUnavailableReason::NoItemRemaining);
 			}
 		}
 
@@ -4664,6 +5954,16 @@ namespace
 				EBattleActionKind::Replacement,
 				Source,
 				IncomingTarget));
+			const bool bItemEntryRevealed = TryRevealAirBalloonOnEntry(
+				State,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				EBattleActionKind::Replacement,
+				Events);
+			if (!bItemEntryRevealed)
+			{
+				UE_LOG(LogTemp, Fatal, TEXT("C08C replacement held-item entry could not be resolved."));
+			}
 			const bool bHazardsResolved = TryResolveEntryHazards(
 				State,
 				IncomingTarget.BattlerId,
@@ -4676,6 +5976,17 @@ namespace
 					LogTemp,
 					Fatal,
 					TEXT("Validated C07D replacement entry hazards could not be resolved."));
+			}
+			const bool bImmediateItemsResolved = TryResolveImmediateHeldItem(
+				State,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				FActionId(),
+				EBattleActionKind::Replacement,
+				Events);
+			if (!bImmediateItemsResolved)
+			{
+				UE_LOG(LogTemp, Fatal, TEXT("C08C replacement immediate held items could not be resolved."));
 			}
 			AbilityEntrants.Add(IncomingTarget.BattlerId);
 		}
@@ -4824,6 +6135,16 @@ namespace
 				OutgoingTarget,
 				IncomingTarget,
 				Events);
+			const bool bItemEntryRevealed = TryRevealAirBalloonOnEntry(
+				State,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				EBattleActionKind::Switch,
+				Events);
+			if (!bItemEntryRevealed)
+			{
+				UE_LOG(LogTemp, Fatal, TEXT("C08C Shift held-item entry could not be resolved."));
+			}
 			const bool bHazardsResolved = TryResolveEntryHazards(
 				State,
 				IncomingTarget.BattlerId,
@@ -4836,6 +6157,17 @@ namespace
 					LogTemp,
 					Fatal,
 					TEXT("Validated C07D Shift entry hazards could not be resolved."));
+			}
+			const bool bImmediateItemsResolved = TryResolveImmediateHeldItem(
+				State,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				FActionId(),
+				EBattleActionKind::Switch,
+				Events);
+			if (!bImmediateItemsResolved)
+			{
+				UE_LOG(LogTemp, Fatal, TEXT("C08C Shift immediate held items could not be resolved."));
 			}
 			const TArray<FBattlerId> AbilityEntrants{IncomingTarget.BattlerId};
 			const bool bAbilitiesResolved = TryResolveAbilityEntries(
@@ -5016,6 +6348,7 @@ bool FBattleEngine::TryBeginActionDecisionSequence(FBattleRejection& OutRejectio
 
 	const uint64 BeforeStateVersion = State->StateVersion;
 	TArray<FBattlerId> AbilityEntrants;
+	TArray<FBattlerId> ItemEntrants;
 	for (const FBattleActivePositionState& Active : State->ActivePositions)
 	{
 		const FBattleBattlerState* Battler = Active.bAvailable
@@ -5035,12 +6368,47 @@ bool FBattleEngine::TryBeginActionDecisionSequence(FBattleRejection& OutRejectio
 			}
 			AbilityEntrants.Add(Battler->BattlerId);
 		}
+		if (Battler != nullptr
+			&& Battler->CurrentHP > 0
+			&& !Battler->bFainted
+			&& !Battler->bCaptured
+			&& !Battler->bRemoved
+			&& IsHeldItemActive(*Battler)
+			&& FBattleItemRules::IsCanonical(Battler->HeldItem.CurrentItemId))
+		{
+			if (!TryRegisterItemTriggers(*State, Battler->BattlerId))
+			{
+				OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+				return false;
+			}
+			ItemEntrants.Add(Battler->BattlerId);
+		}
 	}
 	FResolutionId AbilityResolutionId;
 	TArray<FBattleEvent> AbilityEvents;
-	if (!AbilityEntrants.IsEmpty())
+	if (!AbilityEntrants.IsEmpty() || !ItemEntrants.IsEmpty())
 	{
 		AbilityResolutionId = TakeResolutionId(*State);
+		for (const FBattlerId ItemEntrant : ItemEntrants)
+		{
+			if (!TryRevealAirBalloonOnEntry(
+					*State,
+					ItemEntrant,
+					AbilityResolutionId,
+					EBattleActionKind::Switch,
+					AbilityEvents)
+				|| !TryResolveImmediateHeldItem(
+					*State,
+					ItemEntrant,
+					AbilityResolutionId,
+					FActionId(),
+					EBattleActionKind::Switch,
+					AbilityEvents))
+			{
+				OutRejection.Reason = EBattleRejectionReason::InvalidSetup;
+				return false;
+			}
+		}
 		if (!TryResolveAbilityEntries(
 				*State,
 				AbilityEntrants,
@@ -5388,18 +6756,24 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 			Projection.AbilityId = Battler.AbilityId;
 		}
 
+		const bool bHeldItemPresent = IsHeldItemActive(Battler);
+		const bool bHeldItemDefinitionKnown = bFiltered
+			&& (Battler.HeldItem.bRevealed
+				|| (Battler.HeldItem.CurrentItemId.IsValid()
+					&& IsDefinitionKnown(
+						*State,
+						*ObserverTrainerId,
+						Battler.BattlerId,
+						EBattleKnowledgeKind::ItemRevealed,
+						Battler.HeldItem.CurrentItemId.GetDefinitionId())));
 		Projection.bHeldItemKnown = !bFiltered
 			|| bOwned
-			|| (Battler.HeldItem.CurrentItemId.IsValid()
-				&& IsDefinitionKnown(
-					*State,
-					*ObserverTrainerId,
-					Battler.BattlerId,
-					EBattleKnowledgeKind::ItemRevealed,
-					Battler.HeldItem.CurrentItemId.GetDefinitionId()));
+			|| bHeldItemDefinitionKnown;
 		if (Projection.bHeldItemKnown)
 		{
-			Projection.HeldItemId = Battler.HeldItem.CurrentItemId;
+			Projection.HeldItemId = bHeldItemPresent
+				? Battler.HeldItem.CurrentItemId
+				: FItemId();
 		}
 
 		for (const FBattleMoveSlotState& Move : Battler.Moves)
@@ -5736,11 +7110,17 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 				ActionKind,
 				FallbackSource);
 		}
-		for (FBattleBattlerState& Candidate : State->Battlers)
+		if (!TrySetAllHeldItemsSuppressed(*State, bMagicRoomTriggerActive))
 		{
-			Candidate.HeldItem.bSuppressed = bMagicRoomTriggerActive
-				&& Candidate.HeldItem.CurrentItemId.IsValid()
-				&& !Candidate.HeldItem.bConsumed;
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Rule,
+				ActionKind,
+				FallbackSource);
 		}
 	}
 
@@ -6064,6 +7444,16 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 			OutgoingTarget,
 			IncomingTarget,
 			Events);
+		const bool bItemEntryRevealed = TryRevealAirBalloonOnEntry(
+			*State,
+			IncomingTarget.BattlerId,
+			ResolutionId,
+			EBattleActionKind::Switch,
+			Events);
+		if (!bItemEntryRevealed)
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("C08C voluntary-switch held-item entry could not be resolved."));
+		}
 		const bool bHazardsResolved = TryResolveEntryHazards(
 			*State,
 			IncomingTarget.BattlerId,
@@ -6076,6 +7466,17 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 				LogTemp,
 				Fatal,
 				TEXT("Validated C07D voluntary-switch entry hazards could not be resolved."));
+		}
+		const bool bImmediateItemsResolved = TryResolveImmediateHeldItem(
+			*State,
+			IncomingTarget.BattlerId,
+			ResolutionId,
+			Action->ActionId,
+			EBattleActionKind::Switch,
+			Events);
+		if (!bImmediateItemsResolved)
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("C08C voluntary-switch immediate held items could not be resolved."));
 		}
 		const TArray<FBattlerId> AbilityEntrants{IncomingTarget.BattlerId};
 		const bool bAbilitiesResolved = TryResolveAbilityEntries(
@@ -6125,6 +7526,461 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 	check(bResolutionCreated);
 	State->AppendResolution(Resolution);
 	return Resolution;
+}
+
+FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
+{
+	check(State.IsValid());
+	FBattleLockedActionState* Action = State->LockedActions.IsValidIndex(
+		State->CurrentLockedActionIndex)
+		? &State->LockedActions[State->CurrentLockedActionIndex]
+		: nullptr;
+	const FBattleItemDefinition* ItemDefinition = Action != nullptr
+		? State->Catalog.FindItem(Action->Decision.GetItemId())
+		: nullptr;
+	if (State->Phase == EBattlePhase::Resolving
+		&& Action != nullptr
+		&& Action->bStarted
+		&& !Action->bFinished
+		&& Action->Decision.GetActionKind() == EBattleActionKind::Bag
+		&& ItemDefinition != nullptr
+		&& ItemDefinition->Kind == EBattleItemKind::Capture)
+	{
+		// C09 owns capture revalidation, consumption, RNG, and completion. This
+		// C08C handler is deliberately a true no-op so replay cannot contain a
+		// false ActionCanceled or CaptureAttempted event for the live action.
+		return FBattleResolution();
+	}
+
+	const FResolutionId ResolutionId = TakeResolutionId(*State);
+	const FBattleEventSource FallbackSource = Action != nullptr
+		? SourceFromLockedAction(*State, *Action)
+		: FindFallbackSource(*State);
+
+	FBattleRejection Rejection;
+	if (State->Phase == EBattlePhase::Terminal)
+	{
+		Rejection.Reason = EBattleRejectionReason::TerminalState;
+	}
+	else if (State->Phase != EBattlePhase::Resolving
+		|| Action == nullptr
+		|| !Action->bStarted
+		|| Action->bFinished
+		|| Action->Decision.GetActionKind() != EBattleActionKind::Bag)
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+		if (Action != nullptr)
+		{
+			Rejection.ActionId = Action->ActionId;
+		}
+	}
+
+	if (!Rejection.IsRejected()
+		&& (ItemDefinition == nullptr
+			|| ItemDefinition->Kind != EBattleItemKind::Battle
+			|| !FBattleBagItemRules::IsCanonical(Action->Decision.GetItemId())))
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalItem;
+		Rejection.ActionId = Action->ActionId;
+		Rejection.ItemId = Action->Decision.GetItemId();
+	}
+	if (Rejection.IsRejected())
+	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+
+	check(Action != nullptr && ItemDefinition != nullptr);
+	const uint64 BeforeStateVersion = State->StateVersion;
+	auto FinishAcceptedAction = [this, Action, ResolutionId, BeforeStateVersion](
+		TArray<FBattleEvent>& Events)
+	{
+		Action->bFinished = true;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+		AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+		++State->StateVersion;
+
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		const bool bStateValid = State->ValidateInvariants(StateError);
+		check(bStateValid);
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State->StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(
+			ResolutionSpec,
+			Resolution);
+		check(bResolutionCreated);
+		State->AppendResolution(Resolution);
+		return Resolution;
+	};
+
+	FBattleTrainerState* ActingTrainer = State->FindMutableTrainer(
+		Action->Decision.GetDecisionOwnerTrainerId());
+	const FBattleBattlerState* ActingBattler = State->FindBattler(
+		Action->Decision.GetActingBattlerId());
+	FBattleBattlerState* TargetBattler = nullptr;
+	const FBattleActivePositionState* TargetActive = nullptr;
+	EBattleBagItemTargetKind TargetKind = EBattleBagItemTargetKind::Invalid;
+	bool bTargetShapeValid = false;
+	if (ActingTrainer != nullptr
+		&& Action->Decision.GetItemPartyTargetId().IsValid()
+		&& !Action->Decision.GetActiveTargetId().IsValid())
+	{
+		TargetKind = EBattleBagItemTargetKind::Party;
+		const FBattlePartySlotState* PartySlot = ActingTrainer->PartySlots.FindByPredicate(
+			[Action](const FBattlePartySlotState& Candidate)
+			{
+				return Candidate.PartySlotId
+					== Action->Decision.GetItemPartyTargetId();
+			});
+		if (PartySlot != nullptr
+			&& PartySlot->BattlerId == Action->SelectedTargetBattlerId)
+		{
+			TargetBattler = State->FindMutableBattler(PartySlot->BattlerId);
+			TargetActive = TargetBattler != nullptr
+				? FindActiveForBattler(*State, TargetBattler->BattlerId)
+				: nullptr;
+		}
+		bTargetShapeValid = true;
+	}
+	else if (ActingTrainer != nullptr
+		&& Action->Decision.GetActiveTargetId().IsValid()
+		&& !Action->Decision.GetItemPartyTargetId().IsValid())
+	{
+		TargetKind = EBattleBagItemTargetKind::Active;
+		TargetActive = State->FindActivePosition(Action->Decision.GetActiveTargetId());
+		if (TargetActive != nullptr
+			&& TargetActive->BattlerId == Action->SelectedTargetBattlerId)
+		{
+			TargetBattler = State->FindMutableBattler(TargetActive->BattlerId);
+		}
+		bTargetShapeValid = true;
+	}
+	if (!bTargetShapeValid || ActingTrainer == nullptr || ActingBattler == nullptr)
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		Rejection.ItemId = Action->Decision.GetItemId();
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+
+	TArray<FBattleEvent> Events;
+	auto CancelStaleUse = [&]()
+	{
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item));
+		return FinishAcceptedAction(Events);
+	};
+	if (TargetBattler == nullptr || !State->EncounterPolicies.bBagAllowed)
+	{
+		return CancelStaleUse();
+	}
+
+	FBattleBagItemUseFacts UseFacts;
+	FBattleBagItemUseResult UseResult;
+	if (!TryBuildBagItemUseFacts(
+			*State,
+			*ActingTrainer,
+			*ActingBattler,
+			*ItemDefinition,
+			TargetKind,
+			*TargetBattler,
+			TargetActive,
+			UseFacts)
+		|| !FBattleBagItemRules::TryEvaluateUse(UseFacts, UseResult)
+		|| !UseResult.bValid)
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		Rejection.ItemId = Action->Decision.GetItemId();
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+	if (!UseResult.bLegal || UseResult.bCaptureHandoff)
+	{
+		return CancelStaleUse();
+	}
+
+	TArray<FBattleTrainerBagState> BagStates;
+	BagStates.Reserve(State->Trainers.Num());
+	for (const FBattleTrainerState& Trainer : State->Trainers)
+	{
+		FBattleTrainerBagState& BagState = BagStates.AddDefaulted_GetRef();
+		BagState.TrainerId = Trainer.TrainerId;
+		BagState.Items = Trainer.Bag;
+		BagState.bBagActionAvailable = Trainer.ActionAllowance.bBagActionAvailable;
+	}
+	FBattleBagOwnershipContract BagContract;
+	EBattleBagContractError BagError = EBattleBagContractError::InvalidState;
+	if (!FBattleBagOwnershipContract::TryCreate(
+			BagStates,
+			BagContract,
+			BagError))
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+
+	FBattleBagUseRequest BagRequest;
+	BagRequest.ActingTrainerId = ActingTrainer->TrainerId;
+	BagRequest.ItemId = Action->Decision.GetItemId();
+	BagRequest.TargetOwnerTrainerId = TargetBattler->TrainerId;
+	BagRequest.bItemSpecificTargetLegal = true;
+	FBattleBagUseResult BagResult;
+	if (!BagContract.TryApplyUse(BagRequest, BagResult, BagError))
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+	if (BagResult.Outcome == EBattleBagUseOutcome::PreUseRejected)
+	{
+		return CancelStaleUse();
+	}
+	if (BagResult.Outcome != EBattleBagUseOutcome::Applied
+		|| !BagResult.bItemConsumed
+		|| !BagResult.bActionConsumed)
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+
+	const TArray<FBattleBagItemCount> BagBeforeUse = ActingTrainer->Bag;
+	const bool bBagQuotaBeforeUse = ActingTrainer->ActionAllowance.bBagActionAvailable;
+	const FBattleTriggerFramework FrameworkBeforeUse = State->TriggerFramework;
+	const uint64 TriggerTokenBeforeUse = State->NextTriggerReentrancyToken;
+	const FBattleTrainerBagState* AppliedBag = BagContract.FindTrainerState(
+		ActingTrainer->TrainerId);
+	if (AppliedBag == nullptr)
+	{
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+	ActingTrainer->Bag = AppliedBag->Items;
+	ActingTrainer->ActionAllowance.bBagActionAvailable =
+		AppliedBag->bBagActionAvailable;
+
+	if ((UseResult.bCuresMajorStatus
+			&& !TryCleanupMajorStatusTriggers(
+				*State,
+				TargetBattler->MajorStatusId,
+				TargetBattler->BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		|| (UseResult.bCuresConfusion
+			&& !TryCleanupVolatileTriggers(
+				*State,
+				FBattleVolatileRules::GetConfusionId(),
+				TargetBattler->BattlerId,
+				EBattleTriggerCleanupReason::Removal)))
+	{
+		ActingTrainer->Bag = BagBeforeUse;
+		ActingTrainer->ActionAllowance.bBagActionAvailable = bBagQuotaBeforeUse;
+		State->TriggerFramework = FrameworkBeforeUse;
+		State->NextTriggerReentrancyToken = TriggerTokenBeforeUse;
+		Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+		Rejection.ActionId = Action->ActionId;
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Item,
+			EBattleActionKind::Bag,
+			FallbackSource);
+	}
+
+	FBattleEventTarget EventTarget;
+	EventTarget.TrainerId = TargetBattler->TrainerId;
+	EventTarget.BattlerId = TargetBattler->BattlerId;
+	if (TargetActive != nullptr
+		&& TargetActive->BattlerId == TargetBattler->BattlerId)
+	{
+		EventTarget.ActiveSlotId = TargetActive->ActiveSlotId;
+	}
+	Events.Add(MakeBagItemMutationEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::ItemUsed,
+		EventTarget));
+	Events.Add(MakeBagItemMutationEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::ItemConsumed,
+		EventTarget));
+
+	switch (UseResult.Kind)
+	{
+	case EBattleBagItemRuleKind::HyperPotion:
+	{
+		const int32 PreviousHP = TargetBattler->CurrentHP;
+		TargetBattler->CurrentHP += UseResult.HealAmount;
+		for (const EBattleEventType Type : {
+			EBattleEventType::Healing,
+			EBattleEventType::HPChanged})
+		{
+			Events.Add(MakeBagItemMutationEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				Type,
+				EventTarget,
+				static_cast<int64>(PreviousHP),
+				static_cast<int64>(TargetBattler->CurrentHP),
+				static_cast<int64>(UseResult.HealAmount)));
+		}
+		break;
+	}
+	case EBattleBagItemRuleKind::Revive:
+	{
+		const int32 PreviousHP = TargetBattler->CurrentHP;
+		TargetBattler->CurrentHP = UseResult.HealAmount;
+		TargetBattler->bFainted = false;
+		TargetBattler->bFaintTransitionPending = false;
+		TargetBattler->bRemoved = false;
+		TargetBattler->MajorStatusId = FConditionId();
+		TargetBattler->Stages = FBattleStatStages();
+		TargetBattler->Volatiles.Reset();
+		TargetBattler->LastMoveId = FMoveId();
+		TargetBattler->bAbilitySuppressed = false;
+		TargetBattler->HeldItem.ChoiceLockedMoveId = FMoveId();
+		TargetBattler->EnteredActiveOnTurnId = FTurnId();
+		for (const EBattleEventType Type : {
+			EBattleEventType::Healing,
+			EBattleEventType::HPChanged})
+		{
+			Events.Add(MakeBagItemMutationEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				Type,
+				EventTarget,
+				static_cast<int64>(PreviousHP),
+				static_cast<int64>(TargetBattler->CurrentHP),
+				static_cast<int64>(UseResult.HealAmount)));
+		}
+		break;
+	}
+	case EBattleBagItemRuleKind::FullHeal:
+	{
+		const int32 CuredCount = (UseResult.bCuresMajorStatus ? 1 : 0)
+			+ (UseResult.bCuresConfusion ? 1 : 0);
+		if (UseResult.bCuresMajorStatus)
+		{
+			TargetBattler->MajorStatusId = FConditionId();
+		}
+		if (UseResult.bCuresConfusion)
+		{
+			TargetBattler->Volatiles.RemoveAll(
+				[](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId
+						== FBattleVolatileRules::GetConfusionId();
+				});
+		}
+		Events.Add(MakeBagItemMutationEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::StatusChanged,
+			EventTarget,
+			static_cast<int64>(CuredCount),
+			static_cast<int64>(0),
+			static_cast<int64>(-CuredCount)));
+		break;
+	}
+	case EBattleBagItemRuleKind::XAttack:
+	{
+		const int32 PreviousStage = UseFacts.AttackStage;
+		const FBattleStatStageChangeResult StageChange = TargetBattler->Stages.ApplyChange(
+			EBattleStat::Attack,
+			UseResult.RequestedAttackStageDelta);
+		check(StageChange.Outcome == EBattleStatStageChangeOutcome::Applied
+			&& StageChange.PreviousStage == PreviousStage
+			&& StageChange.AppliedDelta == UseResult.AppliedAttackStageDelta
+			&& StageChange.NewStage == UseResult.ResultingAttackStage);
+		Events.Add(MakeBagItemMutationEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::StatStageChanged,
+			EventTarget,
+			static_cast<int64>(StageChange.PreviousStage),
+			static_cast<int64>(StageChange.NewStage),
+			static_cast<int64>(StageChange.AppliedDelta)));
+		break;
+	}
+	default:
+		checkNoEntry();
+		break;
+	}
+
+	return FinishAcceptedAction(Events);
 }
 
 FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
@@ -6670,6 +8526,24 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 				Record,
 				TOptional<uint64>()));
 		}
+		if (!TryResolveImmediateHeldItem(
+				*State,
+				Battler->BattlerId,
+				ResolutionId,
+				Action->ActionId,
+				EBattleActionKind::Fight,
+				Events))
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Item,
+				EBattleActionKind::Fight,
+				FallbackSource);
+		}
 
 		if (Battler->bFaintTransitionPending)
 		{
@@ -6700,7 +8574,12 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 				Battler->AbilityId,
 				Battler->BattlerId,
 				EBattleTriggerCleanupReason::Faint);
-			check(bAbilityCleaned);
+			const bool bItemCleaned = TryCleanupItemTriggers(
+				*State,
+				Battler->HeldItem.CurrentItemId,
+				Battler->BattlerId,
+				EBattleTriggerCleanupReason::Faint);
+			check(bAbilityCleaned && bItemCleaned);
 			Battler->bAbilitySuppressed = false;
 			Battler->EnteredActiveOnTurnId = FTurnId();
 			if (FBattleMajorStatusRules::IsCanonical(PendingStatus))
@@ -6815,6 +8694,70 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		State->AppendResolution(Resolution);
 		return Resolution;
 	}
+	FBattleChoiceBandMoveResult ChoiceCommitResult;
+	if (IsHeldItemActive(*Battler)
+		&& Battler->HeldItem.CurrentItemId == FBattleItemRules::GetChoiceBandId())
+	{
+		FBattleChoiceBandMoveFacts ChoiceFacts;
+		ChoiceFacts.ItemId = Battler->HeldItem.CurrentItemId;
+		ChoiceFacts.SelectedMoveId = Move->Id;
+		ChoiceFacts.LockedMoveId = Battler->HeldItem.ChoiceLockedMoveId;
+		ChoiceFacts.bSelectedMoveIsStruggle = bStruggle;
+		ChoiceFacts.bSuppressed = Battler->HeldItem.bSuppressed;
+		if (!FBattleItemRules::TryEvaluateChoiceBandMove(
+				ChoiceFacts,
+				ChoiceCommitResult))
+		{
+			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
+			return MakeRejectedResolution(
+				*State,
+				ResolutionId,
+				Rejection,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Rule,
+				EBattleActionKind::Fight,
+				FallbackSource);
+		}
+		if (!ChoiceCommitResult.bMoveAllowed)
+		{
+			Action->bFinished = true;
+			Events.Add(MakeActionDetailEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::EffectPrevented,
+				EBattleEventCause::Rule));
+			Events.Add(MakeActionDetailEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Rule));
+			Events.Add(MakeActionDetailEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				EBattleEventType::ActionCompleted,
+				EBattleEventCause::Action));
+			++State->CurrentLockedActionIndex;
+			AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+			++State->StateVersion;
+
+			FBattleResolutionSpec ChoiceResolutionSpec;
+			ChoiceResolutionSpec.ResolutionId = ResolutionId;
+			ChoiceResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+			ChoiceResolutionSpec.AfterStateVersion = State->StateVersion;
+			ChoiceResolutionSpec.bAccepted = true;
+			ChoiceResolutionSpec.Events = MoveTemp(Events);
+			FBattleResolution ChoiceResolution;
+			const bool bChoiceResolutionCreated = FBattleResolution::TryCreate(
+				ChoiceResolutionSpec,
+				ChoiceResolution);
+			check(bChoiceResolutionCreated);
+			State->AppendResolution(ChoiceResolution);
+			return ChoiceResolution;
+		}
+	}
 	if (!bStruggle
 		&& !bReleasingCharge
 		&& (MoveSlot == nullptr || MoveSlot->CurrentPP <= 0))
@@ -6847,6 +8790,10 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		check(bResolutionCreated);
 		State->AppendResolution(Resolution);
 		return Resolution;
+	}
+	if (ChoiceCommitResult.bShouldEstablishLock)
+	{
+		Battler->HeldItem.ChoiceLockedMoveId = ChoiceCommitResult.LockMoveId;
 	}
 
 	if (MoveSlot != nullptr && !bReleasingCharge)
@@ -7250,7 +9197,12 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				RemovedBattler->AbilityId,
 				RemovedBattler->BattlerId,
 				EBattleTriggerCleanupReason::Faint);
-			check(bAbilityCleaned);
+			const bool bItemCleaned = TryCleanupItemTriggers(
+				*State,
+				RemovedBattler->HeldItem.CurrentItemId,
+				RemovedBattler->BattlerId,
+				EBattleTriggerCleanupReason::Faint);
+			check(bAbilityCleaned && bItemCleaned);
 			RemovedBattler->bAbilitySuppressed = false;
 			RemovedBattler->EnteredActiveOnTurnId = FTurnId();
 		}
@@ -7604,6 +9556,36 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				continue;
 			}
 			if (Registration.Spec.SourceDefinition.Kind
+				== EBattleTriggerSourceDefinitionKind::Item)
+			{
+				if (Registration.Spec.Owner.Kind != EBattleTriggerSubjectKind::Battler)
+				{
+					continue;
+				}
+				const FBattleBattlerState* ItemOwner = State->FindBattler(
+					Registration.Spec.Owner.BattlerId);
+				const FBattleActivePositionState* ItemActive = ItemOwner != nullptr
+					? FindActiveForBattler(*State, ItemOwner->BattlerId)
+					: nullptr;
+				if (ItemOwner == nullptr
+					|| ItemActive == nullptr
+					|| ItemOwner->CurrentHP <= 0
+					|| ItemOwner->bFainted
+					|| ItemOwner->bCaptured
+					|| ItemOwner->bRemoved
+					|| !IsHeldItemActive(*ItemOwner)
+					|| ItemOwner->HeldItem.CurrentItemId
+						!= Registration.Spec.SourceDefinition.ItemId)
+				{
+					continue;
+				}
+				FBattleTriggerDispatchParticipant& Participant =
+					Dispatch.Participants.AddDefaulted_GetRef();
+				Participant.RegistrationId = Registration.RegistrationId;
+				Participant.ActiveSlotId = ItemActive->ActiveSlotId;
+				continue;
+			}
+			if (Registration.Spec.SourceDefinition.Kind
 				!= EBattleTriggerSourceDefinitionKind::Condition)
 			{
 				continue;
@@ -7791,6 +9773,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				Record.NumericAfter = TargetBattler.CurrentHP;
 				Record.NumericDelta = -AppliedDamage;
 			}
+			const bool bImmediateItemResolved = TryResolveImmediateHeldItem(
+				*State,
+				TargetBattler.BattlerId,
+				ResolutionId,
+				FActionId(),
+				EBattleActionKind::Residual,
+				Events);
+			check(bImmediateItemResolved);
 
 			const FConditionId PendingStatus = TargetBattler.MajorStatusId;
 			TArray<FConditionId> PendingVolatiles;
@@ -7826,7 +9816,12 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					TargetBattler.AbilityId,
 					Target.BattlerId,
 					EBattleTriggerCleanupReason::Faint);
-				check(bAbilityCleaned);
+				const bool bItemCleaned = TryCleanupItemTriggers(
+					*State,
+					TargetBattler.HeldItem.CurrentItemId,
+					Target.BattlerId,
+					EBattleTriggerCleanupReason::Faint);
+				check(bAbilityCleaned && bItemCleaned);
 				TargetBattler.bAbilitySuppressed = false;
 				TargetBattler.EnteredActiveOnTurnId = FTurnId();
 				if (FBattleMajorStatusRules::IsCanonical(PendingStatus))
@@ -8077,6 +10072,83 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					Change.PreviousStage,
 					Change.NewStage,
 					Change.AppliedDelta));
+				continue;
+			}
+			if (Request.SourceDefinition.Kind
+				== EBattleTriggerSourceDefinitionKind::Item)
+			{
+				FBattleBattlerState* ItemOwner =
+					Request.Owner.Kind == EBattleTriggerSubjectKind::Battler
+						? State->FindMutableBattler(Request.Owner.BattlerId)
+						: nullptr;
+				const FBattleActivePositionState* ItemActive = ItemOwner != nullptr
+					? FindActiveForBattler(*State, ItemOwner->BattlerId)
+					: nullptr;
+				if (ItemOwner == nullptr
+					|| ItemActive == nullptr
+					|| !IsHeldItemActive(*ItemOwner)
+					|| ItemOwner->HeldItem.CurrentItemId
+						!= FBattleItemRules::GetLeftoversId()
+					|| Request.SourceDefinition.ItemId
+						!= ItemOwner->HeldItem.CurrentItemId)
+				{
+					continue;
+				}
+				FBattleItemRecoveryFacts RecoveryFacts;
+				RecoveryFacts.ItemId = ItemOwner->HeldItem.CurrentItemId;
+				RecoveryFacts.CurrentHP = ItemOwner->CurrentHP;
+				RecoveryFacts.BaseMaximumHP = ItemOwner->PermanentStats.MaxHP;
+				RecoveryFacts.bHealingPermitted = ItemOwner->CurrentHP > 0
+					&& !ItemOwner->bFainted
+					&& !ItemOwner->bCaptured
+					&& !ItemOwner->bRemoved;
+				RecoveryFacts.bSuppressed = ItemOwner->HeldItem.bSuppressed;
+				FBattleItemRecoveryResult Recovery;
+				if (!FBattleItemRules::TryEvaluateRecovery(RecoveryFacts, Recovery)
+					|| !Recovery.bValid)
+				{
+					continue;
+				}
+				TOptional<FBattleAbilityItemActivationFact> Activation;
+				if (!TryRecordItemActivation(*State, Request, Recovery.Outcome, Activation))
+				{
+					continue;
+				}
+				if (!Recovery.bApplies || !Activation.IsSet())
+				{
+					continue;
+				}
+				const int32 PreviousHP = ItemOwner->CurrentHP;
+				ItemOwner->CurrentHP += Recovery.HealAmount;
+				FBattleEventTarget Target;
+				Target.TrainerId = ItemOwner->TrainerId;
+				Target.BattlerId = ItemOwner->BattlerId;
+				Target.ActiveSlotId = ItemActive->ActiveSlotId;
+				Events.Add(MakeItemActivationEvent(
+					*State,
+					ResolutionId,
+					FActionId(),
+					EBattleActionKind::Residual,
+					Request,
+					Activation.GetValue(),
+					&Target));
+				for (const EBattleEventType Type : {
+					EBattleEventType::Healing,
+					EBattleEventType::HPChanged})
+				{
+					Events.Add(MakeHeldItemMutationEvent(
+						*State,
+						ResolutionId,
+						FActionId(),
+						EBattleActionKind::Residual,
+						Type,
+						ItemOwner->BattlerId,
+						ItemActive->ActiveSlotId,
+						ItemOwner->HeldItem.CurrentItemId,
+						PreviousHP,
+						ItemOwner->CurrentHP,
+						Recovery.HealAmount));
+				}
 				continue;
 			}
 			if (Request.SourceDefinition.Kind
@@ -8528,6 +10600,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			HpRecord.NumericBefore = PreviousHP;
 			HpRecord.NumericAfter = Battler->CurrentHP;
 			HpRecord.NumericDelta = -AppliedDamage;
+			const bool bImmediateItemResolved = TryResolveImmediateHeldItem(
+				*State,
+				Battler->BattlerId,
+				ResolutionId,
+				FActionId(),
+				EBattleActionKind::Residual,
+				Events);
+			check(bImmediateItemResolved);
 			TArray<FConditionId> PendingVolatileIds;
 			if (Battler->bFaintTransitionPending)
 			{
@@ -8561,7 +10641,12 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 					Battler->AbilityId,
 					Target.BattlerId,
 					EBattleTriggerCleanupReason::Faint);
-				check(bAbilityCleaned);
+				const bool bItemCleaned = TryCleanupItemTriggers(
+					*State,
+					Battler->HeldItem.CurrentItemId,
+					Target.BattlerId,
+					EBattleTriggerCleanupReason::Faint);
+				check(bAbilityCleaned && bItemCleaned);
 				Battler->bAbilitySuppressed = false;
 				Battler->EnteredActiveOnTurnId = FTurnId();
 				const bool bCleaned = TryCleanupMajorStatusTriggers(
@@ -8680,9 +10765,28 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 				check(bCleaned);
 				if (ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
 				{
-					for (FBattleBattlerState& Battler : State->Battlers)
+					const bool bItemsUnsuppressed = TrySetAllHeldItemsSuppressed(
+						*State,
+						false);
+					check(bItemsUnsuppressed);
+					TArray<FBattlerId> ActiveBattlerIds;
+					for (const FBattleActivePositionState& Active : State->ActivePositions)
 					{
-						Battler.HeldItem.bSuppressed = false;
+						if (Active.bAvailable && Active.BattlerId.IsValid())
+						{
+							ActiveBattlerIds.Add(Active.BattlerId);
+						}
+					}
+					for (const FBattlerId ActiveBattlerId : ActiveBattlerIds)
+					{
+						const bool bImmediateResolved = TryResolveImmediateHeldItem(
+							*State,
+							ActiveBattlerId,
+							ResolutionId,
+							FActionId(),
+							EBattleActionKind::Residual,
+							Events);
+						check(bImmediateResolved);
 					}
 				}
 				const bool bRemoved = RemoveFieldSideConditionState(
@@ -8885,18 +10989,21 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 		if (Sequence.IsEmpty())
 		{
 			TArray<FBattleLockedActionState> NewLockedActions;
+			TArray<FBattleEvent> PreLockEvents;
 			bool bReverseSpeed = false;
 			const bool bLocked = TryBuildLockedActions(
 				*State,
 				State->AcceptedSelections,
 				ResolutionId,
 				NewLockedActions,
+				PreLockEvents,
 				bReverseSpeed);
 			check(bLocked && !NewLockedActions.IsEmpty());
 			State->LockedActions = MoveTemp(NewLockedActions);
 			State->bLockedOrderReversesSpeed = bReverseSpeed;
 			State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
 			State->Phase = EBattlePhase::Locked;
+			Events.Append(MoveTemp(PreLockEvents));
 			for (const FBattleLockedActionState& Action : State->LockedActions)
 			{
 				Events.Add(MakeActionOrderLockedEvent(*State, ResolutionId, Action));
@@ -9032,6 +11139,14 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 			{
 				break;
 			}
+			if (!IsExactBagDecisionTargetShape(Request, Decision))
+			{
+				Rejection.Reason = EBattleRejectionReason::IllegalTarget;
+				Rejection.ItemId = Decision.GetItemId();
+				Rejection.PartySlotId = Decision.GetItemPartyTargetId();
+				Rejection.ActiveSlotId = Decision.GetActiveTargetId();
+				break;
+			}
 		}
 		if (!Rejection.IsRejected())
 		{
@@ -9113,7 +11228,9 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 	}
 
 	const bool bLocksQueue = NextRequests.IsEmpty();
+	const uint64 EventOrdinalBeforeQueueLock = State->NextEventOrdinal;
 	TArray<FBattleLockedActionState> NewLockedActions;
+	TArray<FBattleEvent> PreLockEvents;
 	bool bReverseSpeed = false;
 	if (bLocksQueue)
 	{
@@ -9127,6 +11244,7 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 				AllSelections,
 				ResolutionId,
 				NewLockedActions,
+				PreLockEvents,
 				bReverseSpeed))
 		{
 			Rejection.Reason = EBattleRejectionReason::InvalidDecision;
@@ -9139,6 +11257,7 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 				FirstDecision->GetActionKind(),
 				FallbackSource);
 		}
+		State->NextEventOrdinal = EventOrdinalBeforeQueueLock;
 	}
 
 	TArray<FBattleEvent> Events;
@@ -9170,6 +11289,10 @@ FBattleResolution FBattleEngine::SubmitDecisionBatch(const FBattleDecisionBatch&
 		State->CurrentLockedActionIndex = 0;
 		State->NextActionId += static_cast<uint64>(State->LockedActions.Num());
 		State->Phase = EBattlePhase::Locked;
+		for (const FBattleEvent& PreLockEvent : PreLockEvents)
+		{
+			Events.Add(ReissueEventWithNextOrdinal(*State, PreLockEvent));
+		}
 		for (const FBattleLockedActionState& Action : State->LockedActions)
 		{
 			Events.Add(MakeActionOrderLockedEvent(*State, ResolutionId, Action));
@@ -9267,6 +11390,21 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 	}
 	if (!Request->Allows(Decision, Rejection))
 	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::DecisionRejected,
+			EBattleEventCause::Decision,
+			ActionKind,
+			Source);
+	}
+	if (!IsExactBagDecisionTargetShape(*Request, Decision))
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalTarget;
+		Rejection.ItemId = Decision.GetItemId();
+		Rejection.PartySlotId = Decision.GetItemPartyTargetId();
+		Rejection.ActiveSlotId = Decision.GetActiveTargetId();
 		return MakeRejectedResolution(
 			*State,
 			ResolutionId,
@@ -9378,6 +11516,16 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 			OutgoingTarget,
 			IncomingTarget,
 			Events);
+		const bool bItemEntryRevealed = TryRevealAirBalloonOnEntry(
+			*State,
+			IncomingTarget.BattlerId,
+			ResolutionId,
+			EBattleActionKind::Fight,
+			Events);
+		if (!bItemEntryRevealed)
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("C08C pivot held-item entry could not be resolved."));
+		}
 		const bool bHazardsResolved = TryResolveEntryHazards(
 			*State,
 			IncomingTarget.BattlerId,
@@ -9390,6 +11538,17 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 				LogTemp,
 				Fatal,
 				TEXT("Validated C07D pivot entry hazards could not be resolved."));
+		}
+		const bool bImmediateItemsResolved = TryResolveImmediateHeldItem(
+			*State,
+			IncomingTarget.BattlerId,
+			ResolutionId,
+			Action->ActionId,
+			EBattleActionKind::Fight,
+			Events);
+		if (!bImmediateItemsResolved)
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("C08C pivot immediate held items could not be resolved."));
 		}
 		const TArray<FBattlerId> AbilityEntrants{IncomingTarget.BattlerId};
 		const bool bAbilitiesResolved = TryResolveAbilityEntries(
@@ -9578,13 +11737,23 @@ FBattleResolution FBattleEngine::ApplyBetweenActionsStatRefresh(
 	EventSpec.Visibility = Event.GetVisibility();
 	const bool bEventCreated = FBattleEvent::TryCreate(EventSpec, Event);
 	check(bEventCreated);
+	TArray<FBattleEvent> Events;
+	Events.Add(MoveTemp(Event));
+	const bool bImmediateItemResolved = TryResolveImmediateHeldItem(
+		*State,
+		Refresh.BattlerId,
+		ResolutionId,
+		FActionId(),
+		EBattleActionKind::Fight,
+		Events);
+	check(bImmediateItemResolved);
 
 	FBattleResolutionSpec ResolutionSpec;
 	ResolutionSpec.ResolutionId = ResolutionId;
 	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
 	ResolutionSpec.AfterStateVersion = State->StateVersion;
 	ResolutionSpec.bAccepted = true;
-	ResolutionSpec.Events.Add(Event);
+	ResolutionSpec.Events = MoveTemp(Events);
 	FBattleResolution Resolution;
 	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
 	check(bResolutionCreated);

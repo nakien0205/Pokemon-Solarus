@@ -14,6 +14,8 @@ class FBattleC07BEngineFixture;
 class FBattleC07CEngineFixture;
 class FBattleC07DEngineFixture;
 class FBattleC08BEngineFixture;
+class FBattleC08CEngineFixture;
+class FBattleC08CBagEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -81,6 +83,13 @@ public:
 	[[nodiscard]] FBattleResolution ExecuteCurrentSwitch();
 
 	/**
+	 * Revalidates and executes one currently started C08C Battle-kind Bag item.
+	 * Capture-kind actions return an invalid resolution without mutating state or
+	 * history and remain locked for the later C09 capture checkpoint.
+	 */
+	[[nodiscard]] FBattleResolution ExecuteCurrentBagItem();
+
+	/**
 	 * Commits the current Fight action after future status/volatile gates allow it.
 	 * Ordinary moves spend one PP here; engine-supplied Struggle spends none.
 	 */
@@ -122,6 +131,8 @@ private:
 	friend class FBattleC07CEngineFixture;
 	friend class FBattleC07DEngineFixture;
 	friend class FBattleC08BEngineFixture;
+	friend class FBattleC08CEngineFixture;
+	friend class FBattleC08CBagEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

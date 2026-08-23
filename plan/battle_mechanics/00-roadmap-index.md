@@ -1,8 +1,8 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-22
-Roadmap status: Approved and materialized; B00 through C08B complete under focused validation
-Next package: C08C; C09 and later remain dependency-blocked
+Status date: 2026-08-23
+Roadmap status: Approved and materialized; B00 through C08C complete under focused validation
+Next package: C09A; C09B and later remain dependency-blocked
 
 ## Current Truth
 
@@ -93,14 +93,19 @@ The live battle source now contains:
   grounding, hazard, terrain, residual, switch, faint, suppression, and public
   reveal integration, and twenty `PokemonSolarus.Battle.C08B.*` Automation
   tests.
+- C08C's nine approved held items and five approved Bag items, reusable
+  C08A/C07A hooks, live damage/recovery/status/hazard/order/switch/faint and
+  reveal integration, exact Bag item/target pairings, stale-action
+  revalidation, separate Trainer counts/quotas, frozen Poke Ball handoff, and
+  twenty-six `PokemonSolarus.Battle.C08C.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
 trigger scheduling, major-status, approved volatile, and field/side-condition
-seams, plus concrete Ability execution and the frozen public setup/decision/
-event/snapshot/replay, stat, type, move, definition, adapter, and pure hit/
-damage language needed by later packages. There is still no broader encounter
-flow, concrete item execution, or presentation seam. The completed Story 001
+seams, plus concrete Ability and item execution and the frozen public setup/
+decision/event/snapshot/replay, stat, type, move, definition, adapter, and pure
+hit/damage language needed by later packages. There is still no broader
+encounter flow, capture execution, or presentation seam. The completed Story 001
 and its 33-test report
 describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
@@ -117,8 +122,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C08B gates are clear. C08C is dependency-clear; C09 still
-  requires C08C, and later packages remain blocked or not started.
+- The B00 through C08C gates are clear. C09A is dependency-clear; C09B and later
+  packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -876,6 +881,56 @@ B00B accepted evidence:
   test run was used.
 - C08B is complete under the approved focused-validation scope. C08C is
   dependency-clear; C09 still requires C08C.
+
+## C08C Execution Status
+
+- C08C completed on 2026-08-23 from `main` baseline
+  `61b2d8f16e1dfbf245e84baa11a2cc20177ac861`, while preserving the unrelated
+  dirty map and concurrent UI-asset work.
+- `BattleItem` defines the nine approved held-item rules and reusable C08A/C07A
+  hooks. The live executor and engine integrate recovery, cure, per-hit faint
+  prevention, damage/recoil, Choice lock with generic no-leak cancellation,
+  hazard/Ground interactions, Air
+  Balloon reveal/pop/known-empty projection, Quick Claw RNG/order, suppression,
+  switch/faint cleanup, and deterministic reveal ordering without species
+  branches.
+- The held-item ledger proof covers consumption/Recycle, Knock Off-style
+  removal, Trick-style swapping, Thief-style temporary theft, capture, and
+  battle-generated cleanup. It emits sufficient final ownership facts without
+  writing persistent inventory.
+- `BattleBagItem` defines exactly Poke Ball, Hyper Potion, Revive, Full Heal,
+  and X Attack. Exact item/target pairs and execution-time revalidation enforce
+  owner targeting, separate finite Trainer Bags, one Bag quota per Trainer per
+  turn, and no item/quota/RNG consumption for pre-use or stale rejection.
+- Hyper Potion heals 120 HP capped at Max HP; Revive restores
+  `max(1, floor(MaxHP / 2))`; Full Heal clears all six canonical major statuses,
+  Confusion, and Toxic's private counter while retaining unrelated volatiles;
+  X Attack raises the acting battler's Attack by two stages capped at `+6`.
+- Under approved Option A, C08C rejects Revive for every opponent Trainer and
+  defers explicit boss permission to C09A. Partner capture is rejected. Poke
+  Ball remains a true no-op handoff for C09, without C08C capture math,
+  capacity, removal, completion, consumption, RNG, history, or counter changes.
+- The final all-source `PokemonSolarusEditor Win64 Development` build succeeded
+  with `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` and exit
+  code `0`:
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/build-final.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C08C` was run. The final
+  exported report at
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/report-final/index.json`
+  records exactly 26 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. All 26 paths use the C08C prefix, every entry has 0 warnings
+  and 0 errors, and the process exited `0`. The report SHA-256 is
+  `053D8B23A2D2612FA7FEA280042F68EDBEE84697795E86684D7AB4AB816DEF09`; the
+  matching command log is
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/automation-final.log`.
+- The C08C implementation did not modify C09 flows, persistent inventory
+  writes, catalogs/Data Tables, assets, UI, configuration, module rules, the
+  `.uproject`, non-C08C tests, the B00B snapshot, or the Solarus interview
+  handoff. No
+  `dev-story`, commit, older battle filter, full battle suite, or project-wide
+  test run was used.
+- C08C and C08 are complete under the approved focused-validation scope. C09A
+  is dependency-clear; C09B and later packages remain dependency-blocked.
 
 ## Goal
 

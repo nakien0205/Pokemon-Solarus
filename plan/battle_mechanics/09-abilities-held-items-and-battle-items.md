@@ -1,7 +1,7 @@
 # C08 — Abilities, Held Items, and Battle Items
 
 Priority: P2  
-Status: C08A/B complete; C08C dependency-clear
+Status: C08A/B/C complete
 
 Required order: C08A; then C08B/C
 
@@ -167,8 +167,59 @@ Battle items:
   not assume it is limited to major status.
 - X Attack: active user target and modern Attack-stage increase.
 
-Ordinary enemy Trainers cannot use Revive. A boss may use it only when encounter
-configuration explicitly allows it. Partner Trainers cannot capture.
+C08C rejects Revive for every opponent Trainer. C09A owns any later explicit
+boss permission. Partner Trainers cannot capture.
+
+### C08C Completion Record
+
+- C08C completed on 2026-08-23 from `main` baseline
+  `61b2d8f16e1dfbf245e84baa11a2cc20177ac861`, while preserving the unrelated
+  dirty map and concurrent UI-asset work.
+- `BattleItem` defines the nine approved held items through reusable C08A/C07A
+  hooks. The live executor and engine cover recovery, status cure, per-hit
+  Focus Sash, damage modifiers, Life Orb recoil/faint, Choice lock and generic
+  no-leak cancellation/cleanup,
+  hazard/Ground interactions, Air Balloon reveal/pop/known-empty projection,
+  Quick Claw ordering/RNG, suppression, and deterministic trigger ordering.
+- The held-item ledger proof covers consumption and Recycle restoration,
+  Knock Off-style removal, Trick-style swapping, Thief-style temporary theft,
+  captured-original ownership, and battle-generated cleanup without a
+  persistent inventory write.
+- `BattleBagItem` defines exactly Poke Ball, Hyper Potion, Revive, Full Heal,
+  and X Attack. Selection publishes exact item/target pairs, then execution
+  revalidates stale actions before consuming the acting Trainer's copied item
+  count and per-turn Bag quota. Player and partner Bags remain separate.
+- Hyper Potion heals 120 HP capped at Max HP; Revive restores
+  `max(1, floor(MaxHP / 2))`; Full Heal clears all six canonical major statuses,
+  Confusion, and Toxic's private trigger counter while retaining unrelated
+  volatiles; X Attack raises the acting battler's Attack by two stages capped at
+  `+6`. Pre-use rejection and stale revalidation consume no item, Bag quota, or
+  RNG.
+- Option A was approved for the unresolved boss boundary: C08C rejects Revive
+  for every opponent Trainer. C09A owns any later explicit boss permission.
+  Partner capture remains rejected. A valid Poke Ball action is frozen as a
+  true no-op C09 handoff, with no capture math, consumption, RNG, history, or
+  counter mutation in C08C.
+- The final all-source `PokemonSolarusEditor Win64 Development` build succeeded
+  with `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` and exit
+  code `0`:
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/build-final.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C08C` was run. The final
+  exported report at
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/report-final/index.json`
+  records exactly 26 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. All 26 paths use the C08C prefix, every entry has 0 warnings
+  and 0 errors, and the process exited `0`. The report SHA-256 is
+  `053D8B23A2D2612FA7FEA280042F68EDBEE84697795E86684D7AB4AB816DEF09`; the
+  matching command log is
+  `Game/Saved/Automation/C08C-Items-20260823T051131Z/automation-final.log`.
+- The C08C implementation did not modify C09 capture calculations, capacity,
+  removal, completion, persistent inventory writes, catalogs/Data Tables,
+  assets, UI, configuration, module rules, the `.uproject`, non-C08C tests, the
+  B00B snapshot, or the Solarus interview handoff. No `dev-story`, commit,
+  older battle filter, full battle suite, or project-wide test run was used.
+- C08 is complete under the approved focused-validation scope. C09A is now
+  dependency-clear; C09B and later packages remain dependency-blocked.
 
 ## Safe Session Split
 
@@ -190,7 +241,8 @@ configuration explicitly allows it. Partner Trainers cannot capture.
 - Item ownership across consume, Recycle, Knock Off, Trick, Thief, capture, and
   battle-generated cleanup.
 - Separate player/partner Bags, one-action quota, owner targeting, rejection,
-  prevented legal effect, boss Revive policy, and no persistent write.
+  prevented legal effect, opponent Revive rejection with boss permission
+  deferred to C09A, and no persistent write.
 
 ## Acceptance
 
