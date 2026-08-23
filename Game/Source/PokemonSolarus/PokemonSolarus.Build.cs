@@ -12,7 +12,10 @@ public class PokemonSolarus : ModuleRules
 		{
 			"Core",
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"UMG"
 		});
+
+		PrivateDependencyModuleNames.Add("EnhancedInput");
 	}
 }
