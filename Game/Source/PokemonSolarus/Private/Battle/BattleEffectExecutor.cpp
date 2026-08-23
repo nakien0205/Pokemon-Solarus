@@ -2,6 +2,7 @@
 
 #include "Battle/BattleAbility.h"
 #include "Battle/BattleFieldSideConditions.h"
+#include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
@@ -777,6 +778,7 @@ namespace BattleEffectExecutorPrivate
 			, Sides(InState.Sides)
 			, TriggerFramework(InState.TriggerFramework)
 			, AbilityItemRevealTracker(InState.AbilityItemRevealTracker)
+			, HeldItemLedger(InState.HeldItemLedger)
 			, NextConditionCreationOrdinal(InState.NextConditionCreationOrdinal)
 			, NextTriggerReentrancyToken(InState.NextTriggerReentrancyToken)
 		{
@@ -790,6 +792,7 @@ namespace BattleEffectExecutorPrivate
 			State.Sides = MoveTemp(Sides);
 			State.TriggerFramework = MoveTemp(TriggerFramework);
 			State.AbilityItemRevealTracker = MoveTemp(AbilityItemRevealTracker);
+			State.HeldItemLedger = MoveTemp(HeldItemLedger);
 			State.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
 			State.NextTriggerReentrancyToken = NextTriggerReentrancyToken;
 		}
@@ -927,6 +930,10 @@ namespace BattleEffectExecutorPrivate
 						EBattleTriggerCleanupReason::Removal)
 					|| !TryCleanupAbilityHooks(
 						*Outgoing,
+						EBattleTriggerCleanupReason::Switch)
+					|| !TryCleanupItemHooks(
+						*Outgoing,
+						Outgoing->HeldItem.CurrentItemId,
 						EBattleTriggerCleanupReason::Switch))
 				{
 					OutError = EBattleEffectExecutorError::InvalidHookResult;
@@ -935,18 +942,134 @@ namespace BattleEffectExecutorPrivate
 				Outgoing->Stages = FBattleStatStages();
 				Outgoing->Volatiles.Reset();
 				Outgoing->LastMoveId = FMoveId();
+				Outgoing->HeldItem.ChoiceLockedMoveId = FMoveId();
 				Outgoing->bAbilitySuppressed = false;
 				Outgoing->EnteredActiveOnTurnId = FTurnId();
 				Active->BattlerId = Incoming->BattlerId;
 				Incoming->bAbilitySuppressed = false;
 				Incoming->EnteredActiveOnTurnId = Request.TurnId;
 				if (!TryRegisterAbilityHooks(*Incoming, *Active)
+					|| !TryResolveHeldItemSwitchIn(*Incoming, *Active)
 					|| !TryApplyEntryHazards(*Incoming, *Active))
 				{
 					OutError = EBattleEffectExecutorError::InvalidHookResult;
 					return false;
 				}
 				Intent.bApplied = true;
+			}
+			return true;
+		}
+
+		bool TryApplyPostMoveLifeOrbRecoil(
+			FBattleEffectExecutionResult& Result,
+			EBattleEffectExecutorError& OutError)
+		{
+			FBattleBattlerState* User = FindMutableBattler(Request.UserBattlerId);
+			if (User == nullptr)
+			{
+				OutError = EBattleEffectExecutorError::InvalidTarget;
+				return false;
+			}
+			const FItemId ItemId = User->HeldItem.CurrentItemId;
+			if (User->CurrentHP <= 0
+				|| User->bFainted
+				|| User->bCaptured
+				|| User->bRemoved
+				|| User->HeldItem.bConsumed
+				|| User->HeldItem.bTemporarilyRemoved
+				|| ItemId != FBattleItemRules::GetLifeOrbId())
+			{
+				return true;
+			}
+
+			FBattleLifeOrbRecoilFacts Facts;
+			Facts.ItemId = ItemId;
+			Facts.BaseMaximumHP = User->PermanentStats.MaxHP;
+			Facts.bDamagingMove = Request.Move->Category == EBattleMoveCategory::Physical
+				|| Request.Move->Category == EBattleMoveCategory::Special;
+			Facts.bMoveAffectedTarget = bMoveAffectedDifferentBattler;
+			Facts.bSourceAndTargetDiffer = bMoveAffectedDifferentBattler;
+			Facts.bForcedSwitchSuppressesRecoil = Result.SwitchIntents.ContainsByPredicate(
+				[](const FBattleSwitchEffectIntent& Intent)
+				{
+					return Intent.Kind == EBattleSwitchKind::Forced && Intent.bApplied;
+				});
+			Facts.bSuppressed = User->HeldItem.bSuppressed;
+			FBattleLifeOrbRecoilResult Recoil;
+			if (!FBattleItemRules::TryEvaluateLifeOrbRecoil(Facts, Recoil)
+				|| !Recoil.bValid)
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				return false;
+			}
+			if (!Recoil.bApplies)
+			{
+				return true;
+			}
+
+			if (FBattleAbilityRules::ShouldMagicGuardPreventDamage(
+					User->AbilityId,
+					EBattleHPChangeSourceKind::Item,
+					User->bAbilitySuppressed))
+			{
+				FBattleAbilityItemEffectRequest AbilityRequest;
+				if (!TryGetAbilityEffectRequest(
+						*User,
+						EBattleTriggerPhase::AfterDamage,
+						EBattleAbilityItemHookPoint::AfterDamage,
+						AbilityRequest)
+					|| !TryRecordAbilityActivation(
+						AbilityRequest,
+						EBattleAbilityItemActivationOutcome::Applied,
+						*User))
+				{
+					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					return false;
+				}
+				return true;
+			}
+
+			FBattleAbilityItemEffectRequest ItemRequest;
+			if (!TryGetItemEffectRequest(
+					*User,
+					EBattleTriggerPhase::AfterAction,
+					EBattleAbilityItemHookPoint::AfterDamage,
+					ItemRequest)
+				|| !TryRecordItemActivation(
+					ItemRequest,
+					Recoil.Outcome,
+					*User,
+					ItemId))
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				return false;
+			}
+
+			const int32 PreviousHP = User->CurrentHP;
+			const int32 AppliedDamage = FMath::Min(PreviousHP, Recoil.RecoilDamage);
+			User->CurrentHP -= AppliedDamage;
+			if (User->CurrentHP == 0)
+			{
+				User->bFainted = true;
+				User->bFaintTransitionPending = true;
+			}
+			if (!TryAppendItemMutationEvent(
+					EBattleEventType::Damage,
+					ItemId,
+					*User,
+					PreviousHP,
+					User->CurrentHP,
+					-AppliedDamage)
+				|| !TryAppendItemMutationEvent(
+					EBattleEventType::HPChanged,
+					ItemId,
+					*User,
+					PreviousHP,
+					User->CurrentHP,
+					-AppliedDamage))
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				return false;
 			}
 			return true;
 		}
@@ -1302,9 +1425,45 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveDefinition& Move,
 			const FBattleResolvedTarget& Target) override
 		{
-			(void)Move;
-			(void)Target;
-			return Applied();
+			if (Target.GetKind() != EBattleResolvedTargetKind::Battler
+				|| EnumHasAllFlags(Move.Flags, EBattleMoveFlags::TypelessDamage))
+			{
+				return Applied();
+			}
+			FBattleBattlerState* Defender = FindMutableBattler(
+				Target.GetBattler().BattlerId);
+			if (Defender == nullptr)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			const FItemId ItemId = Defender->HeldItem.CurrentItemId;
+			if (Defender->HeldItem.bConsumed
+				|| Defender->HeldItem.bTemporarilyRemoved
+				|| !FBattleItemRules::ShouldAirBalloonPreventMove(
+					ItemId,
+					Move.Type,
+					Defender->HeldItem.bSuppressed))
+			{
+				return Applied();
+			}
+			FBattleAbilityItemEffectRequest ItemRequest;
+			if (!TryGetItemEffectRequest(
+					*Defender,
+					EBattleTriggerPhase::BeforeHit,
+					EBattleAbilityItemHookPoint::TypeImmunity,
+					ItemRequest)
+				|| !TryRecordItemActivation(
+					ItemRequest,
+					EBattleAbilityItemActivationOutcome::Applied,
+					*Defender,
+					ItemId))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			FBattleEffectHookResult Result = Outcome(
+				EBattleEffectExecutionOutcome::Immune);
+			Result.RuleId = ItemId.GetDefinitionId();
+			return Result;
 		}
 
 		virtual FBattleEffectHookResult ApplyProtectionBreaking(
@@ -1543,6 +1702,66 @@ namespace BattleEffectExecutorPrivate
 							*User))
 					{
 						return false;
+					}
+				}
+			}
+
+			const EBattleHeldItemRuleKind ItemKind = User->HeldItem.bConsumed
+					|| User->HeldItem.bTemporarilyRemoved
+				? EBattleHeldItemRuleKind::None
+				: FBattleItemRules::GetKind(User->HeldItem.CurrentItemId);
+			if (ItemKind == EBattleHeldItemRuleKind::LifeOrb
+				|| ItemKind == EBattleHeldItemRuleKind::ChoiceBand)
+			{
+				FBattleItemDamageModifierFacts ItemFacts;
+				ItemFacts.ItemId = User->HeldItem.CurrentItemId;
+				ItemFacts.MoveCategory = Move.Category;
+				ItemFacts.bDamagingMove = Move.Category == EBattleMoveCategory::Physical
+					|| Move.Category == EBattleMoveCategory::Special;
+				ItemFacts.bSuppressed = User->HeldItem.bSuppressed;
+				FBattleItemDamageModifierResult ItemResult;
+				if (!FBattleItemRules::TryEvaluateDamageModifier(ItemFacts, ItemResult)
+					|| !ItemResult.bValid)
+				{
+					return false;
+				}
+				if (ItemResult.bApplies)
+				{
+					FBattleDamageModifier Modifier{
+						User->HeldItem.CurrentItemId.GetDefinitionId(),
+						ItemResult.ModifierQ12,
+						false};
+					if (ItemKind == EBattleHeldItemRuleKind::ChoiceBand)
+					{
+						OutInput.OffensiveStatModifiers.Add(Modifier);
+					}
+					else
+					{
+						OutInput.FinalModifiers.Add(Modifier);
+					}
+					if (bActualDamageBuild)
+					{
+						FBattleBattlerState* MutableUser = FindMutableBattler(
+							User->BattlerId);
+						FBattleAbilityItemEffectRequest ItemRequest;
+						const EBattleAbilityItemHookPoint HookPoint =
+							ItemKind == EBattleHeldItemRuleKind::ChoiceBand
+								? EBattleAbilityItemHookPoint::OffensiveStat
+								: EBattleAbilityItemHookPoint::FinalDamage;
+						if (MutableUser == nullptr
+							|| !TryGetItemEffectRequest(
+								*MutableUser,
+								EBattleTriggerPhase::BeforeDamage,
+								HookPoint,
+								ItemRequest)
+							|| !TryRecordItemActivation(
+								ItemRequest,
+								ItemResult.Outcome,
+								*MutableUser,
+								ItemFacts.ItemId))
+						{
+							return false;
+						}
 					}
 				}
 			}
@@ -1795,6 +2014,16 @@ namespace BattleEffectExecutorPrivate
 				}
 			}
 			return true;
+		}
+
+		virtual void SetDirectMoveDamageHit(const bool bActive) override
+		{
+			bApplyingDirectMoveDamageHit = bActive;
+		}
+
+		virtual bool IsRuntimeValid() const override
+		{
+			return bRuntimeValid;
 		}
 
 		virtual bool IsSourceAbleToContinue() const override
@@ -2336,11 +2565,66 @@ namespace BattleEffectExecutorPrivate
 				{
 					Substitute->LayerCount = Routed.RemainingSubstituteHP;
 				}
+				if (bApplyingDirectMoveDamageHit && Result.bStateMutated)
+				{
+					PendingDamagingHitConnections.Add(Battler->BattlerId);
+					bMoveAffectedDifferentBattler = bMoveAffectedDifferentBattler
+						|| Battler->BattlerId != Request.UserBattlerId;
+				}
 				return Result;
 			}
-			const int32 AppliedDamage = static_cast<int32>(FMath::Min<int64>(
+			int32 AdjustedDamage = static_cast<int32>(FMath::Min<int64>(
 				RequestedDamage,
-				Battler->CurrentHP));
+				TNumericLimits<int32>::Max()));
+			const FItemId ItemId = Battler->HeldItem.CurrentItemId;
+			if (!Battler->HeldItem.bConsumed
+				&& !Battler->HeldItem.bTemporarilyRemoved
+				&& ItemId == FBattleItemRules::GetFocusSashId())
+			{
+				FBattleFocusSashFacts Facts;
+				Facts.ItemId = ItemId;
+				Facts.CurrentHP = Battler->CurrentHP;
+				Facts.BaseMaximumHP = Battler->PermanentStats.MaxHP;
+				Facts.IncomingDamage = AdjustedDamage;
+				Facts.bDirectMoveDamage = bApplyingDirectMoveDamageHit;
+				Facts.bDamageTargetsSubstitute = false;
+				Facts.bSuppressed = Battler->HeldItem.bSuppressed;
+				FBattleFocusSashResult Sash;
+				if (!FBattleItemRules::TryEvaluateFocusSash(Facts, Sash) || !Sash.bValid)
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
+				if (Sash.bApplies)
+				{
+					FBattleAbilityItemEffectRequest ItemRequest;
+					if (!Sash.bConsumesItem
+						|| !TryGetItemEffectRequest(
+							*Battler,
+							EBattleTriggerPhase::BeforeDamage,
+							EBattleAbilityItemHookPoint::FaintPrevention,
+							ItemRequest)
+						|| !TryRecordItemActivation(
+							ItemRequest,
+							Sash.Outcome,
+							*Battler,
+							ItemId)
+						|| !TryConsumeHeldItem(*Battler, ItemId)
+						|| !TryAppendItemMutationEvent(
+							EBattleEventType::ItemConsumed,
+							ItemId,
+							*Battler,
+							1,
+							0,
+							-1))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
+					AdjustedDamage = Sash.AdjustedDamage;
+				}
+			}
+			const int32 AppliedDamage = FMath::Min(
+				AdjustedDamage,
+				Battler->CurrentHP);
 			Battler->CurrentHP -= AppliedDamage;
 			if (Battler->CurrentHP == 0)
 			{
@@ -2351,6 +2635,12 @@ namespace BattleEffectExecutorPrivate
 			Result.bStateMutated = AppliedDamage != 0;
 			Result.NumericAfter = Battler->CurrentHP;
 			Result.NumericDelta = -static_cast<int64>(AppliedDamage);
+			if (bApplyingDirectMoveDamageHit && Result.bStateMutated)
+			{
+				PendingDamagingHitConnections.Add(Battler->BattlerId);
+				bMoveAffectedDifferentBattler = bMoveAffectedDifferentBattler
+					|| Battler->BattlerId != Request.UserBattlerId;
+			}
 			return Result;
 		}
 
@@ -2394,48 +2684,89 @@ namespace BattleEffectExecutorPrivate
 
 		virtual void RunImmediateUpdate(const FBattleResolvedTarget& Target) override
 		{
-			if (Target.GetKind() != EBattleResolvedTargetKind::Battler)
+			if (!bRuntimeValid)
 			{
 				return;
 			}
-			const FBattlerId TargetId = Target.GetBattler().BattlerId;
-			const bool bOriginalReachedTarget = Request.Targets.ContainsByPredicate(
-				[TargetId](const FBattleResolvedTarget& Candidate)
-				{
-					return Candidate.GetKind() == EBattleResolvedTargetKind::Battler
-						&& Candidate.GetBattler().BattlerId == TargetId;
-				});
-			FBattleBattlerState* Battler = FindMutableBattler(TargetId);
-			const bool bDamagingMove = Request.Move->Category == EBattleMoveCategory::Physical
-				|| Request.Move->Category == EBattleMoveCategory::Special;
-			if (ExecutionResult != nullptr
-				&& Battler != nullptr
-				&& Battler->CurrentHP > 0
-				&& !Battler->bFainted
-				&& !Battler->bCaptured
-				&& !Battler->bRemoved
-				&& FBattleMajorStatusRules::ShouldThawReachedTarget(
-					Battler->MajorStatusId,
-					Request.Move->Type,
-					bDamagingMove,
-					EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::ThawsTarget),
-					bOriginalReachedTarget)
-				&& TryCleanupCanonicalStatus(*Battler))
+			if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
 			{
-				FBattleEventTarget EventTarget;
-				EventTarget.TrainerId = Battler->TrainerId;
-				EventTarget.BattlerId = Battler->BattlerId;
-				EventTarget.ActiveSlotId = Target.GetBattler().ActiveSlotId;
-				Battler->MajorStatusId = FConditionId();
-				FBattleEffectExecutionEvent& Event =
-					ExecutionResult->Events.AddDefaulted_GetRef();
-				Event.Type = EBattleEventType::StatusChanged;
-				Event.Cause = EBattleEventCause::Rule;
-				Event.Outcome = EBattleEffectExecutionOutcome::Applied;
-				Event.Targets.Add(MoveTemp(EventTarget));
-				Event.NumericBefore = 1;
-				Event.NumericAfter = 0;
-				Event.NumericDelta = -1;
+				const FBattlerId TargetId = Target.GetBattler().BattlerId;
+				const bool bOriginalReachedTarget = Request.Targets.ContainsByPredicate(
+					[TargetId](const FBattleResolvedTarget& Candidate)
+					{
+						return Candidate.GetKind() == EBattleResolvedTargetKind::Battler
+							&& Candidate.GetBattler().BattlerId == TargetId;
+					});
+				FBattleBattlerState* Battler = FindMutableBattler(TargetId);
+				const bool bDamagingMove = Request.Move->Category
+						== EBattleMoveCategory::Physical
+					|| Request.Move->Category == EBattleMoveCategory::Special;
+				if (ExecutionResult != nullptr
+					&& Battler != nullptr
+					&& Battler->CurrentHP > 0
+					&& !Battler->bFainted
+					&& !Battler->bCaptured
+					&& !Battler->bRemoved
+					&& FBattleMajorStatusRules::ShouldThawReachedTarget(
+						Battler->MajorStatusId,
+						Request.Move->Type,
+						bDamagingMove,
+						EnumHasAllFlags(
+							Request.Move->Flags,
+							EBattleMoveFlags::ThawsTarget),
+						bOriginalReachedTarget)
+					&& TryCleanupCanonicalStatus(*Battler))
+				{
+					FBattleEventTarget EventTarget;
+					EventTarget.TrainerId = Battler->TrainerId;
+					EventTarget.BattlerId = Battler->BattlerId;
+					EventTarget.ActiveSlotId = Target.GetBattler().ActiveSlotId;
+					Battler->MajorStatusId = FConditionId();
+					FBattleEffectExecutionEvent& Event =
+						ExecutionResult->Events.AddDefaulted_GetRef();
+					Event.Type = EBattleEventType::StatusChanged;
+					Event.Cause = EBattleEventCause::Rule;
+					Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+					Event.Targets.Add(MoveTemp(EventTarget));
+					Event.NumericBefore = 1;
+					Event.NumericAfter = 0;
+					Event.NumericDelta = -1;
+				}
+				PendingImmediateItemUpdates.Remove(TargetId);
+				if (Battler != nullptr && !TryRunImmediateHeldItemUpdate(*Battler))
+				{
+					bRuntimeValid = false;
+					return;
+				}
+			}
+
+			TArray<FBattlerId> PendingUpdates = PendingImmediateItemUpdates.Array();
+			PendingUpdates.Sort(
+				[this](const FBattlerId LeftId, const FBattlerId RightId)
+				{
+					const FBattleActivePositionState* Left = FindActiveForBattler(LeftId);
+					const FBattleActivePositionState* Right = FindActiveForBattler(RightId);
+					if (Left == nullptr || Right == nullptr)
+					{
+						return Left != nullptr || (Right == nullptr && LeftId < RightId);
+					}
+					if (Left->ActiveSlotId.GetSide() != Right->ActiveSlotId.GetSide())
+					{
+						return static_cast<uint8>(Left->ActiveSlotId.GetSide())
+							< static_cast<uint8>(Right->ActiveSlotId.GetSide());
+					}
+					return static_cast<uint8>(Left->ActiveSlotId.GetPosition())
+						< static_cast<uint8>(Right->ActiveSlotId.GetPosition());
+				});
+			PendingImmediateItemUpdates.Reset();
+			for (const FBattlerId BattlerId : PendingUpdates)
+			{
+				FBattleBattlerState* Battler = FindMutableBattler(BattlerId);
+				if (Battler != nullptr && !TryRunImmediateHeldItemUpdate(*Battler))
+				{
+					bRuntimeValid = false;
+					return;
+				}
 			}
 		}
 
@@ -2605,6 +2936,12 @@ namespace BattleEffectExecutorPrivate
 				false,
 				bAbilityIgnoredForMove);
 			Facts.bAbilitySuppressed = Battler.bAbilitySuppressed;
+			Facts.bItemMakesAirborne = !Battler.HeldItem.bConsumed
+				&& !Battler.HeldItem.bTemporarilyRemoved
+				&& FBattleItemRules::IsAirBalloonAirborne(
+					Battler.HeldItem.CurrentItemId,
+					Battler.HeldItem.bSuppressed);
+			Facts.bItemSuppressed = Battler.HeldItem.bSuppressed;
 			Facts.bAirborneSemiInvulnerable = HasVolatile(
 				Battler,
 				FBattleVolatileRules::GetFlySemiInvulnerableId());
@@ -2658,6 +2995,616 @@ namespace BattleEffectExecutorPrivate
 					User->bAbilitySuppressed,
 					Defender.AbilityId,
 					*TypeImmunityHook);
+		}
+
+		bool TryApplyHeldItemOperation(
+			FBattleBattlerState& Battler,
+			const EBattleHeldItemOperationKind Kind,
+			const bool bSuppressed,
+			FBattleHeldItemOperationFact& OutFact)
+		{
+			if (!Battler.HeldItem.InstanceId.IsValid())
+			{
+				return false;
+			}
+			FBattleHeldItemOperationRequest Operation;
+			Operation.Kind = Kind;
+			Operation.PrimaryInstanceId = Battler.HeldItem.InstanceId;
+			Operation.bSuppressed = bSuppressed;
+			EBattleHeldItemContractError Error = EBattleHeldItemContractError::None;
+			if (!HeldItemLedger.TryApplyOperation(Operation, OutFact, Error))
+			{
+				return false;
+			}
+			Battler.HeldItem.CurrentItemId = OutFact.PrimaryAfter.CurrentItemId;
+			Battler.HeldItem.bConsumed = OutFact.PrimaryAfter.bConsumed;
+			Battler.HeldItem.bSuppressed = OutFact.PrimaryAfter.bSuppressed;
+			Battler.HeldItem.bRevealed = OutFact.PrimaryAfter.bRevealed;
+			Battler.HeldItem.bTemporarilyRemoved =
+				OutFact.PrimaryAfter.bTemporarilyRemoved;
+			const bool bItemLost = !Battler.HeldItem.CurrentItemId.IsValid()
+				|| Battler.HeldItem.bConsumed
+				|| Battler.HeldItem.bTemporarilyRemoved;
+			if (FBattleItemRules::ShouldClearChoiceBandMoveLock(
+				false,
+				bItemLost,
+				Battler.HeldItem.bSuppressed))
+			{
+				Battler.HeldItem.ChoiceLockedMoveId = FMoveId();
+			}
+			return true;
+		}
+
+		bool TryCleanupItemHooks(
+			const FBattleBattlerState& Battler,
+			const FItemId& ItemId,
+			const EBattleTriggerCleanupReason Reason)
+		{
+			if (!FBattleItemRules::IsCanonical(ItemId))
+			{
+				return true;
+			}
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			FBattleTriggerOperationContext Operation;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateItem(ItemId, SourceDefinition)
+				|| !TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			FBattleTriggerCleanupRequest Cleanup;
+			Cleanup.Reason = Reason;
+			Cleanup.AffectedOwners.Add(Owner);
+			Cleanup.SourceDefinitionFilter = SourceDefinition;
+			Cleanup.Context = Operation;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!TriggerFramework.TryApplyCleanup(Cleanup, Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryRegisterItemHooks(
+			const FBattleBattlerState& Battler,
+			const FBattleActivePositionState& Active)
+		{
+			const FItemId ItemId = Battler.HeldItem.CurrentItemId;
+			if (!FBattleItemRules::IsCanonical(ItemId))
+			{
+				return true;
+			}
+			if (Battler.HeldItem.bConsumed || Battler.HeldItem.bTemporarilyRemoved)
+			{
+				return true;
+			}
+			if (!Active.bAvailable
+				|| Active.BattlerId != Battler.BattlerId
+				|| Active.TrainerId != Battler.TrainerId
+				|| !TryCleanupItemHooks(
+					Battler,
+					ItemId,
+					EBattleTriggerCleanupReason::Removal))
+			{
+				return false;
+			}
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSubject Source;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Source))
+			{
+				return false;
+			}
+			FBattleItemRegistrationFacts Facts;
+			Facts.ItemId = ItemId;
+			Facts.Owner = Owner;
+			Facts.Source = Source;
+			Facts.Targets.Add(Owner);
+			Facts.bSuppressed = Battler.HeldItem.bSuppressed;
+			EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+			if (!FBattleItemRules::TryRegisterHooks(TriggerFramework, Facts, Error))
+			{
+				return false;
+			}
+			DrainTriggerOutputs();
+			return true;
+		}
+
+		bool TryDispatchItemPhase(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			TArray<FBattleTriggerEffectRequest>& OutRequests)
+		{
+			OutRequests.Reset();
+			const FItemId ItemId = Battler.HeldItem.CurrentItemId;
+			if (!FBattleItemRules::IsCanonical(ItemId)
+				|| Battler.HeldItem.bConsumed
+				|| Battler.HeldItem.bTemporarilyRemoved)
+			{
+				return false;
+			}
+			FBattleTriggerSubject Owner;
+			FBattleTriggerSourceDefinition SourceDefinition;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner)
+				|| !FBattleTriggerSourceDefinition::TryCreateItem(ItemId, SourceDefinition))
+			{
+				return false;
+			}
+			FBattleTriggerDispatchSpec Dispatch;
+			Dispatch.Phase = Phase;
+			const FBattleActivePositionState* Active = FindActiveForBattler(
+				Battler.BattlerId);
+			for (const FBattleTriggerRegistrationState& Registration :
+				TriggerFramework.GetActiveRegistrations())
+			{
+				if (Registration.Spec.Owner == Owner
+					&& Registration.Spec.SourceDefinition == SourceDefinition
+					&& Registration.Spec.Rule.Phase == Phase)
+				{
+					FBattleTriggerDispatchParticipant& Participant =
+						Dispatch.Participants.AddDefaulted_GetRef();
+					Participant.RegistrationId = Registration.RegistrationId;
+					if (Active != nullptr)
+					{
+						Participant.ActiveSlotId = Active->ActiveSlotId;
+					}
+				}
+			}
+			if (Dispatch.Participants.IsEmpty())
+			{
+				return true;
+			}
+			FBattleTriggerOperationContext Operation;
+			FBattleTriggerDispatchResult Result;
+			EBattleTriggerError Error = EBattleTriggerError::None;
+			if (!TryTakeTriggerContext(Operation))
+			{
+				return false;
+			}
+			Dispatch.ReentrancyToken = Operation.ReentrancyToken;
+			if (!TriggerFramework.TryEnqueueDispatch(Dispatch, Error)
+				|| !TriggerFramework.TryResolveNextDispatch(Result, Error))
+			{
+				return false;
+			}
+			TArray<FBattleTriggerLifecycleFact> Facts;
+			TriggerFramework.DrainEffectRequests(OutRequests);
+			TriggerFramework.DrainLifecycleFacts(Facts);
+			if (Result.bQueuedExpiryDispatch)
+			{
+				FBattleTriggerDispatchResult ExpiryResult;
+				if (!TriggerFramework.TryResolveNextDispatch(ExpiryResult, Error))
+				{
+					return false;
+				}
+				TArray<FBattleTriggerEffectRequest> ExpiryRequests;
+				TArray<FBattleTriggerLifecycleFact> ExpiryFacts;
+				TriggerFramework.DrainEffectRequests(ExpiryRequests);
+				TriggerFramework.DrainLifecycleFacts(ExpiryFacts);
+				OutRequests.Append(MoveTemp(ExpiryRequests));
+			}
+			return true;
+		}
+
+		bool TryGetItemEffectRequest(
+			const FBattleBattlerState& Battler,
+			const EBattleTriggerPhase Phase,
+			const EBattleAbilityItemHookPoint HookPoint,
+			FBattleAbilityItemEffectRequest& OutRequest)
+		{
+			OutRequest = FBattleAbilityItemEffectRequest();
+			TArray<FBattleTriggerEffectRequest> Requests;
+			if (!TryDispatchItemPhase(Battler, Phase, Requests))
+			{
+				return false;
+			}
+			bool bFound = false;
+			for (const FBattleTriggerEffectRequest& TriggerRequest : Requests)
+			{
+				FBattleAbilityItemEffectRequest TypedRequest;
+				EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+				if (!FBattleItemRules::TryCreateTypedEffectRequest(
+						TriggerRequest,
+						TypedRequest,
+						Error))
+				{
+					return false;
+				}
+				if (TypedRequest.HookPoint == HookPoint)
+				{
+					if (bFound)
+					{
+						return false;
+					}
+					OutRequest = MoveTemp(TypedRequest);
+					bFound = true;
+				}
+			}
+			return bFound;
+		}
+
+		bool TryBuildItemEventIdentity(
+			const FBattleBattlerState& Battler,
+			const FItemId& ItemId,
+			FBattleEventSource& OutSource,
+			FBattleEventTarget& OutTarget) const
+		{
+			OutSource = FBattleEventSource();
+			OutTarget = FBattleEventTarget();
+			const FBattleActivePositionState* Active = FindActiveForBattler(
+				Battler.BattlerId);
+			if (!ItemId.IsValid() || Active == nullptr || !Active->bAvailable)
+			{
+				return false;
+			}
+			OutSource.TrainerId = Battler.TrainerId;
+			OutSource.BattlerId = Battler.BattlerId;
+			OutSource.ActiveSlotId = Active->ActiveSlotId;
+			OutSource.DefinitionId = ItemId.GetDefinitionId();
+			OutTarget.TrainerId = Battler.TrainerId;
+			OutTarget.BattlerId = Battler.BattlerId;
+			OutTarget.ActiveSlotId = Active->ActiveSlotId;
+			return true;
+		}
+
+		bool TryRecordItemActivation(
+			const FBattleAbilityItemEffectRequest& RequestToRecord,
+			const EBattleAbilityItemActivationOutcome Outcome,
+			FBattleBattlerState& SourceBattler,
+			const FItemId& ItemId)
+		{
+			TOptional<FBattleAbilityItemActivationFact> Fact;
+			EBattleAbilityItemHookError Error = EBattleAbilityItemHookError::None;
+			if (!AbilityItemRevealTracker.TryRecordActivation(
+					RequestToRecord,
+					Outcome,
+					Fact,
+					Error))
+			{
+				return false;
+			}
+			if (!Fact.IsSet() || !Fact.GetValue().RevealedSourceDefinition.IsSet())
+			{
+				return true;
+			}
+			const FBattleTriggerSourceDefinition& Revealed =
+				Fact.GetValue().RevealedSourceDefinition.GetValue();
+			if (Revealed.Kind != EBattleTriggerSourceDefinitionKind::Item
+				|| Revealed.ItemId != ItemId
+				|| SourceBattler.HeldItem.CurrentItemId != ItemId
+				|| SourceBattler.HeldItem.bConsumed
+				|| SourceBattler.HeldItem.bTemporarilyRemoved)
+			{
+				return false;
+			}
+			if (!SourceBattler.HeldItem.bRevealed)
+			{
+				FBattleHeldItemOperationFact RevealFact;
+				if (!TryApplyHeldItemOperation(
+						SourceBattler,
+						EBattleHeldItemOperationKind::Reveal,
+						false,
+						RevealFact))
+				{
+					return false;
+				}
+			}
+			if (ExecutionResult == nullptr)
+			{
+				return false;
+			}
+			FBattleEventSource Source;
+			FBattleEventTarget Target;
+			if (!TryBuildItemEventIdentity(SourceBattler, ItemId, Source, Target))
+			{
+				return false;
+			}
+			FBattleEffectExecutionEvent& Event =
+				ExecutionResult->Events.AddDefaulted_GetRef();
+			Event.Type = EBattleEventType::ItemActivated;
+			Event.Cause = EBattleEventCause::Item;
+			Event.Outcome = Outcome == EBattleAbilityItemActivationOutcome::Applied
+				? EBattleEffectExecutionOutcome::Applied
+				: EBattleEffectExecutionOutcome::Prevented;
+			Event.SourceOverride = MoveTemp(Source);
+			Event.Targets.Add(MoveTemp(Target));
+			Event.NumericBefore = Fact.GetValue().bFirstPublicReveal ? 0 : 1;
+			Event.NumericAfter = 1;
+			Event.NumericDelta = Fact.GetValue().bFirstPublicReveal ? 1 : 0;
+			return true;
+		}
+
+		bool TryAppendItemMutationEvent(
+			const EBattleEventType Type,
+			const FItemId& ItemId,
+			const FBattleBattlerState& Battler,
+			const int64 Before,
+			const int64 After,
+			const int64 Delta)
+		{
+			if (ExecutionResult == nullptr)
+			{
+				return false;
+			}
+			FBattleEventSource Source;
+			FBattleEventTarget Target;
+			if (!TryBuildItemEventIdentity(Battler, ItemId, Source, Target))
+			{
+				return false;
+			}
+			FBattleEffectExecutionEvent& Event =
+				ExecutionResult->Events.AddDefaulted_GetRef();
+			Event.Type = Type;
+			Event.Cause = EBattleEventCause::Item;
+			Event.Outcome = EBattleEffectExecutionOutcome::Applied;
+			Event.SourceOverride = MoveTemp(Source);
+			Event.Targets.Add(MoveTemp(Target));
+			Event.NumericBefore = Before;
+			Event.NumericAfter = After;
+			Event.NumericDelta = Delta;
+			return true;
+		}
+
+		bool TryConsumeHeldItem(FBattleBattlerState& Battler, const FItemId& ItemId)
+		{
+			if (Battler.HeldItem.CurrentItemId != ItemId
+				|| Battler.HeldItem.bConsumed
+				|| Battler.HeldItem.bTemporarilyRemoved
+				|| !TryCleanupItemHooks(
+					Battler,
+					ItemId,
+					EBattleTriggerCleanupReason::Removal))
+			{
+				return false;
+			}
+			FBattleHeldItemOperationFact ConsumeFact;
+			return TryApplyHeldItemOperation(
+				Battler,
+				EBattleHeldItemOperationKind::Consume,
+				false,
+				ConsumeFact);
+		}
+
+		bool TryResolveHeldItemSwitchIn(
+			FBattleBattlerState& Battler,
+			const FBattleActivePositionState& Active)
+		{
+			if (!TryRegisterItemHooks(Battler, Active))
+			{
+				return false;
+			}
+			const bool bAirBalloonActive = !Battler.HeldItem.bConsumed
+				&& !Battler.HeldItem.bTemporarilyRemoved
+				&& !Battler.HeldItem.bSuppressed
+				&& Battler.HeldItem.CurrentItemId == FBattleItemRules::GetAirBalloonId();
+			if (bAirBalloonActive)
+			{
+				const FItemId ItemId = Battler.HeldItem.CurrentItemId;
+				FBattleAbilityItemEffectRequest ItemRequest;
+				if (!TryGetItemEffectRequest(
+						Battler,
+						EBattleTriggerPhase::SwitchIn,
+						EBattleAbilityItemHookPoint::SwitchIn,
+						ItemRequest)
+					|| !TryRecordItemActivation(
+						ItemRequest,
+						EBattleAbilityItemActivationOutcome::Applied,
+						Battler,
+						ItemId))
+				{
+					return false;
+				}
+			}
+			return TryRunImmediateHeldItemUpdate(Battler);
+		}
+
+		bool TryRunImmediateHeldItemUpdate(FBattleBattlerState& Battler)
+		{
+			const bool bDamagingHitConnected =
+				PendingDamagingHitConnections.Remove(Battler.BattlerId) > 0;
+			const FItemId ItemId = Battler.HeldItem.CurrentItemId;
+			if (!FBattleItemRules::IsCanonical(ItemId)
+				|| Battler.HeldItem.bConsumed
+				|| Battler.HeldItem.bTemporarilyRemoved)
+			{
+				return true;
+			}
+
+			if (ItemId == FBattleItemRules::GetAirBalloonId())
+			{
+				if (!FBattleItemRules::ShouldPopAirBalloon(
+						ItemId,
+						bDamagingHitConnected,
+						Battler.HeldItem.bSuppressed))
+				{
+					return true;
+				}
+				FBattleAbilityItemEffectRequest ItemRequest;
+				if (!TryGetItemEffectRequest(
+						Battler,
+						EBattleTriggerPhase::AfterDamage,
+						EBattleAbilityItemHookPoint::AfterDamage,
+						ItemRequest)
+					|| !TryRecordItemActivation(
+						ItemRequest,
+						EBattleAbilityItemActivationOutcome::Applied,
+						Battler,
+						ItemId)
+					|| !TryCleanupItemHooks(
+						Battler,
+						ItemId,
+						EBattleTriggerCleanupReason::Removal))
+				{
+					return false;
+				}
+				FBattleHeldItemOperationFact RemoveFact;
+				if (!TryApplyHeldItemOperation(
+						Battler,
+						EBattleHeldItemOperationKind::Remove,
+						false,
+						RemoveFact)
+					|| !TryAppendItemMutationEvent(
+						EBattleEventType::ItemRemoved,
+						ItemId,
+						Battler,
+						1,
+						0,
+						-1))
+				{
+					return false;
+				}
+				return true;
+			}
+
+			if (ItemId == FBattleItemRules::GetSitrusBerryId())
+			{
+				FBattleItemRecoveryFacts Facts;
+				Facts.ItemId = ItemId;
+				Facts.CurrentHP = Battler.CurrentHP;
+				Facts.BaseMaximumHP = Battler.PermanentStats.MaxHP;
+				Facts.bHealingPermitted = Battler.CurrentHP > 0 && !Battler.bFainted;
+				Facts.bSuppressed = Battler.HeldItem.bSuppressed;
+				FBattleItemRecoveryResult Recovery;
+				if (!FBattleItemRules::TryEvaluateRecovery(Facts, Recovery)
+					|| !Recovery.bValid)
+				{
+					return false;
+				}
+				if (!Recovery.bApplies)
+				{
+					return true;
+				}
+				FBattleAbilityItemEffectRequest ItemRequest;
+				if (!Recovery.bConsumesItem
+					|| !TryGetItemEffectRequest(
+						Battler,
+						EBattleTriggerPhase::AfterDamage,
+						EBattleAbilityItemHookPoint::AfterDamage,
+						ItemRequest)
+					|| !TryRecordItemActivation(
+						ItemRequest,
+						Recovery.Outcome,
+						Battler,
+						ItemId)
+					|| !TryConsumeHeldItem(Battler, ItemId)
+					|| !TryAppendItemMutationEvent(
+						EBattleEventType::ItemConsumed,
+						ItemId,
+						Battler,
+						1,
+						0,
+						-1))
+				{
+					return false;
+				}
+				const int32 PreviousHP = Battler.CurrentHP;
+				Battler.CurrentHP = FMath::Min(
+					Battler.PermanentStats.MaxHP,
+					Battler.CurrentHP + Recovery.HealAmount);
+				const int32 AppliedHeal = Battler.CurrentHP - PreviousHP;
+				return AppliedHeal > 0
+					&& TryAppendItemMutationEvent(
+						EBattleEventType::Healing,
+						ItemId,
+						Battler,
+						PreviousHP,
+						Battler.CurrentHP,
+						AppliedHeal)
+					&& TryAppendItemMutationEvent(
+						EBattleEventType::HPChanged,
+						ItemId,
+						Battler,
+						PreviousHP,
+						Battler.CurrentHP,
+						AppliedHeal);
+			}
+
+			if (ItemId == FBattleItemRules::GetLumBerryId())
+			{
+				const bool bHasMajorStatus = Battler.MajorStatusId.IsValid();
+				const bool bHasConfusion = HasVolatile(
+					Battler,
+					FBattleVolatileRules::GetConfusionId());
+				FBattleLumBerryFacts Facts;
+				Facts.ItemId = ItemId;
+				Facts.bHolderAbleToBattle = Battler.CurrentHP > 0
+					&& !Battler.bFainted
+					&& !Battler.bCaptured
+					&& !Battler.bRemoved;
+				Facts.bHasMajorStatus = bHasMajorStatus;
+				Facts.bHasConfusion = bHasConfusion;
+				Facts.bSuppressed = Battler.HeldItem.bSuppressed;
+				FBattleLumBerryResult Cure;
+				if (!FBattleItemRules::TryEvaluateLumBerry(Facts, Cure) || !Cure.bValid)
+				{
+					return false;
+				}
+				if (!Cure.bApplies)
+				{
+					return true;
+				}
+				FBattleAbilityItemEffectRequest ItemRequest;
+				if (!Cure.bConsumesItem
+					|| !TryGetItemEffectRequest(
+						Battler,
+						EBattleTriggerPhase::AfterHit,
+						EBattleAbilityItemHookPoint::EffectApplication,
+						ItemRequest)
+					|| !TryRecordItemActivation(
+						ItemRequest,
+						Cure.Outcome,
+						Battler,
+						ItemId)
+					|| !TryConsumeHeldItem(Battler, ItemId)
+					|| !TryAppendItemMutationEvent(
+						EBattleEventType::ItemConsumed,
+						ItemId,
+						Battler,
+						1,
+						0,
+						-1))
+				{
+					return false;
+				}
+				if (Cure.bCuresMajorStatus)
+				{
+					if (!TryCleanupCanonicalStatus(Battler))
+					{
+						return false;
+					}
+					Battler.MajorStatusId = FConditionId();
+				}
+				if (Cure.bCuresConfusion)
+				{
+					if (!TryCleanupVolatile(
+							Battler,
+							FBattleVolatileRules::GetConfusionId(),
+							EBattleTriggerCleanupReason::Removal))
+					{
+						return false;
+					}
+					Battler.Volatiles.RemoveAll(
+						[](const FBattleConditionState& Condition)
+						{
+							return Condition.ConditionId
+								== FBattleVolatileRules::GetConfusionId();
+						});
+				}
+				const int32 CuredCount = (Cure.bCuresMajorStatus ? 1 : 0)
+					+ (Cure.bCuresConfusion ? 1 : 0);
+				return CuredCount > 0
+					&& TryAppendItemMutationEvent(
+						EBattleEventType::StatusChanged,
+						ItemId,
+						Battler,
+						CuredCount,
+						0,
+						-CuredCount);
+			}
+
+			return true;
 		}
 
 		bool TryCleanupAbilityHooks(
@@ -3252,14 +4199,47 @@ namespace BattleEffectExecutorPrivate
 			return true;
 		}
 
-		void SetMagicRoomSuppression(const bool bSuppressed)
+		bool TrySetMagicRoomSuppression(const bool bSuppressed)
 		{
 			for (FBattleBattlerState& Battler : Battlers)
 			{
-				Battler.HeldItem.bSuppressed = bSuppressed
-					&& Battler.HeldItem.CurrentItemId.IsValid()
-					&& !Battler.HeldItem.bConsumed;
+				const bool bPresent = Battler.HeldItem.CurrentItemId.IsValid()
+					&& !Battler.HeldItem.bConsumed
+					&& !Battler.HeldItem.bTemporarilyRemoved;
+				const bool bDesiredSuppression = bSuppressed && bPresent;
+				if (!bPresent || Battler.HeldItem.bSuppressed == bDesiredSuppression)
+				{
+					continue;
+				}
+				const FItemId ItemId = Battler.HeldItem.CurrentItemId;
+				if (!TryCleanupItemHooks(
+						Battler,
+						ItemId,
+						EBattleTriggerCleanupReason::Removal))
+				{
+					return false;
+				}
+				FBattleHeldItemOperationFact SuppressFact;
+				if (!TryApplyHeldItemOperation(
+						Battler,
+						EBattleHeldItemOperationKind::Suppress,
+						bDesiredSuppression,
+						SuppressFact))
+				{
+					return false;
+				}
+				const FBattleActivePositionState* Active = FindActiveForBattler(
+					Battler.BattlerId);
+				if (Active != nullptr && !TryRegisterItemHooks(Battler, *Active))
+				{
+					return false;
+				}
+				if (!bDesiredSuppression && Active != nullptr)
+				{
+					PendingImmediateItemUpdates.Add(Battler.BattlerId);
+				}
 			}
+			return true;
 		}
 
 		bool TryApplyEntryHazards(
@@ -3289,6 +4269,7 @@ namespace BattleEffectExecutorPrivate
 			{
 				return false;
 			}
+			bool bBootsActivationRecorded = false;
 
 			for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
 			{
@@ -3407,6 +4388,11 @@ namespace BattleEffectExecutorPrivate
 				Facts.PrimaryType = Species->PrimaryType;
 				Facts.SecondaryType = Species->SecondaryType;
 				Facts.bGrounded = bGrounded;
+				Facts.bBypassesEntryHazards = !Incoming.HeldItem.bConsumed
+					&& !Incoming.HeldItem.bTemporarilyRemoved
+					&& FBattleItemRules::ShouldBypassEntryHazards(
+						Incoming.HeldItem.CurrentItemId,
+						Incoming.HeldItem.bSuppressed);
 				Facts.bMajorStatusPrevented = StatusApplication.Outcome
 					!= EBattleMajorStatusApplicationOutcome::CanApply;
 				bool bMistTriggerActive = false;
@@ -3432,11 +4418,13 @@ namespace BattleEffectExecutorPrivate
 					|| (HazardId
 							== FBattleFieldSideConditionRules::GetStealthRockId()
 						&& !RockEffectiveness.IsImmune());
-				Facts.bIndirectDamagePrevented = bDamagingHazardWouldApply
+				const bool bMagicGuardWouldPrevent = bDamagingHazardWouldApply
 					&& FBattleAbilityRules::ShouldMagicGuardPreventDamage(
 						Incoming.AbilityId,
 						EBattleHPChangeSourceKind::Condition,
 						Incoming.bAbilitySuppressed);
+				Facts.bIndirectDamagePrevented = bMagicGuardWouldPrevent
+					&& !Facts.bBypassesEntryHazards;
 				if (Facts.bIndirectDamagePrevented)
 				{
 					FBattleAbilityItemEffectRequest AbilityRequest;
@@ -3459,6 +4447,39 @@ namespace BattleEffectExecutorPrivate
 					HazardResult))
 				{
 					return false;
+				}
+				if (Facts.bBypassesEntryHazards && !bBootsActivationRecorded)
+				{
+					FBattleHazardSwitchInFacts WithoutBoots = Facts;
+					WithoutBoots.bBypassesEntryHazards = false;
+					WithoutBoots.bIndirectDamagePrevented = bMagicGuardWouldPrevent;
+					FBattleHazardSwitchInResult WithoutBootsResult;
+					if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
+							WithoutBoots,
+							WithoutBootsResult))
+					{
+						return false;
+					}
+					if (WithoutBootsResult.EffectKind
+						!= EBattleHazardSwitchInEffectKind::None)
+					{
+						const FItemId BootsId = Incoming.HeldItem.CurrentItemId;
+						FBattleAbilityItemEffectRequest ItemRequest;
+						if (!TryGetItemEffectRequest(
+								Incoming,
+								EBattleTriggerPhase::SwitchIn,
+								EBattleAbilityItemHookPoint::SwitchIn,
+								ItemRequest)
+							|| !TryRecordItemActivation(
+								ItemRequest,
+								EBattleAbilityItemActivationOutcome::Applied,
+								Incoming,
+								BootsId))
+						{
+							return false;
+						}
+						bBootsActivationRecorded = true;
+					}
 				}
 				if (bLevitateMadeAirborne)
 				{
@@ -3625,6 +4646,18 @@ namespace BattleEffectExecutorPrivate
 					Event.NumericBefore = PreviousLayers;
 					Event.NumericAfter = 0;
 					Event.NumericDelta = -PreviousLayers;
+				}
+				if (!TryRunImmediateHeldItemUpdate(Incoming))
+				{
+					return false;
+				}
+				if ((Incoming.CurrentHP <= 0 || Incoming.bFainted)
+					&& !TryCleanupItemHooks(
+						Incoming,
+						Incoming.HeldItem.CurrentItemId,
+						EBattleTriggerCleanupReason::Faint))
+				{
+					return false;
 				}
 			}
 			return true;
@@ -4662,7 +5695,10 @@ namespace BattleEffectExecutorPrivate
 						});
 					if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
 					{
-						SetMagicRoomSuppression(false);
+						if (!TrySetMagicRoomSuppression(false))
+						{
+							return Outcome(EBattleEffectExecutionOutcome::Failed);
+						}
 					}
 					FBattleEffectHookResult Result = Applied();
 					Result.NumericBefore = 1;
@@ -4718,7 +5754,10 @@ namespace BattleEffectExecutorPrivate
 				}
 				if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
 				{
-					SetMagicRoomSuppression(true);
+					if (!TrySetMagicRoomSuppression(true))
+					{
+						return Outcome(EBattleEffectExecutionOutcome::Failed);
+					}
 				}
 				FBattleEffectHookResult Result = Applied();
 				Result.NumericBefore = Application.Outcome
@@ -5000,7 +6039,10 @@ namespace BattleEffectExecutorPrivate
 			}
 			if (Effect.ConditionId == FBattleFieldSideConditionRules::GetMagicRoomId())
 			{
-				SetMagicRoomSuppression(false);
+				if (!TrySetMagicRoomSuppression(false))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 			}
 			FBattleEffectHookResult Result = Applied();
 			Result.NumericBefore = 1;
@@ -5180,9 +6222,15 @@ namespace BattleEffectExecutorPrivate
 		TArray<FBattleSideState> Sides;
 		FBattleTriggerFramework TriggerFramework;
 		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
+		FBattleHeldItemLedger HeldItemLedger;
 		TMap<FBattlerId, int32> DamageInputBuildCounts;
 		TSet<FBattlerId> SubstituteProtectedTargets;
+		TSet<FBattlerId> PendingDamagingHitConnections;
+		TSet<FBattlerId> PendingImmediateItemUpdates;
 		FBattleEffectExecutionResult* ExecutionResult = nullptr;
+		bool bApplyingDirectMoveDamageHit = false;
+		bool bMoveAffectedDifferentBattler = false;
+		bool bRuntimeValid = true;
 		uint64 NextConditionCreationOrdinal = 1;
 		uint64 NextTriggerReentrancyToken = 1;
 	};
@@ -5392,6 +6440,11 @@ namespace BattleEffectExecutorPrivate
 						return false;
 					}
 					Context.RunImmediateUpdate(Target);
+					if (!Context.IsRuntimeValid())
+					{
+						OutError = EBattleEffectExecutorError::InvalidHookResult;
+						return false;
+					}
 				}
 				if (Applied.bCapped
 					&& !TryAddTargetedEvent(
@@ -5476,6 +6529,12 @@ namespace BattleEffectExecutorPrivate
 					HitIndex))
 			{
 				OutError = EBattleEffectExecutorError::InvalidTarget;
+				return false;
+			}
+			Context.RunImmediateUpdate(Target);
+			if (!Context.IsRuntimeValid())
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
 				return false;
 			}
 		}
@@ -5622,6 +6681,11 @@ namespace BattleEffectExecutorPrivate
 				return false;
 			}
 			Context.RunImmediateUpdate(Target);
+			if (!Context.IsRuntimeValid())
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				return false;
+			}
 		}
 		if (Applied.bCapped
 			&& !TryAddTargetedEvent(
@@ -6014,6 +7078,11 @@ bool FBattleEffectExecutor::TryExecute(
 			if (EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::ThawsTarget))
 			{
 				Context.RunImmediateUpdate(Target);
+				if (!Context.IsRuntimeValid())
+				{
+					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					return false;
+				}
 			}
 			continue;
 		}
@@ -6246,9 +7315,11 @@ bool FBattleEffectExecutor::TryExecute(
 				OutError = EBattleEffectExecutorError::InvalidTarget;
 				return false;
 			}
+			Context.SetDirectMoveDamageHit(true);
 			const FBattleEffectHookResult AppliedDamage = Context.ApplyHpDelta(
 				Target,
 				-DamageResult.Damage);
+			Context.SetDirectMoveDamageHit(false);
 			if (!IsKnownOutcome(AppliedDamage.Outcome)
 				|| (AppliedDamage.Outcome != EBattleEffectExecutionOutcome::Applied
 					&& AppliedDamage.bStateMutated))
@@ -6321,6 +7392,11 @@ bool FBattleEffectExecutor::TryExecute(
 				return false;
 			}
 			Context.RunImmediateUpdate(Target);
+			if (!Context.IsRuntimeValid())
+			{
+				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				return false;
+			}
 
 		}
 		OutResult.CompletedHitsPerDamageTarget.Add(CompletedHits);
@@ -6474,6 +7550,11 @@ bool FBattleEffectExecutor::TryExecuteAgainstState(
 		return false;
 	}
 	if (!Context.TryResolveForcedSwitches(OutResult, OutError))
+	{
+		OutResult = FBattleEffectExecutionResult();
+		return false;
+	}
+	if (!Context.TryApplyPostMoveLifeOrbRecoil(OutResult, OutError))
 	{
 		OutResult = FBattleEffectExecutionResult();
 		return false;

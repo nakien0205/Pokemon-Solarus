@@ -55,7 +55,9 @@ enum class EBattleEventType : uint8
 	EffectPrevented = 46,
 	EffectDeferred = 47,
 	SwitchTransientStateCleared = 48,
-	AbilityActivated = 49
+	AbilityActivated = 49,
+	ItemActivated = 50,
+	ItemRemoved = 51
 };
 
 /** Typed source family for an event cause. */

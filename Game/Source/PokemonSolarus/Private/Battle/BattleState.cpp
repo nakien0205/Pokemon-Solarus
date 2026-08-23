@@ -1,4 +1,5 @@
 #include "Battle/BattleState.h"
+#include "Battle/BattleItem.h"
 
 #include "Battle/BattleFieldSideConditions.h"
 namespace
@@ -446,6 +447,8 @@ bool FBattleEngineState::TryCreate(
 		NewState->Trainers.Add(MoveTemp(Trainer));
 	}
 
+	TArray<FBattleHeldItemInstanceState> InitialHeldItems;
+	uint64 NextHeldItemInstanceValue = 1;
 	for (const FBattlePartyEntrySetup& SetupEntry : Setup.GetPartyEntries())
 	{
 		FBattleBattlerState Battler;
@@ -462,6 +465,40 @@ bool FBattleEngineState::TryCreate(
 		Battler.AbilityId = SetupEntry.AbilityId;
 		Battler.HeldItem.OriginalItemId = SetupEntry.OriginalHeldItemId;
 		Battler.HeldItem.CurrentItemId = SetupEntry.CurrentHeldItemId;
+		if (SetupEntry.CurrentHeldItemId.IsValid()
+			&& SetupEntry.CurrentHeldItemId != SetupEntry.OriginalHeldItemId)
+		{
+			OutError = EBattleStateValidationError::InvalidResource;
+			return false;
+		}
+		if (SetupEntry.OriginalHeldItemId.IsValid())
+		{
+			if (!FBattleHeldItemInstanceId::TryCreate(
+					NextHeldItemInstanceValue,
+					Battler.HeldItem.InstanceId))
+			{
+				OutError = EBattleStateValidationError::InvalidCounter;
+				return false;
+			}
+			++NextHeldItemInstanceValue;
+			Battler.HeldItem.bConsumed = !SetupEntry.CurrentHeldItemId.IsValid();
+
+			FBattleHeldItemInstanceState ItemState;
+			ItemState.InstanceId = Battler.HeldItem.InstanceId;
+			ItemState.Origin = EBattleHeldItemOrigin::Persistent;
+			ItemState.DefinitionItemId = SetupEntry.OriginalHeldItemId;
+			ItemState.OriginalOwnerTrainerId = SetupEntry.TrainerId;
+			ItemState.OriginalOwnerBattlerId = SetupEntry.BattlerId;
+			ItemState.OriginalItemId = SetupEntry.OriginalHeldItemId;
+			ItemState.CurrentItemId = SetupEntry.CurrentHeldItemId;
+			ItemState.bConsumed = Battler.HeldItem.bConsumed;
+			if (SetupEntry.CurrentHeldItemId.IsValid())
+			{
+				ItemState.CurrentHolderTrainerId = SetupEntry.TrainerId;
+				ItemState.CurrentHolderBattlerId = SetupEntry.BattlerId;
+			}
+			InitialHeldItems.Add(MoveTemp(ItemState));
+		}
 		for (const FBattleMoveSlotSetup& SetupMove : SetupEntry.Moves)
 		{
 			Battler.Moves.Add(
@@ -490,6 +527,15 @@ bool FBattleEngineState::TryCreate(
 		check(Trainer != nullptr);
 		Trainer->PartySlots[SetupEntry.PartySlotId.GetIndex()].BattlerId = SetupEntry.BattlerId;
 		NewState->Battlers.Add(MoveTemp(Battler));
+	}
+	EBattleHeldItemContractError HeldItemError = EBattleHeldItemContractError::None;
+	if (!FBattleHeldItemLedger::TryCreate(
+			InitialHeldItems,
+			NewState->HeldItemLedger,
+			HeldItemError))
+	{
+		OutError = EBattleStateValidationError::InvalidResource;
+		return false;
 	}
 
 	for (int32 SideIndex = 0; SideIndex < 2; ++SideIndex)
@@ -665,6 +711,8 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		return Fail(EBattleStateValidationError::DuplicateBattler);
 	}
 
+	int32 BattlersWithOriginalHeldItems = 0;
+	TArray<FBattleHeldItemInstanceId> ReferencedHeldItemInstances;
 	for (const FBattleBattlerState& Battler : Battlers)
 	{
 		const FBattleTrainerState* Trainer = FindTrainer(Battler.TrainerId);
@@ -694,9 +742,78 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		{
 			return Fail(EBattleStateValidationError::InvalidParty);
 		}
-		if (Battler.HeldItem.CurrentItemId.IsValid() && !Battler.HeldItem.OriginalItemId.IsValid())
+		if (Battler.HeldItem.OriginalItemId.IsValid())
 		{
-			return Fail(EBattleStateValidationError::InvalidBattler);
+			++BattlersWithOriginalHeldItems;
+			bool bOriginalLedgerItemFound = false;
+			for (const FBattleHeldItemInstanceState& Item : HeldItemLedger.GetStates())
+			{
+				if (Item.Origin == EBattleHeldItemOrigin::Persistent
+					&& Item.OriginalOwnerTrainerId == Battler.TrainerId
+					&& Item.OriginalOwnerBattlerId == Battler.BattlerId
+					&& Item.OriginalItemId == Battler.HeldItem.OriginalItemId)
+				{
+					bOriginalLedgerItemFound = true;
+					break;
+				}
+			}
+			if (!bOriginalLedgerItemFound)
+			{
+				return Fail(EBattleStateValidationError::InvalidResource);
+			}
+		}
+
+		if (!Battler.HeldItem.InstanceId.IsValid())
+		{
+			if (Battler.HeldItem.CurrentItemId.IsValid()
+				|| Battler.HeldItem.bConsumed
+				|| Battler.HeldItem.bSuppressed
+				|| Battler.HeldItem.bRevealed
+				|| Battler.HeldItem.bTemporarilyRemoved
+				|| Battler.HeldItem.ChoiceLockedMoveId.IsValid())
+			{
+				return Fail(EBattleStateValidationError::InvalidResource);
+			}
+		}
+		else
+		{
+			if (ReferencedHeldItemInstances.Contains(Battler.HeldItem.InstanceId))
+			{
+				return Fail(EBattleStateValidationError::InvalidResource);
+			}
+			ReferencedHeldItemInstances.Add(Battler.HeldItem.InstanceId);
+			const FBattleHeldItemInstanceState* LedgerItem = HeldItemLedger.FindState(
+				Battler.HeldItem.InstanceId);
+			if (LedgerItem == nullptr
+				|| LedgerItem->CurrentItemId != Battler.HeldItem.CurrentItemId
+				|| LedgerItem->bConsumed != Battler.HeldItem.bConsumed
+				|| LedgerItem->bSuppressed != Battler.HeldItem.bSuppressed
+				|| LedgerItem->bRevealed != Battler.HeldItem.bRevealed
+				|| LedgerItem->bTemporarilyRemoved
+					!= Battler.HeldItem.bTemporarilyRemoved
+				|| (Battler.HeldItem.CurrentItemId.IsValid()
+					&& !Battler.HeldItem.bTemporarilyRemoved
+					&& (LedgerItem->CurrentHolderTrainerId != Battler.TrainerId
+						|| LedgerItem->CurrentHolderBattlerId != Battler.BattlerId))
+				|| ((!Battler.HeldItem.CurrentItemId.IsValid()
+						|| Battler.HeldItem.bTemporarilyRemoved)
+					&& (LedgerItem->CurrentHolderTrainerId.IsValid()
+						|| LedgerItem->CurrentHolderBattlerId.IsValid()))
+				|| (Battler.HeldItem.ChoiceLockedMoveId.IsValid()
+					&& (Battler.HeldItem.bConsumed
+						|| Battler.HeldItem.bSuppressed
+						|| Battler.HeldItem.bTemporarilyRemoved
+						|| Battler.HeldItem.CurrentItemId
+							!= FBattleItemRules::GetChoiceBandId()
+						|| !Battler.Moves.ContainsByPredicate(
+							[&Battler](const FBattleMoveSlotState& Move)
+							{
+								return Move.MoveId
+									== Battler.HeldItem.ChoiceLockedMoveId;
+							}))))
+			{
+				return Fail(EBattleStateValidationError::InvalidResource);
+			}
 		}
 		if (Battler.Obedience.bHasSnapshot
 			&& (Battler.Obedience.ReferenceLevel < 1
@@ -783,6 +900,38 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			{
 				return Fail(EBattleStateValidationError::InvalidCondition);
 			}
+		}
+	}
+	if (HeldItemLedger.GetStates().Num() < BattlersWithOriginalHeldItems)
+	{
+		return Fail(EBattleStateValidationError::InvalidResource);
+	}
+	for (const FBattleHeldItemInstanceState& Item : HeldItemLedger.GetStates())
+	{
+		if (Item.Origin == EBattleHeldItemOrigin::Persistent)
+		{
+			const FBattleBattlerState* OriginalOwner = FindBattler(
+				Item.OriginalOwnerBattlerId);
+			if (OriginalOwner == nullptr
+				|| OriginalOwner->TrainerId != Item.OriginalOwnerTrainerId
+				|| OriginalOwner->HeldItem.OriginalItemId != Item.OriginalItemId)
+			{
+				return Fail(EBattleStateValidationError::InvalidResource);
+			}
+		}
+		if (!Item.CurrentHolderBattlerId.IsValid())
+		{
+			continue;
+		}
+		const FBattleBattlerState* Holder = FindBattler(Item.CurrentHolderBattlerId);
+		if (Holder == nullptr
+			|| Holder->TrainerId != Item.CurrentHolderTrainerId
+			|| Holder->HeldItem.InstanceId != Item.InstanceId
+			|| Holder->HeldItem.CurrentItemId != Item.CurrentItemId
+			|| Holder->HeldItem.bConsumed
+			|| Holder->HeldItem.bTemporarilyRemoved)
+		{
+			return Fail(EBattleStateValidationError::InvalidResource);
 		}
 	}
 
@@ -1386,7 +1535,9 @@ TArray<FBattlePartyEntrySetup> FBattleEngineState::BuildPartyProjection() const
 		Entry.bEgg = Battler.bEgg;
 		Entry.AbilityId = Battler.AbilityId;
 		Entry.OriginalHeldItemId = Battler.HeldItem.OriginalItemId;
-		Entry.CurrentHeldItemId = Battler.HeldItem.CurrentItemId;
+		Entry.CurrentHeldItemId = Battler.HeldItem.bTemporarilyRemoved
+			? FItemId()
+			: Battler.HeldItem.CurrentItemId;
 		for (const FBattleMoveSlotState& Move : Battler.Moves)
 		{
 			Entry.Moves.Add({Move.SlotIndex, Move.MoveId, Move.CurrentPP, Move.MaxPP});

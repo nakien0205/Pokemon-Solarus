@@ -61,12 +61,17 @@ namespace
 	bool IsKnownUnavailableReason(const EBattleOptionUnavailableReason Value)
 	{
 		return Value >= EBattleOptionUnavailableReason::NoPP
-			&& Value <= EBattleOptionUnavailableReason::Disabled;
+			&& Value <= EBattleOptionUnavailableReason::ChoiceLocked;
 	}
 
 	bool IsUnavailableOptionValid(const FBattleUnavailableDecisionOption& Option)
 	{
 		if (!IsKnownOptionKind(Option.Kind) || !IsKnownUnavailableReason(Option.Reason))
+		{
+			return false;
+		}
+		if (Option.Reason == EBattleOptionUnavailableReason::ChoiceLocked
+			&& Option.Kind != EBattleDecisionOptionKind::Move)
 		{
 			return false;
 		}

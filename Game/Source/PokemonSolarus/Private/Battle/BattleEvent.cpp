@@ -5,7 +5,7 @@ namespace
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleEventType::AbilityActivated);
+			<= static_cast<uint8>(EBattleEventType::ItemRemoved);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)
@@ -241,6 +241,17 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 		{
 			return false;
 		}
+	}
+	if ((Spec.Type == EBattleEventType::ItemActivated
+			|| Spec.Type == EBattleEventType::ItemRemoved)
+		&& (Spec.Cause != EBattleEventCause::Item
+			|| !Spec.Source.TrainerId.IsValid()
+			|| !Spec.Source.BattlerId.IsValid()
+			|| !Spec.Source.DefinitionId.IsValid()
+			|| Spec.Visibility.Level != EBattleVisibilityLevel::Public
+			|| !Spec.Visibility.bRevealSourceDefinition))
+	{
+		return false;
 	}
 	if (Spec.SimultaneousGroupId.IsSet() && Spec.SimultaneousGroupId.GetValue() == 0)
 	{

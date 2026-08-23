@@ -73,10 +73,16 @@ struct FBattleMoveSlotState
 /** Original and current held-item ownership are separate battle facts. */
 struct FBattleHeldItemState
 {
+	FBattleHeldItemInstanceId InstanceId;
 	FItemId OriginalItemId;
 	FItemId CurrentItemId;
 	bool bConsumed = false;
 	bool bSuppressed = false;
+	bool bRevealed = false;
+	/** Temporarily absent for the battle while persistent ownership is retained (for example Air Balloon). */
+	bool bTemporarilyRemoved = false;
+	/** Choice-item move lock; invalid whenever the item is absent, suppressed, or the holder switched. */
+	FMoveId ChoiceLockedMoveId;
 };
 
 /** Frozen standard-obedience facts copied from the validated setup. */
@@ -319,6 +325,8 @@ public:
 	FBattleTriggerFramework TriggerFramework;
 	/** C08A reveal ownership remains private and emits only public-safe activation facts. */
 	FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
+	/** C08A item-instance ledger is authoritative for ownership, consumption, and suppression. */
+	FBattleHeldItemLedger HeldItemLedger;
 	TUniquePtr<IBattleRandom> Random;
 	uint64 NextResolutionId = 1;
 	uint64 NextActionId = 1;

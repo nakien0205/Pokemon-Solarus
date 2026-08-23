@@ -156,6 +156,11 @@ public:
 		const FBattleResolvedTarget& Target,
 		bool bSpreadAcrossMultipleTargets,
 		FBattleFinalDamageInput& OutInput) = 0;
+	/** Marks the narrow interval in which ApplyHpDelta represents one direct move hit. */
+	virtual void SetDirectMoveDamageHit(bool bActive)
+	{
+		(void)bActive;
+	}
 
 	virtual bool IsSourceAbleToContinue() const = 0;
 	virtual bool IsTargetAbleToContinue(const FBattleResolvedTarget& Target) const = 0;
@@ -179,6 +184,11 @@ public:
 		const FBattleMoveEffectDescriptor& Effect,
 		const FBattleResolvedTarget& Target) = 0;
 	virtual void RunImmediateUpdate(const FBattleResolvedTarget& Target) = 0;
+	/** Lets a void immediate-update hook report an atomic runtime failure. */
+	virtual bool IsRuntimeValid() const
+	{
+		return true;
+	}
 	virtual bool TryBuildEventTarget(
 		const FBattleResolvedTarget& Target,
 		FBattleEventTarget& OutTarget) const = 0;
