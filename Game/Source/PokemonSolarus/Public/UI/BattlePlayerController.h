@@ -7,6 +7,7 @@
 class UBattleHUDWidget;
 class UInputAction;
 class UInputMappingContext;
+struct FInputActionValue;
 
 /** Battle-only local player input and HUD owner. */
 UCLASS()
@@ -32,16 +33,31 @@ protected:
 	TSoftObjectPtr<UInputMappingContext> BattleInputMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Battle|Input")
+	TSoftObjectPtr<UInputAction> BattleNavigateAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle|Input")
+	TSoftObjectPtr<UInputAction> BattleConfirmAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle|Input")
 	TSoftObjectPtr<UInputAction> BattleCancelAction;
 
 private:
+	void HandleBattleNavigate(const FInputActionValue& InputValue);
+	void HandleBattleConfirm();
 	void HandleBattleCancel();
+	static FVector2D QuantizeNavigationInput(const FVector2D& InputValue);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UBattleHUDWidget> BattleHUDWidget = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> LoadedBattleInputMappingContext = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LoadedBattleNavigateAction = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LoadedBattleConfirmAction = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LoadedBattleCancelAction = nullptr;

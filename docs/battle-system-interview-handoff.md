@@ -652,8 +652,8 @@ Resolution presentation:
 - Show the battle text box while keeping relevant HP panels visible.
 - Do not show floating damage numbers.
 - HP and EXP bars animate smoothly.
-- Confirm or Cancel may complete a bar animation instantly without changing the
-  underlying result.
+- Only Cancel may complete an HP or EXP bar animation instantly without changing
+  the underlying result. Confirm does not skip either bar animation.
 
 Text controls:
 
@@ -674,7 +674,8 @@ Settings:
   move-specific camera shots.
 - It keeps Pokemon attack animations, target-hit animations, HP/status changes,
   battle text, switch/faint presentation, cries, and results.
-- The player may skip eligible animations with Confirm or Cancel.
+- The player may skip eligible animations with Confirm or Cancel, except HP and
+  EXP bar animations, which use Cancel only.
 - Story cinematics are controlled separately from Battle Animations.
 
 ## Camera, Animation, and Audio Presentation
@@ -957,9 +958,9 @@ Recommendation: yes; this follows normal Pokemon readability.
   its HP animation before the next cause resolves.
 - **351:** If several Pokemon reach zero HP simultaneously, their HP bars reach
   zero together, followed by separate faint presentations before the result.
-- **352:** Tapping Confirm or Cancel completes the current multi-hit animation.
-  Holding Cancel fast-forwards the remaining hits while preserving final HP and
-  the actual hit count.
+- **352:** Tapping Cancel completes the current multi-hit animation. Confirm does
+  not skip it. Holding Cancel fast-forwards the remaining hits while preserving
+  final HP and the actual hit count.
 - **353:** Fast animation speed shortens actions, impacts, status, fainting,
   camera shots, and HP movement. It does not change battle rules, Text Speed,
   music pitch, cries, or sound pitch.
@@ -968,8 +969,8 @@ Recommendation: yes; this follows normal Pokemon readability.
 
 - **354:** Show a compact EXP panel with exact EXP for eligible participants
   and animate their bars together. Summarize non-participant team gains.
-- **355:** A tap completes the current EXP animation; holding Cancel
-  fast-forwards it while leaving final numbers visible.
+- **355:** Tapping Cancel completes the current EXP animation; Confirm does not
+  skip it. Holding Cancel fast-forwards it while leaving final numbers visible.
 - **356:** A one-level gain shows the new level and compact stat increases.
 - **357:** Several levels gained at once use one combined start-to-final level
   presentation and final stat increases.

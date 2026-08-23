@@ -15,12 +15,18 @@ ABattlePlayerController::ABattlePlayerController()
 		TEXT("/Game/UI/Battle/WBP_BattleHUD.WBP_BattleHUD_C")));
 	BattleInputMappingContext = TSoftObjectPtr<UInputMappingContext>(FSoftObjectPath(
 		TEXT("/Game/Input/IMC_Battle.IMC_Battle")));
+	BattleNavigateAction = TSoftObjectPtr<UInputAction>(FSoftObjectPath(
+		TEXT("/Game/Input/IA_BattleNavigate.IA_BattleNavigate")));
+	BattleConfirmAction = TSoftObjectPtr<UInputAction>(FSoftObjectPath(
+		TEXT("/Game/Input/IA_BattleConfirm.IA_BattleConfirm")));
 	BattleCancelAction = TSoftObjectPtr<UInputAction>(FSoftObjectPath(
 		TEXT("/Game/Input/IA_BattleCancel.IA_BattleCancel")));
 
 	bShowMouseCursor = false;
 	bEnableClickEvents = false;
 	bEnableMouseOverEvents = false;
+	bEnableTouchEvents = false;
+	bEnableTouchOverEvents = false;
 }
 
 void ABattlePlayerController::BeginPlay()
@@ -91,19 +97,50 @@ void ABattlePlayerController::SetupInputComponent()
 		return;
 	}
 
+	LoadedBattleNavigateAction = BattleNavigateAction.LoadSynchronous();
+	if (LoadedBattleNavigateAction)
+	{
+		EnhancedInputComponent->BindAction(
+			LoadedBattleNavigateAction,
+			ETriggerEvent::Started,
+			this,
+			&ABattlePlayerController::HandleBattleNavigate);
+	}
+	else
+	{
+		UE_LOG(LogBattlePlayerController, Error,
+			TEXT("The battle Navigate Input Action could not be loaded."));
+	}
+
+	LoadedBattleConfirmAction = BattleConfirmAction.LoadSynchronous();
+	if (LoadedBattleConfirmAction)
+	{
+		EnhancedInputComponent->BindAction(
+			LoadedBattleConfirmAction,
+			ETriggerEvent::Started,
+			this,
+			&ABattlePlayerController::HandleBattleConfirm);
+	}
+	else
+	{
+		UE_LOG(LogBattlePlayerController, Error,
+			TEXT("The battle Confirm Input Action could not be loaded."));
+	}
+
 	LoadedBattleCancelAction = BattleCancelAction.LoadSynchronous();
-	if (!LoadedBattleCancelAction)
+	if (LoadedBattleCancelAction)
+	{
+		EnhancedInputComponent->BindAction(
+			LoadedBattleCancelAction,
+			ETriggerEvent::Started,
+			this,
+			&ABattlePlayerController::HandleBattleCancel);
+	}
+	else
 	{
 		UE_LOG(LogBattlePlayerController, Error,
 			TEXT("The battle Cancel Input Action could not be loaded."));
-		return;
 	}
-
-	EnhancedInputComponent->BindAction(
-		LoadedBattleCancelAction,
-		ETriggerEvent::Started,
-		this,
-		&ABattlePlayerController::HandleBattleCancel);
 }
 
 void ABattlePlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -129,10 +166,62 @@ void ABattlePlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void ABattlePlayerController::HandleBattleNavigate(
+	const FInputActionValue& InputValue)
+{
+	if (InputValue.GetValueType() != EInputActionValueType::Axis2D)
+	{
+		UE_LOG(LogBattlePlayerController, Error,
+			TEXT("IA_BattleNavigate must provide an Axis2D value."));
+		return;
+	}
+
+	const FVector2D CardinalDirection = QuantizeNavigationInput(
+		InputValue.Get<FVector2D>());
+	if (BattleHUDWidget && !CardinalDirection.IsNearlyZero())
+	{
+		BattleHUDWidget->NavigateCommandMenu(CardinalDirection);
+	}
+}
+
+void ABattlePlayerController::HandleBattleConfirm()
+{
+	if (BattleHUDWidget)
+	{
+		BattleHUDWidget->ConfirmCommandMenu();
+	}
+}
+
 void ABattlePlayerController::HandleBattleCancel()
 {
 	if (BattleHUDWidget && BattleHUDWidget->IsAnyHPAnimating())
 	{
 		BattleHUDWidget->CompleteHPAnimations();
+		return;
 	}
+
+	if (BattleHUDWidget)
+	{
+		BattleHUDWidget->CancelCommandMenu();
+	}
+}
+
+FVector2D ABattlePlayerController::QuantizeNavigationInput(
+	const FVector2D& InputValue)
+{
+	const double AbsoluteX = FMath::Abs(InputValue.X);
+	const double AbsoluteY = FMath::Abs(InputValue.Y);
+	if (FMath::IsNearlyZero(AbsoluteX) && FMath::IsNearlyZero(AbsoluteY))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	if (FMath::IsNearlyEqual(AbsoluteX, AbsoluteY))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	return AbsoluteX > AbsoluteY
+		? FVector2D(InputValue.X > 0.0 ? 1.0 : -1.0, 0.0)
+		: FVector2D(0.0, InputValue.Y > 0.0 ? 1.0 : -1.0);
 }

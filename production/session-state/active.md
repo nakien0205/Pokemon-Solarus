@@ -1,3 +1,13 @@
+## Active UX Task — 2026-08-23
+
+- Task: Integrating the approved Battle HUD command menu
+- UX spec: `design/ux/battle-hud.md` is approved.
+- Backend: Command-menu mechanics and code-behind are implemented; focused tests pass 7/7.
+- Ownership: The user owns the frontend visual Blueprint work; Codex owns backend mechanics and code-behind.
+- Scope: Battle UI only; Lifted Gem remains local to the four Battle command gems and is not approved for project-wide reuse.
+- Validation: Frontend visual Blueprint integration and actual-size PIE acceptance are not complete.
+- Next: Hand off the backend bindings and events for the user's frontend Blueprint work, then perform visual and PIE acceptance.
+
 ## Session Extract — /dev-story 2026-08-20
 
 - Story: `production/epics/core-battle-rules/story-001-reusable-stats-based-damage.md` — Reusable Stats-Based Damage
