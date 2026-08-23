@@ -401,6 +401,7 @@ namespace BattleItemTests
 		FItemId OpponentItem;
 		FItemId OpponentReserveItem;
 		FAbilityId PlayerAbility = FBattleAbilityRules::GetBlazeId();
+		FAbilityId PlayerReserveAbility = FBattleAbilityRules::GetBlazeId();
 		FAbilityId OpponentAbility = FBattleAbilityRules::GetMoldBreakerId();
 		int32 PlayerHP = 200;
 		int32 PlayerReserveHP = 200;
@@ -745,7 +746,7 @@ namespace BattleItemTests
 			PlayerReserveValue,
 			1,
 			PlayerSpeciesName,
-			FBattleAbilityRules::GetBlazeId(),
+			Scenario.PlayerReserveAbility,
 			Scenario.PlayerReserveItem,
 			Scenario.PlayerReserveHP,
 			100));
@@ -1136,8 +1137,8 @@ namespace BattleItemTests
 					MakePartySlotId(1)));
 			TestTrue(TEXT("The hazard entry switch starts"),
 				Engine->BeginNextLockedAction().WasAccepted());
-			TestTrue(TEXT("The hazard entry switch resolves"),
-				Engine->ExecuteCurrentSwitch().WasAccepted());
+			const FBattleResolution Entry = Engine->ExecuteCurrentSwitch();
+			TestTrue(TEXT("The hazard entry switch resolves"), Entry.WasAccepted());
 			const FBattleBattlerState* Battler =
 				FBattleC08CEngineFixture::GetBattler(*Engine, Incoming);
 			int32 SpeedStage = 0;
@@ -1145,6 +1146,20 @@ namespace BattleItemTests
 				&& Battler->Stages.TryGetStage(EBattleStat::Speed, SpeedStage);
 			TestTrue(TEXT("The incoming holder remains inspectable"),
 				Battler != nullptr && bHasSpeedStage);
+			TestFalse(TEXT("Heavy-Duty Boots bypass hazards without an activation event"),
+				HasResolutionEvent(
+					Entry,
+					EBattleEventType::ItemActivated,
+					FBattleItemRules::GetHeavyDutyBootsId().GetDefinitionId()));
+			const FBattleSnapshot OpponentView = Engine->GetSnapshotForObserver(
+				MakeNumericId<FTrainerId>(OpponentTrainerValue));
+			const FBattleObservedBattler* ObservedIncoming =
+				OpponentView.FindObservedBattler(Incoming);
+			TestTrue(TEXT("Heavy-Duty Boots remain hidden after hazard bypass"),
+				ObservedIncoming != nullptr
+					&& !ObservedIncoming->bHeldItemKnown
+					&& Battler != nullptr
+					&& !Battler->HeldItem.bRevealed);
 			if (bSuppressed)
 			{
 				TestTrue(TEXT("Suppressed Boots allow hazard damage"),
@@ -1163,6 +1178,103 @@ namespace BattleItemTests
 		};
 		RunEntry(false);
 		RunEntry(true);
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC08CBootsMagicGuardRouteParityTest,
+		"PokemonSolarus.Battle.C08C.HeldItem.Engine.HeavyDutyBootsMagicGuardNormalForcedRouteParity",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC08CBootsMagicGuardRouteParityTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		auto SeedDamagingHazards = [this](FBattleEngine& Engine)
+		{
+			const FBattlerId Source = MakeNumericId<FBattlerId>(OpponentValue);
+			const bool bSpikesSeeded = FBattleC08CEngineFixture::SeedCondition(
+				Engine,
+				FBattleFieldSideConditionRules::GetSpikesId(),
+				EBattleSide::Player,
+				Source,
+				3);
+			const bool bStealthRockSeeded = FBattleC08CEngineFixture::SeedCondition(
+				Engine,
+				FBattleFieldSideConditionRules::GetStealthRockId(),
+				EBattleSide::Player,
+				Source);
+			TestTrue(TEXT("Spikes are seeded for route parity"), bSpikesSeeded);
+			TestTrue(TEXT("Stealth Rock is seeded for route parity"), bStealthRockSeeded);
+			return bSpikesSeeded && bStealthRockSeeded;
+		};
+		auto TestHiddenKnowledge = [this](
+			const FBattleEngine& Engine,
+			const TCHAR* RouteLabel)
+		{
+			const FBattlerId IncomingId = MakeNumericId<FBattlerId>(PlayerReserveValue);
+			const FBattleBattlerState* Incoming =
+				FBattleC08CEngineFixture::GetBattler(Engine, IncomingId);
+			const FBattleSnapshot OpponentView = Engine.GetSnapshotForObserver(
+				MakeNumericId<FTrainerId>(OpponentTrainerValue));
+			const FBattleObservedBattler* Observed = OpponentView.FindObservedBattler(IncomingId);
+			TestTrue(FString::Printf(TEXT("%s preserves the incoming holder's HP"), RouteLabel),
+				Incoming != nullptr && Incoming->CurrentHP == 200);
+			TestTrue(FString::Printf(TEXT("%s keeps Boots hidden"), RouteLabel),
+				Incoming != nullptr
+					&& !Incoming->HeldItem.bRevealed
+					&& Observed != nullptr
+					&& !Observed->bHeldItemKnown);
+			TestTrue(FString::Printf(TEXT("%s keeps unused Magic Guard hidden"), RouteLabel),
+				Observed != nullptr && !Observed->bAbilityKnown);
+		};
+
+		FC08CScenario NormalScenario;
+		NormalScenario.PlayerReserveItem = FBattleItemRules::GetHeavyDutyBootsId();
+		NormalScenario.PlayerReserveAbility = FBattleAbilityRules::GetMagicGuardId();
+		TUniquePtr<FBattleEngine> NormalEngine = MakeEngine(NormalScenario);
+		TestTrue(TEXT("The normal-route runtime begins"), BeginRuntime(*NormalEngine));
+		TestTrue(TEXT("The normal-route hazards are ready"),
+			SeedDamagingHazards(*NormalEngine));
+		TestTrue(TEXT("The normal-route switch is prepared"),
+			FBattleC08CEngineFixture::PrepareLockedSwitch(
+				*NormalEngine,
+				MakeNumericId<FBattlerId>(PlayerValue),
+				MakePartySlotId(1)));
+		TestTrue(TEXT("The normal-route switch starts"),
+			NormalEngine->BeginNextLockedAction().WasAccepted());
+		const FBattleResolution NormalEntry = NormalEngine->ExecuteCurrentSwitch();
+		TestTrue(TEXT("The normal-route switch resolves"), NormalEntry.WasAccepted());
+		TestFalse(TEXT("The normal route emits no Boots activation"),
+			HasResolutionEvent(NormalEntry, EBattleEventType::ItemActivated));
+		TestFalse(TEXT("The normal route emits no unused Magic Guard activation"),
+			HasResolutionEvent(NormalEntry, EBattleEventType::AbilityActivated));
+		TestHiddenKnowledge(*NormalEngine, TEXT("Normal switch"));
+
+		FC08CScenario ForcedScenario;
+		ForcedScenario.PlayerReserveItem = FBattleItemRules::GetHeavyDutyBootsId();
+		ForcedScenario.PlayerReserveAbility = FBattleAbilityRules::GetMagicGuardId();
+		TUniquePtr<FBattleEngine> ForcedEngine = MakeEngine(ForcedScenario);
+		TestTrue(TEXT("The forced-route runtime begins"), BeginRuntime(*ForcedEngine));
+		TestTrue(TEXT("The forced-route hazards are ready"),
+			SeedDamagingHazards(*ForcedEngine));
+		FBattleEffectExecutionResult ForcedEntry;
+		TestTrue(TEXT("The forced-switch route resolves"),
+			FBattleC08CEngineFixture::ExecuteCatalogMove(
+				*ForcedEngine,
+				MakeNumericId<FBattlerId>(OpponentValue),
+				MakeDefinitionId<FMoveId>(ForcedSwitchMoveName),
+				MakeNumericId<FBattlerId>(PlayerValue),
+				ForcedEntry,
+				80817)
+				&& ForcedEntry.SwitchIntents.Num() == 1
+				&& ForcedEntry.SwitchIntents[0].bApplied);
+		TestEqual(TEXT("The forced route emits no Boots activation"),
+			FindExecutionEvent(ForcedEntry, EBattleEventType::ItemActivated),
+			INDEX_NONE);
+		TestEqual(TEXT("The forced route emits no unused Magic Guard activation"),
+			FindExecutionEvent(ForcedEntry, EBattleEventType::AbilityActivated),
+			INDEX_NONE);
+		TestHiddenKnowledge(*ForcedEngine, TEXT("Forced switch"));
 		return true;
 	}
 

@@ -2,6 +2,7 @@
 #include "Battle/BattleAbility.h"
 #include "Battle/BattleBagItem.h"
 #include "Battle/BattleEffectExecutor.h"
+#include "BattleEntryHazardPrevention.h"
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleFaintOutcomeResolver.h"
 #include "Battle/BattleItem.h"
@@ -3327,7 +3328,6 @@ namespace
 		{
 			return false;
 		}
-		bool bBootsActivationRecorded = false;
 		for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
 		{
 			if (Incoming->CurrentHP <= 0 || Incoming->bFainted || State.Phase == EBattlePhase::Terminal)
@@ -3467,60 +3467,32 @@ namespace
 					false,
 					-1);
 			Facts.RockEffectiveness = RockEffectiveness;
-			Facts.bBypassesEntryHazards = IsHeldItemActive(*Incoming)
+			const bool bBootsBypassActive = IsHeldItemActive(*Incoming)
 				&& FBattleItemRules::ShouldBypassEntryHazards(
 					Incoming->HeldItem.CurrentItemId,
 					Incoming->HeldItem.bSuppressed);
+			const bool bDamagingHazardWouldApply =
+				(HazardId == FBattleFieldSideConditionRules::GetSpikesId()
+					&& bGrounded)
+				|| (HazardId == FBattleFieldSideConditionRules::GetStealthRockId()
+					&& !RockEffectiveness.IsImmune());
+			const bool bMagicGuardWouldPreventDamage = bDamagingHazardWouldApply
+				&& FBattleAbilityRules::ShouldMagicGuardPreventDamage(
+					Incoming->AbilityId,
+					EBattleHPChangeSourceKind::Condition,
+					Incoming->bAbilitySuppressed);
+			const BattleEntryHazardPrevention::FResult Prevention =
+				BattleEntryHazardPrevention::Resolve(
+					bBootsBypassActive,
+					bMagicGuardWouldPreventDamage);
+			Facts.bBypassesEntryHazards = Prevention.bBypassesEntryHazards;
+			Facts.bIndirectDamagePrevented = Prevention.bIndirectDamagePrevented;
 			FBattleHazardSwitchInResult HazardResult;
 			if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(Facts, HazardResult))
 			{
 				return false;
 			}
-			if (Facts.bBypassesEntryHazards && !bBootsActivationRecorded)
-			{
-				FBattleHazardSwitchInFacts WithoutBoots = Facts;
-				WithoutBoots.bBypassesEntryHazards = false;
-				FBattleHazardSwitchInResult WithoutBootsResult;
-				if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
-						WithoutBoots,
-						WithoutBootsResult))
-				{
-					return false;
-				}
-				if (WithoutBootsResult.EffectKind != EBattleHazardSwitchInEffectKind::None)
-				{
-					if (!TryAppendItemActivationForPhase(
-							State,
-							Incoming->BattlerId,
-							EBattleTriggerPhase::SwitchIn,
-							EBattleAbilityItemActivationOutcome::Applied,
-							ResolutionId,
-							FActionId(),
-							EBattleActionKind::Switch,
-							Events))
-					{
-						return false;
-					}
-					bBootsActivationRecorded = true;
-				}
-			}
-			const bool bMagicGuardPreventedDamage =
-				HazardResult.EffectKind == EBattleHazardSwitchInEffectKind::Damage
-				&& HazardResult.Damage > 0
-				&& FBattleAbilityRules::ShouldMagicGuardPreventDamage(
-					Incoming->AbilityId,
-					EBattleHPChangeSourceKind::Condition,
-					Incoming->bAbilitySuppressed);
-			if (bMagicGuardPreventedDamage)
-			{
-				Facts.bIndirectDamagePrevented = true;
-				if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
-						Facts,
-						HazardResult))
-				{
-					return false;
-				}
-			}
+			const bool bMagicGuardPreventedDamage = Facts.bIndirectDamagePrevented;
 			bool bLevitatePreventedHazard = false;
 			if (bLevitateMadeAirborne)
 			{
@@ -3847,6 +3819,7 @@ namespace
 		const FResolutionId ResolutionId,
 		const EBattleActionKind ActionKind,
 		const FBattleEventSource& Source,
+		const TConstArrayView<FBattlePendingReplacementState> AlreadyAnnouncedRequirements,
 		TArray<FBattleEvent>& Events)
 	{
 		if (RequestStateVersion == 0 || !ResolutionId.IsValid())
@@ -3900,6 +3873,16 @@ namespace
 
 		for (const FBattleReplacementRequirement& Requirement : Requirements)
 		{
+			const bool bAlreadyAnnounced = AlreadyAnnouncedRequirements.ContainsByPredicate(
+				[&Requirement](const FBattlePendingReplacementState& Pending)
+				{
+					return Pending.TrainerId == Requirement.Target.TrainerId
+						&& Pending.ActiveSlotId == Requirement.Target.ActiveSlotId;
+				});
+			if (bAlreadyAnnounced)
+			{
+				continue;
+			}
 			Events.Add(MakeTargetedActionlessEvent(
 				State,
 				ResolutionId,
@@ -5896,6 +5879,21 @@ namespace
 				FallbackSource);
 		}
 
+		TArray<FBattlePendingReplacementState> AlreadyAnnouncedRequirements;
+		for (const FBattlePendingReplacementState& Pending : State.PendingReplacements)
+		{
+			const bool bSatisfiedByBatch = Batch.GetDecisions().ContainsByPredicate(
+				[&Pending](const FBattleDecision& Decision)
+				{
+					return Decision.GetDecisionOwnerTrainerId() == Pending.TrainerId
+						&& Decision.GetActiveTargetId() == Pending.ActiveSlotId;
+				});
+			if (!bSatisfiedByBatch)
+			{
+				AlreadyAnnouncedRequirements.Add(Pending);
+			}
+		}
+
 		TArray<FBattleEvent> Events;
 		TArray<FBattlerId> AbilityEntrants;
 		for (int32 DecisionIndex = 0;
@@ -6007,6 +6005,7 @@ namespace
 				ResolutionId,
 				EBattleActionKind::Replacement,
 				FallbackSource,
+				AlreadyAnnouncedRequirements,
 				Events))
 		{
 			UE_LOG(
@@ -6099,6 +6098,8 @@ namespace
 				Source);
 		}
 
+		const TArray<FBattlePendingReplacementState> AlreadyAnnouncedRequirements =
+			State.PendingReplacements;
 		TArray<FBattleEvent> Events;
 		Events.Add(MakeEvent(
 			State,
@@ -6188,6 +6189,7 @@ namespace
 				ResolutionId,
 				EBattleActionKind::Switch,
 				Source,
+				AlreadyAnnouncedRequirements,
 				Events))
 		{
 			UE_LOG(

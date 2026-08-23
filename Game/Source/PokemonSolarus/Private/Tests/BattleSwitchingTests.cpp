@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Battle/BattleEngine.h"
+#include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleSwitching.h"
 #include "BattleTestFactories.h"
@@ -141,6 +142,8 @@ namespace BattleSwitchingTests
 			{MakeDefinitionId<FConditionId>(MajorStatusName), EBattleConditionKind::MajorStatus});
 		Input.Conditions.Add(
 			{MakeDefinitionId<FConditionId>(VolatileName), EBattleConditionKind::Volatile});
+		Input.Conditions.Add(
+			{FBattleFieldSideConditionRules::GetMagicRoomId(), EBattleConditionKind::Room});
 
 		FBattleSpeciesFormDefinition Species;
 		Species.Id = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
@@ -509,7 +512,52 @@ public:
 		Volatile.CreationOrdinal = State.NextConditionCreationOrdinal++;
 		Volatile.SourceBattlerId = Battler->BattlerId;
 		Battler->Volatiles.Add(Volatile);
-		Battler->HeldItem.bSuppressed = true;
+
+		FBattleTriggerSubject Source;
+		check(FBattleTriggerSubject::TryCreateBattler(Battler->BattlerId, Source));
+		FBattleFieldSideTriggerRegistrationFacts TriggerFacts;
+		TriggerFacts.ConditionId = FBattleFieldSideConditionRules::GetMagicRoomId();
+		TriggerFacts.PayloadId = TriggerFacts.ConditionId.GetDefinitionId();
+		TriggerFacts.Owner = FBattleTriggerSubject::CreateField();
+		TriggerFacts.Source = Source;
+		TriggerFacts.Targets.Add(TriggerFacts.Owner);
+		TriggerFacts.RemainingTurns = 5;
+		TriggerFacts.Layers = 1;
+		EBattleTriggerError TriggerError = EBattleTriggerError::None;
+		check(FBattleFieldSideConditionRules::TryRegisterTriggers(
+			State.TriggerFramework,
+			TriggerFacts,
+			TriggerError));
+		FBattleConditionState MagicRoom;
+		MagicRoom.ConditionId = TriggerFacts.ConditionId;
+		MagicRoom.RemainingTurns = TriggerFacts.RemainingTurns;
+		MagicRoom.LayerCount = TriggerFacts.Layers;
+		MagicRoom.CreationOrdinal = State.NextConditionCreationOrdinal++;
+		MagicRoom.SourceBattlerId = Battler->BattlerId;
+		State.Field.Rooms.Add(MoveTemp(MagicRoom));
+		TArray<FBattleTriggerLifecycleFact> LifecycleFacts;
+		State.TriggerFramework.DrainLifecycleFacts(LifecycleFacts);
+
+		for (FBattleBattlerState& ItemHolder : State.Battlers)
+		{
+			if (!ItemHolder.HeldItem.InstanceId.IsValid()
+				|| !ItemHolder.HeldItem.CurrentItemId.IsValid()
+				|| ItemHolder.HeldItem.bConsumed
+				|| ItemHolder.HeldItem.bTemporarilyRemoved)
+			{
+				continue;
+			}
+			FBattleHeldItemOperationRequest Suppress;
+			Suppress.Kind = EBattleHeldItemOperationKind::Suppress;
+			Suppress.PrimaryInstanceId = ItemHolder.HeldItem.InstanceId;
+			Suppress.bSuppressed = true;
+			FBattleHeldItemOperationFact Fact;
+			EBattleHeldItemContractError ItemError = EBattleHeldItemContractError::None;
+			check(State.HeldItemLedger.TryApplyOperation(Suppress, Fact, ItemError));
+			ItemHolder.HeldItem.bSuppressed = Fact.PrimaryAfter.bSuppressed;
+		}
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		check(State.ValidateInvariants(StateError));
 	}
 
 	static const FBattleBattlerState& GetBattler(
@@ -656,6 +704,15 @@ namespace BattleSwitchingTests
 			Started.GetEvents()[0].GetType(), EBattleEventType::ActionStarted);
 		TestEqual(TEXT("The switch consumes the acting Trainer's one action"),
 			FBattleC06AEngineFixture::GetRemainingActions(*Engine, PlayerTrainerValue), 0);
+		const FBattleBattlerState& OutgoingBeforeSwitch =
+			FBattleC06AEngineFixture::GetBattler(*Engine, PlayerLeftValue);
+		const FBattleHeldItemInstanceState* LedgerBeforeSwitch =
+			FBattleC06AEngineFixture::GetState(*Engine).HeldItemLedger.FindState(
+				OutgoingBeforeSwitch.HeldItem.InstanceId);
+		TestTrue(TEXT("Magic Room suppression reaches the battler projection before switching"),
+			OutgoingBeforeSwitch.HeldItem.bSuppressed);
+		TestTrue(TEXT("Magic Room suppression reaches the held-item ledger before switching"),
+			LedgerBeforeSwitch != nullptr && LedgerBeforeSwitch->bSuppressed);
 
 		const FBattleResolution Switched = Engine->ExecuteCurrentSwitch();
 		TestTrue(TEXT("The voluntary switch executes"), Switched.WasAccepted());
@@ -703,6 +760,11 @@ namespace BattleSwitchingTests
 		TestEqual(TEXT("Current held item persists"), Outgoing.HeldItem.CurrentItemId,
 			MakeDefinitionId<FItemId>(HeldItemName));
 		TestTrue(TEXT("Held-item suppression persists"), Outgoing.HeldItem.bSuppressed);
+		const FBattleHeldItemInstanceState* LedgerAfterSwitch =
+			FBattleC06AEngineFixture::GetState(*Engine).HeldItemLedger.FindState(
+				Outgoing.HeldItem.InstanceId);
+		TestTrue(TEXT("Held-item ledger suppression persists"),
+			LedgerAfterSwitch != nullptr && LedgerAfterSwitch->bSuppressed);
 		TestEqual(TEXT("Move PP persists"), Outgoing.Moves[0].CurrentPP, 10);
 		TestEqual(TEXT("Voluntary switching consumes no RNG"), Engine->ExportRandomTrace().Num(), 0);
 

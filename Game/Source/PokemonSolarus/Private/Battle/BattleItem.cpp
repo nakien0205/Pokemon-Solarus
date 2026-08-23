@@ -232,7 +232,7 @@ bool FBattleItemRules::TryBuildHookDefinitions(
 		break;
 	case EBattleHeldItemRuleKind::HeavyDutyBoots:
 		Add(TEXT("EntryHazards"), EHook::SwitchIn, EEffect::Prevent,
-			EBattleTriggerPhase::SwitchIn, EReveal::OnAppliedEffect,
+			EBattleTriggerPhase::SwitchIn, EReveal::Never,
 			0, 0, true);
 		break;
 	case EBattleHeldItemRuleKind::AirBalloon:

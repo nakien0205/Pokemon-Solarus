@@ -373,7 +373,7 @@ bool FBattleC08CHeldItemRuleHooksTest::RunTest(const FString& Parameters)
 		EReveal::Never, 0, 0, false);
 	CheckHook(FBattleItemRules::GetHeavyDutyBootsId(), TEXT("Hook.Item.HeavyDutyBoots.EntryHazards"),
 		EHook::SwitchIn, EEffect::Prevent, EBattleTriggerPhase::SwitchIn,
-		EReveal::OnAppliedEffect, 0, 0, true);
+		EReveal::Never, 0, 0, true);
 	CheckHook(FBattleItemRules::GetAirBalloonId(), TEXT("Hook.Item.AirBalloon.EntryReveal"),
 		EHook::SwitchIn, EEffect::Reveal, EBattleTriggerPhase::SwitchIn,
 		EReveal::OnAppliedEffect, 0, 0, false);

@@ -1,6 +1,7 @@
 #include "Battle/BattleEffectExecutor.h"
 
 #include "Battle/BattleAbility.h"
+#include "BattleEntryHazardPrevention.h"
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
@@ -4269,8 +4270,6 @@ namespace BattleEffectExecutorPrivate
 			{
 				return false;
 			}
-			bool bBootsActivationRecorded = false;
-
 			for (const FBattleTriggerEffectRequest& HazardRequest : HazardRequests)
 			{
 				if (Incoming.CurrentHP <= 0 || Incoming.bFainted)
@@ -4388,7 +4387,7 @@ namespace BattleEffectExecutorPrivate
 				Facts.PrimaryType = Species->PrimaryType;
 				Facts.SecondaryType = Species->SecondaryType;
 				Facts.bGrounded = bGrounded;
-				Facts.bBypassesEntryHazards = !Incoming.HeldItem.bConsumed
+				const bool bBootsBypassActive = !Incoming.HeldItem.bConsumed
 					&& !Incoming.HeldItem.bTemporarilyRemoved
 					&& FBattleItemRules::ShouldBypassEntryHazards(
 						Incoming.HeldItem.CurrentItemId,
@@ -4423,8 +4422,12 @@ namespace BattleEffectExecutorPrivate
 						Incoming.AbilityId,
 						EBattleHPChangeSourceKind::Condition,
 						Incoming.bAbilitySuppressed);
-				Facts.bIndirectDamagePrevented = bMagicGuardWouldPrevent
-					&& !Facts.bBypassesEntryHazards;
+				const BattleEntryHazardPrevention::FResult Prevention =
+					BattleEntryHazardPrevention::Resolve(
+						bBootsBypassActive,
+						bMagicGuardWouldPrevent);
+				Facts.bBypassesEntryHazards = Prevention.bBypassesEntryHazards;
+				Facts.bIndirectDamagePrevented = Prevention.bIndirectDamagePrevented;
 				if (Facts.bIndirectDamagePrevented)
 				{
 					FBattleAbilityItemEffectRequest AbilityRequest;
@@ -4447,39 +4450,6 @@ namespace BattleEffectExecutorPrivate
 					HazardResult))
 				{
 					return false;
-				}
-				if (Facts.bBypassesEntryHazards && !bBootsActivationRecorded)
-				{
-					FBattleHazardSwitchInFacts WithoutBoots = Facts;
-					WithoutBoots.bBypassesEntryHazards = false;
-					WithoutBoots.bIndirectDamagePrevented = bMagicGuardWouldPrevent;
-					FBattleHazardSwitchInResult WithoutBootsResult;
-					if (!FBattleFieldSideConditionRules::TryResolveHazardSwitchIn(
-							WithoutBoots,
-							WithoutBootsResult))
-					{
-						return false;
-					}
-					if (WithoutBootsResult.EffectKind
-						!= EBattleHazardSwitchInEffectKind::None)
-					{
-						const FItemId BootsId = Incoming.HeldItem.CurrentItemId;
-						FBattleAbilityItemEffectRequest ItemRequest;
-						if (!TryGetItemEffectRequest(
-								Incoming,
-								EBattleTriggerPhase::SwitchIn,
-								EBattleAbilityItemHookPoint::SwitchIn,
-								ItemRequest)
-							|| !TryRecordItemActivation(
-								ItemRequest,
-								EBattleAbilityItemActivationOutcome::Applied,
-								Incoming,
-								BootsId))
-						{
-							return false;
-						}
-						bBootsActivationRecorded = true;
-					}
 				}
 				if (bLevitateMadeAirborne)
 				{
