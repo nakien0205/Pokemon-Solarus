@@ -3324,6 +3324,46 @@ namespace
 		return Event;
 	}
 
+	void AppendPartnerTeamVictoryRecoveryEvent(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		const FBattleEventSource& Source,
+		const FBattleFaintOutcomeResolution& FaintResolution,
+		TArray<FBattleEvent>& Events)
+	{
+		if (!FaintResolution.PartnerTeamVictoryRecovery.IsSet())
+		{
+			return;
+		}
+
+		const FBattlePartnerTeamVictoryRecovery& Recovery =
+			FaintResolution.PartnerTeamVictoryRecovery.GetValue();
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = State.NextEventOrdinal;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = EBattleEventType::PartnerTeamVictoryRecovery;
+		Spec.Cause = EBattleEventCause::Outcome;
+		Spec.CauseActionKind = ActionKind;
+		Spec.OutcomeCause = EBattleOutcomeCause::PartnerTeamVictory;
+		Spec.Source = Source;
+		Spec.Targets.Add(Recovery.Target);
+		Spec.NumericBefore = Recovery.PreviousHP;
+		Spec.NumericAfter = Recovery.NewHP;
+		Spec.NumericDelta = Recovery.NewHP - Recovery.PreviousHP;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+
+		FBattleEvent Event;
+		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);
+		check(bCreated && Recovery.bMajorStatusCured);
+		++State.NextEventOrdinal;
+		Events.Add(MoveTemp(Event));
+	}
+
 	bool TryResolveEntryHazards(
 		FBattleEngineState& State,
 		const FBattlerId IncomingBattlerId,
@@ -3825,6 +3865,14 @@ namespace
 				}
 				if (FaintResolution.bBattleEnded)
 				{
+					AppendPartnerTeamVictoryRecoveryEvent(
+						State,
+						ResolutionId,
+						FActionId(),
+						EBattleActionKind::Switch,
+						Source,
+						FaintResolution,
+						Events);
 					Events.Add(MakeEvent(
 						State,
 						ResolutionId,
@@ -6863,6 +6911,23 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 		Snapshot.Trainers = State->BuildTrainerProjection();
 		Snapshot.PartyEntries = State->BuildPartyProjection();
 		Snapshot.ActiveAssignments = State->BuildActiveProjection();
+		for (const FBattleBattlerState& Battler : State->Battlers)
+		{
+			const FBattleTrainerState* Trainer = State->FindTrainer(Battler.TrainerId);
+			if (Trainer == nullptr || Trainer->Role != EBattleTrainerRole::Partner)
+			{
+				continue;
+			}
+			FBattlePersistentProgressionEligibilityFact& Fact =
+				Snapshot.PersistentProgressionEligibilityFacts.AddDefaulted_GetRef();
+			Fact.TrainerId = Battler.TrainerId;
+			Fact.BattlerId = Battler.BattlerId;
+			Fact.SourcePokemonId = Battler.SourcePokemonId;
+			Fact.bExperienceEligible = false;
+			Fact.bEffortValueEligible = false;
+			Fact.Restriction = EBattlePersistentProgressionRestriction::NpcPartner;
+			check(Fact.IsValid());
+		}
 	}
 
 	for (const FBattleTrainerState& Trainer : State->Trainers)
@@ -9395,6 +9460,14 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 		++State->CurrentLockedActionIndex;
 		if (ConfusionFaintResolution.bBattleEnded)
 		{
+			AppendPartnerTeamVictoryRecoveryEvent(
+				*State,
+				ResolutionId,
+				Action->ActionId,
+				Action->Decision.GetActionKind(),
+				SourceFromLockedAction(*State, *Action),
+				ConfusionFaintResolution,
+				Events);
 			Events.Add(MakeBattleEndedEvent(
 				*State,
 				ResolutionId,
@@ -10168,6 +10241,16 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 					break;
 				}
 			}
+			AppendPartnerTeamVictoryRecoveryEvent(
+				*State,
+				ResolutionId,
+				Action->ActionId,
+				Action->Decision.GetActionKind(),
+				BattleEndSource != nullptr
+					? *BattleEndSource
+					: SourceFromLockedAction(*State, *Action),
+				FaintResolution,
+				Events);
 			Events.Add(MakeBattleEndedEvent(
 				*State,
 				ResolutionId,
@@ -10646,6 +10729,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			}
 			if (FaintResolution.bBattleEnded)
 			{
+				AppendPartnerTeamVictoryRecoveryEvent(
+					*State,
+					ResolutionId,
+					FActionId(),
+					EBattleActionKind::Residual,
+					Source,
+					FaintResolution,
+					Events);
 				Events.Add(MakeEvent(
 					*State,
 					ResolutionId,
@@ -11438,6 +11529,14 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			}
 			if (FaintResolution.bBattleEnded)
 			{
+				AppendPartnerTeamVictoryRecoveryEvent(
+					*State,
+					ResolutionId,
+					FActionId(),
+					EBattleActionKind::Residual,
+					Source,
+					FaintResolution,
+					Events);
 				Events.Add(MakeEvent(
 					*State,
 					ResolutionId,

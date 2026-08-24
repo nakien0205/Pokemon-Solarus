@@ -94,6 +94,35 @@ struct POKEMONSOLARUS_API FBattleTargetEffectivenessKnowledge
 	EBattleEffectivenessKnowledge Value = EBattleEffectivenessKnowledge::Unknown;
 };
 
+/** Why a persistent progression system must exclude one battle participant. */
+enum class EBattlePersistentProgressionRestriction : uint8
+{
+	None = 0,
+	NpcPartner = 1
+};
+
+/** Core-only external result fact; the battle core performs no EXP or EV calculation. */
+struct POKEMONSOLARUS_API FBattlePersistentProgressionEligibilityFact
+{
+	FTrainerId TrainerId;
+	FBattlerId BattlerId;
+	FSourcePokemonId SourcePokemonId;
+	bool bExperienceEligible = true;
+	bool bEffortValueEligible = true;
+	EBattlePersistentProgressionRestriction Restriction =
+		EBattlePersistentProgressionRestriction::None;
+
+	[[nodiscard]] bool IsValid() const
+	{
+		return TrainerId.IsValid()
+			&& BattlerId.IsValid()
+			&& SourcePokemonId.IsValid()
+			&& !bExperienceEligible
+			&& !bEffortValueEligible
+			&& Restriction == EBattlePersistentProgressionRestriction::NpcPartner;
+	}
+};
+
 /** Move-tile effectiveness summary across all currently legal targets. */
 struct POKEMONSOLARUS_API FBattleMoveEffectivenessKnowledge
 {
@@ -173,6 +202,12 @@ public:
 	[[nodiscard]] bool HasSuccessfulReinforcement() const { return bReinforcementSucceeded; }
 	/** Returns successful captures in exact external destination order. */
 	[[nodiscard]] TConstArrayView<FBattlePendingCaptureRecord> GetPendingCaptures() const { return PendingCaptures; }
+	/** Returns core-only NPC-partner EXP/EV exclusions in stable party order. */
+	[[nodiscard]] TConstArrayView<FBattlePersistentProgressionEligibilityFact>
+	GetPersistentProgressionEligibilityFacts() const
+	{
+		return PersistentProgressionEligibilityFacts;
+	}
 	/** Returns canonical Trainer facts. */
 	[[nodiscard]] TConstArrayView<FBattleTrainerSetup> GetTrainers() const { return Trainers; }
 	/** Returns a deep copy of current party/battler facts. */
@@ -235,6 +270,7 @@ private:
 	uint32 EscapeAttemptCount = 1;
 	bool bReinforcementSucceeded = false;
 	TArray<FBattlePendingCaptureRecord> PendingCaptures;
+	TArray<FBattlePersistentProgressionEligibilityFact> PersistentProgressionEligibilityFacts;
 	TArray<FBattleTrainerSetup> Trainers;
 	TArray<FBattlePartyEntrySetup> PartyEntries;
 	TArray<FBattleActiveAssignment> ActiveAssignments;

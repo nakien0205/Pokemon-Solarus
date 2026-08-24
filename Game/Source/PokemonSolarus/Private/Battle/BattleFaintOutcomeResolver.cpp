@@ -262,6 +262,16 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 		OutResolution.OutcomeCause = bOnlyPartnerRemains
 			? EBattleOutcomeCause::PartnerTeamVictory
 			: EBattleOutcomeCause::Ordinary;
+		if (bOnlyPartnerRemains)
+		{
+			FBattlePartnerTeamVictoryRecovery Recovery;
+			if (!FBattlePartnerFlow::TryApplyTeamVictoryRecovery(State, Recovery))
+			{
+				OutResolution = FBattleFaintOutcomeResolution();
+				return false;
+			}
+			OutResolution.PartnerTeamVictoryRecovery = MoveTemp(Recovery);
+		}
 	}
 	else if (PlayerUsable == 0)
 	{

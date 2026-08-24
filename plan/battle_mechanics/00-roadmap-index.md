@@ -1,9 +1,9 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-24
-Roadmap status: Approved and materialized; B00 through C09B complete under
+Roadmap status: Approved and materialized; B00 through C09 complete under
 focused validation
-Next package: C09C Partner Double Battles; later packages remain dependency-blocked
+Next package: C10A Required Canonical Rows; C10 is dependency-clear
 
 ## Current Truth
 
@@ -115,9 +115,15 @@ The live battle source now contains:
   eligibility identities, per-actor removal and `Escape/OpponentFled` outcome,
   replay equality, and three focused Run/WildFlee Automation tests. The final
   C09B filter passes all seven Capture/Run/WildFlee tests.
+- C09C's frozen separate player/partner ownership and resolved control,
+  partner-visible player commands, legal allied support, owner-scoped Bags and
+  switches, capture and exhausted-slot restrictions, player-wipe continuation,
+  typed Partner Team Victory recovery, core-only persistent EXP/EV
+  ineligibility facts, replay schema 6, and six
+  `PokemonSolarus.Battle.C09C.*` Automation tests.
 - Cry for Help and wild reinforcement are **Freeze until call by user**. Their
   existing code, setup, state, snapshot, replay, policy, and test scaffolding
-  remains unchanged. They are not part of C09B acceptance and do not block C09C.
+  remains unchanged. They are not part of C09 acceptance and do not block C10.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
@@ -127,7 +133,8 @@ decision/event/snapshot/replay, stat, type, move, definition, adapter, and pure
 hit/damage language needed by later packages, together with C09A's encounter
 policy and selector seams. The separately tracked production runtime/HUD slice
 is accepted by the user. C09B Capture, Run, and configured WildFlee now exist;
-Cry for Help remains frozen and there is still no C09C partner outcome flow.
+C09C now supplies the PartnerDouble ownership, continuation, outcome-recovery,
+progression-fact, and replay flow. Cry for Help remains frozen.
 The completed Story 001
 and its 33-test report
 describe an older source state and
@@ -145,8 +152,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C09B gates are clear. C09C is dependency-clear and not
-  started; later packages remain blocked or not started.
+- The B00 through C09 gates are clear. C10A is dependency-clear and not
+  started; C11 remains dependency-blocked.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1070,7 +1077,47 @@ B00B accepted evidence:
   `Game/Saved/Automation/C09B-WildFlow-Final-20260824T135514Z/report-final/index.json`
   records 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in
   process. All paths use the C09B prefix and every entry has 0 warnings/errors.
-- C09B is complete. C09C is dependency-clear and next; no C09C work began.
+- C09B is complete. Its historical completion boundary preceded C09C; the C09C
+  completion record below supersedes this former next-package state.
+
+## C09C Execution Status
+
+- C09C completed on 2026-08-24 from clean committed baseline
+  `8d52dfca58c879cf4d015a3f4cf35b0296232ee5` in one session without
+  subagents because its engine, state, event, snapshot, replay, and focused-test
+  edits share one integration boundary.
+- PartnerDouble freezes distinct player and partner Trainers, parties, Bags,
+  switches, action allowances, selectors, and resolved Human/PartnerAI control.
+  The partner may observe the player's selected command while enemies may not,
+  and allied-battler support targeting retains owner-party item restrictions.
+- Partner capture and cross-owner item/switch targets are rejected. An
+  exhausted partner slot stays empty, while a player-party wipe continues if
+  the partner can still battle.
+- `PartnerTeamVictory` restores the first valid player party entry to 1 HP,
+  guarantees major-status removal, and emits the appended typed
+  `PartnerTeamVictoryRecovery` event ordinal `52` before `BattleEnded`.
+  Core-authority final snapshots also expose typed facts marking NPC partner
+  Pokemon ineligible for persistent EXP and EV; core calculates and writes no
+  progression.
+- Canonical replay schema is `6`. Identical setup, decisions, and RNG reproduce
+  the same event stream, final snapshot, and serialized replay.
+- The final `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`; its log is
+  `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09C` was run. The final
+  `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/report/index.json`
+  records exactly 6 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process; all paths have the C09C prefix and 0 warnings/errors.
+  Process exit code is `0`; report SHA-256 is
+  `46eda7e469474a8078b43e5b2172aa0ee3bd3d1ba8c23d9de227c12eb8728fa7`.
+- The first C09C-only diagnostic run passed 5/6 and exposed only test-fixture
+  assumptions. A later completion audit added explicit starting-status cure
+  proof; its first build exposed a test-only projection-type compile error.
+  Both test issues were corrected, and the final replay proof excludes the
+  test-only status mutation. Neither earlier diagnostic is acceptance evidence.
+- Cry for Help/reinforcement, C10, UI/assets, persistent writes, reward
+  calculation, configuration, module rules, `.uproject`, older package filters,
+  the full Battle suite, and Git writes were not changed or run for C09C.
 
 ## Goal
 

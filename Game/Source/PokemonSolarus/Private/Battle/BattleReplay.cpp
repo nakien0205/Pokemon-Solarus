@@ -222,6 +222,17 @@ namespace
 			WriteTypedDefinitionId(Capture.HeldItem.ChoiceLockedMoveId);
 		}
 
+		void WritePersistentProgressionEligibility(
+			const FBattlePersistentProgressionEligibilityFact& Fact)
+		{
+			WriteNumericId(Fact.TrainerId);
+			WriteNumericId(Fact.BattlerId);
+			WriteNumericId(Fact.SourcePokemonId);
+			WriteBool(Fact.bExperienceEligible);
+			WriteBool(Fact.bEffortValueEligible);
+			WriteU8(static_cast<uint8>(Fact.Restriction));
+		}
+
 		void WriteActiveAssignment(const FBattleActiveAssignment& Assignment)
 		{
 			WriteActiveSlot(Assignment.ActiveSlotId);
@@ -650,6 +661,12 @@ namespace
 			for (const FBattlePendingCaptureRecord& Capture : Snapshot.GetPendingCaptures())
 			{
 				WritePendingCapture(Capture);
+			}
+			WriteCount(Snapshot.GetPersistentProgressionEligibilityFacts().Num());
+			for (const FBattlePersistentProgressionEligibilityFact& Fact :
+				Snapshot.GetPersistentProgressionEligibilityFacts())
+			{
+				WritePersistentProgressionEligibility(Fact);
 			}
 			WriteCount(Snapshot.GetTrainers().Num());
 			for (const FBattleTrainerSetup& Trainer : Snapshot.GetTrainers())

@@ -139,6 +139,7 @@ private:
 	friend class FBattleC08CBagEngineFixture;
 	friend class FBattleC09BCaptureEngineFixture;
 	friend class FBattleC09BWildFlowEngineFixture;
+	friend class FBattleC09CPartnerEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleEffectExecutor.h"
+#include "Battle/BattlePartnerFlow.h"
 
 class FBattleEngineState;
 
@@ -30,6 +31,7 @@ struct FBattleFaintOutcomeResolution
 	bool bBattleEnded = false;
 	EBattleOutcome Outcome = EBattleOutcome::InProgress;
 	EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+	TOptional<FBattlePartnerTeamVictoryRecovery> PartnerTeamVictoryRecovery;
 };
 
 /** Private deterministic C05C rules for faint cleanup, outcomes, and queue boundaries. */

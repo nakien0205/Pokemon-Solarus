@@ -1,7 +1,7 @@
 # C09 — Encounters, Capture, Escape, and Partner Battles
 
 Priority: P2/P3  
-Status: C09A and C09B complete; C09C is dependency-clear and next
+Status: C09 complete; C09A, C09B, and C09C complete under focused validation
 Required order: C09A, C09B, then C09C
 
 ## Objective
@@ -237,6 +237,82 @@ F = floor((PlayerSpeed * 32) / floor(WildSpeed / 4)) + 30 * C
 - NPC partner Pokemon are marked ineligible for persistent EXP/EV through
   external result facts; core performs no reward calculation.
 
+### C09C Completion Record
+
+- C09C completed on 2026-08-24 from clean committed baseline
+  `8d52dfca58c879cf4d015a3f4cf35b0296232ee5` in one session without
+  subagents. The engine integration and focused tests share the same battle
+  state, event, snapshot, and replay contracts, so splitting the work would not
+  have reduced risk or elapsed validation time.
+- Owned implementation/test files were exactly `BattleEngine.cpp`,
+  `BattleEngine.h`,
+  `BattleEvent.cpp/.h`, `BattleFaintOutcomeResolver.cpp/.h`,
+  `BattleReplay.cpp/.h`, `BattleSnapshot.h`, new `BattlePartnerFlow.cpp/.h`,
+  and new `BattlePartnerFlowTests.cpp`. Only this package, the roadmap index,
+  and the active handoff were owned for status updates. All other source,
+  tests, generated content, configuration, project files, UI, and assets were
+  explicit non-edit scope.
+
+| Source/test or protected file | Pre-run SHA-256 | Final SHA-256 |
+|---|---|---|
+| `BattleEngine.cpp` | `83e17c0b61c616feccdf2765725cf812952524de8d2b59c75ef4aa2fe853174d` | `aedc525ca69edc73e6fa86e2ccac21f160c922decd9c79c8d028a10a34928859` |
+| `BattleEngine.h` | `48903b06827d3a5559fe65481070a8e65c30b541f098e09ec18ebf7a003dcb31` | `e04dfa4ee02298b5f9cff71ddfde76a6ca84364c2d2b2f0904b25152a1df1d25` |
+| `BattleEvent.cpp` | `55078c26119db6a24f9bdc09d3c2b0447f6dcce189d1ce871693df50a6aa6d95` | `0ca5e843117e6effc14a5d2f30b8e44eb72fe757324c7d87e79abc3110810e3c` |
+| `BattleEvent.h` | `0314c1ad8205599e1ad94f0f28c750e9d24707a67f942578b907b2b6bafdc8dc` | `7857fe91ccd47f76ed0bc741e24b9efed6e8f2f9c43d4040fc7ffabdfedaed12` |
+| `BattleFaintOutcomeResolver.cpp` | `28844517aca2b8eb39dd3a537f7661de33b885631a62523df03021063b926baa` | `f3b0a1d6d8ca7f71ee9756e3e774d5455c7c398a038732cdcef2c550e558b7ce` |
+| `BattleFaintOutcomeResolver.h` | `60b68d3b9aa5269d56ea2edbc49003382319d9c64881b57a111327e265f98088` | `84885002f8a21d41b5a9610ded69958a12d7b6a399508284300f6b6f165e16ca` |
+| `BattleReplay.cpp` | `a77c027e59f8f11d769da1f558f080e0c6461d93183913630473b138ec804338` | `845d30ab40c9cd5634a3140362c0aae0788557aba0e71308559dbd1e7fce8048` |
+| `BattleReplay.h` | `03f2a280d337d44c6e168acb9d59abf6892b31e1555244981b1d399887c80090` | `28117d2c86771d58fd3d152c88509533b0135079a43eee0edf8dd5e5e56d00dc` |
+| `BattleSnapshot.h` | `63338b130d64163f1ca9b0fc885d27bbd49fbad804221f410bc21b193a17cc17` | `efbaae4acc120b9bdc839f7355466c2de49d08d2f33abb2650de8af2098ea170` |
+| `BattlePartnerFlow.cpp` | absent | `02ff2af4800a7b8e24916400bb576589f21a3b4a529300075481db830675240b` |
+| `BattlePartnerFlow.h` | absent | `929c5ce9a69c00cb08b8016893068aaa9f027e54cacea926651c34b325969fde` |
+| `BattlePartnerFlowTests.cpp` | absent | `770533525d5c684fffc71e8df2ea0463fa961096890d7d4011e4a0d490924928` |
+| `Game/PokemonSolarus.uproject` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` | `97d07ae09b7fbcb7e095ebfd5a4a15c1e1c2953e40e93ec2c89bf407257af7e5` |
+| `Game/Config/DefaultEngine.ini` | `e38cb5a7339c557ae47115f11bf71534df8612a3ac16d072b4474dd7f0ad4e30` | `e38cb5a7339c557ae47115f11bf71534df8612a3ac16d072b4474dd7f0ad4e30` |
+- PartnerDouble setup freezes separate player and partner Trainer ownership,
+  parties, Bags, switches, action allowances, selectors, and resolved Human or
+  PartnerAI control. Player commands remain hidden from enemies but visible to
+  the partner selector, and legal allied-battler support targeting is preserved.
+- Existing core validation rejects cross-owner item targets and reserve
+  switches. Partner capture remains unavailable, and an exhausted partner slot
+  remains empty rather than accepting a player reserve.
+- A full player-party wipe continues while the partner can battle. A terminal
+  `PartnerTeamVictory` restores the first valid player party entry to 1 HP,
+  guarantees its major status is clear, and emits the appended typed
+  `PartnerTeamVictoryRecovery` event at ordinal `52` before `BattleEnded`.
+- Core-authority final snapshots expose typed NPC-partner progression facts
+  that mark both persistent EXP and EV eligibility false. The core performs no
+  reward calculation or persistent write, and observer-filtered snapshots do
+  not expose those external result facts.
+- Canonical replay schema is now `6` because the final snapshot gained the
+  deterministic progression-fact field. Identical setup, decisions, and RNG
+  reproduce the same ordered event stream, final snapshot, and serialized
+  replay.
+- The final `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`; its durable
+  log is
+  `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09C` was run. The final
+  exported report at
+  `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/report/index.json`
+  records exactly 6 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. Every reported path uses the C09C prefix and has 0 warnings
+  and 0 errors; process exit code is `0`, and report SHA-256 is
+  `46eda7e469474a8078b43e5b2172aa0ee3bd3d1ba8c23d9de227c12eb8728fa7`.
+- The first C09C-only diagnostic run passed 5/6 and exposed two test-fixture
+  assumptions: an intended reserve had defaulted to fainted, and exact
+  cross-owner item-target validation occurs at final submission. Only the test
+  fixture/assertion was corrected. A later completion audit added an explicit
+  starting-status cure proof; its first build exposed a test-only use of the
+  setup projection instead of the observed-battler projection. That compile
+  error was corrected, and the final replay proof excludes that test-only
+  status mutation from canonical replay inputs. Neither earlier diagnostic is
+  acceptance evidence.
+- Cry for Help and wild reinforcement remain frozen and unchanged. C10,
+  UI/assets, persistence writes, reward calculation, configuration, module
+  rules, `.uproject` data, older package filters, the full Battle suite, and Git
+  writes were outside C09C and were not performed.
+
 ## Tests
 
 C09A:
@@ -276,5 +352,4 @@ C09C:
 - Wild and partner flows replay identically from the same setup/actions/RNG.
 - Core emits all external persistence/reward facts but performs no write or
   reward computation.
-- C09B is complete before C09C begins because both integrate the active-slot and
-  engine flow.
+- C09 is complete after the ordered C09A, C09B, and C09C focused validations.
