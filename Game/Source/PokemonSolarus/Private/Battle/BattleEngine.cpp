@@ -12,6 +12,7 @@
 #include "Battle/BattleStatCalculator.h"
 #include "Battle/BattleSwitching.h"
 #include "Battle/BattleVolatile.h"
+#include "Battle/BattleWildFlow.h"
 #include "Math/NumericLimits.h"
 
 namespace
@@ -4046,6 +4047,99 @@ namespace
 			&& !Battler->bRemoved;
 	}
 
+	const FBattleBattlerState* FindLeftmostLivingWildOpponent(
+		const FBattleEngineState& State)
+	{
+		for (const EBattlePosition Position : {EBattlePosition::Left, EBattlePosition::Right})
+		{
+			FActiveSlotId SlotId;
+			const bool bSlotCreated = FActiveSlotId::TryCreate(
+				EBattleSide::Opponent,
+				Position,
+				SlotId);
+			check(bSlotCreated);
+			const FBattleActivePositionState* Active = State.FindActivePosition(SlotId);
+			const FBattleBattlerState* Battler = Active != nullptr
+				? State.FindBattler(Active->BattlerId)
+				: nullptr;
+			const FBattleTrainerState* Trainer = Battler != nullptr
+				? State.FindTrainer(Battler->TrainerId)
+				: nullptr;
+			if (Active != nullptr
+				&& Active->bAvailable
+				&& Trainer != nullptr
+				&& Trainer->Side == EBattleSide::Opponent
+				&& Trainer->Role == EBattleTrainerRole::Opponent
+				&& IsLivingSelectableBattler(Battler))
+			{
+				return Battler;
+			}
+		}
+		return nullptr;
+	}
+
+	const FBattleWildFleePolicyState* FindWildFleePolicy(
+		const FBattleEngineState& State,
+		const FBattleBattlerState& Battler)
+	{
+		const FDefinitionId TriggerId = FBattleWildFleeRules::GetActionSelectionTriggerId();
+		const FDefinitionId EligibilityId =
+			FBattleWildFleeRules::GetActiveLivingWildEligibilityId();
+		const auto IsSupportedPolicy = [TriggerId, EligibilityId](
+			const FBattleWildFleePolicyState& Policy)
+		{
+			return Policy.TriggerId == TriggerId
+				&& Policy.EligibilityId == EligibilityId;
+		};
+
+		const FBattleWildFleePolicyState* Exact = State.WildFleePolicies.FindByPredicate(
+			[&Battler, &IsSupportedPolicy](const FBattleWildFleePolicyState& Policy)
+			{
+				return Policy.SpeciesFormId == Battler.SpeciesFormId
+					&& IsSupportedPolicy(Policy);
+			});
+		if (Exact != nullptr)
+		{
+			return Exact;
+		}
+		return State.WildFleePolicies.FindByPredicate(
+			[&IsSupportedPolicy](const FBattleWildFleePolicyState& Policy)
+			{
+				return !Policy.SpeciesFormId.IsValid() && IsSupportedPolicy(Policy);
+			});
+	}
+
+	bool CanOfferRunAction(
+		const FBattleEngineState& State,
+		const FBattleTrainerState& Trainer,
+		const FBattleBattlerState& Battler)
+	{
+		const FBattleBattlerState* WildOpponent = FindLeftmostLivingWildOpponent(State);
+		return State.EncounterKind == EBattleEncounterKind::Wild
+			&& State.EncounterPolicies.bRunAllowed
+			&& Trainer.Side == EBattleSide::Player
+			&& Trainer.Role == EBattleTrainerRole::Player
+			&& IsLivingSelectableBattler(&Battler)
+			&& FindActiveForBattler(State, Battler.BattlerId) != nullptr
+			&& WildOpponent != nullptr
+			&& FBattleRunRules::IsSpeedPairLegal(
+				Battler.PermanentStats.Speed,
+				WildOpponent->PermanentStats.Speed);
+	}
+
+	bool CanOfferWildFleeAction(
+		const FBattleEngineState& State,
+		const FBattleTrainerState& Trainer,
+		const FBattleBattlerState& Battler)
+	{
+		return State.EncounterKind == EBattleEncounterKind::Wild
+			&& Trainer.Side == EBattleSide::Opponent
+			&& Trainer.Role == EBattleTrainerRole::Opponent
+			&& IsLivingSelectableBattler(&Battler)
+			&& FindActiveForBattler(State, Battler.BattlerId) != nullptr
+			&& FindWildFleePolicy(State, Battler) != nullptr;
+	}
+
 	FDefinitionId GetWildOpponentSwitchRestrictionRuleId()
 	{
 		FDefinitionId RuleId;
@@ -4391,6 +4485,7 @@ namespace
 			OutBand = EBattleActionCommandBand::VoluntarySwitch;
 			return true;
 		case EBattleActionKind::Run:
+		case EBattleActionKind::WildFlee:
 			OutBand = EBattleActionCommandBand::Run;
 			return true;
 		default:
@@ -5598,15 +5693,18 @@ namespace
 			}
 		}
 
-		if (State.EncounterKind == EBattleEncounterKind::Wild
-			&& State.EncounterPolicies.bRunAllowed
-			&& Trainer->Role == EBattleTrainerRole::Player)
+		if (CanOfferRunAction(State, *Trainer, *Battler))
 		{
 			Spec.LegalActionKinds.Add(EBattleActionKind::Run);
 		}
 		else
 		{
 			AddUnavailableAction(Spec, EBattleActionKind::Run, EBattleOptionUnavailableReason::RunRestricted);
+		}
+
+		if (CanOfferWildFleeAction(State, *Trainer, *Battler))
+		{
+			Spec.LegalActionKinds.Add(EBattleActionKind::WildFlee);
 		}
 
 		return FBattleDecisionRequest::TryCreate(Spec, OutRequest, OutRejection);
@@ -7596,6 +7694,327 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 	check(bResolutionCreated);
 	State->AppendResolution(Resolution);
 	return Resolution;
+}
+
+FBattleResolution FBattleEngine::ExecuteCurrentWildAction()
+{
+	check(State.IsValid());
+	FBattleLockedActionState* Action = State->LockedActions.IsValidIndex(
+		State->CurrentLockedActionIndex)
+		? &State->LockedActions[State->CurrentLockedActionIndex]
+		: nullptr;
+	const EBattleActionKind ActionKind = Action != nullptr
+		? Action->Decision.GetActionKind()
+		: EBattleActionKind::Run;
+	const FResolutionId ResolutionId = TakeResolutionId(*State);
+	const FBattleEventSource FallbackSource = Action != nullptr
+		? SourceFromLockedAction(*State, *Action)
+		: FindFallbackSource(*State);
+
+	FBattleRejection Rejection;
+	if (State->Phase == EBattlePhase::Terminal)
+	{
+		Rejection.Reason = EBattleRejectionReason::TerminalState;
+	}
+	else if (State->Phase != EBattlePhase::Resolving
+		|| Action == nullptr
+		|| !Action->bStarted
+		|| Action->bFinished
+		|| (ActionKind != EBattleActionKind::Run
+			&& ActionKind != EBattleActionKind::WildFlee))
+	{
+		Rejection.Reason = EBattleRejectionReason::IllegalAction;
+		if (Action != nullptr)
+		{
+			Rejection.ActionId = Action->ActionId;
+		}
+	}
+	if (Rejection.IsRejected())
+	{
+		return MakeRejectedResolution(
+			*State,
+			ResolutionId,
+			Rejection,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Run,
+			ActionKind,
+			FallbackSource);
+	}
+
+	check(Action != nullptr);
+	const uint64 BeforeStateVersion = State->StateVersion;
+	auto FinishAcceptedAction = [this, Action, ResolutionId, BeforeStateVersion](
+		TArray<FBattleEvent>& Events,
+		const TOptional<EBattleOutcomeCause>& TerminalOutcomeCause)
+	{
+		Action->bFinished = true;
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCompleted,
+			EBattleEventCause::Action));
+		++State->CurrentLockedActionIndex;
+		if (TerminalOutcomeCause.IsSet())
+		{
+			Events.Add(MakeBattleEndedEvent(
+				*State,
+				ResolutionId,
+				*Action,
+				TerminalOutcomeCause.GetValue()));
+		}
+		else
+		{
+			AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+		}
+		++State->StateVersion;
+
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		const bool bStateValid = State->ValidateInvariants(StateError);
+		check(bStateValid);
+
+		FBattleResolutionSpec ResolutionSpec;
+		ResolutionSpec.ResolutionId = ResolutionId;
+		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
+		ResolutionSpec.AfterStateVersion = State->StateVersion;
+		ResolutionSpec.bAccepted = true;
+		ResolutionSpec.Events = MoveTemp(Events);
+		FBattleResolution Resolution;
+		const bool bResolutionCreated = FBattleResolution::TryCreate(
+			ResolutionSpec,
+			Resolution);
+		check(bResolutionCreated);
+		State->AppendResolution(Resolution);
+		return Resolution;
+	};
+
+	const FBattleBattlerState* ActingBattler = State->FindBattler(
+		Action->Decision.GetActingBattlerId());
+	const FBattleTrainerState* ActingTrainer = ActingBattler != nullptr
+		? State->FindTrainer(ActingBattler->TrainerId)
+		: nullptr;
+	TArray<FBattleEvent> Events;
+	auto CancelStaleAttempt = [&]()
+	{
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::ActionCanceled,
+			EBattleEventCause::Run));
+		return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
+	};
+
+	if (ActingBattler == nullptr || ActingTrainer == nullptr)
+	{
+		return CancelStaleAttempt();
+	}
+
+	if (ActionKind == EBattleActionKind::Run)
+	{
+		const FBattleBattlerState* WildOpponent = FindLeftmostLivingWildOpponent(*State);
+		if (!CanOfferRunAction(*State, *ActingTrainer, *ActingBattler)
+			|| WildOpponent == nullptr)
+		{
+			return CancelStaleAttempt();
+		}
+
+		FBattleRunCalculationInput Input;
+		Input.PlayerPermanentSpeed = ActingBattler->PermanentStats.Speed;
+		Input.WildPermanentSpeed = WildOpponent->PermanentStats.Speed;
+		Input.EscapeAttemptCount = State->EscapeAttemptCount;
+		Input.RandomContext.BattleId = State->Setup.GetBattleId();
+		Input.RandomContext.TurnId = State->TurnId;
+		Input.RandomContext.ActionId = Action->ActionId;
+		Input.RandomContext.ResolutionId = ResolutionId;
+		FBattleRunCalculationResult Result;
+		if (!FBattleRunRules::TryResolve(Input, *State->Random, Result))
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("Validated C09B Run calculation or RNG could not be resolved."));
+		}
+
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::RunAttempted,
+			EBattleEventCause::Run));
+		if (!Result.bSucceeded)
+		{
+			check(State->EscapeAttemptCount < TNumericLimits<uint32>::Max());
+			++State->EscapeAttemptCount;
+			return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
+		}
+
+		State->Phase = EBattlePhase::Terminal;
+		State->Outcome = EBattleOutcome::Escape;
+		State->OutcomeCause = EBattleOutcomeCause::Ordinary;
+		State->PendingDecision.Reset();
+		State->PendingDecisionRequests.Reset();
+		State->PendingReplacements.Reset();
+		const bool bBattleEndCleaned = TryCleanupBattleEndTriggers(*State);
+		check(bBattleEndCleaned);
+		Events.Add(MakeActionDetailEvent(
+			*State,
+			ResolutionId,
+			*Action,
+			EBattleEventType::Escaped,
+			EBattleEventCause::Run));
+		return FinishAcceptedAction(
+			Events,
+			TOptional<EBattleOutcomeCause>(EBattleOutcomeCause::Ordinary));
+	}
+
+	const FBattleWildFleePolicyState* Policy = FindWildFleePolicy(
+		*State,
+		*ActingBattler);
+	const FBattleActivePositionState* Active = FindActiveForBattler(
+		*State,
+		ActingBattler->BattlerId);
+	if (!CanOfferWildFleeAction(*State, *ActingTrainer, *ActingBattler)
+		|| Policy == nullptr
+		|| Active == nullptr)
+	{
+		return CancelStaleAttempt();
+	}
+
+	FBattleWildFleeCalculationInput Input;
+	Input.Policy.SpeciesFormId = Policy->SpeciesFormId;
+	Input.Policy.TriggerId = Policy->TriggerId;
+	Input.Policy.EligibilityId = Policy->EligibilityId;
+	Input.Policy.ProbabilityMode = Policy->ProbabilityMode;
+	Input.Policy.Numerator = Policy->Numerator;
+	Input.Policy.Denominator = Policy->Denominator;
+	Input.RandomContext.BattleId = State->Setup.GetBattleId();
+	Input.RandomContext.TurnId = State->TurnId;
+	Input.RandomContext.ActionId = Action->ActionId;
+	Input.RandomContext.ResolutionId = ResolutionId;
+	FBattleWildFleeCalculationResult Result;
+	if (!FBattleWildFleeRules::TryResolve(Input, *State->Random, Result))
+	{
+		UE_LOG(LogTemp, Fatal, TEXT("Validated C09B WildFlee policy or RNG could not be resolved."));
+	}
+
+	Events.Add(MakeActionDetailEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::RunAttempted,
+		EBattleEventCause::Run));
+	if (!Result.bSucceeded)
+	{
+		return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
+	}
+
+	FBattleEventTarget FleeingTarget;
+	FleeingTarget.TrainerId = ActingBattler->TrainerId;
+	FleeingTarget.BattlerId = ActingBattler->BattlerId;
+	FleeingTarget.ActiveSlotId = Active->ActiveSlotId;
+	const bool bTriggersCleaned =
+		TryCleanupSourceDependentVolatiles(
+			*State,
+			ActingBattler->BattlerId,
+			EBattleTriggerCleanupReason::Removal)
+		&& TryCleanupAbilityTriggers(
+			*State,
+			ActingBattler->AbilityId,
+			ActingBattler->BattlerId,
+			EBattleTriggerCleanupReason::Removal)
+		&& TryCleanupItemTriggers(
+			*State,
+			ActingBattler->HeldItem.CurrentItemId,
+			ActingBattler->BattlerId,
+			EBattleTriggerCleanupReason::Removal)
+		&& (!FBattleMajorStatusRules::IsCanonical(ActingBattler->MajorStatusId)
+			|| TryCleanupMajorStatusTriggers(
+				*State,
+				ActingBattler->MajorStatusId,
+				ActingBattler->BattlerId,
+				EBattleTriggerCleanupReason::Removal))
+		&& TryCleanupAllOwnedVolatileTriggers(
+			*State,
+			*ActingBattler,
+			EBattleTriggerCleanupReason::Removal);
+	check(bTriggersCleaned);
+
+	FBattleBattlerState* MutableBattler = State->FindMutableBattler(ActingBattler->BattlerId);
+	FBattleActivePositionState* MutableActive = State->FindMutableActivePosition(
+		Active->ActiveSlotId);
+	check(MutableBattler != nullptr
+		&& MutableActive != nullptr
+		&& MutableActive->BattlerId == ActingBattler->BattlerId);
+	MutableBattler->MajorStatusId = FConditionId();
+	MutableBattler->Stages = FBattleStatStages();
+	MutableBattler->Volatiles.Reset();
+	MutableBattler->LastMoveId = FMoveId();
+	MutableBattler->bAbilitySuppressed = false;
+	MutableBattler->HeldItem.ChoiceLockedMoveId = FMoveId();
+	MutableBattler->EnteredActiveOnTurnId = FTurnId();
+	MutableBattler->bRemoved = true;
+	MutableBattler->bFaintTransitionPending = false;
+	MutableActive->TrainerId = FTrainerId();
+	MutableActive->BattlerId = FBattlerId();
+
+	Events.Add(MakeTargetedActionEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::Escaped,
+		EBattleEventCause::Run,
+		FleeingTarget));
+	Events.Add(MakeTargetedActionEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::LeftActiveSlot,
+		EBattleEventCause::Run,
+		FleeingTarget));
+	Events.Add(MakeTargetedActionEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::Removed,
+		EBattleEventCause::Run,
+		FleeingTarget));
+	FBattleEvent RemovalCheckpoint = MakeTargetedActionEvent(
+		*State,
+		ResolutionId,
+		*Action,
+		EBattleEventType::OpponentRemovalCheckpoint,
+		EBattleEventCause::Rule,
+		FleeingTarget);
+	State->AvailableOpponentRemovalCheckpoints.Add(
+		RemovalCheckpoint.GetEventOrdinal());
+	Events.Add(MoveTemp(RemovalCheckpoint));
+
+	bool bLivingOpponentRemains = false;
+	for (const FBattleBattlerState& Battler : State->Battlers)
+	{
+		const FBattleTrainerState* Trainer = State->FindTrainer(Battler.TrainerId);
+		if (Trainer != nullptr
+			&& Trainer->Side == EBattleSide::Opponent
+			&& IsLivingSelectableBattler(&Battler))
+		{
+			bLivingOpponentRemains = true;
+			break;
+		}
+	}
+	if (!bLivingOpponentRemains)
+	{
+		State->Phase = EBattlePhase::Terminal;
+		State->Outcome = EBattleOutcome::Escape;
+		State->OutcomeCause = EBattleOutcomeCause::OpponentFled;
+		State->PendingDecision.Reset();
+		State->PendingDecisionRequests.Reset();
+		State->PendingReplacements.Reset();
+		const bool bBattleEndCleaned = TryCleanupBattleEndTriggers(*State);
+		check(bBattleEndCleaned);
+		return FinishAcceptedAction(
+			Events,
+			TOptional<EBattleOutcomeCause>(EBattleOutcomeCause::OpponentFled));
+	}
+
+	return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
 }
 
 FBattleResolution FBattleEngine::ExecuteCurrentBagItem()

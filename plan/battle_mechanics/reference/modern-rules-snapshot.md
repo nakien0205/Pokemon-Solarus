@@ -848,6 +848,12 @@ then increments `C`.
 
 ### Cry for Help
 
+**Status: Freeze until call by user.** This subsection is retained as historical
+design context only. Do not implement, remove, refactor, or test Cry for Help or
+wild reinforcement until the user explicitly calls for it. Existing related
+code and replay fields remain unchanged. This frozen mechanic is not part of
+C09B acceptance and does not block C09C.
+
 Cry for Help is legal only when the second wild active slot is empty and no
 previous call has succeeded in that battle. The attempt consumes the caller's
 action and PP. Consume `U[0,99]`; succeed when the value is below `80`. Failure

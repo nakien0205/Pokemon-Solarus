@@ -345,7 +345,13 @@ approved global rules.
 The authoritative battle handoff governs all other settled full-system
 formulas and rules. This document does not replace or reinterpret them.
 
-The exact custom wild-escape formula remains unknown and must not be invented.
+The exact Solarus Run formula is settled in the battle rules: use permanent,
+unmodified Speed, reject either Speed below `4`, then calculate
+`F = floor((PlayerSpeed * 32) / floor(WildSpeed / 4)) + 30 * C`. `C` starts at
+`1`, increments only after a legal failed Run, and never resets. `F > 255`
+succeeds without RNG; otherwise draw `U[0,255]` and succeed only when `R < F`.
+Cry for Help and wild reinforcement are **Freeze until call by user**; existing
+related code remains unchanged.
 
 ## 5. Edge Cases
 
@@ -359,8 +365,8 @@ The exact custom wild-escape formula remains unknown and must not be invented.
   placeholder cannot reach it.
 - The exact official effectiveness-label unlock trigger is unproven; Solarus
   uses its documented project-specific rule.
-- Battle Info layout, save timing, the wild-escape formula, and later
-  reinforcement formulas remain deferred.
+- Battle Info layout and save timing remain deferred. Cry for Help and wild
+  reinforcement are **Freeze until call by user**.
 
 ### Design Risks
 
@@ -405,10 +411,9 @@ The exact custom wild-escape formula remains unknown and must not be invented.
 - What is the visual identity outside battles?
 - What are the intended session length and target-player details?
 - What is the full-game timeline?
-- What is the exact wild-escape formula?
 - What is the Battle Info layout?
 - When does the future game save?
-- How would later wild reinforcement formulas work?
+- Cry for Help and wild reinforcement remain **Freeze until call by user**.
 
 These questions are intentionally deferred rather than missing through
 oversight.

@@ -1,8 +1,7 @@
-# C09 — Encounters, Capture, Escape, Reinforcement, and Partner Battles
+# C09 — Encounters, Capture, Escape, and Partner Battles
 
 Priority: P2/P3  
-Status: C09A complete; C09B session-1 Capture complete; C09B session 2 next;
-C09C blocked by C09B
+Status: C09A and C09B complete; C09C is dependency-clear and next
 Required order: C09A, C09B, then C09C
 
 ## Objective
@@ -30,6 +29,10 @@ Formats:
 Compile setup into typed policies for Run, capture, Bag, Revive, Shift/Set,
 reinforcement, configured wild fleeing, scripted ending, partner ownership, and
 selector profile.
+
+Cry for Help and wild reinforcement are **Freeze until call by user**. The
+existing C09A policy/setup scaffold is retained unchanged and is not an active
+implementation or acceptance requirement.
 
 Define `IBattleActionSelector`:
 
@@ -87,10 +90,11 @@ remain outside this roadmap.
   configuration, module rules, the `.uproject`, non-C09A tests, B00B, and the
   Solarus handoff were not modified. No `dev-story`, commit, older battle
   filter, full battle suite, or project-wide test run was used.
-- C09A remains complete. Current C09B session-1 status is recorded below; C09C
-  remains blocked by C09B.
+- C09A remains complete. The reinforcement references above describe the
+  historical compiled scaffold, which remains unchanged while the mechanic is
+  **Freeze until call by user**.
 
-## C09B — Run, Capture, and Cry for Help
+## C09B — Run, Capture, and Configured WildFlee
 
 ### Run
 
@@ -157,19 +161,49 @@ F = floor((PlayerSpeed * 32) / floor(WildSpeed / 4)) + 30 * C
   `Game/Saved/Automation/C09B-Capture-20260824T125438Z/report-final/index.json`:
   4 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in
   process; every test has 0 warnings and 0 errors.
-- C09B session 1 complete; session 2 Run, Cry for Help, and WildFlee next.
-  C09B as a whole remains incomplete, and C09C remains blocked.
+- C09B session 1 Capture remains complete and is preserved by the final C09B
+  focused filter.
+
+#### C09B session-2 completion
+
+- `BattleWildFlow` implements the exact permanent-Speed Run formula, the
+  one-based persistent failed-attempt counter, strict `R < F` boundary, and the
+  no-draw `F > 255` path.
+- Decision generation blocks Trainer and invalid-Speed Run before an action or
+  RNG can be consumed. Wild Run uses the leftmost living opponent slot.
+- Configured WildFlee remains disabled by default. Explicit `Never`, `Always`,
+  and proper `Chance(numerator, denominator)` policies use the typed
+  `Trigger.C09B.WildFlee.ActionSelection` and
+  `Eligibility.C09B.WildFlee.ActiveLivingWildOpponent` identities.
+- WildFlee shares the existing Run command band. Legal failure consumes the
+  wild action without RNG for `Never`; success removes only the fleeing actor,
+  spends no PP, continues with another living wild opponent, or ends as
+  `Escape/OpponentFled` when none remains.
+- Replay schema remains `5`; the existing Cry/reinforcement fields and code are
+  unchanged.
+- The required `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`; its durable
+  log is
+  `Game/Saved/Automation/C09B-WildFlow-Final-20260824T135514Z/build-final.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09B` was run. The exported
+  report at
+  `Game/Saved/Automation/C09B-WildFlow-Final-20260824T135514Z/report-final/index.json`
+  records exactly 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. All seven paths use the C09B prefix and every entry contains
+  0 warnings and 0 errors.
+- C09B is complete. C09C is dependency-clear and is the next package; no C09C
+  implementation has begun.
 
 ### Cry for Help
 
-- Available only when the second wild active slot is empty and the one-success
-  battle limit has not been reached.
-- Attempt consumes caller action and PP.
-- Use one uniform success check with exactly 80% probability.
-- Failure leaves the slot empty; success creates the configured reinforcement
-  in that slot and permanently disables further successful calls this battle.
-- The summon cannot act until the next turn and may later be captured.
-- Third/fourth reinforcement formulas are explicitly excluded.
+**Status: Freeze until call by user.**
+
+- Do not implement, remove, refactor, or test Cry for Help, wild reinforcement,
+  or `CallReinforcement` until the user explicitly calls for it.
+- Leave all existing related code, setup, state, snapshot, replay, policy, and
+  test scaffolding unchanged.
+- Older Cry rules are historical context only. Cry is excluded from C09B
+  completion and does not block C09C.
 
 ### Configured wild-opponent fleeing
 
@@ -214,8 +248,9 @@ C09A:
 
 C09B:
 
-- Session-1 Capture proof is complete under four
-  `PokemonSolarus.Battle.C09B.Capture.*` tests.
+- Capture proof remains complete under four
+  `PokemonSolarus.Battle.C09B.Capture.*` tests; Run/WildFlee proof adds exactly
+  three focused tests for a total of seven C09B tests.
 - Trainer Run rejection; `F > 255`; exact `R < F` boundaries; failed attempt
   increments; other actions/switches do not reset; blocked attempt unchanged;
   invalid Speed rejected.
@@ -223,13 +258,12 @@ C09B:
   Victory, retained captured state, queue cancellation, no redirection/no PP,
   and final pending destination order.
 - Normal/critical capture RNG golden vectors from B00B.
-- Cry for Help fail/success/boundary, one-success limit, next-turn action, and
-  captured summon.
 - Configured wild flee with one/multiple opponents, authored probability,
   queued-action cancellation, continued battle, and OpponentFled outcome.
 
-The Run, Cry for Help, and configured WildFlee bullets above remain session-2
-work and were not tested in session 1.
+Cry for Help testing is excluded while its status is **Freeze until call by
+user**. Run, Capture, and configured WildFlee are complete under the focused
+7/7 C09B report.
 
 C09C:
 
@@ -242,5 +276,5 @@ C09C:
 - Wild and partner flows replay identically from the same setup/actions/RNG.
 - Core emits all external persistence/reward facts but performs no write or
   reward computation.
-- C09B and C09C are never implemented concurrently because both integrate the
-  active-slot and engine flow.
+- C09B is complete before C09C begins because both integrate the active-slot and
+  engine flow.

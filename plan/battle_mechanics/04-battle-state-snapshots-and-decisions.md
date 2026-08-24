@@ -36,8 +36,9 @@ Model these internal records:
   structurally present but unavailable.
 - Field, side, hazard, room, weather, terrain, duration, layer, and trigger
   storage using typed IDs; C07 supplies behavior.
-- Pending captures, one-success reinforcement state, escape-attempt count,
-  capture-capacity snapshot, and end-of-battle item ownership facts.
+- Pending captures, escape-attempt count, capture-capacity snapshot, and
+  end-of-battle item ownership facts. The existing one-success reinforcement
+  fields are retained unchanged while Cry for Help is **Freeze until call by user**.
 - Default-disabled per-species/per-encounter wild-flee policies with authored
   trigger, eligibility, and optional probability data.
 - Locked actions, pending decision, action/resolution counters, RNG trace, and
@@ -151,8 +152,9 @@ Progression seam:
   resource, stage, lifecycle, and catalog-reference invariants.
 - The internal plain-C++ state now owns the frozen setup and catalog, Trainers,
   six party slots per Trainer, battlers, active positions, field/side condition
-  storage, capture/reinforcement/escape facts, default-disabled flee-policy
-  storage, locked actions, pending decision state, counters, traced RNG owner,
+  storage, capture/escape facts, the unchanged frozen reinforcement scaffold,
+  default-disabled flee-policy storage, locked actions, pending decision state,
+  counters, traced RNG owner,
   resolutions, and ordered events. Existing snapshots are rebuilt as copies
   from that authoritative state; C03B does not begin here.
 - The first build (`C03A-EditorBuild-20260821T001849Z`) exposed one local use of

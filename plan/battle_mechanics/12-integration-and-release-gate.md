@@ -63,8 +63,9 @@ source and data hashes.
 - Poke Ball capacity rejection, normal/critical failure/success, multiple
   captures, retained captured state, target/action cancellation, no PP, last
   capture Victory, and pending destination order.
-- Cry for Help failure/success, one-success limit, next-turn participation, and
-  capture of the summoned Pokemon.
+- Cry for Help and wild reinforcement are **Freeze until call by user**. They
+  are excluded from the current release gate; existing related code stays
+  unchanged until explicitly requested.
 - Configured wild-opponent flee with default-disabled policy, one/multiple wild
   opponents, authored probability, and OpponentFled outcome.
 

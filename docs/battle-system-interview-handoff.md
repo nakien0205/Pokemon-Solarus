@@ -353,9 +353,13 @@ General rules:
 
 - Trainer battles normally block Run with a clear message and consume neither
   item nor turn for the blocked command.
-- Wild escape will use a custom probability based on player Pokemon Speed and
-  level versus the encountered Pokemon's Speed and level.
-- The user will provide the exact escape formula later. Do not invent it.
+- Wild Run uses the acting player Pokemon and the living wild Pokemon in the
+  leftmost occupied opponent slot. Use permanent, unmodified Speed only.
+- Reject either Speed below `4`. Otherwise use
+  `F = floor((PlayerSpeed * 32) / floor(WildSpeed / 4)) + 30 * C`, where `C`
+  starts at `1`, increments only after a legal failed Run, and never resets.
+- If `F > 255`, Run succeeds without RNG. Otherwise draw `U[0,255]` and succeed
+  only when `R < F`.
 - A legally attempted but failed wild escape consumes the action.
 
 ## Capture and Wild Reinforcements
@@ -391,6 +395,11 @@ When a target is captured:
 - Do not consume PP for a canceled move that never executes.
 
 Cry for Help rules:
+
+**Status: Freeze until call by user.** The rules below are retained as
+historical design context only. Cry for Help and reinforcement are not active
+implementation, test, or C09B acceptance requirements. Existing related code
+is left unchanged.
 
 - It can fill the second active wild slot only.
 - It has an 80% success chance when an empty slot exists.
@@ -1063,12 +1072,10 @@ Recommendation: yes; this follows normal Pokemon readability.
 
 ## Intentional Deferrals and Evidence Limits
 
-- The user will provide the exact custom wild-escape formula later. Do not
-  invent it. Wild escape cannot be implemented as final behavior until that
-  formula is supplied.
+- Cry for Help and wild reinforcement are **Freeze until call by user**.
+  Existing related code remains untouched, and the mechanic does not block
+  Run, configured WildFlee, or C09C.
 - Battle Info's visual layout will be designed later.
-- Third and fourth wild-reinforcement formulas remain future work and are not a
-  present promise.
 - The exact official effectiveness-label unlock trigger is not proven. Preserve
   the explicit Solarus battle-start snapshot rule without presenting it as an
   official discovery.

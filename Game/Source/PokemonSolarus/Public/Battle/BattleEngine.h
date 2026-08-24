@@ -17,6 +17,7 @@ class FBattleC08BEngineFixture;
 class FBattleC08CEngineFixture;
 class FBattleC08CBagEngineFixture;
 class FBattleC09BCaptureEngineFixture;
+class FBattleC09BWildFlowEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -83,6 +84,9 @@ public:
 	/** Revalidates and executes the currently started voluntary Switch action exactly once. */
 	[[nodiscard]] FBattleResolution ExecuteCurrentSwitch();
 
+	/** Resolves the currently started player Run or configured opponent WildFlee action. */
+	[[nodiscard]] FBattleResolution ExecuteCurrentWildAction();
+
 	/**
 	 * Revalidates and executes one currently started C08C Battle-kind or C09B
 	 * Poke Ball Bag action.
@@ -134,6 +138,7 @@ private:
 	friend class FBattleC08CEngineFixture;
 	friend class FBattleC08CBagEngineFixture;
 	friend class FBattleC09BCaptureEngineFixture;
+	friend class FBattleC09BWildFlowEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

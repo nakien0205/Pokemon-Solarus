@@ -1,10 +1,9 @@
 # Global Battle Mechanics Roadmap
 
 Status date: 2026-08-24
-Roadmap status: Approved and materialized; B00 through C09A complete, with the
-C09B session-1 Capture slice complete under focused validation
-Next package slice: C09B session 2 Run, Cry for Help, and WildFlee; C09C and
-later remain dependency-blocked
+Roadmap status: Approved and materialized; B00 through C09B complete under
+focused validation
+Next package: C09C Partner Double Battles; later packages remain dependency-blocked
 
 ## Current Truth
 
@@ -111,6 +110,14 @@ The live battle source now contains:
   capture facts, public event/result metadata, replay schema 5, complete shared
   C09B setup/snapshot/replay fields, and four
   `PokemonSolarus.Battle.C09B.Capture.*` Automation tests.
+- C09B session 2's exact permanent-Speed Run formula and counter, strict RNG
+  boundaries, default-disabled configured WildFlee with typed trigger and
+  eligibility identities, per-actor removal and `Escape/OpponentFled` outcome,
+  replay equality, and three focused Run/WildFlee Automation tests. The final
+  C09B filter passes all seven Capture/Run/WildFlee tests.
+- Cry for Help and wild reinforcement are **Freeze until call by user**. Their
+  existing code, setup, state, snapshot, replay, policy, and test scaffolding
+  remains unchanged. They are not part of C09B acceptance and do not block C09C.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
@@ -119,9 +126,9 @@ seams, plus concrete Ability and item execution and the frozen public setup/
 decision/event/snapshot/replay, stat, type, move, definition, adapter, and pure
 hit/damage language needed by later packages, together with C09A's encounter
 policy and selector seams. The separately tracked production runtime/HUD slice
-is accepted by the user. C09B Capture now exists, but C09B Run, Cry for Help,
-configured WildFlee, and `CallReinforcement` execution remain for session 2;
-there is still no C09C partner outcome flow. The completed Story 001
+is accepted by the user. C09B Capture, Run, and configured WildFlee now exist;
+Cry for Help remains frozen and there is still no C09C partner outcome flow.
+The completed Story 001
 and its 33-test report
 describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
@@ -138,9 +145,8 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C09A gates are clear. C09B session 1 is complete, C09B session
-  2 is dependency-clear, and C09C and later packages remain blocked or not
-  started.
+- The B00 through C09B gates are clear. C09C is dependency-clear and not
+  started; later packages remain blocked or not started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -983,13 +989,13 @@ B00B accepted evidence:
   assertion while constructing an invalid seventh party slot and exported no
   report. The fixture was corrected before the final build and run above; that
   interrupted run is not acceptance evidence.
-- C09B/C09C execution, strategic AI/scoring, team authorship/tuning, replay
+- At C09A completion, C09B/C09C execution, strategic AI/scoring, team authorship/tuning, replay
   schema changes, persistent writes, assets, UI, configuration, module rules,
   the `.uproject`, non-C09A tests, the B00B snapshot, and the Solarus interview
   handoff were not modified. No `dev-story`, commit, older battle filter, full
   battle suite, or project-wide test run was used.
-- C09A remains complete under the approved focused-validation scope. Current
-  C09B session-1 status is recorded below; C09C remains blocked by C09B.
+- C09A remains complete under the approved focused-validation scope. C09B's
+  two completion records are below; C09C is now dependency-clear.
 
 ## C09B Session 1 Execution Status
 
@@ -1030,13 +1036,41 @@ B00B accepted evidence:
   test-only pointer retained from a temporary snapshot. The helper was fixed
   before the final build/run above; that failed diagnostic run is not
   acceptance evidence.
-- Run execution/tests, Cry for Help execution/tests, configured WildFlee
-  execution/tests, `CallReinforcement`, C09C, UI/assets, persistence writes,
-  rewards, deployment, and Git writes were not performed. No older Battle
-  package filter, full Battle suite, or project-wide test suite was run.
-- C09B is not complete.
-- C09B session 1 complete; session 2 Run, Cry for Help, and WildFlee next.
-  C09C remains blocked until session 2 completes.
+- At session-1 completion, Run and configured WildFlee execution/tests, C09C,
+  UI/assets, persistence writes, rewards, deployment, and Git writes had not
+  been performed. No older Battle package filter, full Battle suite, or
+  project-wide test suite was run.
+
+## C09B Session 2 Execution Status
+
+- C09B session 2 completed on 2026-08-24 from clean committed baseline
+  `7965042a3730869fb5adc983f2551321186c7758`.
+- `BattleWildFlow` owns the pure Run and WildFlee rules. Run uses permanent,
+  unmodified Speed, the leftmost living wild opponent, the exact one-based
+  formula/counter, strict `R < F`, and no draw when `F > 255`.
+- Request generation rejects Trainer or Speed-below-four Run before action/RNG
+  consumption. Other actions and switching do not reset the counter.
+- Explicit WildFlee materializes one encounter-wide typed policy using
+  `Trigger.C09B.WildFlee.ActionSelection` and
+  `Eligibility.C09B.WildFlee.ActiveLivingWildOpponent`. Disabled generates no
+  action; Never/Always consume no RNG; Chance draws exactly
+  `U[0, denominator - 1]`.
+- WildFlee uses the existing Run command band, spends no PP, removes only the
+  fleeing actor, continues while another living wild opponent remains, and
+  otherwise ends as `Escape/OpponentFled` without rewards or persistence.
+- Cry for Help, wild reinforcement, and `CallReinforcement` are **Freeze until
+  call by user**. All existing related code and tests were left unchanged.
+- Replay schema remains `5`. No wire fields or enum ordinals changed.
+- The `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`; the durable
+  log is
+  `Game/Saved/Automation/C09B-WildFlow-Final-20260824T135514Z/build-final.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09B` was run. The exported
+  report at
+  `Game/Saved/Automation/C09B-WildFlow-Final-20260824T135514Z/report-final/index.json`
+  records 7 succeeded, 0 succeeded with warnings, 0 failed, 0 not run, and 0 in
+  process. All paths use the C09B prefix and every entry has 0 warnings/errors.
+- C09B is complete. C09C is dependency-clear and next; no C09C work began.
 
 ## Goal
 
@@ -1050,7 +1084,8 @@ rules plus explicit Solarus exceptions. The finished core supports:
   standard hazards, screens, rooms, and approved side conditions.
 - The approved Ability, held-item, battle-item, and canonical move proof sets.
 - Parties, targeting, switching, replacements, Shift/Set, battle outcomes,
-  capture, escape, reinforcement, and partner ownership rules.
+  capture, escape, configured wild fleeing, and partner ownership rules. Cry
+  for Help and wild reinforcement remain **Freeze until call by user**.
 - Immutable snapshots, typed decisions, deterministic ordered events, and
   filtered selector observations for future UI, AI, and progression systems.
 - Unreal Data Table adapters that copy validated rows into immutable plain-C++

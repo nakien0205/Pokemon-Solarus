@@ -125,7 +125,9 @@ the proof scenarios. Do not add full Pokédex content.
 
 ### Solarus and engine-supplied moves
 
-- Cry for Help is a Solarus custom wild action/move with the C09 rules.
+- Cry for Help and wild reinforcement are **Freeze until call by user**. Keep
+  existing related code unchanged and add no proof content until explicitly
+  requested.
 - WildFlee is an engine action enabled only by an explicit encounter/species
   policy; include a synthetic configured encounter fixture, not a default
   canonical species assignment.

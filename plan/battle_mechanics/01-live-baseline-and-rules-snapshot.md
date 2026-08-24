@@ -178,9 +178,9 @@ Use a separate documentation/research session after B00A. The output is
 - Simultaneous final fainting resolves as player Defeat.
 - A captured target cancels rather than redirects queued targeted moves, and
   those canceled moves consume no PP.
-- Cry for Help has an 80% chance, one successful reinforcement per battle, and
-  the summon begins acting next turn.
-- Escape uses the custom formula in C09, not a canonical game formula.
+- Cry for Help and wild reinforcement are **Freeze until call by user**.
+  Existing related code is left unchanged; the mechanic is not an active gate.
+- Escape uses the exact Solarus C09 Run formula, not a canonical game formula.
 - Modern friendship combat bonuses are disabled.
 - No transformation gimmicks or overworld status damage.
 

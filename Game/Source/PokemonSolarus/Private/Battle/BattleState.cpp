@@ -1,5 +1,6 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleItem.h"
+#include "Battle/BattleWildFlow.h"
 
 #include "Battle/BattleFieldSideConditions.h"
 namespace
@@ -422,6 +423,22 @@ bool FBattleEngineState::TryCreate(
 	NewState->Format = Setup.GetFormat();
 	NewState->CaptureCapacity = Setup.GetCaptureCapacity();
 	NewState->EncounterPolicies = Setup.GetPolicies();
+	if (NewState->EncounterPolicies.WildFleeMode != EBattleWildFleeMode::Disabled)
+	{
+		if (NewState->EncounterKind != EBattleEncounterKind::Wild)
+		{
+			OutError = EBattleStateValidationError::InvalidWildFleePolicy;
+			return false;
+		}
+
+		FBattleWildFleePolicyState Policy;
+		Policy.TriggerId = FBattleWildFleeRules::GetActionSelectionTriggerId();
+		Policy.EligibilityId = FBattleWildFleeRules::GetActiveLivingWildEligibilityId();
+		Policy.ProbabilityMode = NewState->EncounterPolicies.WildFleeMode;
+		Policy.Numerator = NewState->EncounterPolicies.WildFleeNumerator;
+		Policy.Denominator = NewState->EncounterPolicies.WildFleeDenominator;
+		NewState->WildFleePolicies.Add(MoveTemp(Policy));
+	}
 	NewState->Random = MoveTemp(Random);
 	if (!FTurnId::TryCreate(1, NewState->TurnId))
 	{

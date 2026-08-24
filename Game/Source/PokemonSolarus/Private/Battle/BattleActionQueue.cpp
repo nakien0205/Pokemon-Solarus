@@ -27,6 +27,7 @@ namespace
 			OutBand = EBattleActionCommandBand::VoluntarySwitch;
 			return true;
 		case EBattleActionKind::Run:
+		case EBattleActionKind::WildFlee:
 			OutBand = EBattleActionCommandBand::Run;
 			return true;
 		default:
