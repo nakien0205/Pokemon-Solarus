@@ -19,6 +19,22 @@ expansions/
 
 # === Project-local tooling and generated folders ===
 .codex/
+
+# Keep the small, repository-owned Codex contract durable. The generic local
+# agent/skill library remains ignored.
+!.codex/
+.codex/*
+!.codex/config.toml
+!.codex/hooks.json
+!.codex/hooks/
+.codex/hooks/*
+!.codex/hooks/project-hooks.ps1
+!.codex/docs/
+.codex/docs/*
+!.codex/docs/hooks-reference.md
+!.codex/docs/hooks-reference/
+.codex/docs/hooks-reference/*
+!.codex/docs/hooks-reference/hook-input-schemas.md
 CCGS Skill Testing Framework/
 
 # === Python ===

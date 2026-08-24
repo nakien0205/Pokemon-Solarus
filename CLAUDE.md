@@ -52,3 +52,8 @@ See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
 ## Context Management
 
 @.codex/docs/context-management.md
+
+## User preference
+
+1. The user own frontend and UI/UX visual design and visual assets, including layout, styling, art, materials, textures, widget or scene composition, and the appearance of motion. Codex owns backend mechanics and code-behind, including state machines, input routing, data contracts, adapters, validation, and automated tests. Codex may expose bindings and events or inspect and review frontend work, but must not create or modify frontend visual decisions or assets unless I explicitly grant a task-specific exception. A broad implementation request does not override this rule.
+2. After completing a task, you must tell me what is the next step and do not
