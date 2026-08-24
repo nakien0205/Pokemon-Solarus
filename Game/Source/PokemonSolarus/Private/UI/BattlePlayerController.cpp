@@ -426,9 +426,21 @@ void ABattlePlayerController::BindBattleNavigateAction(
 	{
 		EnhancedInputComponent.BindAction(
 			LoadedBattleNavigateAction,
-			ETriggerEvent::Started,
+			ETriggerEvent::Triggered,
 			this,
 			&ABattlePlayerController::HandleBattleNavigate);
+
+		EnhancedInputComponent.BindAction(
+			LoadedBattleNavigateAction,
+			ETriggerEvent::Completed,
+			this,
+			&ABattlePlayerController::HandleBattleNavigateEnded);
+
+		EnhancedInputComponent.BindAction(
+			LoadedBattleNavigateAction,
+			ETriggerEvent::Canceled,
+			this,
+			&ABattlePlayerController::HandleBattleNavigateEnded);
 	}
 	else
 	{
@@ -506,10 +518,21 @@ void ABattlePlayerController::HandleBattleNavigate(
 
 	const FVector2D CardinalDirection = QuantizeNavigationInput(
 		InputValue.Get<FVector2D>());
+	if (CardinalDirection.Equals(LastBattleNavigateDirection))
+	{
+		return;
+	}
+
+	LastBattleNavigateDirection = CardinalDirection;
 	if (IsBattleCommandInputReady() && !CardinalDirection.IsNearlyZero())
 	{
 		BattleHUDWidget->NavigateCommandMenu(CardinalDirection);
 	}
+}
+
+void ABattlePlayerController::HandleBattleNavigateEnded()
+{
+	LastBattleNavigateDirection = FVector2D::ZeroVector;
 }
 
 void ABattlePlayerController::HandleBattleConfirm()

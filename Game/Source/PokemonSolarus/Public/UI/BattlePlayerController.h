@@ -110,6 +110,7 @@ private:
 #endif
 
 	void HandleBattleNavigate(const FInputActionValue& InputValue);
+	void HandleBattleNavigateEnded();
 	void HandleBattleConfirm();
 	void HandleBattleCancel();
 	[[nodiscard]] bool EnsureCommandPresentationReady();
@@ -147,6 +148,8 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LoadedBattleCancelAction = nullptr;
+
+	FVector2D LastBattleNavigateDirection = FVector2D::ZeroVector;
 
 	uint64 BattleHUDPresentationGeneration = 0;
 	uint64 AcceptedBattleHUDConstructionSerial = 0;
