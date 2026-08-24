@@ -2931,9 +2931,9 @@ namespace BattleEffectExecutorTests
 		const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 		const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
 		TestEqual(
-			TEXT("C05B preserves replay schema 4"),
+			TEXT("C05B preserves the current replay schema"),
 			FirstRecord.GetSchemaVersion(),
-			static_cast<uint32>(4));
+			static_cast<uint32>(5));
 		TestEqual(
 			TEXT("The first record has exactly one direct damage mutation"),
 			CountResolutionEvents(FirstRecord.GetResolutions(), EBattleEventType::Damage),

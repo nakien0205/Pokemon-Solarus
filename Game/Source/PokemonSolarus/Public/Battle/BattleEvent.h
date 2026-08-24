@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleActionQueue.h"
+#include "Battle/BattleCapture.h"
 
 /** Public event family with explicit canonical encoding. */
 enum class EBattleEventType : uint8
@@ -146,6 +147,7 @@ struct POKEMONSOLARUS_API FBattleEventSpec
 	TOptional<uint16> HitCount;
 	TOptional<FBattleActionOrderMetadata> ActionOrder;
 	TOptional<FBattleTargetResolutionMetadata> TargetResolution;
+	TOptional<FBattleCaptureEventMetadata> Capture;
 	FBattleEventVisibility Visibility;
 };
 
@@ -199,6 +201,8 @@ public:
 	[[nodiscard]] const TOptional<FBattleActionOrderMetadata>& GetActionOrder() const { return ActionOrder; }
 	/** Returns target-class and redirect metadata only for TargetsResolved. */
 	[[nodiscard]] const TOptional<FBattleTargetResolutionMetadata>& GetTargetResolution() const { return TargetResolution; }
+	/** Returns exact public capture metadata only for CaptureAttempted/Captured. */
+	[[nodiscard]] const TOptional<FBattleCaptureEventMetadata>& GetCapture() const { return Capture; }
 	/** Returns public visibility/reveal metadata. */
 	[[nodiscard]] const FBattleEventVisibility& GetVisibility() const { return Visibility; }
 
@@ -223,6 +227,7 @@ private:
 	TOptional<uint16> HitCount;
 	TOptional<FBattleActionOrderMetadata> ActionOrder;
 	TOptional<FBattleTargetResolutionMetadata> TargetResolution;
+	TOptional<FBattleCaptureEventMetadata> Capture;
 	FBattleEventVisibility Visibility;
 };
 

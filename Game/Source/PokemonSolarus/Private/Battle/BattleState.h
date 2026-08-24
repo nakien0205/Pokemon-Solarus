@@ -112,6 +112,8 @@ struct FBattleBattlerState
 	FSourcePokemonId SourcePokemonId;
 	FPartySlotId PartySlotId;
 	FSpeciesFormId SpeciesFormId;
+	EBattleCaptureSpeciesClassification CaptureClassification =
+		EBattleCaptureSpeciesClassification::Normal;
 	int32 Level = 0;
 	FPokemonBattleStats PermanentStats;
 	int32 CurrentHP = 0;
@@ -161,18 +163,8 @@ struct FBattleSideState
 	TArray<FBattleConditionState> Hazards;
 };
 
-/** Captured battle facts retained until an external post-battle system consumes them. */
-struct FBattlePendingCaptureState
-{
-	FBattlerId BattlerId;
-	FSourcePokemonId SourcePokemonId;
-	FSpeciesFormId SpeciesFormId;
-	int32 CurrentHP = 0;
-	int32 MaxHP = 0;
-	FConditionId MajorStatusId;
-	TArray<FBattleMoveSlotState> Moves;
-	FBattleHeldItemState HeldItem;
-};
+/** Private storage uses the same complete public record exposed by snapshots/replay. */
+using FBattlePendingCaptureState = FBattlePendingCaptureRecord;
 
 /** Authored flee-policy storage. Empty storage means fleeing is disabled. */
 struct FBattleWildFleePolicyState

@@ -237,6 +237,7 @@ namespace
 		Input.Policies.bBagAllowed = true;
 		Input.Policies.bRunAllowed = Options.EncounterKind == EBattleEncounterKind::Wild;
 		Input.Policies.bCaptureAllowed = Options.EncounterKind == EBattleEncounterKind::Wild;
+		Input.CaptureProgression.bHasSnapshot = Input.Policies.bCaptureAllowed;
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
 		Input.Trainers.Add(MakeTrainer(
@@ -1015,7 +1016,7 @@ bool FBattleC04AReplayTest::RunTest(const FString& Parameters)
 
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
-	TestEqual(TEXT("Replay schema includes C04B targeting"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(4));
+	TestEqual(TEXT("Replay schema includes C09B capture state"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(5));
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection Rejection;

@@ -159,6 +159,20 @@ public:
 	[[nodiscard]] const FBattleSnapshotReference& GetSettingsReference() const { return SettingsReference; }
 	/** Returns the frozen catalog reference. */
 	[[nodiscard]] const FBattleSnapshotReference& GetCatalogReference() const { return CatalogReference; }
+	/** Returns whether capture progression/capacity/results are visible in this projection. */
+	[[nodiscard]] bool IsCaptureStateVisible() const { return bCaptureStateVisible; }
+	/** Returns frozen party/storage capacity when capture state is visible. */
+	[[nodiscard]] const FBattleCaptureCapacitySnapshot& GetCaptureCapacity() const { return CaptureCapacity; }
+	/** Returns dedicated immutable capture progression when visible. */
+	[[nodiscard]] const FBattleCaptureProgressionSnapshot& GetCaptureProgression() const { return CaptureProgression; }
+	/** Returns the authored reinforcement identity only in the core-authority projection. */
+	[[nodiscard]] FBattlerId GetConfiguredReinforcementBattlerId() const { return ConfiguredReinforcementBattlerId; }
+	/** Returns the persistent one-based escape-attempt counter. */
+	[[nodiscard]] uint32 GetEscapeAttemptCount() const { return EscapeAttemptCount; }
+	/** Returns whether Cry for Help has already succeeded in this battle. */
+	[[nodiscard]] bool HasSuccessfulReinforcement() const { return bReinforcementSucceeded; }
+	/** Returns successful captures in exact external destination order. */
+	[[nodiscard]] TConstArrayView<FBattlePendingCaptureRecord> GetPendingCaptures() const { return PendingCaptures; }
 	/** Returns canonical Trainer facts. */
 	[[nodiscard]] TConstArrayView<FBattleTrainerSetup> GetTrainers() const { return Trainers; }
 	/** Returns a deep copy of current party/battler facts. */
@@ -214,6 +228,13 @@ private:
 	EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
 	FBattleSnapshotReference SettingsReference;
 	FBattleSnapshotReference CatalogReference;
+	bool bCaptureStateVisible = false;
+	FBattleCaptureCapacitySnapshot CaptureCapacity;
+	FBattleCaptureProgressionSnapshot CaptureProgression;
+	FBattlerId ConfiguredReinforcementBattlerId;
+	uint32 EscapeAttemptCount = 1;
+	bool bReinforcementSucceeded = false;
+	TArray<FBattlePendingCaptureRecord> PendingCaptures;
 	TArray<FBattleTrainerSetup> Trainers;
 	TArray<FBattlePartyEntrySetup> PartyEntries;
 	TArray<FBattleActiveAssignment> ActiveAssignments;

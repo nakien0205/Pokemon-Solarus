@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Battle/BattleCapture.h"
 #include "Battle/BattleIdentifiers.h"
 #include "Battle/BattleSetupTypes.h"
 #include "Battle/BattleStats.h"
@@ -56,7 +57,9 @@ enum class EBattleSetupValidationError : uint8
 	TrainerOwnership = 10,
 	InvalidKnowledge = 11,
 	InvalidObedience = 12,
-	InvalidEncounterPolicy = 13
+	InvalidEncounterPolicy = 13,
+	InvalidCaptureProgression = 14,
+	InvalidReinforcement = 15
 };
 
 /** Immutable content/settings snapshot identity used across replay boundaries. */
@@ -115,6 +118,8 @@ struct POKEMONSOLARUS_API FBattlePartyEntrySetup
 	FItemId OriginalHeldItemId;
 	FItemId CurrentHeldItemId;
 	TArray<FBattleMoveSlotSetup> Moves;
+	EBattleCaptureSpeciesClassification CaptureClassification =
+		EBattleCaptureSpeciesClassification::Normal;
 };
 
 /** Initial assignment of a living party battler to a structural active slot. */
@@ -175,6 +180,8 @@ struct POKEMONSOLARUS_API FBattleSetupInput
 	TArray<FBattlePartyEntrySetup> PartyEntries;
 	TArray<FBattleActiveAssignment> StartingActive;
 	FBattleCaptureCapacitySnapshot CaptureCapacity;
+	FBattleCaptureProgressionSnapshot CaptureProgression;
+	FBattlerId ConfiguredReinforcementBattlerId;
 	TArray<FBattleKnowledgeFact> KnowledgeFacts;
 	TArray<FBattleObedienceInput> ObedienceInputs;
 	FBattleEncounterPolicies Policies;
@@ -256,6 +263,18 @@ public:
 		return CaptureCapacity;
 	}
 
+	/** Returns the dedicated immutable capture-progression inputs. */
+	[[nodiscard]] const FBattleCaptureProgressionSnapshot& GetCaptureProgression() const
+	{
+		return CaptureProgression;
+	}
+
+	/** Returns the optional authored wild reinforcement battler identity. */
+	[[nodiscard]] FBattlerId GetConfiguredReinforcementBattlerId() const
+	{
+		return ConfiguredReinforcementBattlerId;
+	}
+
 	/** Returns canonical frozen observer knowledge. */
 	[[nodiscard]] TConstArrayView<FBattleKnowledgeFact> GetKnowledgeFacts() const
 	{
@@ -294,6 +313,8 @@ private:
 	TArray<FBattlePartyEntrySetup> PartyEntries;
 	TArray<FBattleActiveAssignment> StartingActive;
 	FBattleCaptureCapacitySnapshot CaptureCapacity;
+	FBattleCaptureProgressionSnapshot CaptureProgression;
+	FBattlerId ConfiguredReinforcementBattlerId;
 	TArray<FBattleKnowledgeFact> KnowledgeFacts;
 	TArray<FBattleObedienceInput> ObedienceInputs;
 	FBattleEncounterPolicies Policies;

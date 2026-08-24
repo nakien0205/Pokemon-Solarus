@@ -17,7 +17,7 @@ struct POKEMONSOLARUS_API FBattleReplayInputs
 class POKEMONSOLARUS_API FBattleReplayRecord
 {
 public:
-	static constexpr uint32 CurrentSchemaVersion = 4;
+	static constexpr uint32 CurrentSchemaVersion = 5;
 
 	/** Creates an invalid replay record. */
 	FBattleReplayRecord() = default;

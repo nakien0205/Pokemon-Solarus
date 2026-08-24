@@ -1,5 +1,7 @@
 #include "Battle/BattleSetup.h"
 
+#include "Battle/BattleEncounterPolicy.h"
+
 namespace
 {
 	bool IsKnownBattleSetupEncounterKind(const EBattleEncounterKind Value)
@@ -60,6 +62,13 @@ namespace
 			|| Value == EBattleWildFleeMode::Never
 			|| Value == EBattleWildFleeMode::Always
 			|| Value == EBattleWildFleeMode::Chance;
+	}
+
+	bool IsKnownCaptureClassification(
+		const EBattleCaptureSpeciesClassification Value)
+	{
+		return Value == EBattleCaptureSpeciesClassification::Normal
+			|| Value == EBattleCaptureSpeciesClassification::UltraBeast;
 	}
 
 	const FBattleTrainerSetup* FindTrainerIn(
@@ -249,6 +258,12 @@ bool FBattleSetup::TryCreate(
 	{
 		return Fail(EBattleSetupValidationError::InvalidResource);
 	}
+	if (!Input.CaptureProgression.IsValid()
+		|| (Input.Policies.bCaptureAllowed
+			&& !Input.CaptureProgression.bHasSnapshot))
+	{
+		return Fail(EBattleSetupValidationError::InvalidCaptureProgression);
+	}
 	if (!IsKnownWildFleeMode(Input.Policies.WildFleeMode))
 	{
 		return Fail(EBattleSetupValidationError::InvalidEncounterPolicy);
@@ -372,7 +387,8 @@ bool FBattleSetup::TryCreate(
 			|| Entry.Level < 1 || Entry.Level > 100
 			|| !HasPositiveBattleSetupStats(Entry.Stats)
 			|| Entry.CurrentHP < 0 || Entry.CurrentHP > Entry.Stats.MaxHP
-			|| Entry.Moves.Num() > 4)
+			|| Entry.Moves.Num() > 4
+			|| !IsKnownCaptureClassification(Entry.CaptureClassification))
 		{
 			return Fail(EBattleSetupValidationError::InvalidPartyEntry);
 		}
@@ -438,6 +454,32 @@ bool FBattleSetup::TryCreate(
 			|| Battler->CurrentHP <= 0)
 		{
 			return Fail(EBattleSetupValidationError::TrainerOwnership);
+		}
+	}
+
+	if (Input.ConfiguredReinforcementBattlerId.IsValid())
+	{
+		const FBattlePartyEntrySetup* Reinforcement = FindBattlerIn(
+			Input.PartyEntries,
+			Input.ConfiguredReinforcementBattlerId);
+		const FBattleTrainerSetup* ReinforcementTrainer = Reinforcement != nullptr
+			? FindTrainerIn(Input.Trainers, Reinforcement->TrainerId)
+			: nullptr;
+		const bool bAlreadyActive = Input.StartingActive.ContainsByPredicate(
+			[&Input](const FBattleActiveAssignment& Assignment)
+			{
+				return Assignment.BattlerId == Input.ConfiguredReinforcementBattlerId;
+			});
+		if (Input.EncounterKind != EBattleEncounterKind::Wild
+			|| Input.Format == EBattleFormat::Single
+			|| Reinforcement == nullptr
+			|| ReinforcementTrainer == nullptr
+			|| ReinforcementTrainer->Role != EBattleTrainerRole::Opponent
+			|| Reinforcement->bEgg
+			|| Reinforcement->CurrentHP <= 0
+			|| bAlreadyActive)
+		{
+			return Fail(EBattleSetupValidationError::InvalidReinforcement);
 		}
 	}
 
@@ -533,9 +575,22 @@ bool FBattleSetup::TryCreate(
 	OutSetup.PartyEntries = MoveTemp(Canonical.PartyEntries);
 	OutSetup.StartingActive = MoveTemp(Canonical.StartingActive);
 	OutSetup.CaptureCapacity = Canonical.CaptureCapacity;
+	OutSetup.CaptureProgression = Canonical.CaptureProgression;
+	OutSetup.ConfiguredReinforcementBattlerId = Canonical.ConfiguredReinforcementBattlerId;
 	OutSetup.KnowledgeFacts = MoveTemp(Canonical.KnowledgeFacts);
 	OutSetup.ObedienceInputs = MoveTemp(Canonical.ObedienceInputs);
 	OutSetup.Policies = Canonical.Policies;
+
+	FBattleCompiledEncounterPolicies CompiledPolicies;
+	EBattleEncounterPolicyError PolicyError = EBattleEncounterPolicyError::None;
+	if (!FBattleEncounterPolicyCompiler::TryCompile(OutSetup, CompiledPolicies, PolicyError))
+	{
+		OutSetup = FBattleSetup();
+		return Fail(
+			PolicyError == EBattleEncounterPolicyError::InvalidTrainerShape
+				? EBattleSetupValidationError::TrainerShape
+				: EBattleSetupValidationError::InvalidEncounterPolicy);
+	}
 	return true;
 }
 

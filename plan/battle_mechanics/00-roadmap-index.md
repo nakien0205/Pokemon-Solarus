@@ -1,8 +1,10 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-23
-Roadmap status: Approved and materialized; B00 through C08C complete under focused validation
-Next package: C09A; C09B and later remain dependency-blocked
+Status date: 2026-08-24
+Roadmap status: Approved and materialized; B00 through C09A complete, with the
+C09B session-1 Capture slice complete under focused validation
+Next package slice: C09B session 2 Run, Cry for Help, and WildFlee; C09C and
+later remain dependency-blocked
 
 ## Current Truth
 
@@ -98,14 +100,28 @@ The live battle source now contains:
   reveal integration, exact Bag item/target pairings, stale-action
   revalidation, separate Trainer counts/quotas, frozen Poke Ball handoff, and
   twenty-six `PokemonSolarus.Battle.C08C.*` Automation tests.
+- C09A's deterministic setup-to-policy compiler for all five encounter kinds
+  and three supported formats, per-Trainer Bag/Revive/Run/capture and selector
+  routing, wild-only command/flee constraints, multi-active wild reinforcement,
+  scripted ending and partner-ownership policy, filtered immutable selector
+  input, legal-only selector boundary, test-only scripted selector, and six
+  `PokemonSolarus.Battle.C09A.*` Automation tests.
+- C09B session 1's exact Scarlet/Violet capture calculation and early-stopping
+  RNG, capture selection/execution, pending Party/Storage destinations, retained
+  capture facts, public event/result metadata, replay schema 5, complete shared
+  C09B setup/snapshot/replay fields, and four
+  `PokemonSolarus.Battle.C09B.Capture.*` Automation tests.
 
 There is now one authoritative internal battle-state owner and a deterministic
 normal-turn selection, queue-lock, action-start, final-target, switching,
 trigger scheduling, major-status, approved volatile, and field/side-condition
 seams, plus concrete Ability and item execution and the frozen public setup/
 decision/event/snapshot/replay, stat, type, move, definition, adapter, and pure
-hit/damage language needed by later packages. There is still no broader
-encounter flow, capture execution, or presentation seam. The completed Story 001
+hit/damage language needed by later packages, together with C09A's encounter
+policy and selector seams. The separately tracked production runtime/HUD slice
+is accepted by the user. C09B Capture now exists, but C09B Run, Cry for Help,
+configured WildFlee, and `CallReinforcement` execution remain for session 2;
+there is still no C09C partner outcome flow. The completed Story 001
 and its 33-test report
 describe an older source state and
 are historical evidence only. The current Git history begins with initial commit
@@ -122,8 +138,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C08C gates are clear. C09A is dependency-clear; C09B and later
-  packages remain blocked or not started.
+- The B00 through C09A gates are clear. C09B session 1 is complete, C09B session
+  2 is dependency-clear, and C09C and later packages remain blocked or not
+  started.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -929,8 +946,97 @@ B00B accepted evidence:
   handoff. No
   `dev-story`, commit, older battle filter, full battle suite, or project-wide
   test run was used.
-- C08C and C08 are complete under the approved focused-validation scope. C09A
-  is dependency-clear; C09B and later packages remain dependency-blocked.
+- At the C08C checkpoint, C08C and C08 were complete, C09A was
+  dependency-clear, and C09B and later packages remained dependency-blocked.
+
+## C09A Execution Status
+
+- C09A completed on 2026-08-24 from clean `main` baseline
+  `2dbcc0122f027f53927744102f8d3503e8db238e`. The user explicitly verified and
+  accepted the production runtime/HUD slice, clearing the prior manual gate.
+- `BattleEncounterPolicy` compiles the five encounter kinds across Single,
+  Double, and PartnerDouble into immutable-by-interface typed policies. It
+  freezes active/party limits, Run, capture, Bag, Revive, Shift/Set,
+  reinforcement, configured wild fleeing, scripted ending, partner ownership,
+  and Wild/Basic/Skilled/Boss/Tutorial/Partner selector routing.
+- Wild encounters alone may expose Run/capture/flee policy. Wild opponents are
+  rejected if authored with a Trainer Bag, Wild Single does not claim an
+  unavailable right-slot reinforcement, and only an explicitly stocked
+  Boss/Gym Bag may generate an opponent Revive action.
+- `IBattleActionSelector` receives a deep-copied observer-filtered snapshot and
+  one core-generated request. The boundary checks the chosen typed decision
+  through the request's existing `Allows` path; final engine submission retains
+  stale-state revalidation. The deterministic FIFO selector is test-only.
+- The final `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` and exit code
+  `0`:
+  `Game/Saved/Automation/C09A-PoliciesSelectors-Final-20260824T095839Z/build.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09A` was run. The final
+  exported report at
+  `Game/Saved/Automation/C09A-PoliciesSelectors-Final-20260824T095839Z/report-final/index.json`
+  records exactly 6 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. All six paths use the C09A prefix, every entry has 0
+  warnings and 0 errors, process exit code is `0`, and report SHA-256 is
+  `c72f3b076d8f7fcec3af65ce3d4600a579d97221c7a2be18ad8f762e5fb3cd11`.
+- An earlier focused rerun under
+  `C09A-PoliciesSelectors-Final-20260824T095721Z` stopped on a C09A test-fixture
+  assertion while constructing an invalid seventh party slot and exported no
+  report. The fixture was corrected before the final build and run above; that
+  interrupted run is not acceptance evidence.
+- C09B/C09C execution, strategic AI/scoring, team authorship/tuning, replay
+  schema changes, persistent writes, assets, UI, configuration, module rules,
+  the `.uproject`, non-C09A tests, the B00B snapshot, and the Solarus interview
+  handoff were not modified. No `dev-story`, commit, older battle filter, full
+  battle suite, or project-wide test run was used.
+- C09A remains complete under the approved focused-validation scope. Current
+  C09B session-1 status is recorded below; C09C remains blocked by C09B.
+
+## C09B Session 1 Execution Status
+
+- C09B session 1 completed on 2026-08-24 from baseline
+  `2dbcc0122f027f53927744102f8d3503e8db238e`, while preserving the accepted
+  uncommitted C09A work and every unrelated dirty change.
+- `BattleCapture` implements the B00B Scarlet/Violet capture indicator,
+  caught-count HP component, badge and status modifiers, critical capture and
+  Catching Charm, low-level modifier, capture coefficient, single-precision
+  `powf` shake threshold, exact `<` boundaries, guaranteed and must-capture
+  paths, and early RNG stopping.
+- Poke Ball selection and execution validate encounter/Trainer/target legality,
+  finite item count, frozen party-plus-storage capacity including pending
+  captures, dedicated immutable capture progression, species classification,
+  and the catalog catch rate before consumption. Legal failures consume one
+  item and action; stale/blocked attempts consume none.
+- Successful capture retains HP, status, move PP, original/current held-item
+  facts, removes only the exact target, and records ordered Party then Storage
+  pending destinations. Captured actors and queued moves with that exact target
+  cancel before target resolution or PP, without redirection. The last wild
+  capture produces `Victory` with `Capture` cause.
+- The complete shared C09B setup/snapshot/replay schema is frozen now: capture
+  progression, capture capacity, species capture classification, configured
+  reinforcement battler identity, one-based escape-attempt counter,
+  reinforcement-success flag, pending-capture records, and public capture event
+  metadata. Replay schema is `5`; session 2 requires no further schema-format
+  change.
+- The final `PokemonSolarusEditor Win64 Development` build succeeded with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`:
+  `Game/Saved/Automation/C09B-Capture-20260824T125438Z/build-final.log`.
+- Only `Automation RunTests PokemonSolarus.Battle.C09B` was used for final
+  acceptance. The exported report at
+  `Game/Saved/Automation/C09B-Capture-20260824T125438Z/report-final/index.json`
+  records exactly 4 succeeded, 0 succeeded with warnings, 0 failed, 0 not run,
+  and 0 in process. Every entry has 0 warnings and 0 errors; report SHA-256 is
+  `9269891e673157050a0d5b4ad920760318b0e64f494b19c5697c4fe0bfd5f7ea`.
+- The preceding `C09B-Capture-20260824T125253Z` audit rerun exposed a
+  test-only pointer retained from a temporary snapshot. The helper was fixed
+  before the final build/run above; that failed diagnostic run is not
+  acceptance evidence.
+- Run execution/tests, Cry for Help execution/tests, configured WildFlee
+  execution/tests, `CallReinforcement`, C09C, UI/assets, persistence writes,
+  rewards, deployment, and Git writes were not performed. No older Battle
+  package filter, full Battle suite, or project-wide test suite was run.
+- C09B is not complete.
+- C09B session 1 complete; session 2 Run, Cry for Help, and WildFlee next.
+  C09C remains blocked until session 2 completes.
 
 ## Goal
 

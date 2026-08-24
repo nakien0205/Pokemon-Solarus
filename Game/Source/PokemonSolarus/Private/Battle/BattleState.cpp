@@ -40,6 +40,13 @@ namespace
 			|| Value == EBattleFormat::PartnerDouble;
 	}
 
+	bool IsKnownCaptureClassification(
+		const EBattleCaptureSpeciesClassification Value)
+	{
+		return Value == EBattleCaptureSpeciesClassification::Normal
+			|| Value == EBattleCaptureSpeciesClassification::UltraBeast;
+	}
+
 	bool StateActiveSlotLess(const FActiveSlotId& Left, const FActiveSlotId& Right)
 	{
 		if (Left.GetSide() != Right.GetSide())
@@ -457,11 +464,14 @@ bool FBattleEngineState::TryCreate(
 		Battler.SourcePokemonId = SetupEntry.SourcePokemonId;
 		Battler.PartySlotId = SetupEntry.PartySlotId;
 		Battler.SpeciesFormId = SetupEntry.SpeciesFormId;
+		Battler.CaptureClassification = SetupEntry.CaptureClassification;
 		Battler.Level = SetupEntry.Level;
 		Battler.PermanentStats = SetupEntry.Stats;
 		Battler.CurrentHP = SetupEntry.CurrentHP;
 		Battler.bFainted = SetupEntry.CurrentHP == 0;
 		Battler.bEgg = SetupEntry.bEgg;
+		Battler.bRemoved = SetupEntry.BattlerId
+			== Setup.GetConfiguredReinforcementBattlerId();
 		Battler.AbilityId = SetupEntry.AbilityId;
 		Battler.HeldItem.OriginalItemId = SetupEntry.OriginalHeldItemId;
 		Battler.HeldItem.CurrentItemId = SetupEntry.CurrentHeldItemId;
@@ -721,6 +731,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			|| !Battler.SourcePokemonId.IsValid()
 			|| !Battler.PartySlotId.IsValid()
 			|| !Battler.SpeciesFormId.IsValid()
+			|| !IsKnownCaptureClassification(Battler.CaptureClassification)
 			|| !Battler.AbilityId.IsValid()
 			|| Battler.Level < 1
 			|| Battler.Level > 100
@@ -1130,20 +1141,44 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 		}
 	}
 
+	const int64 TotalCaptureCapacity = static_cast<int64>(CaptureCapacity.PartySlotsRemaining)
+		+ static_cast<int64>(CaptureCapacity.StorageSlotsRemaining);
 	if (CaptureCapacity.PartySlotsRemaining < 0
 		|| CaptureCapacity.StorageSlotsRemaining < 0
-		|| PendingCaptures.Num() > CaptureCapacity.PartySlotsRemaining + CaptureCapacity.StorageSlotsRemaining)
+		|| PendingCaptures.Num() > TotalCaptureCapacity)
 	{
 		return Fail(EBattleStateValidationError::InvalidResource);
 	}
-	for (const FBattlePendingCaptureState& Capture : PendingCaptures)
+	for (int32 CaptureIndex = 0; CaptureIndex < PendingCaptures.Num(); ++CaptureIndex)
 	{
-		if (!Capture.BattlerId.IsValid()
-			|| !Capture.SourcePokemonId.IsValid()
-			|| !Capture.SpeciesFormId.IsValid()
-			|| Capture.MaxHP <= 0
-			|| Capture.CurrentHP < 0
-			|| Capture.CurrentHP > Capture.MaxHP)
+		const FBattlePendingCaptureState& Capture = PendingCaptures[CaptureIndex];
+		const EBattlePendingCaptureDestination ExpectedDestination =
+			CaptureIndex < CaptureCapacity.PartySlotsRemaining
+				? EBattlePendingCaptureDestination::Party
+				: EBattlePendingCaptureDestination::Storage;
+		const FBattleBattlerState* CapturedBattler = FindBattler(Capture.BattlerId);
+		if (!Capture.IsValid()
+			|| Capture.CaptureOrdinal != static_cast<uint64>(CaptureIndex + 1)
+			|| Capture.Destination != ExpectedDestination
+			|| CapturedBattler == nullptr
+			|| !CapturedBattler->bCaptured
+			|| !CapturedBattler->bRemoved
+			|| CapturedBattler->TrainerId != Capture.OriginalTrainerId
+			|| CapturedBattler->SourcePokemonId != Capture.SourcePokemonId
+			|| CapturedBattler->SpeciesFormId != Capture.SpeciesFormId
+			|| CapturedBattler->CaptureClassification != Capture.SpeciesClassification)
+		{
+			return Fail(EBattleStateValidationError::InvalidPendingCapture);
+		}
+	}
+	for (const FBattleBattlerState& Battler : Battlers)
+	{
+		const bool bHasPendingCapture = PendingCaptures.ContainsByPredicate(
+			[&Battler](const FBattlePendingCaptureState& Capture)
+			{
+				return Capture.BattlerId == Battler.BattlerId;
+			});
+		if (Battler.bCaptured != bHasPendingCapture)
 		{
 			return Fail(EBattleStateValidationError::InvalidPendingCapture);
 		}
@@ -1529,6 +1564,7 @@ TArray<FBattlePartyEntrySetup> FBattleEngineState::BuildPartyProjection() const
 		Entry.SourcePokemonId = Battler.SourcePokemonId;
 		Entry.PartySlotId = Battler.PartySlotId;
 		Entry.SpeciesFormId = Battler.SpeciesFormId;
+		Entry.CaptureClassification = Battler.CaptureClassification;
 		Entry.Level = Battler.Level;
 		Entry.Stats = Battler.PermanentStats;
 		Entry.CurrentHP = Battler.CurrentHP;

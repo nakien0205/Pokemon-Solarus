@@ -163,6 +163,7 @@ namespace
 			WriteNumericId(Entry.SourcePokemonId);
 			WritePartySlot(Entry.PartySlotId);
 			WriteTypedDefinitionId(Entry.SpeciesFormId);
+			WriteU8(static_cast<uint8>(Entry.CaptureClassification));
 			WriteI32(Entry.Level);
 			WriteStats(Entry.Stats);
 			WriteI32(Entry.CurrentHP);
@@ -175,6 +176,50 @@ namespace
 			{
 				WriteMoveSlot(Move);
 			}
+		}
+
+		void WriteCaptureProgression(
+			const FBattleCaptureProgressionSnapshot& Progression)
+		{
+			WriteBool(Progression.bHasSnapshot);
+			WriteU8(Progression.BadgeCount);
+			WriteU32(Progression.CaughtSpeciesCount);
+			WriteBool(Progression.bCriticalCaptureEnabled);
+			WriteBool(Progression.bCatchingCharm);
+			WriteBool(Progression.bUseCaughtCountHPComponentModifier);
+			WriteI32(Progression.CaptureCoefficientQ12);
+			WriteBool(Progression.bMustCapture);
+			WriteBool(Progression.bUseUnsupportedLowPlayerLevelCoefficient);
+		}
+
+		void WritePendingCapture(const FBattlePendingCaptureRecord& Capture)
+		{
+			WriteU64(Capture.CaptureOrdinal);
+			WriteU8(static_cast<uint8>(Capture.Destination));
+			WriteNumericId(Capture.OriginalTrainerId);
+			WriteNumericId(Capture.BattlerId);
+			WriteNumericId(Capture.SourcePokemonId);
+			WriteTypedDefinitionId(Capture.SpeciesFormId);
+			WriteU8(static_cast<uint8>(Capture.SpeciesClassification));
+			WriteI32(Capture.Level);
+			WriteI32(Capture.CurrentHP);
+			WriteI32(Capture.MaxHP);
+			WriteTypedDefinitionId(Capture.MajorStatusId);
+			WriteCount(Capture.Moves.Num());
+			for (const FBattleCapturedMoveFact& Move : Capture.Moves)
+			{
+				WriteU8(Move.SlotIndex);
+				WriteTypedDefinitionId(Move.MoveId);
+				WriteI32(Move.CurrentPP);
+				WriteI32(Move.MaxPP);
+			}
+			WriteTypedDefinitionId(Capture.HeldItem.OriginalItemId);
+			WriteTypedDefinitionId(Capture.HeldItem.CurrentItemId);
+			WriteBool(Capture.HeldItem.bConsumed);
+			WriteBool(Capture.HeldItem.bSuppressed);
+			WriteBool(Capture.HeldItem.bRevealed);
+			WriteBool(Capture.HeldItem.bTemporarilyRemoved);
+			WriteTypedDefinitionId(Capture.HeldItem.ChoiceLockedMoveId);
 		}
 
 		void WriteActiveAssignment(const FBattleActiveAssignment& Assignment)
@@ -239,6 +284,8 @@ namespace
 
 			WriteI32(Setup.GetCaptureCapacity().PartySlotsRemaining);
 			WriteI32(Setup.GetCaptureCapacity().StorageSlotsRemaining);
+			WriteCaptureProgression(Setup.GetCaptureProgression());
+			WriteNumericId(Setup.GetConfiguredReinforcementBattlerId());
 			WriteCount(Setup.GetKnowledgeFacts().Num());
 			for (const FBattleKnowledgeFact& Fact : Setup.GetKnowledgeFacts())
 			{
@@ -519,6 +566,31 @@ namespace
 				WriteBool(TargetResolution.bWasRedirected);
 				WriteBool(TargetResolution.bUsedFaintedTargetFallback);
 			}
+			WriteBool(Event.GetCapture().IsSet());
+			if (Event.GetCapture().IsSet())
+			{
+				const FBattleCaptureEventMetadata& Capture = Event.GetCapture().GetValue();
+				WriteU64(Capture.CaptureIndicatorQ12);
+				WriteU32(Capture.CaughtCountHPModifierQ12);
+				WriteU32(Capture.BadgeModifierQ12);
+				WriteU32(Capture.StatusModifierQ12);
+				WriteU32(Capture.CaptureCoefficientQ12);
+				WriteU32(Capture.CriticalModifierQ12);
+				WriteU32(Capture.CriticalThreshold);
+				WriteU32(Capture.ShakeThreshold);
+				WriteBool(Capture.bCriticalEligible);
+				WriteBool(Capture.bCriticalCapture);
+				WriteBool(Capture.bGuaranteedCapture);
+				WriteBool(Capture.bMustCapture);
+				WriteBool(Capture.bSucceeded);
+				WriteU8(Capture.RequiredShakeChecks);
+				WriteU8(Capture.ShakeChecksPerformed);
+				WriteU8(Capture.ShakeChecksPassed);
+				WriteU8(Capture.VisualShakeCount);
+				WriteBool(Capture.bHasPendingDestination);
+				WriteU64(Capture.PendingCaptureOrdinal);
+				WriteU8(static_cast<uint8>(Capture.PendingDestination));
+			}
 			WriteU8(static_cast<uint8>(Event.GetVisibility().Level));
 			WriteNumericId(Event.GetVisibility().OwningTrainerId);
 			WriteU8(static_cast<uint8>(Event.GetVisibility().OwningSide));
@@ -567,6 +639,18 @@ namespace
 			WriteU8(static_cast<uint8>(Snapshot.GetOutcomeCause()));
 			WriteReference(Snapshot.GetSettingsReference());
 			WriteReference(Snapshot.GetCatalogReference());
+			WriteBool(Snapshot.IsCaptureStateVisible());
+			WriteI32(Snapshot.GetCaptureCapacity().PartySlotsRemaining);
+			WriteI32(Snapshot.GetCaptureCapacity().StorageSlotsRemaining);
+			WriteCaptureProgression(Snapshot.GetCaptureProgression());
+			WriteNumericId(Snapshot.GetConfiguredReinforcementBattlerId());
+			WriteU32(Snapshot.GetEscapeAttemptCount());
+			WriteBool(Snapshot.HasSuccessfulReinforcement());
+			WriteCount(Snapshot.GetPendingCaptures().Num());
+			for (const FBattlePendingCaptureRecord& Capture : Snapshot.GetPendingCaptures())
+			{
+				WritePendingCapture(Capture);
+			}
 			WriteCount(Snapshot.GetTrainers().Num());
 			for (const FBattleTrainerSetup& Trainer : Snapshot.GetTrainers())
 			{

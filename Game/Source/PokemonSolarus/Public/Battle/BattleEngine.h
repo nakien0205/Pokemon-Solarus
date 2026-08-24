@@ -16,6 +16,7 @@ class FBattleC07DEngineFixture;
 class FBattleC08BEngineFixture;
 class FBattleC08CEngineFixture;
 class FBattleC08CBagEngineFixture;
+class FBattleC09BCaptureEngineFixture;
 #endif
 class FBattleEngineState;
 
@@ -83,9 +84,8 @@ public:
 	[[nodiscard]] FBattleResolution ExecuteCurrentSwitch();
 
 	/**
-	 * Revalidates and executes one currently started C08C Battle-kind Bag item.
-	 * Capture-kind actions return an invalid resolution without mutating state or
-	 * history and remain locked for the later C09 capture checkpoint.
+	 * Revalidates and executes one currently started C08C Battle-kind or C09B
+	 * Poke Ball Bag action.
 	 */
 	[[nodiscard]] FBattleResolution ExecuteCurrentBagItem();
 
@@ -133,6 +133,7 @@ private:
 	friend class FBattleC08BEngineFixture;
 	friend class FBattleC08CEngineFixture;
 	friend class FBattleC08CBagEngineFixture;
+	friend class FBattleC09BCaptureEngineFixture;
 #endif
 
 	explicit FBattleEngine(TUniquePtr<FBattleEngineState>&& InState);

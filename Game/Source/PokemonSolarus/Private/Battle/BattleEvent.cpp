@@ -299,6 +299,35 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 	{
 		return false;
 	}
+	if (Spec.Type == EBattleEventType::CaptureAttempted
+		|| Spec.Type == EBattleEventType::Captured)
+	{
+		if (!Spec.ActionId.IsValid()
+			|| Spec.Cause != EBattleEventCause::Capture
+			|| Spec.CauseActionKind != EBattleActionKind::Bag
+			|| !Spec.Source.TrainerId.IsValid()
+			|| !Spec.Source.BattlerId.IsValid()
+			|| !Spec.Source.ActiveSlotId.IsValid()
+			|| !Spec.Source.DefinitionId.IsValid()
+			|| Spec.Targets.Num() != 1
+			|| !Spec.Targets[0].TrainerId.IsValid()
+			|| !Spec.Targets[0].BattlerId.IsValid()
+			|| !Spec.Targets[0].ActiveSlotId.IsValid()
+			|| !Spec.Capture.IsSet()
+			|| !Spec.Capture.GetValue().IsValid()
+			|| (Spec.Type == EBattleEventType::CaptureAttempted
+				&& Spec.Capture.GetValue().bHasPendingDestination)
+			|| (Spec.Type == EBattleEventType::Captured
+				&& (!Spec.Capture.GetValue().bSucceeded
+					|| !Spec.Capture.GetValue().bHasPendingDestination)))
+		{
+			return false;
+		}
+	}
+	else if (Spec.Capture.IsSet())
+	{
+		return false;
+	}
 	if (Spec.Visibility.Level == EBattleVisibilityLevel::OwningTrainer
 		&& !Spec.Visibility.OwningTrainerId.IsValid())
 	{
@@ -332,6 +361,7 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 	OutEvent.HitCount = Spec.HitCount;
 	OutEvent.ActionOrder = Spec.ActionOrder;
 	OutEvent.TargetResolution = Spec.TargetResolution;
+	OutEvent.Capture = Spec.Capture;
 	OutEvent.Visibility = Spec.Visibility;
 	return true;
 }

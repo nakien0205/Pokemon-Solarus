@@ -511,6 +511,10 @@ namespace BattleBagItemTests
 		Input.CaptureCapacity = {4, 100};
 		Input.Policies.bBagAllowed = true;
 		Input.Policies.bCaptureAllowed = Scenario.bCaptureAllowed;
+		if (Scenario.bCaptureAllowed)
+		{
+			Input.CaptureProgression.bHasSnapshot = true;
+		}
 		Input.Policies.bRunAllowed = false;
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 		Input.Trainers.Add(MakeTrainer(
@@ -1680,7 +1684,7 @@ namespace BattleBagItemTests
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 		FBattleC08CBagCaptureHandoffTest,
-		"PokemonSolarus.Battle.C08C.Bag.Handoff.PokeBallLockedForC09WithoutConsumptionOrRng",
+		"PokemonSolarus.Battle.C08C.Bag.Handoff.PokeBallReachesC09BWithoutEarlyConsumptionOrRng",
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 	bool FBattleC08CBagCaptureHandoffTest::RunTest(const FString& Parameters)
@@ -1704,41 +1708,18 @@ namespace BattleBagItemTests
 				OpponentSlot));
 		TestTrue(TEXT("The Poke Ball action starts"),
 			Engine->BeginNextLockedAction().WasAccepted());
-		const uint64 VersionBefore = Engine->GetSnapshot().GetStateVersion();
-		const int32 TraceBefore = Engine->ExportRandomTrace().Num();
-		const int32 ResolutionCountBefore =
-			FBattleC08CBagEngineFixture::GetResolutionCount(*Engine);
-		const uint64 NextResolutionBefore =
-			FBattleC08CBagEngineFixture::GetNextResolutionValue(*Engine);
-		const uint64 NextEventBefore =
-			FBattleC08CBagEngineFixture::GetNextEventOrdinal(*Engine);
-		const FBattleResolution Handoff = Engine->ExecuteCurrentBagItem();
-		TestFalse(TEXT("C08C returns no resolution for the C09-owned checkpoint"),
-			Handoff.IsValid());
-		TestTrue(TEXT("The started Poke Ball action remains locked for C09"),
+		TestTrue(TEXT("The started Poke Ball action reaches the C09B execution checkpoint"),
 			Engine->GetCurrentLockedAction().IsSet());
-		TestEqual(TEXT("C08C consumes no Poke Ball at the handoff"),
+		TestEqual(TEXT("C08C consumes no Poke Ball before C09B execution"),
 			GetBagCount(*Engine, PlayerTrainerId, PokeBallId),
 			2);
 		const FBattleTrainerState* Trainer =
 			FBattleC08CBagEngineFixture::GetTrainer(*Engine, PlayerTrainerId);
-		TestTrue(TEXT("C08C consumes no Bag quota at the handoff"),
+		TestTrue(TEXT("C08C consumes no Bag quota before C09B execution"),
 			Trainer != nullptr && Trainer->ActionAllowance.bBagActionAvailable);
-		TestEqual(TEXT("C08C consumes no capture RNG"),
+		TestEqual(TEXT("C08C consumes no capture RNG before C09B execution"),
 			Engine->ExportRandomTrace().Num(),
-			TraceBefore);
-		TestEqual(TEXT("The no-op handoff does not advance state version"),
-			Engine->GetSnapshot().GetStateVersion(),
-			VersionBefore);
-		TestEqual(TEXT("The handoff appends no resolution history"),
-			FBattleC08CBagEngineFixture::GetResolutionCount(*Engine),
-			ResolutionCountBefore);
-		TestEqual(TEXT("The handoff consumes no resolution identity"),
-			FBattleC08CBagEngineFixture::GetNextResolutionValue(*Engine),
-			NextResolutionBefore);
-		TestEqual(TEXT("The handoff consumes no event ordinal"),
-			FBattleC08CBagEngineFixture::GetNextEventOrdinal(*Engine),
-			NextEventBefore);
+			0);
 		return true;
 	}
 }

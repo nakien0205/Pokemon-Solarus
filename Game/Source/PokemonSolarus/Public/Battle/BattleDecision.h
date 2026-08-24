@@ -76,7 +76,8 @@ enum class EBattleOptionUnavailableReason : uint8
 	Taunted = 19,
 	Encored = 20,
 	Disabled = 21,
-	ChoiceLocked = 22
+	ChoiceLocked = 22,
+	CaptureCapacityFull = 23
 };
 
 /** One unavailable option and its typed reason. Exactly one identity family is populated. */

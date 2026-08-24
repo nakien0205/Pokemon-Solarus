@@ -1479,7 +1479,7 @@ namespace BattleTargetingTests
 
 		const FBattleReplayRecord FirstRecord = FirstEngine->ExportReplayRecord();
 		TestTrue(TEXT("The integration replay record is valid"), FirstRecord.IsValid());
-		TestEqual(TEXT("C04B exports replay schema four"), FirstRecord.GetSchemaVersion(), 4U);
+		TestEqual(TEXT("C04B exports the current replay schema"), FirstRecord.GetSchemaVersion(), 5U);
 		TArray<uint8> FirstBytes;
 		TestTrue(
 			TEXT("The first C04B replay serializes canonically"),

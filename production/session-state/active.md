@@ -1,17 +1,26 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: Production Battle Runtime and HUD
-Task: Review current runtime changes and complete manual HUD acceptance
+Feature: Encounters, Capture, Escape, Reinforcement, and Partner Battles
+Task: C09B session 1 complete; C09B session 2 is next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-24
 
 ## Current work
 
-- ADR-0001, `docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md`, is accepted and has an uncommitted implementation in the worktree.
-- The implementation moves the initial Battle runtime to cooked DataTables, injects an `IBattleRuntimeSource`, builds an atomic `FBattleHUDDisplayState`, and makes presentation caching HUD-generation aware.
-- The Battle HUD visual assets and Blueprint edits are user-owned work. Codex must not change their appearance without a new task-specific exception.
-- The broader battle roadmap still records B00 through C08C complete and C09A as the next dependency-clear mechanics package. Do not begin C09A until the current production-runtime/HUD changes are reviewed and accepted.
+- The user explicitly verified and accepted the production runtime/HUD slice on
+  2026-08-24. That supersedes the prior manual HUD gate for battle-mechanics
+  sequencing.
+- C09A remains preserved as accepted uncommitted work in the current worktree.
+- C09B session 1 is complete. It adds exact Scarlet/Violet capture math/RNG,
+  Poke Ball selection/execution, multiple-capture removal/cancellation behavior,
+  ordered pending destinations with retained facts, public capture metadata,
+  replay schema 5, and the complete shared C09B setup/snapshot/replay schema.
+- The Battle HUD visuals and Blueprint assets remain user-owned. C09B session 1
+  did not modify presentation, assets, configuration, module rules, or the
+  `.uproject`.
+- C09B as a whole is not complete. Run, Cry for Help, configured WildFlee, and
+  `CallReinforcement` execution remain unimplemented; C09C remains blocked.
 
 ## Verified evidence
 
@@ -19,25 +28,44 @@ Task: Review current runtime changes and complete manual HUD acceptance
 - `Game/Saved/Automation/ADR0001-BattleUI-Rerun-20260824-1004/report/index.json`: 20 succeeded, 0 failed, 0 not run, 0 in process. This supersedes the earlier 18/20 run.
 - `Game/Saved/Automation/ADR0001-C02BAdapter-20260824-1005/report/index.json`: 2 succeeded, 0 failed, 0 not run, 0 in process.
 - `Game/Saved/Packaging/ADR0001-Win64-20260824-1013/PackagedSmoke.log`: the staged Windows build mounted its containers, loaded `FoundationMap` with `BattleGameMode`, and exited with status 0 without fatal/error entries.
-- Actual-size visual acceptance at 1920x1080 and 1280x720 is not verified by this evidence and remains a manual Blueprint/PIE gate.
+- Runtime/HUD manual acceptance is supplied by the user's explicit verification;
+  the automated reports above do not independently prove visual dimensions.
+- `Game/Saved/Automation/C09A-PoliciesSelectors-Final-20260824T095839Z/build.log`:
+  `PokemonSolarusEditor Win64 Development` succeeded with exit code 0.
+- `Game/Saved/Automation/C09A-PoliciesSelectors-Final-20260824T095839Z/report-final/index.json`:
+  the exact `PokemonSolarus.Battle.C09A` filter passed 6/6, with 0 warnings, 0
+  failures, 0 not run, and 0 in process. Every reported path is C09A and report
+  SHA-256 is
+  `c72f3b076d8f7fcec3af65ce3d4600a579d97221c7a2be18ad8f762e5fb3cd11`.
+- The final C09B session-1 `PokemonSolarusEditor Win64 Development` build
+  succeeded with `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1
+  -NoUBA`; its durable log is
+  `Game/Saved/Automation/C09B-Capture-20260824T125438Z/build-final.log`.
+- `Game/Saved/Automation/C09B-Capture-20260824T125438Z/report-final/index.json`:
+  the exact `PokemonSolarus.Battle.C09B` filter passed 4/4, with 0 warnings, 0
+  failures, 0 not run, and 0 in process. Every reported path is under
+  `PokemonSolarus.Battle.C09B.Capture`, every entry has 0 warnings and 0 errors,
+  process exit code is `0`, and report SHA-256 is
+  `9269891e673157050a0d5b4ad920760318b0e64f494b19c5697c4fe0bfd5f7ea`.
 
 ## Working-tree scope to preserve
 
-- User-owned visual work: Battle HUD/command UI Blueprints, Battle menu textures, and their `.uasset` imports.
-- Runtime/code-behind work: Battle GameMode, HUD, controller, health panel, presentation adapter, runtime source/data-row contracts, and focused tests.
-- Data/config/docs work: `Game/Config/DefaultGame.ini`, `/Game/Data/Battle/Initial`, `Game/SourceData/Battle/Initial`, ADR-0001, and `docs/registry/architecture.yaml`.
-- Unrelated existing changes include `CLAUDE.md` and deletion of `UE.md`; preserve them and do not fold them into a different task without explicit approval.
-
-## Codex migration
-
-- Repository instructions now live in `AGENTS.md` and are selected for tracking by `.gitignore`.
-- Active hooks live in `.codex/hooks.json`, use native PowerShell through `.codex/hooks/project-hooks.ps1`, and are selected for tracking by `.gitignore`.
-- The old ignored Claude-style `.codex/settings.json`, shell hooks, and custom status-line script are obsolete and are not part of the active Codex contract.
-- A new Codex session must review/trust the repository hooks through `/hooks` before relying on automatic execution.
+- C09A runtime contracts: `BattleEncounterPolicy` and `BattleActionSelector`.
+- C09A integration: the narrow setup validation and Boss/Gym Revive rule changes.
+- C09A tests: `BattleEncounterPolicySelectorTests.cpp` and the test-only scripted
+  selector.
+- C09A status records: the live battle roadmap, this package file, and this
+  active-session handoff.
+- C09B session-1 capture runtime/schema sources, four focused capture tests, and
+  the mechanical replay-schema assertions must be preserved for session 2.
+- Preserve all user-owned visual work and every unrelated change. Do not commit,
+  stage, push, branch, or rewrite Git history unless the user explicitly asks.
 
 ## Next
 
-1. Review the uncommitted ADR-0001 runtime/code-behind changes against the accepted ADR.
-2. Perform the user-owned actual-size Blueprint/PIE acceptance at 1920x1080 and 1280x720.
-3. Resolve review or visual acceptance findings, then decide whether the current changes are ready for the user to commit.
-4. Start C09A only after the production runtime/HUD slice is accepted.
+1. C09B session 1 complete; session 2 Run, Cry for Help, and WildFlee next.
+2. Start C09B session 2 in a fresh session, reading the live authorities and
+   this handoff. Reuse replay schema 5; do not make another schema-format change.
+3. Implement only Run, Cry for Help, configured WildFlee, and the required
+   `CallReinforcement` execution/tests for the session-2 contract.
+4. Do not begin C09C until all of C09B is complete.

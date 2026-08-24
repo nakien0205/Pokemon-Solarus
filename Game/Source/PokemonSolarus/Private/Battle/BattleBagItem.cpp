@@ -175,7 +175,10 @@ bool FBattleBagItemRules::TryEvaluateUse(
 		break;
 
 	case EBattleBagItemRuleKind::Revive:
-		OutResult.bLegal = Facts.ActingTrainerRole != EBattleTrainerRole::Opponent
+		// An opponent reaches this rule only for an item in its finite authored Bag.
+		// C09A admits that explicit Revive configuration for Boss/Gym encounters only.
+		OutResult.bLegal = (Facts.ActingTrainerRole != EBattleTrainerRole::Opponent
+				|| Facts.EncounterKind == EBattleEncounterKind::BossGym)
 			&& Facts.bTargetOwnedByActingTrainer
 			&& Facts.bTargetFainted
 			&& !Facts.bTargetFaintTransitionPending

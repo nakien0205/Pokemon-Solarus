@@ -2015,7 +2015,7 @@ bool FBattleC07BDeterminismTest::RunTest(const FString& Parameters)
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
 	TestTrue(TEXT("The first replay is valid"), FirstRecord.IsValid());
-	TestEqual(TEXT("Replay schema remains four"), FirstRecord.GetSchemaVersion(), 4U);
+	TestEqual(TEXT("Replay schema remains current"), FirstRecord.GetSchemaVersion(), 5U);
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection FirstRejection;
