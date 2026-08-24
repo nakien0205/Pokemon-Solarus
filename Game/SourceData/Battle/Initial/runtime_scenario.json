@@ -1,0 +1,147 @@
+[
+  {
+    "Name": "InitialBattle",
+    "SpeciesForms": "/Game/Data/Battle/Initial/DT_InitialBattleSpeciesForms.DT_InitialBattleSpeciesForms",
+    "Natures": "/Game/Data/Battle/Initial/DT_InitialBattleNatures.DT_InitialBattleNatures",
+    "Moves": "/Game/Data/Battle/Initial/DT_InitialBattleMoves.DT_InitialBattleMoves",
+    "Abilities": "/Game/Data/Battle/Initial/DT_InitialBattleAbilities.DT_InitialBattleAbilities",
+    "Items": "/Game/Data/Battle/Initial/DT_InitialBattleItems.DT_InitialBattleItems",
+    "Conditions": "/Game/Data/Battle/Initial/DT_InitialBattleConditions.DT_InitialBattleConditions",
+    "TypeChart": "/Game/Data/Battle/Initial/DT_InitialBattleTypeChart.DT_InitialBattleTypeChart",
+    "DisplayNames": "/Game/Data/Battle/Initial/DT_InitialBattleDisplayNames.DT_InitialBattleDisplayNames",
+    "Seed": "23449611999008083",
+    "BattleId": "1001",
+    "LocalTrainerId": "1",
+    "SettingsSnapshotId": "Settings.InitialBattle",
+    "SettingsSchemaVersion": 1,
+    "CatalogSnapshotId": "Catalog.InitialBattle",
+    "CatalogSchemaVersion": 1,
+    "EncounterKind": "Trainer",
+    "Format": "Single",
+    "PartySlotsRemaining": 5,
+    "StorageSlotsRemaining": 100,
+    "Policies": {
+      "bRunAllowed": false,
+      "bCaptureAllowed": false,
+      "bBagAllowed": true,
+      "bShiftPromptEligible": false,
+      "WildFleeMode": "Disabled",
+      "WildFleeNumerator": 0,
+      "WildFleeDenominator": 0
+    },
+    "Trainers": [
+      {
+        "TrainerId": "1",
+        "Side": "Player",
+        "Role": "Player",
+        "Controller": "Human",
+        "SelectorProfileId": "Selector.LocalHuman",
+        "Bag": []
+      },
+      {
+        "TrainerId": "2",
+        "Side": "Opponent",
+        "Role": "Opponent",
+        "Controller": "EnemyAI",
+        "SelectorProfileId": "Selector.CasualOpponent",
+        "Bag": []
+      }
+    ],
+    "PartyEntries": [
+      {
+        "TrainerId": "1",
+        "BattlerId": "11",
+        "SourcePokemonId": "111",
+        "PartySlotIndex": 0,
+        "SpeciesFormId": "Species.Charizard",
+        "Level": 50,
+        "NatureId": "Nature.Hardy",
+        "IndividualValues": {
+          "HP": 31,
+          "Attack": 31,
+          "Defense": 31,
+          "SpecialAttack": 31,
+          "SpecialDefense": 31,
+          "Speed": 31
+        },
+        "EffortValues": {
+          "HP": 0,
+          "Attack": 0,
+          "Defense": 0,
+          "SpecialAttack": 0,
+          "SpecialDefense": 0,
+          "Speed": 0
+        },
+        "bEgg": false,
+        "AbilityId": "Ability.Blaze",
+        "OriginalHeldItemId": "None",
+        "CurrentHeldItemId": "None",
+        "Moves": [
+          {
+            "SlotIndex": 0,
+            "MoveId": "Move.Flamethrower",
+            "PPUps": 0
+          }
+        ]
+      },
+      {
+        "TrainerId": "2",
+        "BattlerId": "21",
+        "SourcePokemonId": "211",
+        "PartySlotIndex": 0,
+        "SpeciesFormId": "Species.Venusaur",
+        "Level": 50,
+        "NatureId": "Nature.Hardy",
+        "IndividualValues": {
+          "HP": 31,
+          "Attack": 31,
+          "Defense": 31,
+          "SpecialAttack": 31,
+          "SpecialDefense": 31,
+          "Speed": 31
+        },
+        "EffortValues": {
+          "HP": 0,
+          "Attack": 0,
+          "Defense": 0,
+          "SpecialAttack": 0,
+          "SpecialDefense": 0,
+          "Speed": 0
+        },
+        "bEgg": false,
+        "AbilityId": "Ability.Overgrow",
+        "OriginalHeldItemId": "None",
+        "CurrentHeldItemId": "None",
+        "Moves": [
+          {
+            "SlotIndex": 0,
+            "MoveId": "Move.VineWhip",
+            "PPUps": 0
+          }
+        ]
+      }
+    ],
+    "StartingActive": [
+      {
+        "Side": "Player",
+        "Position": "Left",
+        "TrainerId": "1",
+        "BattlerId": "11"
+      },
+      {
+        "Side": "Opponent",
+        "Position": "Left",
+        "TrainerId": "2",
+        "BattlerId": "21"
+      }
+    ],
+    "ObedienceInputs": [
+      {
+        "BattlerId": "11",
+        "bSubjectToPlayerCap": false,
+        "ReferenceLevel": 50,
+        "BadgeCount": 8
+      }
+    ]
+  }
+]

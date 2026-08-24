@@ -30,7 +30,7 @@
 #   Superseded entries:     Grep pattern="status: superseded"
 
 version: 1
-last_updated: ""
+last_updated: "2026-08-24"
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -43,7 +43,17 @@ last_updated: ""
 # interface: how other systems access this state (read-only property, method call,
 #   signal, shared resource, etc.) — this is the contract other ADRs depend on.
 
-state_ownership: []
+state_ownership:
+  - state: battle_runtime_state
+    status: active
+    owner_system: battle-core
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    interface: "Observer-safe FBattleSnapshot plus typed pending FBattleDecisionRequest; presentation receives immutable projections only"
+    write_access: battle-core-only
+    referenced_by:
+      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+    revised: ""
 
 # Example:
 #
@@ -71,7 +81,32 @@ state_ownership: []
 #
 # pattern options: signal | direct_call | event_bus | shared_resource | rpc | none
 
-interfaces: []
+interfaces:
+  - contract: battle_runtime_composition
+    status: active
+    pattern: direct_call
+    producer: battle-runtime-source
+    consumers:
+      - battle-game-mode
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    method_contract: "IBattleRuntimeSource::TryCreateInitialBattle returns an engine, local Trainer identity, and immutable display-name resolver atomically"
+    referenced_by:
+      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+    revised: ""
+
+  - contract: battle_hud_presentation
+    status: active
+    pattern: direct_call
+    producer: battle-presentation-adapter
+    consumers:
+      - battle-hud
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    method_contract: "GameMode supplies one fully validated FBattleHUDDisplayState; initial visibility and command input remain disabled until atomic application succeeds"
+    referenced_by:
+      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+    revised: ""
 
 # Example:
 #
@@ -131,7 +166,17 @@ performance_budgets: []
 # Register an API decision when the choice is non-obvious and other ADRs might
 # make a different choice for the same purpose without knowing this was decided.
 
-api_decisions: []
+api_decisions:
+  - purpose: battle_runtime_data_assets
+    status: active
+    api: "Cooked Unreal UDataTable assets imported from version-controlled JSON source"
+    not: "Loose JSON file I/O in packaged runtime code"
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    reason: "Uses Unreal asset references and cooking while retaining reviewable data source and the existing Battle DataTable adapter"
+    referenced_by:
+      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+    revised: ""
 
 # Example:
 #
@@ -157,7 +202,27 @@ api_decisions: []
 # Register a pattern when an ADR explicitly bans it AND other ADRs might
 # unknowingly use it (i.e., it's a tempting but wrong approach for this project).
 
-forbidden_patterns: []
+forbidden_patterns:
+  - pattern: ui_owned_battle_gameplay_setup
+    status: active
+    description: "Production UI code must not author or duplicate Battle definitions, setup identities, policies, or deterministic seeds."
+    why: "UI-owned gameplay data can drift from canonical content and reverses the dependency from presentation into gameplay composition."
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+
+  - pattern: loose_runtime_battle_json_loading
+    status: active
+    description: "Packaged runtime code must not read Battle gameplay definitions or setup from loose JSON files."
+    why: "Loose files bypass Unreal cooking, asset dependency discovery, and stable packaged-path guarantees."
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
+
+  - pattern: partial_initial_battle_hud_presentation
+    status: active
+    description: "The root Battle HUD must not become visible before all required initial presentation data and structural bindings validate and apply atomically."
+    why: "Partial presentation can expose missing or misleading names, HP, command state, and input readiness."
+    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    added: 2026-08-24
 
 # Example:
 #

@@ -1,0 +1,1712 @@
+[
+  {
+    "Name": "Normal",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Fire",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Water",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Electric",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Grass",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Ice",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Fighting",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 2
+      }
+    ]
+  },
+  {
+    "Name": "Poison",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 2,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Ground",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Flying",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Psychic",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Bug",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 2
+      }
+    ]
+  },
+  {
+    "Name": "Rock",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Ghost",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 0,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Dragon",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 0,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Dark",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 2
+      }
+    ]
+  },
+  {
+    "Name": "Steel",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 2,
+        "Denominator": 1
+      }
+    ]
+  },
+  {
+    "Name": "Fairy",
+    "Entries": [
+      {
+        "DefendingType": "Normal",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fire",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Water",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Electric",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Grass",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ice",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Fighting",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Poison",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Ground",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Flying",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Psychic",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Bug",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Rock",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Ghost",
+        "Numerator": 1,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dragon",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Dark",
+        "Numerator": 2,
+        "Denominator": 1
+      },
+      {
+        "DefendingType": "Steel",
+        "Numerator": 1,
+        "Denominator": 2
+      },
+      {
+        "DefendingType": "Fairy",
+        "Numerator": 1,
+        "Denominator": 1
+      }
+    ]
+  }
+]

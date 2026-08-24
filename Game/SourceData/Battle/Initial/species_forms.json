@@ -1,0 +1,32 @@
+[
+  {
+    "Name": "Species.Charizard",
+    "PrimaryType": "Fire",
+    "SecondaryType": "Flying",
+    "BaseHP": 78,
+    "BaseAttack": 84,
+    "BaseDefense": 78,
+    "BaseSpecialAttack": 109,
+    "BaseSpecialDefense": 85,
+    "BaseSpeed": 100,
+    "CatchRate": 45,
+    "AbilityIds": [
+      "Ability.Blaze"
+    ]
+  },
+  {
+    "Name": "Species.Venusaur",
+    "PrimaryType": "Grass",
+    "SecondaryType": "Poison",
+    "BaseHP": 80,
+    "BaseAttack": 82,
+    "BaseDefense": 83,
+    "BaseSpecialAttack": 100,
+    "BaseSpecialDefense": 100,
+    "BaseSpeed": 80,
+    "CatchRate": 45,
+    "AbilityIds": [
+      "Ability.Overgrow"
+    ]
+  }
+]

@@ -5,9 +5,38 @@
 
 #define LOCTEXT_NAMESPACE "BattlePokemonHealthPanel"
 
+bool UBattlePokemonHealthPanel::IsStructurallyReady() const
+{
+	return bNativeConstructed
+		&& IsValid(Text_PokemonName)
+		&& IsValid(ProgressBar_HP)
+		&& IsValid(Text_HPValue);
+}
+
+bool UBattlePokemonHealthPanel::ApplyDisplayState(
+	const FText& PokemonName,
+	const int32 CurrentHP,
+	const int32 MaxHP,
+	const bool bExactHPShouldBeVisible)
+{
+	if (!IsStructurallyReady()
+		|| PokemonName.ToString().TrimStartAndEnd().IsEmpty()
+		|| MaxHP <= 0
+		|| CurrentHP < 0
+		|| CurrentHP > MaxHP)
+	{
+		return false;
+	}
+
+	SetPokemonName(PokemonName);
+	SetExactHPVisible(bExactHPShouldBeVisible);
+	return SetHPImmediate(CurrentHP, MaxHP);
+}
+
 void UBattlePokemonHealthPanel::NativeConstruct()
 {
 	Super::NativeConstruct();
+	bNativeConstructed = true;
 
 	ApplyPokemonName();
 	ApplyExactHPVisibility();
@@ -15,6 +44,12 @@ void UBattlePokemonHealthPanel::NativeConstruct()
 	{
 		ApplyHPVisuals();
 	}
+}
+
+void UBattlePokemonHealthPanel::NativeDestruct()
+{
+	bNativeConstructed = false;
+	Super::NativeDestruct();
 }
 
 void UBattlePokemonHealthPanel::NativeTick(

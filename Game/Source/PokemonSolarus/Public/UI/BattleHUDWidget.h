@@ -3,9 +3,19 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/BattleCommandWidget.h"
+#include "UI/BattleHUDDisplayState.h"
 #include "BattleHUDWidget.generated.h"
 
+#if WITH_DEV_AUTOMATION_TESTS
+class FBattleHUDProductionLifecycleTestFixture;
+class FBattlePresentationAdapterTestFixture;
+class FBattleRuntimePresentationTestFixture;
+#endif
+class UBattleHUDWidget;
 class UBattlePokemonHealthPanel;
+DECLARE_MULTICAST_DELEGATE_OneParam(
+	FOnBattleHUDConstructedNative,
+	UBattleHUDWidget&);
 
 /** Native presentation seam for the reusable battle HUD. */
 UCLASS(Abstract, BlueprintType, Blueprintable)
@@ -14,6 +24,42 @@ class POKEMONSOLARUS_API UBattleHUDWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	/** Applies one fully validated Battle presentation and reveals the root HUD. */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI")
+	bool ApplyHUDDisplayState(const FBattleHUDDisplayState& DisplayState);
+
+	/** Returns whether NativeConstruct and every required child binding are ready. */
+	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI")
+	bool IsStructurallyReady() const;
+
+	/** Returns whether a validated full presentation is currently visible. */
+	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI")
+	bool IsPresentationVisible() const;
+
+	/** Returns whether local command navigation, confirmation, and requests are enabled. */
+	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI|Command")
+	bool IsCommandInputEnabled() const;
+
+	/** Copies the most recent complete validated state without exposing child widgets. */
+	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI")
+	bool TryGetLastValidatedDisplayState(FBattleHUDDisplayState& OutDisplayState) const;
+
+	/** Identifies the most recent completed native construction pass. */
+	[[nodiscard]] uint64 GetNativeConstructionSerial() const
+	{
+		return NativeConstructionSerial;
+	}
+
+	/** Native lifecycle signal emitted after each completed NativeConstruct pass. */
+	FOnBattleHUDConstructedNative& GetConstructedNativeDelegate()
+	{
+		return ConstructedNativeDelegate;
+	}
+
+	/** Gates command input and facade requests without changing the current visuals. */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI|Command")
+	void DisableCommandInputPreservingPresentation();
+
 	/** Atomically forwards validated display-ready state to the optional command widget. */
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI|Command")
 	bool ApplyCommandDisplayState(const FBattleCommandDisplayState& DisplayState);
@@ -89,8 +135,7 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	/** Optional until WBP_BattleCommandUI is reparented and wired by the frontend owner. */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UBattleCommandWidget> CommandUI = nullptr;
 
 	UPROPERTY(meta = (BindWidget))
@@ -100,6 +145,12 @@ protected:
 	TObjectPtr<UBattlePokemonHealthPanel> HealthPanel_Opponent = nullptr;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FBattleHUDProductionLifecycleTestFixture;
+	friend class FBattlePresentationAdapterTestFixture;
+	friend class FBattleRuntimePresentationTestFixture;
+#endif
+
 	UFUNCTION()
 	void HandleCommandFocusChanged(EBattleUICommand FocusedCommand);
 
@@ -111,4 +162,27 @@ private:
 
 	UFUNCTION()
 	void HandleCommandRequested(EBattleUICommand RequestedCommand);
+	[[nodiscard]] bool RejectDisplayState(
+		const TCHAR* ErrorMessage,
+		bool bMustCollapsePresentation);
+	[[nodiscard]] bool ApplyValidatedHUDChildren(
+		const FBattleHUDDisplayState& DisplayState);
+	[[nodiscard]] bool ApplyHealthPanelStates(
+		const FBattleHUDHealthDisplayState& PlayerState,
+		const FBattleHUDHealthDisplayState& OpponentState);
+	void HideRootPresentation();
+	void CollapsePresentation();
+	void BindCommandDelegates();
+	void UnbindCommandDelegates();
+	void RefreshCommandFacade();
+	void InitializeHealthPanelVisibility();
+	[[nodiscard]] bool TryAdvanceNativeConstructionSerial();
+
+	FBattleHUDDisplayState LastValidatedDisplayState;
+	uint64 NativeConstructionSerial = 0;
+	bool bNativeConstructed = false;
+	bool bHasValidatedDisplayState = false;
+	bool bPresentationVisible = false;
+	bool bCommandInputEnabled = false;
+	FOnBattleHUDConstructedNative ConstructedNativeDelegate;
 };

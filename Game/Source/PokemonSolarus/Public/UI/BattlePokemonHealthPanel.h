@@ -4,6 +4,9 @@
 #include "Blueprint/UserWidget.h"
 #include "BattlePokemonHealthPanel.generated.h"
 
+#if WITH_DEV_AUTOMATION_TESTS
+class FBattleRuntimePresentationTestFixture;
+#endif
 class UProgressBar;
 class UTextBlock;
 
@@ -14,6 +17,18 @@ class POKEMONSOLARUS_API UBattlePokemonHealthPanel : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	/** Returns whether NativeConstruct and every required visual binding are ready. */
+	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI|Health")
+	bool IsStructurallyReady() const;
+
+	/** Validates and applies one complete health-panel state without partial mutation. */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI|Health")
+	bool ApplyDisplayState(
+		const FText& PokemonName,
+		int32 CurrentHP,
+		int32 MaxHP,
+		bool bExactHPShouldBeVisible);
+
 	/** Updates the displayed Pokemon name without changing battle state. */
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI|Health")
 	void SetPokemonName(const FText& PokemonName);
@@ -39,6 +54,7 @@ public:
 
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	UPROPERTY(meta = (BindWidget))
@@ -51,6 +67,10 @@ protected:
 	TObjectPtr<UTextBlock> Text_HPValue = nullptr;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FBattleRuntimePresentationTestFixture;
+#endif
+
 	void ApplyPokemonName();
 	void ApplyExactHPVisibility();
 	void ApplyHPVisuals();
@@ -67,4 +87,5 @@ private:
 	float AnimationTargetPercent = 1.0f;
 	float AnimationElapsedSeconds = 0.0f;
 	float AnimationDurationSeconds = 0.0f;
+	bool bNativeConstructed = false;
 };

@@ -1,0 +1,90 @@
+[
+  {
+    "Name": "Move.Flamethrower",
+    "Type": "Fire",
+    "Category": "Special",
+    "Power": 90,
+    "bAlwaysHits": false,
+    "Accuracy": 100,
+    "bUsesPP": true,
+    "BasePP": 15,
+    "bAllowsPPBoosts": true,
+    "Priority": 0,
+    "TargetClass": "SelectedOpponent",
+    "Flags": [
+      "BlockedByProtect"
+    ],
+    "Effects": [
+      {
+        "Order": 0,
+        "Kind": "Damage",
+        "Target": "ResolvedTarget",
+        "ConditionId": "None",
+        "ItemId": "None",
+        "Stat": "None",
+        "ChanceNumerator": 1,
+        "ChanceDenominator": 1,
+        "MagnitudeNumerator": 0,
+        "MagnitudeDenominator": 1,
+        "MinimumCount": 0,
+        "MaximumCount": 0,
+        "DurationTurns": 0,
+        "LayerCount": 0,
+        "Flags": []
+      },
+      {
+        "Order": 1,
+        "Kind": "ApplyCondition",
+        "Target": "ResolvedTarget",
+        "ConditionId": "Condition.Burn",
+        "ItemId": "None",
+        "Stat": "None",
+        "ChanceNumerator": 10,
+        "ChanceDenominator": 100,
+        "MagnitudeNumerator": 0,
+        "MagnitudeDenominator": 1,
+        "MinimumCount": 0,
+        "MaximumCount": 0,
+        "DurationTurns": 0,
+        "LayerCount": 0,
+        "Flags": []
+      }
+    ]
+  },
+  {
+    "Name": "Move.VineWhip",
+    "Type": "Grass",
+    "Category": "Physical",
+    "Power": 45,
+    "bAlwaysHits": false,
+    "Accuracy": 100,
+    "bUsesPP": true,
+    "BasePP": 25,
+    "bAllowsPPBoosts": true,
+    "Priority": 0,
+    "TargetClass": "SelectedOpponent",
+    "Flags": [
+      "MakesContact",
+      "BlockedByProtect"
+    ],
+    "Effects": [
+      {
+        "Order": 0,
+        "Kind": "Damage",
+        "Target": "ResolvedTarget",
+        "ConditionId": "None",
+        "ItemId": "None",
+        "Stat": "None",
+        "ChanceNumerator": 1,
+        "ChanceDenominator": 1,
+        "MagnitudeNumerator": 0,
+        "MagnitudeDenominator": 1,
+        "MinimumCount": 0,
+        "MaximumCount": 0,
+        "DurationTurns": 0,
+        "LayerCount": 0,
+        "Flags": []
+      }
+    ]
+  }
+]
