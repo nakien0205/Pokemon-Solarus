@@ -649,8 +649,7 @@ bool FC06BShiftSetNormalizationTest::RunTest(const FString& Parameters)
 			ForcedSet.GetPolicies().bShiftPromptEligible);
 	}
 
-	FC06BScenario WildScenario = DefaultScenario;
-	WildScenario.BattleValue = 606003;
+	FC06BScenario WildScenario = MakeSingleOpponentFaintScenario(true, false, 606003);
 	WildScenario.EncounterKind = EBattleEncounterKind::Wild;
 	WildScenario.bOverrideShiftEligibility = true;
 	WildScenario.bShiftEligible = true;
@@ -1211,7 +1210,7 @@ bool FC06BShiftExclusionsTest::RunTest(const FString& Parameters)
 	ForcedSet.bShiftEligible = false;
 	TestDirectMandatory(ForcedSet, 606601, TEXT("Forced Set reaches replacement"));
 
-	FC06BScenario Wild = MakeSingleOpponentFaintScenario(true, true, 606602);
+	FC06BScenario Wild = MakeSinglePlayerFaintScenario(606602);
 	Wild.EncounterKind = EBattleEncounterKind::Wild;
 	Wild.bOverrideShiftEligibility = true;
 	Wild.bShiftEligible = true;

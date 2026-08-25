@@ -1,7 +1,37 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Battle/BattleEncounterPolicy.h"
+#include "Battle/BattleSetup.h"
 #include "Battle/BattleSetupTypes.h"
 #include "Misc/AutomationTest.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B1SetupPolicyOrdinalTest,
+	"PokemonSolarus.Battle.ADR0002.3B1.SetupPolicy.EnumAndErrorOrdinals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleADR00023B1SetupPolicyOrdinalTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TestEqual(TEXT("Player role ordinal remains stable"), static_cast<uint8>(EBattleTrainerRole::Player), static_cast<uint8>(0));
+	TestEqual(TEXT("Partner role ordinal remains stable"), static_cast<uint8>(EBattleTrainerRole::Partner), static_cast<uint8>(1));
+	TestEqual(TEXT("Opponent role ordinal remains stable"), static_cast<uint8>(EBattleTrainerRole::Opponent), static_cast<uint8>(2));
+	TestEqual(TEXT("Human controller ordinal remains stable"), static_cast<uint8>(EBattleDecisionController::Human), static_cast<uint8>(0));
+	TestEqual(TEXT("Partner AI controller ordinal remains stable"), static_cast<uint8>(EBattleDecisionController::PartnerAI), static_cast<uint8>(1));
+	TestEqual(TEXT("Enemy AI controller ordinal remains stable"), static_cast<uint8>(EBattleDecisionController::EnemyAI), static_cast<uint8>(2));
+	TestEqual(TEXT("Scripted controller ordinal remains stable"), static_cast<uint8>(EBattleDecisionController::Scripted), static_cast<uint8>(3));
+	TestEqual(TEXT("Disabled WildFlee ordinal remains stable"), static_cast<uint8>(EBattleWildFleeMode::Disabled), static_cast<uint8>(0));
+	TestEqual(TEXT("Never WildFlee ordinal remains stable"), static_cast<uint8>(EBattleWildFleeMode::Never), static_cast<uint8>(1));
+	TestEqual(TEXT("Always WildFlee ordinal remains stable"), static_cast<uint8>(EBattleWildFleeMode::Always), static_cast<uint8>(2));
+	TestEqual(TEXT("Chance WildFlee ordinal remains stable"), static_cast<uint8>(EBattleWildFleeMode::Chance), static_cast<uint8>(3));
+	TestEqual(TEXT("Existing setup errors remain stable"), static_cast<uint8>(EBattleSetupValidationError::InvalidReinforcement), static_cast<uint8>(15));
+	TestEqual(TEXT("Partner controller setup error is appended"), static_cast<uint8>(EBattleSetupValidationError::InvalidPartnerController), static_cast<uint8>(16));
+	TestEqual(TEXT("Wild reserve setup error is appended"), static_cast<uint8>(EBattleSetupValidationError::InvalidWildReserve), static_cast<uint8>(17));
+	TestEqual(TEXT("Existing policy errors remain stable"), static_cast<uint8>(EBattleEncounterPolicyError::InvalidWildFleePolicy), static_cast<uint8>(6));
+	TestEqual(TEXT("Partner controller policy error is appended"), static_cast<uint8>(EBattleEncounterPolicyError::InvalidPartnerController), static_cast<uint8>(7));
+	TestEqual(TEXT("Wild reserve policy error is appended"), static_cast<uint8>(EBattleEncounterPolicyError::InvalidWildReserve), static_cast<uint8>(8));
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleSetupTaxonomyTest,

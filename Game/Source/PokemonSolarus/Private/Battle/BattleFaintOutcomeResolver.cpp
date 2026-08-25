@@ -55,8 +55,11 @@ namespace
 		int32 Count = 0;
 		for (const FBattleBattlerState& Battler : State.Battlers)
 		{
-			const FBattleTrainerState* Trainer = State.FindTrainer(Battler.TrainerId);
-			if (Trainer != nullptr && Trainer->Side == Side && IsUsable(Battler))
+			const FBattleTrainerEncounterPolicy* TrainerPolicy =
+				State.CompiledEncounterPolicies.FindTrainerPolicy(Battler.TrainerId);
+			if (TrainerPolicy != nullptr
+				&& TrainerPolicy->Side == Side
+				&& IsUsable(Battler))
 			{
 				++Count;
 			}
@@ -71,8 +74,11 @@ namespace
 		int32 Count = 0;
 		for (const FBattleBattlerState& Battler : State.Battlers)
 		{
-			const FBattleTrainerState* Trainer = State.FindTrainer(Battler.TrainerId);
-			if (Trainer != nullptr && Trainer->Role == Role && IsUsable(Battler))
+			const FBattleTrainerEncounterPolicy* TrainerPolicy =
+				State.CompiledEncounterPolicies.FindTrainerPolicy(Battler.TrainerId);
+			if (TrainerPolicy != nullptr
+				&& TrainerPolicy->Role == Role
+				&& IsUsable(Battler))
 			{
 				++Count;
 			}
@@ -257,7 +263,9 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	else if (OpponentUsable == 0)
 	{
 		OutResolution.Outcome = EBattleOutcome::Victory;
-		const bool bOnlyPartnerRemains = CountUsableForRole(State, EBattleTrainerRole::Player) == 0
+		const bool bOnlyPartnerRemains =
+			State.CompiledEncounterPolicies.HasSeparatePartnerOwnership()
+			&& CountUsableForRole(State, EBattleTrainerRole::Player) == 0
 			&& CountUsableForRole(State, EBattleTrainerRole::Partner) > 0;
 		OutResolution.OutcomeCause = bOnlyPartnerRemains
 			? EBattleOutcomeCause::PartnerTeamVictory

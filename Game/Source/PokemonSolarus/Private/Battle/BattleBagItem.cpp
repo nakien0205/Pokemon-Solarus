@@ -19,13 +19,6 @@ namespace
 			|| Kind == EBattleBagItemTargetKind::Active;
 	}
 
-	bool IsKnownTrainerRole(const EBattleTrainerRole Role)
-	{
-		return Role == EBattleTrainerRole::Player
-			|| Role == EBattleTrainerRole::Partner
-			|| Role == EBattleTrainerRole::Opponent;
-	}
-
 	bool IsLivingTarget(const FBattleBagItemUseFacts& Facts)
 	{
 		return Facts.CurrentHP > 0
@@ -128,7 +121,6 @@ bool FBattleBagItemRules::TryEvaluateUse(
 	if (Kind == EBattleBagItemRuleKind::None
 		|| Kind == EBattleBagItemRuleKind::Invalid
 		|| !IsKnownTargetKind(Facts.TargetKind)
-		|| !IsKnownTrainerRole(Facts.ActingTrainerRole)
 		|| Facts.MaximumHP <= 0
 		|| Facts.CurrentHP < 0
 		|| Facts.CurrentHP > Facts.MaximumHP
@@ -154,16 +146,16 @@ bool FBattleBagItemRules::TryEvaluateUse(
 	switch (Kind)
 	{
 	case EBattleBagItemRuleKind::PokeBall:
-		OutResult.bLegal = Facts.ActingTrainerRole == EBattleTrainerRole::Player
-			&& Facts.EncounterKind == EBattleEncounterKind::Wild
-			&& Facts.bCaptureAllowed
+		OutResult.bLegal = Facts.bActingTrainerMayUseBag
+			&& Facts.bActingTrainerMayCapture
 			&& Facts.bTargetIsOpposingActive
 			&& IsLivingTarget(Facts);
 		OutResult.bCaptureHandoff = OutResult.bLegal;
 		break;
 
 	case EBattleBagItemRuleKind::HyperPotion:
-		OutResult.bLegal = Facts.bTargetOwnedByActingTrainer
+		OutResult.bLegal = Facts.bActingTrainerMayUseBag
+			&& Facts.bTargetOwnedByActingTrainer
 			&& IsLivingTarget(Facts)
 			&& Facts.CurrentHP < Facts.MaximumHP;
 		if (OutResult.bLegal)
@@ -175,10 +167,8 @@ bool FBattleBagItemRules::TryEvaluateUse(
 		break;
 
 	case EBattleBagItemRuleKind::Revive:
-		// An opponent reaches this rule only for an item in its finite authored Bag.
-		// C09A admits that explicit Revive configuration for Boss/Gym encounters only.
-		OutResult.bLegal = (Facts.ActingTrainerRole != EBattleTrainerRole::Opponent
-				|| Facts.EncounterKind == EBattleEncounterKind::BossGym)
+		OutResult.bLegal = Facts.bActingTrainerMayUseBag
+			&& Facts.bActingTrainerMayUseRevive
 			&& Facts.bTargetOwnedByActingTrainer
 			&& Facts.bTargetFainted
 			&& !Facts.bTargetFaintTransitionPending
@@ -192,7 +182,8 @@ bool FBattleBagItemRules::TryEvaluateUse(
 		break;
 
 	case EBattleBagItemRuleKind::FullHeal:
-		OutResult.bLegal = Facts.bTargetOwnedByActingTrainer
+		OutResult.bLegal = Facts.bActingTrainerMayUseBag
+			&& Facts.bTargetOwnedByActingTrainer
 			&& IsLivingTarget(Facts)
 			&& (Facts.bHasCanonicalMajorStatus || Facts.bHasConfusion);
 		if (OutResult.bLegal)
@@ -203,7 +194,8 @@ bool FBattleBagItemRules::TryEvaluateUse(
 		break;
 
 	case EBattleBagItemRuleKind::XAttack:
-		OutResult.bLegal = Facts.bTargetOwnedByActingTrainer
+		OutResult.bLegal = Facts.bActingTrainerMayUseBag
+			&& Facts.bTargetOwnedByActingTrainer
 			&& Facts.bTargetIsActingBattler
 			&& IsLivingTarget(Facts)
 			&& Facts.AttackStage < FBattleStatStages::MaximumStage;

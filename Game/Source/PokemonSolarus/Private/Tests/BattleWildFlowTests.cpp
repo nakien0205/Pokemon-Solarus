@@ -858,8 +858,8 @@ bool FBattleC09BRunBoundaryCounterTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Second Run replay serializes"), SerializeReplay(*Second, SecondBytes));
 	TestTrue(TEXT("Identical Run histories replay equally"),
 		!FirstBytes.IsEmpty() && FirstBytes == SecondBytes);
-	TestEqual(TEXT("Run preserves replay schema 5"),
-		First->ExportReplayRecord().GetSchemaVersion(), 5U);
+	TestEqual(TEXT("Run preserves replay schema 6"),
+		First->ExportReplayRecord().GetSchemaVersion(), 6U);
 	return true;
 }
 
@@ -1082,8 +1082,8 @@ bool FBattleC09BWildFleePolicyTest::RunTest(const FString& Parameters)
 		SerializeReplay(*SecondChance, SecondChanceBytes));
 	TestTrue(TEXT("Identical WildFlee histories replay equally"),
 		!FirstChanceBytes.IsEmpty() && FirstChanceBytes == SecondChanceBytes);
-	TestEqual(TEXT("WildFlee preserves replay schema 5"),
-		FirstChance->ExportReplayRecord().GetSchemaVersion(), 5U);
+	TestEqual(TEXT("WildFlee preserves replay schema 6"),
+		FirstChance->ExportReplayRecord().GetSchemaVersion(), 6U);
 	return true;
 }
 

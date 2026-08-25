@@ -191,6 +191,112 @@ bool FBattleC01BPartnerDoubleSetupTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B1SetupShapeTest,
+	"PokemonSolarus.Battle.ADR0002.3B1.SetupPolicy.TypedShapesAndAtomicPublication",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleADR00023B1SetupShapeTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FBattleSetup Setup;
+	EBattleSetupValidationError Error = EBattleSetupValidationError::None;
+	TestTrue(
+		TEXT("A valid Partner Double setup is published"),
+		FBattleSetup::TryCreate(MakeSetupInput(EBattleFormat::PartnerDouble), Setup, Error));
+	TestTrue(
+		TEXT("A published setup owns its successful compiled policy"),
+		Setup.GetCompiledEncounterPolicies().IsValid());
+
+	FBattleSetupInput InvalidPartner = MakeSetupInput(EBattleFormat::PartnerDouble);
+	for (FBattleTrainerSetup& Trainer : InvalidPartner.Trainers)
+	{
+		if (Trainer.Role == EBattleTrainerRole::Partner)
+		{
+			Trainer.Controller = EBattleDecisionController::EnemyAI;
+		}
+	}
+	TestFalse(
+		TEXT("A Partner controlled by Enemy AI is rejected"),
+		FBattleSetup::TryCreate(InvalidPartner, Setup, Error));
+	TestEqual(
+		TEXT("The Partner controller failure is typed"),
+		Error,
+		EBattleSetupValidationError::InvalidPartnerController);
+	TestFalse(TEXT("A failed compile publishes no setup"), Setup.IsValid());
+	TestFalse(
+		TEXT("A failed compile publishes no compiled policy"),
+		Setup.GetCompiledEncounterPolicies().IsValid());
+
+	FBattleSetupInput WildWithReserve = MakeSetupInput(EBattleFormat::Single);
+	WildWithReserve.EncounterKind = EBattleEncounterKind::Wild;
+	WildWithReserve.PartyEntries.Add(MakePartyEntry(
+		2,
+		22,
+		212,
+		1,
+		TEXT("Species.WildReserve"),
+		TEXT("Move.WildReserve")));
+	TestFalse(
+		TEXT("An ordinary living Wild opponent reserve is rejected"),
+		FBattleSetup::TryCreate(WildWithReserve, Setup, Error));
+	TestEqual(
+		TEXT("The ordinary Wild reserve failure is typed"),
+		Error,
+		EBattleSetupValidationError::InvalidWildReserve);
+
+	FBattleSetupInput FaintedWildReserve = WildWithReserve;
+	FaintedWildReserve.PartyEntries.Last().CurrentHP = 0;
+	TestTrue(
+		TEXT("A fainted Wild reserve does not violate the living-reserve rule"),
+		FBattleSetup::TryCreate(FaintedWildReserve, Setup, Error));
+
+	FBattleSetupInput EggWildReserve = WildWithReserve;
+	EggWildReserve.PartyEntries.Last().bEgg = true;
+	TestTrue(
+		TEXT("An Egg Wild reserve does not violate the ordinary living-reserve rule"),
+		FBattleSetup::TryCreate(EggWildReserve, Setup, Error));
+
+	FBattleSetupInput ConfiguredReinforcement = MakeSetupInput(EBattleFormat::Double);
+	ConfiguredReinforcement.EncounterKind = EBattleEncounterKind::Wild;
+	ConfiguredReinforcement.PartyEntries.Add(MakePartyEntry(
+		2,
+		23,
+		213,
+		2,
+		TEXT("Species.ConfiguredReinforcement"),
+		TEXT("Move.ConfiguredReinforcement")));
+	ConfiguredReinforcement.ConfiguredReinforcementBattlerId = MakeNumericId<FBattlerId>(23);
+	TestTrue(
+		TEXT("The exact frozen configured-reinforcement identity remains an accepted setup shape"),
+		FBattleSetup::TryCreate(ConfiguredReinforcement, Setup, Error));
+	ConfiguredReinforcement.PartyEntries.Add(MakePartyEntry(
+		2,
+		24,
+		214,
+		3,
+		TEXT("Species.OrdinaryWildReserve"),
+		TEXT("Move.OrdinaryWildReserve")));
+	TestFalse(
+		TEXT("A second ordinary living reserve is not covered by the configured identity"),
+		FBattleSetup::TryCreate(ConfiguredReinforcement, Setup, Error));
+	TestEqual(
+		TEXT("The non-configured Wild reserve remains typed"),
+		Error,
+		EBattleSetupValidationError::InvalidWildReserve);
+
+	FBattleSetupInput InvalidObedience = MakeSetupInput(EBattleFormat::Single);
+	InvalidObedience.ObedienceInputs[0].BadgeCount = 9;
+	TestFalse(
+		TEXT("Obedience badge validation remains capped at eight"),
+		FBattleSetup::TryCreate(InvalidObedience, Setup, Error));
+	TestEqual(
+		TEXT("Obedience overflow retains its dedicated error"),
+		Error,
+		EBattleSetupValidationError::InvalidObedience);
+	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

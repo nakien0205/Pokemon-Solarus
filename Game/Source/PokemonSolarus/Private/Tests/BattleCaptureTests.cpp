@@ -956,6 +956,37 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B1CaptureBadgeOverflowTest,
+	"PokemonSolarus.Battle.ADR0002.3B1.SetupPolicy.CaptureBadgeOverflowIsNeutral",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023B1CaptureBadgeOverflowTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FBattleCaptureCalculationInput Input = MakeCalculationInput();
+	Input.Progression.BadgeCount = 9;
+	Input.Progression.bMustCapture = true;
+	TestTrue(
+		TEXT("A capture badge count above eight is a valid capture snapshot"),
+		Input.Progression.IsValid());
+	TestTrue(
+		TEXT("A capture input with badge overflow remains valid"),
+		FBattleCaptureCalculator::IsInputValid(Input));
+
+	FSequenceBattleRandom Random({});
+	FBattleCaptureCalculationResult Result;
+	TestTrue(
+		TEXT("Capture badge overflow resolves without special failure"),
+		FBattleCaptureCalculator::TryResolve(Input, Random, Result));
+	TestEqual(
+		TEXT("Capture badge overflow uses the neutral modifier"),
+		Result.BadgeModifierQ12,
+		FBattleCaptureCalculator::Q12Neutral);
+	TestEqual(TEXT("The neutral overflow proof consumes no RNG"), Random.GetTrace().Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC09BCaptureValidationTest,
 	"PokemonSolarus.Battle.C09B.Capture.Validation.CapacityPendingFailureConsumption",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -1316,8 +1347,8 @@ bool FBattleC09BCaptureResultsReplayTest::RunTest(const FString& Parameters)
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
 	TestTrue(TEXT("The capture replay record is valid"), FirstRecord.IsValid());
-	TestEqual(TEXT("Capture exports replay schema 5"),
-		FirstRecord.GetSchemaVersion(), 5U);
+	TestEqual(TEXT("Capture exports replay schema 6"),
+		FirstRecord.GetSchemaVersion(), 6U);
 	TestTrue(TEXT("Replay input freezes dedicated capture progression"),
 		FirstRecord.GetInputs().Setup.GetCaptureProgression() == Scenario.Progression);
 	TestTrue(TEXT("Replay input freezes the configured reinforcement identity"),

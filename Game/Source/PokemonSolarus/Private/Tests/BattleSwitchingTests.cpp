@@ -229,6 +229,9 @@ namespace BattleSwitchingTests
 		Input.Policies.bBagAllowed = false;
 		Input.Policies.bRunAllowed = Scenario.EncounterKind == EBattleEncounterKind::Wild;
 		Input.Policies.bCaptureAllowed = false;
+		Input.Policies.bShiftPromptEligible =
+			Scenario.EncounterKind != EBattleEncounterKind::Wild
+			&& Scenario.Format == EBattleFormat::Single;
 
 		Input.Trainers.Add(MakeTrainer(
 			PlayerTrainerValue,
@@ -914,6 +917,7 @@ namespace BattleSwitchingTests
 
 		FC06AScenario WildScenario;
 		WildScenario.EncounterKind = EBattleEncounterKind::Wild;
+		WildScenario.OpponentReserveCount = 0;
 		TUniquePtr<FBattleEngine> WildEngine = MakeEngine(WildScenario);
 		FBattleRejection Rejection;
 		TestTrue(TEXT("Wild action selection begins"),

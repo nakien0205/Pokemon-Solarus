@@ -556,12 +556,16 @@ namespace BattleBagItemTests
 			0,
 			Scenario.OpponentHP,
 			80));
-		Input.PartyEntries.Add(MakePartyEntry(
-			OpponentTrainerValue,
-			OpponentReserveValue,
-			1,
-			Scenario.OpponentReserveHP,
-			90));
+		if (Scenario.EncounterKind != EBattleEncounterKind::Wild
+			|| Scenario.Format != EBattleFormat::Single)
+		{
+			Input.PartyEntries.Add(MakePartyEntry(
+				OpponentTrainerValue,
+				OpponentReserveValue,
+				1,
+				Scenario.OpponentReserveHP,
+				90));
+		}
 		if (Scenario.Format == EBattleFormat::PartnerDouble)
 		{
 			Input.PartyEntries.Add(MakePartyEntry(
@@ -890,9 +894,9 @@ namespace BattleBagItemTests
 			FBattleBagItemRules::GetKind(ItemId));
 		Facts.TargetKind = FBattleBagItemRules::GetTargetKind(
 			FBattleBagItemRules::GetKind(ItemId));
-		Facts.ActingTrainerRole = EBattleTrainerRole::Player;
-		Facts.EncounterKind = EBattleEncounterKind::Wild;
-		Facts.bCaptureAllowed = true;
+		Facts.bActingTrainerMayUseBag = true;
+		Facts.bActingTrainerMayCapture = true;
+		Facts.bActingTrainerMayUseRevive = true;
 		Facts.bTargetOwnedByActingTrainer = true;
 		Facts.bTargetIsActingBattler = true;
 		Facts.CurrentHP = 80;
@@ -958,11 +962,10 @@ namespace BattleBagItemTests
 		TestTrue(TEXT("One-HP Revive facts evaluate"),
 			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
 		TestEqual(TEXT("Revive restores at least one HP"), Result.HealAmount, 1);
-		Facts.ActingTrainerRole = EBattleTrainerRole::Partner;
 		TestTrue(TEXT("Partner Revive facts evaluate"),
 			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
 		TestTrue(TEXT("A partner can Revive its own target"), Result.bLegal);
-		Facts.ActingTrainerRole = EBattleTrainerRole::Opponent;
+		Facts.bActingTrainerMayUseRevive = false;
 		TestTrue(TEXT("Opponent Revive facts evaluate"),
 			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
 		TestFalse(TEXT("An ordinary opponent can never Revive"), Result.bLegal);
@@ -1001,10 +1004,51 @@ namespace BattleBagItemTests
 			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
 		TestTrue(TEXT("A legal Poke Ball request reaches the handoff"),
 			Result.bLegal && Result.bCaptureHandoff);
-		Facts.ActingTrainerRole = EBattleTrainerRole::Partner;
+		Facts.bActingTrainerMayCapture = false;
 		TestTrue(TEXT("Partner Poke Ball facts evaluate"),
 			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
 		TestFalse(TEXT("A partner cannot capture"), Result.bLegal);
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023B2ExplicitBagPermissionsTest,
+		"PokemonSolarus.Battle.ADR0002.3B2.RuntimeAuthority.Bag.ExplicitCompiledPermissions",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleADR00023B2ExplicitBagPermissionsTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		FBattleBagItemUseResult Result;
+		FBattleBagItemUseFacts Facts = MakeBaseFacts(
+			FBattleBagItemRules::GetHyperPotionId());
+		Facts.bActingTrainerMayUseBag = false;
+		TestTrue(TEXT("A denied Bag permission is a valid rule input"),
+			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
+		TestFalse(TEXT("General item use obeys explicit Bag permission"), Result.bLegal);
+
+		Facts = MakeBaseFacts(FBattleBagItemRules::GetPokeBallId());
+		Facts.bTargetOwnedByActingTrainer = false;
+		Facts.bTargetIsActingBattler = false;
+		Facts.bTargetIsOpposingActive = true;
+		Facts.bActingTrainerMayCapture = false;
+		TestTrue(TEXT("A denied Capture permission is a valid rule input"),
+			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
+		TestFalse(TEXT("Poke Ball obeys explicit Capture permission"), Result.bLegal);
+
+		Facts = MakeBaseFacts(FBattleBagItemRules::GetReviveId());
+		Facts.CurrentHP = 0;
+		Facts.bTargetFainted = true;
+		Facts.bTargetIsActingBattler = false;
+		Facts.bActingTrainerMayUseRevive = false;
+		TestTrue(TEXT("A denied Revive permission is a valid rule input"),
+			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
+		TestFalse(TEXT("Revive obeys explicit Revive permission"), Result.bLegal);
+		Facts.bActingTrainerMayUseRevive = true;
+		TestTrue(TEXT("An admitted Revive permission is evaluated"),
+			FBattleBagItemRules::TryEvaluateUse(Facts, Result));
+		TestTrue(TEXT("Admitted Revive remains legal for its owned fainted target"),
+			Result.bLegal);
 		return true;
 	}
 

@@ -419,24 +419,23 @@ bool FBattleEngineState::TryCreate(
 
 	TUniquePtr<FBattleEngineState> NewState = MakeUnique<FBattleEngineState>();
 	NewState->Setup = Setup;
-	NewState->EncounterKind = Setup.GetEncounterKind();
-	NewState->Format = Setup.GetFormat();
-	NewState->CaptureCapacity = Setup.GetCaptureCapacity();
-	NewState->EncounterPolicies = Setup.GetPolicies();
-	if (NewState->EncounterPolicies.WildFleeMode != EBattleWildFleeMode::Disabled)
+	NewState->CompiledEncounterPolicies = Setup.GetCompiledEncounterPolicies();
+	if (!NewState->CompiledEncounterPolicies.IsValid())
 	{
-		if (NewState->EncounterKind != EBattleEncounterKind::Wild)
-		{
-			OutError = EBattleStateValidationError::InvalidWildFleePolicy;
-			return false;
-		}
-
+		OutError = EBattleStateValidationError::InvalidSetup;
+		return false;
+	}
+	NewState->EncounterKind = NewState->CompiledEncounterPolicies.GetEncounterKind();
+	NewState->Format = NewState->CompiledEncounterPolicies.GetFormat();
+	NewState->CaptureCapacity = Setup.GetCaptureCapacity();
+	if (NewState->CompiledEncounterPolicies.IsWildFleeConfigured())
+	{
 		FBattleWildFleePolicyState Policy;
 		Policy.TriggerId = FBattleWildFleeRules::GetActionSelectionTriggerId();
 		Policy.EligibilityId = FBattleWildFleeRules::GetActiveLivingWildEligibilityId();
-		Policy.ProbabilityMode = NewState->EncounterPolicies.WildFleeMode;
-		Policy.Numerator = NewState->EncounterPolicies.WildFleeNumerator;
-		Policy.Denominator = NewState->EncounterPolicies.WildFleeDenominator;
+		Policy.ProbabilityMode = NewState->CompiledEncounterPolicies.GetWildFleeMode();
+		Policy.Numerator = NewState->CompiledEncounterPolicies.GetWildFleeNumerator();
+		Policy.Denominator = NewState->CompiledEncounterPolicies.GetWildFleeDenominator();
 		NewState->WildFleePolicies.Add(MoveTemp(Policy));
 	}
 	NewState->Random = MoveTemp(Random);
@@ -451,15 +450,22 @@ bool FBattleEngineState::TryCreate(
 		NewState->bHasCatalog = true;
 	}
 
-	for (const FBattleTrainerSetup& SetupTrainer : Setup.GetTrainers())
+	for (const FBattleTrainerEncounterPolicy& TrainerPolicy :
+		NewState->CompiledEncounterPolicies.GetTrainerPolicies())
 	{
+		const FBattleTrainerSetup* SetupTrainer = Setup.FindTrainer(TrainerPolicy.TrainerId);
+		if (SetupTrainer == nullptr)
+		{
+			OutError = EBattleStateValidationError::InvalidTrainer;
+			return false;
+		}
 		FBattleTrainerState Trainer;
-		Trainer.TrainerId = SetupTrainer.TrainerId;
-		Trainer.Side = SetupTrainer.Side;
-		Trainer.Role = SetupTrainer.Role;
-		Trainer.Controller = SetupTrainer.Controller;
-		Trainer.SelectorProfileId = SetupTrainer.SelectorProfileId;
-		Trainer.Bag = SetupTrainer.Bag;
+		Trainer.TrainerId = TrainerPolicy.TrainerId;
+		Trainer.Side = TrainerPolicy.Side;
+		Trainer.Role = TrainerPolicy.Role;
+		Trainer.Controller = TrainerPolicy.Controller;
+		Trainer.SelectorProfileId = TrainerPolicy.SelectorProfileId;
+		Trainer.Bag = SetupTrainer->Bag;
 		Trainer.PartySlots.Reserve(FPartySlotId::PartySize);
 		for (int32 PartyIndex = 0; PartyIndex < FPartySlotId::PartySize; ++PartyIndex)
 		{
@@ -626,6 +632,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	};
 
 	if (!Setup.IsValid()
+		|| !CompiledEncounterPolicies.IsValid()
 		|| !Setup.GetBattleId().IsValid()
 		|| !Setup.GetSettingsReference().IsValid()
 		|| !Setup.GetCatalogReference().IsValid()
@@ -640,6 +647,8 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	}
 	if (!IsKnownEncounterKind(EncounterKind)
 		|| !IsKnownFormat(Format)
+		|| EncounterKind != CompiledEncounterPolicies.GetEncounterKind()
+		|| Format != CompiledEncounterPolicies.GetFormat()
 		|| !IsKnownPhase(Phase)
 		|| !IsKnownOutcome(Outcome)
 		|| (Phase == EBattlePhase::Terminal) != (Outcome != EBattleOutcome::InProgress)
@@ -663,7 +672,8 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	}
 
 	const int32 ExpectedTrainerCount = Format == EBattleFormat::PartnerDouble ? 3 : 2;
-	if (Trainers.Num() != ExpectedTrainerCount)
+	if (Trainers.Num() != ExpectedTrainerCount
+		|| Trainers.Num() != CompiledEncounterPolicies.GetTrainerPolicies().Num())
 	{
 		return Fail(EBattleStateValidationError::InvalidTrainer);
 	}
@@ -679,11 +689,18 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 
 	for (const FBattleTrainerState& Trainer : Trainers)
 	{
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			CompiledEncounterPolicies.FindTrainerPolicy(Trainer.TrainerId);
 		if (!Trainer.TrainerId.IsValid()
+			|| TrainerPolicy == nullptr
 			|| !IsKnownSide(Trainer.Side)
 			|| !IsKnownRole(Trainer.Role)
 			|| !IsKnownController(Trainer.Controller)
 			|| !Trainer.SelectorProfileId.IsValid()
+			|| Trainer.Side != TrainerPolicy->Side
+			|| Trainer.Role != TrainerPolicy->Role
+			|| Trainer.Controller != TrainerPolicy->Controller
+			|| Trainer.SelectorProfileId != TrainerPolicy->SelectorProfileId
 			|| Trainer.PartySlots.Num() != FPartySlotId::PartySize
 			|| Trainer.ActionAllowance.MaximumActions < 0
 			|| Trainer.ActionAllowance.MaximumActions > 2
@@ -1344,7 +1361,7 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			const FBattleTrainerState* Owner = FindTrainer(
 				Request.GetDecisionOwnerTrainerId());
 			if (PendingDecisionRequests.Num() != 1
-				|| !EncounterPolicies.bShiftPromptEligible
+				|| CompiledEncounterPolicies.GetBattleStyle() != EBattleStylePolicy::Shift
 				|| Format != EBattleFormat::Single
 				|| EncounterKind == EBattleEncounterKind::Wild
 				|| Owner == nullptr

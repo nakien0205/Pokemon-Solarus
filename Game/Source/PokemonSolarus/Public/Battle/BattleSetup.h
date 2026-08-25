@@ -2,35 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleCapture.h"
+#include "Battle/BattleEncounterPolicyTypes.h"
 #include "Battle/BattleIdentifiers.h"
 #include "Battle/BattleSetupTypes.h"
 #include "Battle/BattleStats.h"
-
-/** Stable Trainer role inside one frozen battle setup. */
-enum class EBattleTrainerRole : uint8
-{
-	Player = 0,
-	Partner = 1,
-	Opponent = 2
-};
-
-/** Decision source frozen when a battle begins. */
-enum class EBattleDecisionController : uint8
-{
-	Human = 0,
-	PartnerAI = 1,
-	EnemyAI = 2,
-	Scripted = 3
-};
-
-/** Explicit wild-flee probability policy; Disabled is the default. */
-enum class EBattleWildFleeMode : uint8
-{
-	Disabled = 0,
-	Never = 1,
-	Always = 2,
-	Chance = 3
-};
 
 /** Kind of frozen knowledge visible to one observing Trainer. */
 enum class EBattleKnowledgeKind : uint8
@@ -59,7 +34,9 @@ enum class EBattleSetupValidationError : uint8
 	InvalidObedience = 12,
 	InvalidEncounterPolicy = 13,
 	InvalidCaptureProgression = 14,
-	InvalidReinforcement = 15
+	InvalidReinforcement = 15,
+	InvalidPartnerController = 16,
+	InvalidWildReserve = 17
 };
 
 /** Immutable content/settings snapshot identity used across replay boundaries. */
@@ -293,6 +270,12 @@ public:
 		return Policies;
 	}
 
+	/** Returns the successfully compiled encounter policy stored with this setup. */
+	[[nodiscard]] const FBattleCompiledEncounterPolicies& GetCompiledEncounterPolicies() const
+	{
+		return CompiledEncounterPolicies;
+	}
+
 	/** Finds one Trainer by stable identity, or returns null. */
 	[[nodiscard]] const FBattleTrainerSetup* FindTrainer(FTrainerId TrainerId) const;
 
@@ -318,4 +301,5 @@ private:
 	TArray<FBattleKnowledgeFact> KnowledgeFacts;
 	TArray<FBattleObedienceInput> ObedienceInputs;
 	FBattleEncounterPolicies Policies;
+	FBattleCompiledEncounterPolicies CompiledEncounterPolicies;
 };

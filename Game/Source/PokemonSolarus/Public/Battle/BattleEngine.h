@@ -55,6 +55,8 @@ public:
 	[[nodiscard]] FBattleSnapshot GetSnapshot() const;
 	/** Returns a deep snapshot filtered for one exact observing Trainer. */
 	[[nodiscard]] FBattleSnapshot GetSnapshotForObserver(FTrainerId ObserverTrainerId) const;
+	/** Returns the immutable encounter authority transferred from the validated setup. */
+	[[nodiscard]] const FBattleCompiledEncounterPolicies& GetCompiledEncounterPolicies() const;
 
 	/** Starts C03B action selection and creates the first stable owner request batch. */
 	[[nodiscard]] bool TryBeginActionDecisionSequence(FBattleRejection& OutRejection);

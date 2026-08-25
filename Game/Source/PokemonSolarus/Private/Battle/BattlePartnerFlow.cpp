@@ -7,7 +7,7 @@ bool FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
 	FBattlePartnerTeamVictoryRecovery& OutRecovery)
 {
 	OutRecovery = FBattlePartnerTeamVictoryRecovery();
-	if (State.Format != EBattleFormat::PartnerDouble)
+	if (!State.CompiledEncounterPolicies.HasSeparatePartnerOwnership())
 	{
 		return false;
 	}
@@ -15,9 +15,10 @@ bool FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
 	FBattleBattlerState* FirstPlayerBattler = nullptr;
 	for (FBattleBattlerState& Battler : State.Battlers)
 	{
-		const FBattleTrainerState* Trainer = State.FindTrainer(Battler.TrainerId);
-		if (Trainer == nullptr
-			|| Trainer->Role != EBattleTrainerRole::Player
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			State.CompiledEncounterPolicies.FindTrainerPolicy(Battler.TrainerId);
+		if (TrainerPolicy == nullptr
+			|| TrainerPolicy->Role != EBattleTrainerRole::Player
 			|| Battler.bEgg
 			|| Battler.bCaptured)
 		{

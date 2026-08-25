@@ -20,6 +20,23 @@ enum class EBattleFormat : uint8
 	PartnerDouble = 2
 };
 
+/** Stable Trainer role inside one frozen battle setup. */
+enum class EBattleTrainerRole : uint8
+{
+	Player = 0,
+	Partner = 1,
+	Opponent = 2
+};
+
+/** Decision source frozen when a battle begins. */
+enum class EBattleDecisionController : uint8
+{
+	Human = 0,
+	PartnerAI = 1,
+	EnemyAI = 2,
+	Scripted = 3
+};
+
 /** High-level lifecycle phase of a battle. */
 enum class EBattlePhase : uint8
 {

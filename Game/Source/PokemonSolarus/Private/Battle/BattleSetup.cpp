@@ -565,32 +565,41 @@ bool FBattleSetup::TryCreate(
 
 	FBattleSetupInput Canonical = Input;
 	Canonicalize(Canonical);
-	OutSetup.bValid = true;
-	OutSetup.BattleId = Canonical.BattleId;
-	OutSetup.SettingsReference = Canonical.SettingsReference;
-	OutSetup.CatalogReference = Canonical.CatalogReference;
-	OutSetup.EncounterKind = Canonical.EncounterKind;
-	OutSetup.Format = Canonical.Format;
-	OutSetup.Trainers = MoveTemp(Canonical.Trainers);
-	OutSetup.PartyEntries = MoveTemp(Canonical.PartyEntries);
-	OutSetup.StartingActive = MoveTemp(Canonical.StartingActive);
-	OutSetup.CaptureCapacity = Canonical.CaptureCapacity;
-	OutSetup.CaptureProgression = Canonical.CaptureProgression;
-	OutSetup.ConfiguredReinforcementBattlerId = Canonical.ConfiguredReinforcementBattlerId;
-	OutSetup.KnowledgeFacts = MoveTemp(Canonical.KnowledgeFacts);
-	OutSetup.ObedienceInputs = MoveTemp(Canonical.ObedienceInputs);
-	OutSetup.Policies = Canonical.Policies;
+	FBattleSetup Candidate;
+	Candidate.bValid = true;
+	Candidate.BattleId = Canonical.BattleId;
+	Candidate.SettingsReference = Canonical.SettingsReference;
+	Candidate.CatalogReference = Canonical.CatalogReference;
+	Candidate.EncounterKind = Canonical.EncounterKind;
+	Candidate.Format = Canonical.Format;
+	Candidate.Trainers = MoveTemp(Canonical.Trainers);
+	Candidate.PartyEntries = MoveTemp(Canonical.PartyEntries);
+	Candidate.StartingActive = MoveTemp(Canonical.StartingActive);
+	Candidate.CaptureCapacity = Canonical.CaptureCapacity;
+	Candidate.CaptureProgression = Canonical.CaptureProgression;
+	Candidate.ConfiguredReinforcementBattlerId = Canonical.ConfiguredReinforcementBattlerId;
+	Candidate.KnowledgeFacts = MoveTemp(Canonical.KnowledgeFacts);
+	Candidate.ObedienceInputs = MoveTemp(Canonical.ObedienceInputs);
+	Candidate.Policies = Canonical.Policies;
 
 	FBattleCompiledEncounterPolicies CompiledPolicies;
 	EBattleEncounterPolicyError PolicyError = EBattleEncounterPolicyError::None;
-	if (!FBattleEncounterPolicyCompiler::TryCompile(OutSetup, CompiledPolicies, PolicyError))
+	if (!FBattleEncounterPolicyCompiler::TryCompile(Candidate, CompiledPolicies, PolicyError))
 	{
-		OutSetup = FBattleSetup();
-		return Fail(
-			PolicyError == EBattleEncounterPolicyError::InvalidTrainerShape
-				? EBattleSetupValidationError::TrainerShape
-				: EBattleSetupValidationError::InvalidEncounterPolicy);
+		switch (PolicyError)
+		{
+		case EBattleEncounterPolicyError::InvalidTrainerShape:
+			return Fail(EBattleSetupValidationError::TrainerShape);
+		case EBattleEncounterPolicyError::InvalidPartnerController:
+			return Fail(EBattleSetupValidationError::InvalidPartnerController);
+		case EBattleEncounterPolicyError::InvalidWildReserve:
+			return Fail(EBattleSetupValidationError::InvalidWildReserve);
+		default:
+			return Fail(EBattleSetupValidationError::InvalidEncounterPolicy);
+		}
 	}
+	Candidate.CompiledEncounterPolicies = MoveTemp(CompiledPolicies);
+	OutSetup = MoveTemp(Candidate);
 	return true;
 }
 

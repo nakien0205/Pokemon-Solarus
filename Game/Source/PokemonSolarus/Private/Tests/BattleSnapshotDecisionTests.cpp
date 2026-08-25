@@ -26,8 +26,8 @@ namespace BattleSnapshotDecisionTests
 	const TCHAR* NormalMoveName = TEXT("Move.C03B.Neutral");
 	const TCHAR* EmptyMoveName = TEXT("Move.C03B.EmptyPP");
 	const TCHAR* AbilityName = TEXT("Ability.C03B.Core");
-	const TCHAR* PotionName = TEXT("Item.C03B.Potion");
-	const TCHAR* BallName = TEXT("Item.C03B.Ball");
+	const TCHAR* BattleItemName = TEXT("Item.XAttack");
+	const TCHAR* BallName = TEXT("Item.PokeBall");
 	const TCHAR* SecretItemName = TEXT("Item.C03B.Secret");
 	const TCHAR* RainName = TEXT("Condition.C03B.Rain");
 	const TCHAR* SpikesName = TEXT("Condition.C03B.Spikes");
@@ -91,7 +91,7 @@ namespace BattleSnapshotDecisionTests
 		Input.Moves.Add(MakeMove(NormalMoveName));
 		Input.Moves.Add(MakeMove(EmptyMoveName));
 		Input.Abilities.Add({MakeDefinitionId<FAbilityId>(AbilityName)});
-		Input.Items.Add({MakeDefinitionId<FItemId>(PotionName), EBattleItemKind::Battle});
+		Input.Items.Add({MakeDefinitionId<FItemId>(BattleItemName), EBattleItemKind::Battle});
 		Input.Items.Add({MakeDefinitionId<FItemId>(BallName), EBattleItemKind::Capture});
 		Input.Items.Add({MakeDefinitionId<FItemId>(SecretItemName), EBattleItemKind::Held});
 		Input.Conditions.Add(
@@ -127,7 +127,7 @@ namespace BattleSnapshotDecisionTests
 		Trainer.SelectorProfileId = MakeDefinitionId<FDefinitionId>(
 			Role == EBattleTrainerRole::Player ? TEXT("Selector.C03B.Player")
 			: (Role == EBattleTrainerRole::Partner ? TEXT("Selector.C03B.Partner") : TEXT("Selector.C03B.Enemy")));
-		Trainer.Bag.Add({MakeDefinitionId<FItemId>(PotionName), 2});
+		Trainer.Bag.Add({MakeDefinitionId<FItemId>(BattleItemName), 2});
 		if (Role == EBattleTrainerRole::Player)
 		{
 			Trainer.Bag.Add({MakeDefinitionId<FItemId>(BallName), 1});
@@ -211,6 +211,7 @@ namespace BattleSnapshotDecisionTests
 		Input.Policies.bBagAllowed = true;
 		Input.Policies.bRunAllowed = false;
 		Input.Policies.bCaptureAllowed = false;
+		Input.Policies.bShiftPromptEligible = Format == EBattleFormat::Single;
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
 		Input.Trainers.Add(MakeTrainer(
@@ -458,6 +459,320 @@ namespace BattleSnapshotDecisionTests
 					&& Option.Reason == Reason;
 			});
 	}
+
+	template <typename ValueType>
+	bool AreSimpleViewsEqual(
+		const TConstArrayView<ValueType> Left,
+		const TConstArrayView<ValueType> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (!(Left[Index] == Right[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreCompiledPoliciesEqual(
+		const FBattleCompiledEncounterPolicies& Left,
+		const FBattleCompiledEncounterPolicies& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetEncounterKind() != Right.GetEncounterKind()
+			|| Left.GetFormat() != Right.GetFormat()
+			|| Left.GetMaximumActiveBattlersPerSide() != Right.GetMaximumActiveBattlersPerSide()
+			|| Left.GetMaximumPartySize() != Right.GetMaximumPartySize()
+			|| Left.IsRunAllowed() != Right.IsRunAllowed()
+			|| Left.IsCaptureAllowed() != Right.IsCaptureAllowed()
+			|| Left.IsBagAllowed() != Right.IsBagAllowed()
+			|| Left.GetBattleStyle() != Right.GetBattleStyle()
+			|| Left.GetReinforcementPolicy() != Right.GetReinforcementPolicy()
+			|| Left.IsWildFleeConfigured() != Right.IsWildFleeConfigured()
+			|| Left.GetWildFleeMode() != Right.GetWildFleeMode()
+			|| Left.GetWildFleeNumerator() != Right.GetWildFleeNumerator()
+			|| Left.GetWildFleeDenominator() != Right.GetWildFleeDenominator()
+			|| Left.IsScriptedEndingAllowed() != Right.IsScriptedEndingAllowed()
+			|| Left.HasSeparatePartnerOwnership() != Right.HasSeparatePartnerOwnership()
+			|| Left.GetTrainerPolicies().Num() != Right.GetTrainerPolicies().Num())
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < Left.GetTrainerPolicies().Num(); ++Index)
+		{
+			const FBattleTrainerEncounterPolicy& LeftTrainer = Left.GetTrainerPolicies()[Index];
+			const FBattleTrainerEncounterPolicy& RightTrainer = Right.GetTrainerPolicies()[Index];
+			if (LeftTrainer.TrainerId != RightTrainer.TrainerId
+				|| LeftTrainer.Side != RightTrainer.Side
+				|| LeftTrainer.Role != RightTrainer.Role
+				|| LeftTrainer.Controller != RightTrainer.Controller
+				|| LeftTrainer.SelectorProfileId != RightTrainer.SelectorProfileId
+				|| LeftTrainer.SelectorProfileTag != RightTrainer.SelectorProfileTag
+				|| LeftTrainer.bMayUseBag != RightTrainer.bMayUseBag
+				|| LeftTrainer.bMayUseRevive != RightTrainer.bMayUseRevive
+				|| LeftTrainer.bMayRun != RightTrainer.bMayRun
+				|| LeftTrainer.bMayCapture != RightTrainer.bMayCapture
+				|| LeftTrainer.bMayVoluntarilySwitch != RightTrainer.bMayVoluntarilySwitch
+				|| LeftTrainer.bPartnerOwnsSeparatePartyAndBag
+					!= RightTrainer.bPartnerOwnsSeparatePartyAndBag)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreRequestsEqual(
+		const TConstArrayView<FBattleDecisionRequest> Left,
+		const TConstArrayView<FBattleDecisionRequest> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 RequestIndex = 0; RequestIndex < Left.Num(); ++RequestIndex)
+		{
+			const FBattleDecisionRequest& LeftRequest = Left[RequestIndex];
+			const FBattleDecisionRequest& RightRequest = Right[RequestIndex];
+			if (LeftRequest.GetStateVersion() != RightRequest.GetStateVersion()
+				|| LeftRequest.GetRequestKind() != RightRequest.GetRequestKind()
+				|| LeftRequest.GetDecisionOwnerTrainerId()
+					!= RightRequest.GetDecisionOwnerTrainerId()
+				|| LeftRequest.GetActingBattlerId() != RightRequest.GetActingBattlerId()
+				|| LeftRequest.GetActingSlotId() != RightRequest.GetActingSlotId()
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalActionKinds(),
+					RightRequest.GetLegalActionKinds())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalMoveIds(),
+					RightRequest.GetLegalMoveIds())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetAutomaticallyTargetedMoveIds(),
+					RightRequest.GetAutomaticallyTargetedMoveIds())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalSwitchPartySlots(),
+					RightRequest.GetLegalSwitchPartySlots())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalItemIds(),
+					RightRequest.GetLegalItemIds())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalActiveTargets(),
+					RightRequest.GetLegalActiveTargets())
+				|| !AreSimpleViewsEqual(
+					LeftRequest.GetLegalPartyTargets(),
+					RightRequest.GetLegalPartyTargets()))
+			{
+				return false;
+			}
+
+			const TConstArrayView<FBattleMoveTargetOption> LeftMoveTargets =
+				LeftRequest.GetLegalMoveTargets();
+			const TConstArrayView<FBattleMoveTargetOption> RightMoveTargets =
+				RightRequest.GetLegalMoveTargets();
+			if (LeftMoveTargets.Num() != RightMoveTargets.Num())
+			{
+				return false;
+			}
+			for (int32 Index = 0; Index < LeftMoveTargets.Num(); ++Index)
+			{
+				if (LeftMoveTargets[Index].MoveId != RightMoveTargets[Index].MoveId
+					|| LeftMoveTargets[Index].ActiveSlotId
+						!= RightMoveTargets[Index].ActiveSlotId)
+				{
+					return false;
+				}
+			}
+
+			const TConstArrayView<FBattleUnavailableDecisionOption> LeftUnavailable =
+				LeftRequest.GetUnavailableOptions();
+			const TConstArrayView<FBattleUnavailableDecisionOption> RightUnavailable =
+				RightRequest.GetUnavailableOptions();
+			if (LeftUnavailable.Num() != RightUnavailable.Num())
+			{
+				return false;
+			}
+			for (int32 Index = 0; Index < LeftUnavailable.Num(); ++Index)
+			{
+				const FBattleUnavailableDecisionOption& LeftOption = LeftUnavailable[Index];
+				const FBattleUnavailableDecisionOption& RightOption = RightUnavailable[Index];
+				if (LeftOption.Kind != RightOption.Kind
+					|| LeftOption.Reason != RightOption.Reason
+					|| LeftOption.ActionKind != RightOption.ActionKind
+					|| LeftOption.MoveId != RightOption.MoveId
+					|| LeftOption.PartySlotId != RightOption.PartySlotId
+					|| LeftOption.ItemId != RightOption.ItemId
+					|| LeftOption.ActiveSlotId != RightOption.ActiveSlotId)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool AreEventsEqual(
+		const TConstArrayView<FBattleEvent> Left,
+		const TConstArrayView<FBattleEvent> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 EventIndex = 0; EventIndex < Left.Num(); ++EventIndex)
+		{
+			const FBattleEvent& LeftEvent = Left[EventIndex];
+			const FBattleEvent& RightEvent = Right[EventIndex];
+			if (LeftEvent.GetEventOrdinal() != RightEvent.GetEventOrdinal()
+				|| LeftEvent.GetBattleId() != RightEvent.GetBattleId()
+				|| LeftEvent.GetTurnId() != RightEvent.GetTurnId()
+				|| LeftEvent.GetActionId() != RightEvent.GetActionId()
+				|| LeftEvent.GetResolutionId() != RightEvent.GetResolutionId()
+				|| LeftEvent.GetType() != RightEvent.GetType()
+				|| LeftEvent.GetCause() != RightEvent.GetCause()
+				|| LeftEvent.GetCauseActionKind() != RightEvent.GetCauseActionKind()
+				|| LeftEvent.GetOutcomeCause() != RightEvent.GetOutcomeCause()
+				|| LeftEvent.GetSource().TrainerId != RightEvent.GetSource().TrainerId
+				|| LeftEvent.GetSource().BattlerId != RightEvent.GetSource().BattlerId
+				|| LeftEvent.GetSource().ActiveSlotId != RightEvent.GetSource().ActiveSlotId
+				|| LeftEvent.GetSource().DefinitionId != RightEvent.GetSource().DefinitionId
+				|| LeftEvent.GetNumericBefore() != RightEvent.GetNumericBefore()
+				|| LeftEvent.GetNumericAfter() != RightEvent.GetNumericAfter()
+				|| LeftEvent.GetNumericDelta() != RightEvent.GetNumericDelta()
+				|| LeftEvent.GetTargets().Num() != RightEvent.GetTargets().Num())
+			{
+				return false;
+			}
+			for (int32 TargetIndex = 0; TargetIndex < LeftEvent.GetTargets().Num(); ++TargetIndex)
+			{
+				const FBattleEventTarget& LeftTarget = LeftEvent.GetTargets()[TargetIndex];
+				const FBattleEventTarget& RightTarget = RightEvent.GetTargets()[TargetIndex];
+				if (LeftTarget.TrainerId != RightTarget.TrainerId
+					|| LeftTarget.BattlerId != RightTarget.BattlerId
+					|| LeftTarget.ActiveSlotId != RightTarget.ActiveSlotId
+					|| LeftTarget.Side != RightTarget.Side
+					|| LeftTarget.bHasSide != RightTarget.bHasSide
+					|| LeftTarget.bField != RightTarget.bField)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool AreSnapshotsEqual(const FBattleSnapshot& Left, const FBattleSnapshot& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetStateVersion() != Right.GetStateVersion()
+			|| Left.GetBattleId() != Right.GetBattleId()
+			|| Left.GetTurnId() != Right.GetTurnId()
+			|| Left.GetPhase() != Right.GetPhase()
+			|| Left.GetEncounterKind() != Right.GetEncounterKind()
+			|| Left.GetFormat() != Right.GetFormat()
+			|| Left.GetOutcome() != Right.GetOutcome()
+			|| Left.GetOutcomeCause() != Right.GetOutcomeCause()
+			|| Left.GetTrainers().Num() != Right.GetTrainers().Num()
+			|| Left.GetPartyEntries().Num() != Right.GetPartyEntries().Num()
+			|| Left.GetActiveAssignments().Num() != Right.GetActiveAssignments().Num()
+			|| !AreRequestsEqual(
+				Left.GetPendingDecisionRequests(),
+				Right.GetPendingDecisionRequests()))
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < Left.GetTrainers().Num(); ++Index)
+		{
+			const FBattleTrainerSetup& LeftTrainer = Left.GetTrainers()[Index];
+			const FBattleTrainerSetup& RightTrainer = Right.GetTrainers()[Index];
+			if (LeftTrainer.TrainerId != RightTrainer.TrainerId
+				|| LeftTrainer.Side != RightTrainer.Side
+				|| LeftTrainer.Role != RightTrainer.Role
+				|| LeftTrainer.Controller != RightTrainer.Controller
+				|| LeftTrainer.SelectorProfileId != RightTrainer.SelectorProfileId
+				|| LeftTrainer.Bag.Num() != RightTrainer.Bag.Num())
+			{
+				return false;
+			}
+			for (int32 BagIndex = 0; BagIndex < LeftTrainer.Bag.Num(); ++BagIndex)
+			{
+				if (LeftTrainer.Bag[BagIndex].ItemId != RightTrainer.Bag[BagIndex].ItemId
+					|| LeftTrainer.Bag[BagIndex].Count != RightTrainer.Bag[BagIndex].Count)
+				{
+					return false;
+				}
+			}
+		}
+
+		for (int32 Index = 0; Index < Left.GetPartyEntries().Num(); ++Index)
+		{
+			const FBattlePartyEntrySetup& LeftEntry = Left.GetPartyEntries()[Index];
+			const FBattlePartyEntrySetup& RightEntry = Right.GetPartyEntries()[Index];
+			if (LeftEntry.TrainerId != RightEntry.TrainerId
+				|| LeftEntry.BattlerId != RightEntry.BattlerId
+				|| LeftEntry.SourcePokemonId != RightEntry.SourcePokemonId
+				|| LeftEntry.PartySlotId != RightEntry.PartySlotId
+				|| LeftEntry.SpeciesFormId != RightEntry.SpeciesFormId
+				|| LeftEntry.Level != RightEntry.Level
+				|| LeftEntry.Stats.MaxHP != RightEntry.Stats.MaxHP
+				|| LeftEntry.Stats.Attack != RightEntry.Stats.Attack
+				|| LeftEntry.Stats.Defense != RightEntry.Stats.Defense
+				|| LeftEntry.Stats.SpecialAttack != RightEntry.Stats.SpecialAttack
+				|| LeftEntry.Stats.SpecialDefense != RightEntry.Stats.SpecialDefense
+				|| LeftEntry.Stats.Speed != RightEntry.Stats.Speed
+				|| LeftEntry.CurrentHP != RightEntry.CurrentHP
+				|| LeftEntry.bEgg != RightEntry.bEgg
+				|| LeftEntry.AbilityId != RightEntry.AbilityId
+				|| LeftEntry.OriginalHeldItemId != RightEntry.OriginalHeldItemId
+				|| LeftEntry.CurrentHeldItemId != RightEntry.CurrentHeldItemId
+				|| LeftEntry.CaptureClassification != RightEntry.CaptureClassification
+				|| LeftEntry.Moves.Num() != RightEntry.Moves.Num())
+			{
+				return false;
+			}
+			for (int32 MoveIndex = 0; MoveIndex < LeftEntry.Moves.Num(); ++MoveIndex)
+			{
+				const FBattleMoveSlotSetup& LeftMove = LeftEntry.Moves[MoveIndex];
+				const FBattleMoveSlotSetup& RightMove = RightEntry.Moves[MoveIndex];
+				if (LeftMove.SlotIndex != RightMove.SlotIndex
+					|| LeftMove.MoveId != RightMove.MoveId
+					|| LeftMove.CurrentPP != RightMove.CurrentPP
+					|| LeftMove.MaxPP != RightMove.MaxPP)
+				{
+					return false;
+				}
+			}
+		}
+
+		for (int32 Index = 0; Index < Left.GetActiveAssignments().Num(); ++Index)
+		{
+			const FBattleActiveAssignment& LeftActive = Left.GetActiveAssignments()[Index];
+			const FBattleActiveAssignment& RightActive = Right.GetActiveAssignments()[Index];
+			if (LeftActive.ActiveSlotId != RightActive.ActiveSlotId
+				|| LeftActive.TrainerId != RightActive.TrainerId
+				|| LeftActive.BattlerId != RightActive.BattlerId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void AppendEvents(
+		const FBattleResolution& Resolution,
+		TArray<FBattleEvent>& OutEvents)
+	{
+		for (const FBattleEvent& Event : Resolution.GetEvents())
+		{
+			OutEvents.Add(Event);
+		}
+	}
 }
 
 class FBattleSnapshotDecisionTestFixture
@@ -676,12 +991,12 @@ bool FBattleC03BDoubleBatchTest::RunTest(const FString& Parameters)
 
 	const FMoveId NormalMove = MakeDefinitionId<FMoveId>(NormalMoveName);
 	const FMoveId EmptyMove = MakeDefinitionId<FMoveId>(EmptyMoveName);
-	const FItemId Potion = MakeDefinitionId<FItemId>(PotionName);
+	const FItemId BattleItem = MakeDefinitionId<FItemId>(BattleItemName);
 	const FItemId Ball = MakeDefinitionId<FItemId>(BallName);
 	TestTrue(TEXT("Only the usable catalog move is legal"), Requests[0].GetLegalMoveIds().Contains(NormalMove));
 	TestFalse(TEXT("A zero-PP move is not legal"), Requests[0].GetLegalMoveIds().Contains(EmptyMove));
 	TestTrue(TEXT("The zero-PP move has a typed reason"), HasUnavailableMove(Requests[0], EmptyMove, EBattleOptionUnavailableReason::NoPP));
-	TestTrue(TEXT("The owned battle item is legal"), Requests[0].GetLegalItemIds().Contains(Potion));
+	TestTrue(TEXT("The owned battle item is legal"), Requests[0].GetLegalItemIds().Contains(BattleItem));
 	TestFalse(TEXT("Capture item is not legal in this Trainer battle"), Requests[0].GetLegalItemIds().Contains(Ball));
 	TestTrue(TEXT("Capture restriction has a typed reason"), HasUnavailableItem(Requests[0], Ball, EBattleOptionUnavailableReason::CaptureRestricted));
 	TestTrue(TEXT("The living reserve is a legal switch"), Requests[0].GetLegalSwitchPartySlots().Contains(MakePartySlotId(2)));
@@ -869,6 +1184,215 @@ bool FBattleC03BStatRefreshTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The stale refresh reason is typed"), Stale.GetRejection().Reason, EBattleRejectionReason::StaleStateVersion);
 	TestEqual(TEXT("A stale refresh leaves gameplay version unchanged"), Engine->GetSnapshot().GetStateVersion(), VersionAfterApplied);
 	TestEqual(TEXT("A stale refresh consumes no RNG"), Engine->ExportRandomTrace().Num(), DrawsAfterApplied);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B2SameSetupSameSeedEndToEndTest,
+	"PokemonSolarus.Battle.ADR0002.3B2.RuntimeAuthority.Determinism.SameSetupSameSeedEndToEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleADR00023B2SameSetupSameSeedEndToEndTest::RunTest(const FString& Parameters)
+{
+	FBattleSetupInput Input = MakeSetupInput(EBattleFormat::Single);
+	for (FBattleObedienceInput& Obedience : Input.ObedienceInputs)
+	{
+		Obedience.bSubjectToPlayerCap = false;
+	}
+
+	FBattleSetup Setup;
+	EBattleSetupValidationError SetupError = EBattleSetupValidationError::None;
+	const bool bSetupCreated = FBattleSetup::TryCreate(Input, Setup, SetupError);
+	TestTrue(TEXT("The shared setup compiles exactly once"), bSetupCreated);
+	if (!bSetupCreated)
+	{
+		return false;
+	}
+
+	const FBattleDefinitionCatalog Catalog = MakeCatalog();
+	TUniquePtr<FBattleEngine> First;
+	TUniquePtr<FBattleEngine> Second;
+	FBattleRejection FirstRejection;
+	FBattleRejection SecondRejection;
+	const bool bFirstCreated = FBattleEngine::TryCreate(
+		Setup,
+		Catalog,
+		MakeUnique<FSeededBattleRandom>(303),
+		First,
+		FirstRejection);
+	const bool bSecondCreated = FBattleEngine::TryCreate(
+		Setup,
+		Catalog,
+		MakeUnique<FSeededBattleRandom>(303),
+		Second,
+		SecondRejection);
+	TestTrue(TEXT("Both engines accept the same compiled setup"), bFirstCreated && bSecondCreated);
+	if (!bFirstCreated || !bSecondCreated)
+	{
+		return false;
+	}
+
+	TestTrue(
+		TEXT("The first engine stores the setup's compiled policy value"),
+		AreCompiledPoliciesEqual(
+			Setup.GetCompiledEncounterPolicies(),
+			First->GetCompiledEncounterPolicies()));
+	TestTrue(
+		TEXT("The second engine stores the same compiled policy value"),
+		AreCompiledPoliciesEqual(
+			Setup.GetCompiledEncounterPolicies(),
+			Second->GetCompiledEncounterPolicies()));
+
+	TestTrue(
+		TEXT("Both action-decision sequences begin"),
+		First->TryBeginActionDecisionSequence(FirstRejection)
+			&& Second->TryBeginActionDecisionSequence(SecondRejection));
+
+	TArray<FBattleEvent> FirstEvents;
+	TArray<FBattleEvent> SecondEvents;
+	auto RecordMatchingResolution = [this, &FirstEvents, &SecondEvents](
+		const TCHAR* AcceptanceLabel,
+		const FBattleResolution& FirstResolution,
+		const FBattleResolution& SecondResolution)
+	{
+		const bool bBothAccepted = FirstResolution.WasAccepted()
+			&& SecondResolution.WasAccepted();
+		TestTrue(AcceptanceLabel, bBothAccepted);
+		const bool bEventsMatch = AreEventsEqual(
+			FirstResolution.GetEvents(),
+			SecondResolution.GetEvents());
+		TestTrue(TEXT("The paired resolutions emit identical ordered events"), bEventsMatch);
+		AppendEvents(FirstResolution, FirstEvents);
+		AppendEvents(SecondResolution, SecondEvents);
+		return bBothAccepted && bEventsMatch;
+	};
+
+	for (int32 OwnerIndex = 0; OwnerIndex < 2; ++OwnerIndex)
+	{
+		const TArray<FBattleDecisionRequest> FirstRequests =
+			First->GetPendingDecisionRequests();
+		const TArray<FBattleDecisionRequest> SecondRequests =
+			Second->GetPendingDecisionRequests();
+		TestTrue(
+			TEXT("The same compiled authority projects identical requests"),
+			AreRequestsEqual(FirstRequests, SecondRequests));
+		TestEqual(TEXT("Single format requests one decision per owner"), FirstRequests.Num(), 1);
+		if (FirstRequests.Num() != 1 || SecondRequests.Num() != 1)
+		{
+			return false;
+		}
+
+		const FBattleResolution FirstSubmission = First->SubmitDecisionBatch(
+			MakeBatch(FirstRequests, 1, false));
+		const FBattleResolution SecondSubmission = Second->SubmitDecisionBatch(
+			MakeBatch(SecondRequests, 1, false));
+		if (!RecordMatchingResolution(
+			TEXT("Both engines accept the same selector batch"),
+			FirstSubmission,
+			SecondSubmission))
+		{
+			return false;
+		}
+	}
+
+	TestEqual(TEXT("Both selector sequences lock the same turn"), First->GetSnapshot().GetPhase(), EBattlePhase::Locked);
+	TestEqual(TEXT("The second selector sequence also locks"), Second->GetSnapshot().GetPhase(), EBattlePhase::Locked);
+	int32 ActionGuard = 0;
+	while (First->GetSnapshot().GetPhase() != EBattlePhase::EndOfTurn
+		&& ActionGuard++ < 4)
+	{
+		TestEqual(
+			TEXT("Both engines enter each action from the same phase"),
+			First->GetSnapshot().GetPhase(),
+			Second->GetSnapshot().GetPhase());
+
+		const FBattleResolution FirstStart = First->BeginNextLockedAction();
+		const FBattleResolution SecondStart = Second->BeginNextLockedAction();
+		if (!RecordMatchingResolution(
+			TEXT("Both engines start the same locked action"),
+			FirstStart,
+			SecondStart))
+		{
+			return false;
+		}
+
+		const FBattleResolution FirstCommit = First->CommitCurrentMoveAfterPreMoveGates();
+		const FBattleResolution SecondCommit = Second->CommitCurrentMoveAfterPreMoveGates();
+		if (!RecordMatchingResolution(
+			TEXT("Both engines commit the same move"),
+			FirstCommit,
+			SecondCommit))
+		{
+			return false;
+		}
+
+		const FBattleResolution FirstTargets = First->ResolveCurrentMoveTargets();
+		const FBattleResolution SecondTargets = Second->ResolveCurrentMoveTargets();
+		if (!RecordMatchingResolution(
+			TEXT("Both engines resolve the same targets"),
+			FirstTargets,
+			SecondTargets))
+		{
+			return false;
+		}
+
+		const FBattleResolution FirstEffects = First->ExecuteCurrentMoveEffects();
+		const FBattleResolution SecondEffects = Second->ExecuteCurrentMoveEffects();
+		if (!RecordMatchingResolution(
+			TEXT("Both engines execute the same effects"),
+			FirstEffects,
+			SecondEffects))
+		{
+			return false;
+		}
+	}
+
+	TestEqual(TEXT("The complete turn reaches EndOfTurn"), First->GetSnapshot().GetPhase(), EBattlePhase::EndOfTurn);
+	TestEqual(TEXT("The second complete turn reaches EndOfTurn"), Second->GetSnapshot().GetPhase(), EBattlePhase::EndOfTurn);
+	const FBattleResolution FirstEndTurn = First->ResolveEndTurn();
+	const FBattleResolution SecondEndTurn = Second->ResolveEndTurn();
+	if (!RecordMatchingResolution(
+		TEXT("Both engines resolve the same end-turn pass"),
+		FirstEndTurn,
+		SecondEndTurn))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("The full ordered event streams are identical"), AreEventsEqual(FirstEvents, SecondEvents));
+	TestTrue(TEXT("The deterministic proof emitted events"), !FirstEvents.IsEmpty());
+
+	const FBattleSnapshot FirstSnapshot = First->GetSnapshot();
+	const FBattleSnapshot SecondSnapshot = Second->GetSnapshot();
+	TestTrue(
+		TEXT("The final deep snapshots are identical"),
+		AreSnapshotsEqual(FirstSnapshot, SecondSnapshot));
+
+	const TArray<FBattleRandomDraw> FirstTrace = First->ExportRandomTrace();
+	const TArray<FBattleRandomDraw> SecondTrace = Second->ExportRandomTrace();
+	TestTrue(TEXT("The deterministic proof consumed traced RNG"), !FirstTrace.IsEmpty());
+	TestTrue(TEXT("The complete RNG traces are identical"), FirstTrace == SecondTrace);
+
+	const FBattleReplayRecord FirstReplay = First->ExportReplayRecord();
+	const FBattleReplayRecord SecondReplay = Second->ExportReplayRecord();
+	TestEqual(TEXT("The first replay remains schema 6"), FirstReplay.GetSchemaVersion(), 6U);
+	TestEqual(TEXT("The second replay remains schema 6"), SecondReplay.GetSchemaVersion(), 6U);
+	TArray<uint8> FirstBytes;
+	TArray<uint8> SecondBytes;
+	TestTrue(
+		TEXT("The first complete replay serializes canonically"),
+		FBattleReplaySerializer::TrySerializeCanonical(
+			FirstReplay,
+			FirstBytes,
+			FirstRejection));
+	TestTrue(
+		TEXT("The second complete replay serializes canonically"),
+		FBattleReplaySerializer::TrySerializeCanonical(
+			SecondReplay,
+			SecondBytes,
+			SecondRejection));
+	TestTrue(TEXT("Same setup, seed, and inputs produce byte-identical replays"), FirstBytes == SecondBytes);
+	TestTrue(TEXT("The canonical replay proof is non-empty"), !FirstBytes.IsEmpty());
 	return true;
 }
 

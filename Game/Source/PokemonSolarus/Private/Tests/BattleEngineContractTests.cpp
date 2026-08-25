@@ -11,13 +11,14 @@ namespace BattleEngineContractTests
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
 
-	FBattleSetup MakeEngineSetup()
+	FBattleSetup MakeEngineSetup(
+		const EBattleEncounterKind EncounterKind = EBattleEncounterKind::TutorialScripted)
 	{
 		FBattleSetupInput Input;
 		Input.BattleId = MakeNumericId<FBattleId>(500);
 		Input.SettingsReference = {MakeDefinitionId<FDefinitionId>(TEXT("Settings.Casual")), 1};
 		Input.CatalogReference = {MakeDefinitionId<FDefinitionId>(TEXT("Catalog.Contract")), 1};
-		Input.EncounterKind = EBattleEncounterKind::Trainer;
+		Input.EncounterKind = EncounterKind;
 		Input.Format = EBattleFormat::Single;
 		Input.CaptureCapacity = {4, 100};
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
@@ -334,6 +335,41 @@ bool FBattleC01BSnapshotImmutabilityTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The old snapshot keeps its original phase"), Before.GetPhase(), EBattlePhase::Selecting);
 	TestEqual(TEXT("The old snapshot keeps its deep-copied battler facts"), Before.FindBattler(MakeNumericId<FBattlerId>(11))->CurrentHP, BeforeHP);
 	TestEqual(TEXT("A new snapshot observes the advanced version"), Engine->GetSnapshot().GetStateVersion(), 2ULL);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B2ScriptedEndingAuthorityTest,
+	"PokemonSolarus.Battle.ADR0002.3B2.RuntimeAuthority.ScriptedEnding.CompiledPermission",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleADR00023B2ScriptedEndingAuthorityTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	FBattleRejection Rejection;
+	TestTrue(
+		TEXT("A Trainer fixture can expose a forged scripted-ending request"),
+		FBattleEngineContractFixture::TryCreate(
+			MakeEngineSetup(EBattleEncounterKind::Trainer),
+			MakeUnique<FSeededBattleRandom>(123),
+			MakeScriptedRequest(1),
+			false,
+			Engine,
+			Rejection));
+	check(Engine.IsValid());
+	TestFalse(TEXT("Trainer policy denies scripted endings"),
+		Engine->GetCompiledEncounterPolicies().IsScriptedEndingAllowed());
+
+	const FBattleResolution Result = Engine->SubmitDecision(MakeScriptedDecision(1));
+	TestFalse(TEXT("A request cannot override compiled scripted-ending policy"),
+		Result.WasAccepted());
+	TestEqual(TEXT("The denial is a typed illegal action"),
+		Result.GetRejection().Reason, EBattleRejectionReason::IllegalAction);
+	TestEqual(TEXT("Denied scripted ending leaves the battle selecting"),
+		Engine->GetSnapshot().GetPhase(), EBattlePhase::Selecting);
+	TestEqual(TEXT("Denied scripted ending consumes no RNG"),
+		Engine->ExportRandomTrace().Num(), 0);
 	return true;
 }
 

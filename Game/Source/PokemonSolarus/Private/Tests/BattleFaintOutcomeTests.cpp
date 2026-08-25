@@ -1277,7 +1277,9 @@ namespace BattleFaintOutcomeTests
 			MakeNumericId<FBattlerId>(PlayerLeftBattlerValue));
 		const FBattleObservedBattler* Partner = First.Snapshot.FindObservedBattler(
 			MakeNumericId<FBattlerId>(PartnerBattlerValue));
-		TestTrue(TEXT("The player-owned battler fainted"), Player != nullptr && Player->bFainted);
+		TestTrue(
+			TEXT("The player-owned battler is recovered to one HP"),
+			Player != nullptr && !Player->bFainted && Player->CurrentHP == 1);
 		TestTrue(TEXT("The partner remains usable"), Partner != nullptr && !Partner->bFainted);
 		TestEqual(TEXT("The partner spread consumes three damage draws"),
 			First.RandomTrace.Num(), 3);

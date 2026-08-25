@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Battle/BattleAbilityItemContracts.h"
 #include "Battle/BattleDefinitionCatalog.h"
+#include "Battle/BattleEncounterPolicyTypes.h"
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleStatStages.h"
 #include "Battle/BattleTriggerFramework.h"
@@ -257,6 +258,10 @@ public:
 	[[nodiscard]] FTurnId GetTurnId() const { return TurnId; }
 	[[nodiscard]] EBattleEncounterKind GetEncounterKind() const { return EncounterKind; }
 	[[nodiscard]] EBattleFormat GetFormat() const { return Format; }
+	[[nodiscard]] const FBattleCompiledEncounterPolicies& GetCompiledEncounterPolicies() const
+	{
+		return CompiledEncounterPolicies;
+	}
 	[[nodiscard]] EBattlePhase GetPhase() const { return Phase; }
 	[[nodiscard]] EBattleOutcome GetOutcome() const { return Outcome; }
 	[[nodiscard]] EBattleOutcomeCause GetOutcomeCause() const { return OutcomeCause; }
@@ -301,7 +306,7 @@ public:
 	bool bReinforcementSucceeded = false;
 	uint32 EscapeAttemptCount = 1;
 	FBattleCaptureCapacitySnapshot CaptureCapacity;
-	FBattleEncounterPolicies EncounterPolicies;
+	FBattleCompiledEncounterPolicies CompiledEncounterPolicies;
 	TArray<FBattleWildFleePolicyState> WildFleePolicies;
 	TArray<FBattleLockedActionState> LockedActions;
 	bool bLockedOrderReversesSpeed = false;

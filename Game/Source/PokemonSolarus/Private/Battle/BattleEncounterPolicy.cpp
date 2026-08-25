@@ -158,6 +158,16 @@ bool FBattleEncounterPolicyCompiler::TryCompile(
 	{
 		return Fail(EBattleEncounterPolicyError::InvalidTrainerShape);
 	}
+	if (Setup.GetTrainers().ContainsByPredicate(
+		[](const FBattleTrainerSetup& Trainer)
+		{
+			return Trainer.Role == EBattleTrainerRole::Partner
+				&& Trainer.Controller != EBattleDecisionController::Human
+				&& Trainer.Controller != EBattleDecisionController::PartnerAI;
+		}))
+	{
+		return Fail(EBattleEncounterPolicyError::InvalidPartnerController);
+	}
 	if (Setup.GetEncounterKind() == EBattleEncounterKind::Wild
 		&& Setup.GetTrainers().ContainsByPredicate(
 			[](const FBattleTrainerSetup& Trainer)
@@ -167,6 +177,26 @@ bool FBattleEncounterPolicyCompiler::TryCompile(
 			}))
 	{
 		return Fail(EBattleEncounterPolicyError::IncompatibleCommandPolicy);
+	}
+	if (Setup.GetEncounterKind() == EBattleEncounterKind::Wild
+		&& Setup.GetPartyEntries().ContainsByPredicate(
+			[&Setup](const FBattlePartyEntrySetup& Entry)
+			{
+				const FBattleTrainerSetup* Trainer = Setup.FindTrainer(Entry.TrainerId);
+				const bool bActive = Setup.GetStartingActive().ContainsByPredicate(
+					[&Entry](const FBattleActiveAssignment& Assignment)
+					{
+						return Assignment.BattlerId == Entry.BattlerId;
+					});
+				return Trainer != nullptr
+					&& Trainer->Role == EBattleTrainerRole::Opponent
+					&& !Entry.bEgg
+					&& Entry.CurrentHP > 0
+					&& !bActive
+					&& Entry.BattlerId != Setup.GetConfiguredReinforcementBattlerId();
+			}))
+	{
+		return Fail(EBattleEncounterPolicyError::InvalidWildReserve);
 	}
 
 	OutPolicies.EncounterKind = Setup.GetEncounterKind();
@@ -195,6 +225,7 @@ bool FBattleEncounterPolicyCompiler::TryCompile(
 	{
 		FBattleTrainerEncounterPolicy& Policy = OutPolicies.TrainerPolicies.AddDefaulted_GetRef();
 		Policy.TrainerId = Trainer.TrainerId;
+		Policy.Side = Trainer.Side;
 		Policy.Role = Trainer.Role;
 		Policy.Controller = Trainer.Controller;
 		Policy.SelectorProfileId = Trainer.SelectorProfileId;
@@ -204,6 +235,8 @@ bool FBattleEncounterPolicyCompiler::TryCompile(
 				&& Trainer.Role == EBattleTrainerRole::Opponent);
 		Policy.bMayRun = Source.bRunAllowed && Trainer.Role == EBattleTrainerRole::Player;
 		Policy.bMayCapture = Source.bCaptureAllowed && Trainer.Role == EBattleTrainerRole::Player;
+		Policy.bMayVoluntarilySwitch = Setup.GetEncounterKind() != EBattleEncounterKind::Wild
+			|| Trainer.Role != EBattleTrainerRole::Opponent;
 		Policy.bPartnerOwnsSeparatePartyAndBag =
 			Setup.GetFormat() == EBattleFormat::PartnerDouble
 			&& Trainer.Role == EBattleTrainerRole::Partner;

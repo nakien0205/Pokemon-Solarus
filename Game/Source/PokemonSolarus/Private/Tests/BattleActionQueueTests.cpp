@@ -26,8 +26,8 @@ namespace
 	const TCHAR* NegativePriorityMoveName = TEXT("Move.C04A.NegativePriority");
 	const TCHAR* EmptyMoveName = TEXT("Move.C04A.Empty");
 	const TCHAR* AbilityName = TEXT("Ability.C04A.Core");
-	const TCHAR* PotionName = TEXT("Item.C04A.Potion");
-	const TCHAR* BallName = TEXT("Item.C04A.Ball");
+	const TCHAR* HyperPotionName = TEXT("Item.HyperPotion");
+	const TCHAR* PokeBallName = TEXT("Item.PokeBall");
 	const TCHAR* SpeciesName = TEXT("Species.C04A.Core");
 
 	class FSequenceBattleRandom final : public IBattleRandom
@@ -133,8 +133,8 @@ namespace
 		Input.Moves.Add(MakeMove(NegativePriorityMoveName, -1));
 		Input.Moves.Add(MakeMove(EmptyMoveName, 0));
 		Input.Abilities.Add({MakeDefinitionId<FAbilityId>(AbilityName)});
-		Input.Items.Add({MakeDefinitionId<FItemId>(PotionName), EBattleItemKind::Battle});
-		Input.Items.Add({MakeDefinitionId<FItemId>(BallName), EBattleItemKind::Capture});
+		Input.Items.Add({MakeDefinitionId<FItemId>(HyperPotionName), EBattleItemKind::Battle});
+		Input.Items.Add({MakeDefinitionId<FItemId>(PokeBallName), EBattleItemKind::Capture});
 
 		FBattleSpeciesFormDefinition Species;
 		Species.Id = MakeDefinitionId<FSpeciesFormId>(SpeciesName);
@@ -166,10 +166,10 @@ namespace
 			Role == EBattleTrainerRole::Player
 				? TEXT("Selector.C04A.Player")
 				: TEXT("Selector.C04A.Opponent"));
-		Trainer.Bag.Add({MakeDefinitionId<FItemId>(PotionName), 2});
+		Trainer.Bag.Add({MakeDefinitionId<FItemId>(HyperPotionName), 2});
 		if (Role == EBattleTrainerRole::Player)
 		{
-			Trainer.Bag.Add({MakeDefinitionId<FItemId>(BallName), 1});
+			Trainer.Bag.Add({MakeDefinitionId<FItemId>(PokeBallName), 1});
 		}
 		return Trainer;
 	}
@@ -237,6 +237,9 @@ namespace
 		Input.Policies.bBagAllowed = true;
 		Input.Policies.bRunAllowed = Options.EncounterKind == EBattleEncounterKind::Wild;
 		Input.Policies.bCaptureAllowed = Options.EncounterKind == EBattleEncounterKind::Wild;
+		Input.Policies.bShiftPromptEligible =
+			Options.EncounterKind != EBattleEncounterKind::Wild
+			&& Options.Format == EBattleFormat::Single;
 		Input.CaptureProgression.bHasSnapshot = Input.Policies.bCaptureAllowed;
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
@@ -245,11 +248,16 @@ namespace
 			EBattleSide::Player,
 			EBattleTrainerRole::Player,
 			EBattleDecisionController::Human));
-		Input.Trainers.Add(MakeTrainer(
+		FBattleTrainerSetup OpponentTrainer = MakeTrainer(
 			OpponentTrainerValue,
 			EBattleSide::Opponent,
 			EBattleTrainerRole::Opponent,
-			EBattleDecisionController::EnemyAI));
+			EBattleDecisionController::EnemyAI);
+		if (Options.EncounterKind == EBattleEncounterKind::Wild)
+		{
+			OpponentTrainer.Bag.Reset();
+		}
+		Input.Trainers.Add(MoveTemp(OpponentTrainer));
 
 		Input.PartyEntries.Add(MakePartyEntry(
 			PlayerTrainerValue,
@@ -257,24 +265,29 @@ namespace
 			0,
 			Options.PlayerLeftSpeed,
 			Options.bAllMovesEmpty));
-		Input.PartyEntries.Add(MakePartyEntry(
+		FBattlePartyEntrySetup PlayerReserve = MakePartyEntry(
 			PlayerTrainerValue,
 			PlayerReserveBattlerValue,
 			2,
 			90,
-			Options.bAllMovesEmpty));
+			Options.bAllMovesEmpty);
+		PlayerReserve.CurrentHP = 100;
+		Input.PartyEntries.Add(MoveTemp(PlayerReserve));
 		Input.PartyEntries.Add(MakePartyEntry(
 			OpponentTrainerValue,
 			OpponentLeftBattlerValue,
 			0,
 			Options.OpponentLeftSpeed,
 			Options.bAllMovesEmpty));
-		Input.PartyEntries.Add(MakePartyEntry(
-			OpponentTrainerValue,
-			OpponentReserveBattlerValue,
-			2,
-			90,
-			Options.bAllMovesEmpty));
+		if (Options.EncounterKind != EBattleEncounterKind::Wild)
+		{
+			Input.PartyEntries.Add(MakePartyEntry(
+				OpponentTrainerValue,
+				OpponentReserveBattlerValue,
+				2,
+				90,
+				Options.bAllMovesEmpty));
+		}
 		Input.StartingActive.Add(MakeActive(
 			EBattleSide::Player,
 			EBattlePosition::Left,
@@ -511,7 +524,7 @@ namespace
 				1,
 				TrainerId,
 				BattlerId,
-				MakeDefinitionId<FItemId>(PotionName),
+				MakeDefinitionId<FItemId>(HyperPotionName),
 				MakePartySlotId(0),
 				FActiveSlotId(),
 				Decision);
@@ -1016,7 +1029,7 @@ bool FBattleC04AReplayTest::RunTest(const FString& Parameters)
 
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
-	TestEqual(TEXT("Replay schema includes C09B capture state"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(5));
+	TestEqual(TEXT("Replay schema remains 6 with C09B capture state"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(6));
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection Rejection;

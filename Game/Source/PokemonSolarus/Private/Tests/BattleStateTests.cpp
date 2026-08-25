@@ -527,6 +527,58 @@ bool FBattleC03ACatalogRejectionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023B2CompiledStateTransferTest,
+	"PokemonSolarus.Battle.ADR0002.3B2.RuntimeAuthority.State.CompiledTransferAndTrainerProjection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleADR00023B2CompiledStateTransferTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	const FBattleSetup Setup = MakeSetup(EBattleFormat::PartnerDouble);
+	TUniquePtr<FBattleEngine> Engine;
+	FBattleRejection Rejection;
+	TestTrue(
+		TEXT("The runtime is created from the validated setup"),
+		FBattleEngine::TryCreate(
+			Setup,
+			MakeCatalog(),
+			MakeUnique<FSeededBattleRandom>(77),
+			Engine,
+			Rejection));
+	check(Engine.IsValid());
+
+	const FBattleCompiledEncounterPolicies& SetupPolicies =
+		Setup.GetCompiledEncounterPolicies();
+	const FBattleCompiledEncounterPolicies& RuntimePolicies =
+		Engine->GetCompiledEncounterPolicies();
+	TestTrue(TEXT("The runtime policy is a deep stored value"), &SetupPolicies != &RuntimePolicies);
+	TestTrue(TEXT("The runtime policy remains valid"), RuntimePolicies.IsValid());
+	TestEqual(TEXT("The compiled encounter kind transfers"),
+		RuntimePolicies.GetEncounterKind(), SetupPolicies.GetEncounterKind());
+	TestEqual(TEXT("The compiled format transfers"),
+		RuntimePolicies.GetFormat(), SetupPolicies.GetFormat());
+	TestEqual(TEXT("Every compiled Trainer transfers"),
+		RuntimePolicies.GetTrainerPolicies().Num(), SetupPolicies.GetTrainerPolicies().Num());
+
+	const FBattleEngineState& State = FBattleStateTestFixture::GetState(*Engine);
+	for (const FBattleTrainerEncounterPolicy& Policy : RuntimePolicies.GetTrainerPolicies())
+	{
+		const FBattleTrainerState* Trainer = State.FindTrainer(Policy.TrainerId);
+		TestNotNull(TEXT("Each compiled Trainer has one runtime projection"), Trainer);
+		if (Trainer != nullptr)
+		{
+			TestEqual(TEXT("Runtime side comes from compiled policy"), Trainer->Side, Policy.Side);
+			TestEqual(TEXT("Runtime role comes from compiled policy"), Trainer->Role, Policy.Role);
+			TestEqual(TEXT("Runtime controller comes from compiled policy"),
+				Trainer->Controller, Policy.Controller);
+			TestTrue(TEXT("Runtime selector profile comes from compiled policy"),
+				Trainer->SelectorProfileId == Policy.SelectorProfileId);
+		}
+	}
+	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -155,8 +155,7 @@ bool FBattleCaptureProgressionSnapshot::IsValid() const
 			&& !bMustCapture
 			&& !bUseUnsupportedLowPlayerLevelCoefficient;
 	}
-	return BadgeCount <= 8
-		&& CaptureCoefficientQ12 > 0
+	return CaptureCoefficientQ12 > 0
 		&& !bUseUnsupportedLowPlayerLevelCoefficient;
 }
 

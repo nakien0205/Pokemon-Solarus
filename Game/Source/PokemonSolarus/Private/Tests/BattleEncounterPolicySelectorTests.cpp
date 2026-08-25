@@ -645,8 +645,10 @@ namespace BattleEncounterPolicySelectorTests
 			Facts.ItemId = FBattleBagItemRules::GetReviveId();
 			Facts.DefinitionKind = EBattleItemKind::Battle;
 			Facts.TargetKind = EBattleBagItemTargetKind::Party;
-			Facts.ActingTrainerRole = EBattleTrainerRole::Opponent;
-			Facts.EncounterKind = Kind;
+			Facts.bActingTrainerMayUseBag = Opponent != nullptr
+				&& Opponent->bMayUseBag;
+			Facts.bActingTrainerMayUseRevive = Opponent != nullptr
+				&& Opponent->bMayUseRevive;
 			Facts.bTargetOwnedByActingTrainer = true;
 			Facts.bTargetFainted = true;
 			Facts.CurrentHP = 0;
@@ -828,6 +830,157 @@ namespace BattleEncounterPolicySelectorTests
 				{
 					return Option.ItemId == ReviveId && Option.PartySlotId == ReserveSlot;
 				}));
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023B2SelectorOwnershipTest,
+		"PokemonSolarus.Battle.ADR0002.3B2.RuntimeAuthority.Selector.FifoDeepCopyAndCrossOwnerRejection",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleADR00023B2SelectorOwnershipTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		TUniquePtr<FBattleEngine> Engine = MakeEngine(
+			EBattleEncounterKind::Trainer,
+			EBattleFormat::Double);
+		FBattleRejection Rejection;
+		TestTrue(TEXT("Double decision sequence starts"),
+			Engine->TryBeginActionDecisionSequence(Rejection));
+
+		FBattleSnapshot SourceObservation = Engine->GetSnapshotForObserver(
+			MakeNumericId<FTrainerId>(PlayerTrainerValue));
+		FBattleActionSelectorInput Input;
+		TestTrue(TEXT("The filtered selector input is created"),
+			FBattleActionSelectorInput::TryCreate(
+				SourceObservation,
+				0,
+				Input,
+				Rejection));
+		SourceObservation = FBattleSnapshot();
+		TestTrue(TEXT("Selector input owns a deep snapshot copy"),
+			Input.GetObservation().IsValid());
+
+		const FBattleDecisionRequest& Request = Input.GetLegalActions();
+		const FBattleDecision FirstDecision = MakeFightDecision(Request);
+		const FBattleMoveTargetOption* SecondTarget =
+			Request.GetLegalMoveTargets().FindByPredicate(
+				[&FirstDecision](const FBattleMoveTargetOption& Option)
+				{
+					return Option.MoveId == FirstDecision.GetMoveId()
+						&& Option.ActiveSlotId != FirstDecision.GetActiveTargetId();
+				});
+		TestNotNull(TEXT("Double targeting supplies a distinct FIFO payload"), SecondTarget);
+		check(SecondTarget != nullptr);
+		FBattleDecision SecondDecision;
+		TestTrue(TEXT("The second FIFO payload is valid"),
+			FBattleDecision::TryCreateFight(
+				Request.GetStateVersion(),
+				Request.GetDecisionOwnerTrainerId(),
+				Request.GetActingBattlerId(),
+				FirstDecision.GetMoveId(),
+				SecondTarget->ActiveSlotId,
+				SecondDecision));
+
+		FScriptedBattleActionSelector Selector({FirstDecision, SecondDecision});
+		FBattleDecision FirstOutput;
+		FBattleDecision SecondOutput;
+		TestTrue(TEXT("FIFO selector returns its first payload"),
+			FBattleActionSelectorBoundary::TrySelectLegalAction(
+				Selector, Input, FirstOutput, Rejection));
+		TestTrue(TEXT("FIFO selector returns its second payload"),
+			FBattleActionSelectorBoundary::TrySelectLegalAction(
+				Selector, Input, SecondOutput, Rejection));
+		TestTrue(TEXT("FIFO preserves first target order"),
+			FirstOutput.GetActiveTargetId() == FirstDecision.GetActiveTargetId());
+		TestTrue(TEXT("FIFO preserves second target order"),
+			SecondOutput.GetActiveTargetId() == SecondDecision.GetActiveTargetId());
+		TestEqual(TEXT("FIFO consumes both deep-copied payloads"),
+			Selector.GetRemainingDecisionCount(), 0);
+
+		FBattleDecision ForgedCrossOwner;
+		TestTrue(TEXT("A structurally valid cross-owner payload can be forged"),
+			FBattleDecision::TryCreateFight(
+				Request.GetStateVersion(),
+				MakeNumericId<FTrainerId>(OpponentTrainerValue),
+				Request.GetActingBattlerId(),
+				FirstDecision.GetMoveId(),
+				FirstDecision.GetActiveTargetId(),
+				ForgedCrossOwner));
+		const uint64 BeforeVersion = Engine->GetSnapshot().GetStateVersion();
+		const FBattleResolution ForgedResult = Engine->SubmitDecision(ForgedCrossOwner);
+		TestFalse(TEXT("The engine rejects the forged cross-owner payload"),
+			ForgedResult.WasAccepted());
+		TestEqual(TEXT("Cross-owner rejection is typed"),
+			ForgedResult.GetRejection().Reason,
+			EBattleRejectionReason::WrongDecisionOwner);
+		TestEqual(TEXT("Cross-owner rejection leaves state unchanged"),
+			Engine->GetSnapshot().GetStateVersion(), BeforeVersion);
+		TestEqual(TEXT("Cross-owner rejection consumes no RNG"),
+			Engine->ExportRandomTrace().Num(), 0);
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023B1CompiledTransferTest,
+		"PokemonSolarus.Battle.ADR0002.3B1.SetupPolicy.CompiledValueTransfer",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleADR00023B1CompiledTransferTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		FBattleSetup Setup;
+		TestTrue(
+			TEXT("A Trainer Single setup is created"),
+			TryMakeSetup(EBattleEncounterKind::Trainer, EBattleFormat::Single, Setup));
+		const FBattleCompiledEncounterPolicies& Stored =
+			Setup.GetCompiledEncounterPolicies();
+		TestTrue(TEXT("The stored compiled value is valid"), Stored.IsValid());
+		TestEqual(TEXT("The stored encounter kind is compiled"), Stored.GetEncounterKind(), EBattleEncounterKind::Trainer);
+		TestEqual(TEXT("The stored format is compiled"), Stored.GetFormat(), EBattleFormat::Single);
+		TestEqual(TEXT("The stored style is compiled"), Stored.GetBattleStyle(), EBattleStylePolicy::Shift);
+
+		FBattleCompiledEncounterPolicies Recompiled;
+		EBattleEncounterPolicyError Error = EBattleEncounterPolicyError::None;
+		TestTrue(
+			TEXT("The immutable setup recompiles deterministically"),
+			FBattleEncounterPolicyCompiler::TryCompile(Setup, Recompiled, Error));
+		TestEqual(
+			TEXT("Stored and recompiled Trainer policy counts match"),
+			Stored.GetTrainerPolicies().Num(),
+			Recompiled.GetTrainerPolicies().Num());
+
+		const FBattleTrainerEncounterPolicy* Player = Stored.FindTrainerPolicy(
+			MakeNumericId<FTrainerId>(PlayerTrainerValue));
+		const FBattleTrainerEncounterPolicy* Opponent = Stored.FindTrainerPolicy(
+			MakeNumericId<FTrainerId>(OpponentTrainerValue));
+		TestNotNull(TEXT("The stored player policy exists"), Player);
+		TestNotNull(TEXT("The stored opponent policy exists"), Opponent);
+		if (Player != nullptr)
+		{
+			TestEqual(TEXT("The player side is compiled"), Player->Side, EBattleSide::Player);
+			TestTrue(TEXT("The player may voluntarily switch"), Player->bMayVoluntarilySwitch);
+		}
+		if (Opponent != nullptr)
+		{
+			TestEqual(TEXT("The opponent side is compiled"), Opponent->Side, EBattleSide::Opponent);
+			TestTrue(TEXT("A Trainer opponent may voluntarily switch"), Opponent->bMayVoluntarilySwitch);
+		}
+
+		FBattleSetup WildSetup;
+		TestTrue(
+			TEXT("A Wild Single setup is created"),
+			TryMakeSetup(EBattleEncounterKind::Wild, EBattleFormat::Single, WildSetup));
+		const FBattleTrainerEncounterPolicy* WildOpponent =
+			WildSetup.GetCompiledEncounterPolicies().FindTrainerPolicy(
+				MakeNumericId<FTrainerId>(OpponentTrainerValue));
+		TestNotNull(TEXT("The stored Wild opponent policy exists"), WildOpponent);
+		if (WildOpponent != nullptr)
+		{
+			TestFalse(
+				TEXT("An ordinary Wild opponent may not voluntarily switch"),
+				WildOpponent->bMayVoluntarilySwitch);
+		}
 		return true;
 	}
 }

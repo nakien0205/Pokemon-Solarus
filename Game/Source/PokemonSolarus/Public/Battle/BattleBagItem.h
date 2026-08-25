@@ -30,9 +30,9 @@ struct POKEMONSOLARUS_API FBattleBagItemUseFacts
 	FItemId ItemId;
 	EBattleItemKind DefinitionKind = EBattleItemKind::Invalid;
 	EBattleBagItemTargetKind TargetKind = EBattleBagItemTargetKind::Invalid;
-	EBattleTrainerRole ActingTrainerRole = EBattleTrainerRole::Player;
-	EBattleEncounterKind EncounterKind = EBattleEncounterKind::Wild;
-	bool bCaptureAllowed = false;
+	bool bActingTrainerMayUseBag = false;
+	bool bActingTrainerMayCapture = false;
+	bool bActingTrainerMayUseRevive = false;
 	bool bTargetOwnedByActingTrainer = false;
 	bool bTargetIsActingBattler = false;
 	bool bTargetIsOpposingActive = false;

@@ -4157,16 +4157,23 @@ namespace
 			});
 	}
 
+	const FBattleTrainerEncounterPolicy* FindTrainerEncounterPolicy(
+		const FBattleEngineState& State,
+		const FTrainerId TrainerId)
+	{
+		return State.CompiledEncounterPolicies.FindTrainerPolicy(TrainerId);
+	}
+
 	bool CanOfferRunAction(
 		const FBattleEngineState& State,
 		const FBattleTrainerState& Trainer,
 		const FBattleBattlerState& Battler)
 	{
 		const FBattleBattlerState* WildOpponent = FindLeftmostLivingWildOpponent(State);
-		return State.EncounterKind == EBattleEncounterKind::Wild
-			&& State.EncounterPolicies.bRunAllowed
-			&& Trainer.Side == EBattleSide::Player
-			&& Trainer.Role == EBattleTrainerRole::Player
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			FindTrainerEncounterPolicy(State, Trainer.TrainerId);
+		return TrainerPolicy != nullptr
+			&& TrainerPolicy->bMayRun
 			&& IsLivingSelectableBattler(&Battler)
 			&& FindActiveForBattler(State, Battler.BattlerId) != nullptr
 			&& WildOpponent != nullptr
@@ -4180,9 +4187,12 @@ namespace
 		const FBattleTrainerState& Trainer,
 		const FBattleBattlerState& Battler)
 	{
-		return State.EncounterKind == EBattleEncounterKind::Wild
-			&& Trainer.Side == EBattleSide::Opponent
-			&& Trainer.Role == EBattleTrainerRole::Opponent
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			FindTrainerEncounterPolicy(State, Trainer.TrainerId);
+		return State.CompiledEncounterPolicies.IsWildFleeConfigured()
+			&& TrainerPolicy != nullptr
+			&& TrainerPolicy->Side == EBattleSide::Opponent
+			&& TrainerPolicy->Role == EBattleTrainerRole::Opponent
 			&& IsLivingSelectableBattler(&Battler)
 			&& FindActiveForBattler(State, Battler.BattlerId) != nullptr
 			&& FindWildFleePolicy(State, Battler) != nullptr;
@@ -4242,9 +4252,14 @@ namespace
 		Spec.ActingBattlerId = bReplacement ? FBattlerId() : Battler->BattlerId;
 		Spec.ActiveSlotId = Active->ActiveSlotId;
 		Spec.TransferPolicy = EBattleSwitchStateTransferPolicy::ClearTransient;
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			FindTrainerEncounterPolicy(State, Trainer->TrainerId);
+		if (TrainerPolicy == nullptr)
+		{
+			return false;
+		}
 		Spec.Blockers.bEncounterPolicyAllows = Kind != EBattleSwitchKind::Voluntary
-			|| !(State.EncounterKind == EBattleEncounterKind::Wild
-				&& Trainer->Role == EBattleTrainerRole::Opponent);
+			|| TrainerPolicy->bMayVoluntarilySwitch;
 		if (!Spec.Blockers.bEncounterPolicyAllows)
 		{
 			Spec.Blockers.EncounterPolicyRuleId = GetWildOpponentSwitchRestrictionRuleId();
@@ -5003,9 +5018,8 @@ namespace
 		FBattleDecisionRequest& OutRequest)
 	{
 		OutRequest = FBattleDecisionRequest();
-		if (!State.EncounterPolicies.bShiftPromptEligible
-			|| State.Format != EBattleFormat::Single
-			|| State.EncounterKind == EBattleEncounterKind::Wild
+		if (State.CompiledEncounterPolicies.GetBattleStyle() != EBattleStylePolicy::Shift
+			|| State.CompiledEncounterPolicies.GetFormat() != EBattleFormat::Single
 			|| State.PendingReplacements.IsEmpty()
 			|| State.PendingReplacements.ContainsByPredicate(
 				[](const FBattlePendingReplacementState& Pending)
@@ -5021,12 +5035,16 @@ namespace
 			return false;
 		}
 
-		const FBattleTrainerState* PlayerTrainer = State.Trainers.FindByPredicate(
-			[](const FBattleTrainerState& Trainer)
+		const FBattleTrainerEncounterPolicy* PlayerPolicy =
+			State.CompiledEncounterPolicies.GetTrainerPolicies().FindByPredicate(
+			[](const FBattleTrainerEncounterPolicy& Policy)
 			{
-				return Trainer.Side == EBattleSide::Player
-					&& Trainer.Role == EBattleTrainerRole::Player;
+				return Policy.Side == EBattleSide::Player
+					&& Policy.Role == EBattleTrainerRole::Player;
 			});
+		const FBattleTrainerState* PlayerTrainer = PlayerPolicy != nullptr
+			? State.FindTrainer(PlayerPolicy->TrainerId)
+			: nullptr;
 		const FBattleActivePositionState* PlayerActive = State.ActivePositions.FindByPredicate(
 			[](const FBattleActivePositionState& Position)
 			{
@@ -5301,9 +5319,15 @@ namespace
 		OutFacts.ItemId = ItemDefinition.Id;
 		OutFacts.DefinitionKind = ItemDefinition.Kind;
 		OutFacts.TargetKind = TargetKind;
-		OutFacts.ActingTrainerRole = ActingTrainer.Role;
-		OutFacts.EncounterKind = State.EncounterKind;
-		OutFacts.bCaptureAllowed = State.EncounterPolicies.bCaptureAllowed;
+		const FBattleTrainerEncounterPolicy* TrainerPolicy =
+			FindTrainerEncounterPolicy(State, ActingTrainer.TrainerId);
+		if (TrainerPolicy == nullptr)
+		{
+			return false;
+		}
+		OutFacts.bActingTrainerMayUseBag = TrainerPolicy->bMayUseBag;
+		OutFacts.bActingTrainerMayCapture = TrainerPolicy->bMayCapture;
+		OutFacts.bActingTrainerMayUseRevive = TrainerPolicy->bMayUseRevive;
 		OutFacts.bTargetOwnedByActingTrainer =
 			TargetBattler.TrainerId == ActingTrainer.TrainerId;
 		OutFacts.bTargetIsActingBattler =
@@ -5366,10 +5390,14 @@ namespace
 		const FBattleActivePositionState* ActingPosition = State.FindActivePosition(Actor.ActiveSlotId);
 		const FBattleBattlerState* Battler = State.FindBattler(Actor.BattlerId);
 		const FBattleTrainerState* Trainer = Battler != nullptr ? State.FindTrainer(Battler->TrainerId) : nullptr;
+		const FBattleTrainerEncounterPolicy* TrainerPolicy = Trainer != nullptr
+			? FindTrainerEncounterPolicy(State, Trainer->TrainerId)
+			: nullptr;
 		if (!State.bHasCatalog
 			|| ActingPosition == nullptr
 			|| Battler == nullptr
 			|| Trainer == nullptr
+			|| TrainerPolicy == nullptr
 			|| ActingPosition->BattlerId != Battler->BattlerId
 			|| ActingPosition->TrainerId != Trainer->TrainerId
 			|| !IsLivingSelectableBattler(Battler)
@@ -5577,7 +5605,7 @@ namespace
 		};
 		const bool bBagAlreadySelected = HasTrainerBagSelection(State.AcceptedSelections)
 			|| HasTrainerBagSelection(AdditionalSelections);
-		if (!State.EncounterPolicies.bBagAllowed
+		if (!TrainerPolicy->bMayUseBag
 			|| !Trainer->ActionAllowance.bBagActionAvailable
 			|| bBagAlreadySelected)
 		{
@@ -5617,9 +5645,7 @@ namespace
 				}
 				bAnyRemainingCanonicalItem = true;
 				if (RuleKind == EBattleBagItemRuleKind::PokeBall
-					&& (State.EncounterKind != EBattleEncounterKind::Wild
-						|| !State.EncounterPolicies.bCaptureAllowed
-						|| Trainer->Role != EBattleTrainerRole::Player))
+					&& !TrainerPolicy->bMayCapture)
 				{
 					AddUnavailableItem(
 						Spec,
@@ -5758,7 +5784,7 @@ namespace
 		return FBattleDecisionRequest::TryCreate(Spec, OutRequest, OutRejection);
 	}
 
-	int32 GetDecisionSequenceBand(const FBattleTrainerState& Trainer)
+	int32 GetDecisionSequenceBand(const FBattleTrainerEncounterPolicy& Trainer)
 	{
 		if (Trainer.Side == EBattleSide::Player
 			&& Trainer.Role == EBattleTrainerRole::Player
@@ -5786,14 +5812,17 @@ namespace
 	TArray<FBattleDecisionOwnerState> BuildDecisionOwnerSequence(const FBattleEngineState& State)
 	{
 		TArray<FBattleDecisionOwnerState> Sequence;
-		for (const FBattleTrainerState& Trainer : State.Trainers)
+		for (const FBattleTrainerEncounterPolicy& TrainerPolicy :
+			State.CompiledEncounterPolicies.GetTrainerPolicies())
 		{
+			const FBattleTrainerState* Trainer = State.FindTrainer(TrainerPolicy.TrainerId);
+			check(Trainer != nullptr);
 			FBattleDecisionOwnerState Owner;
-			Owner.TrainerId = Trainer.TrainerId;
-			Owner.Controller = Trainer.Controller;
+			Owner.TrainerId = TrainerPolicy.TrainerId;
+			Owner.Controller = TrainerPolicy.Controller;
 			for (const FBattleActivePositionState& Position : State.ActivePositions)
 			{
-				if (Position.TrainerId == Trainer.TrainerId
+				if (Position.TrainerId == TrainerPolicy.TrainerId
 					&& IsLivingSelectableBattler(State.FindBattler(Position.BattlerId)))
 				{
 					Owner.Actors.Add({Position.BattlerId, Position.ActiveSlotId});
@@ -5813,8 +5842,10 @@ namespace
 		Sequence.Sort(
 			[&State](const FBattleDecisionOwnerState& Left, const FBattleDecisionOwnerState& Right)
 			{
-				const FBattleTrainerState* LeftTrainer = State.FindTrainer(Left.TrainerId);
-				const FBattleTrainerState* RightTrainer = State.FindTrainer(Right.TrainerId);
+				const FBattleTrainerEncounterPolicy* LeftTrainer =
+					FindTrainerEncounterPolicy(State, Left.TrainerId);
+				const FBattleTrainerEncounterPolicy* RightTrainer =
+					FindTrainerEncounterPolicy(State, Right.TrainerId);
 				check(LeftTrainer != nullptr && RightTrainer != nullptr);
 				const int32 LeftBand = GetDecisionSequenceBand(*LeftTrainer);
 				const int32 RightBand = GetDecisionSequenceBand(*RightTrainer);
@@ -6879,8 +6910,8 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 	Snapshot.StateVersion = State->StateVersion;
 	Snapshot.BattleId = State->Setup.GetBattleId();
 	Snapshot.TurnId = State->TurnId;
-	Snapshot.EncounterKind = State->EncounterKind;
-	Snapshot.Format = State->Format;
+	Snapshot.EncounterKind = State->CompiledEncounterPolicies.GetEncounterKind();
+	Snapshot.Format = State->CompiledEncounterPolicies.GetFormat();
 	Snapshot.Phase = State->Phase;
 	Snapshot.Outcome = State->Outcome;
 	Snapshot.OutcomeCause = State->OutcomeCause;
@@ -6888,8 +6919,12 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 	Snapshot.CatalogReference = State->Setup.GetCatalogReference();
 	Snapshot.EscapeAttemptCount = State->EscapeAttemptCount;
 	Snapshot.bReinforcementSucceeded = State->bReinforcementSucceeded;
+	const FBattleTrainerEncounterPolicy* ObserverPolicy = bFiltered
+		? FindTrainerEncounterPolicy(*State, Observer->TrainerId)
+		: nullptr;
 	Snapshot.bCaptureStateVisible = !bFiltered
-		|| Observer->Role == EBattleTrainerRole::Player;
+		|| (ObserverPolicy != nullptr
+			&& ObserverPolicy->Role == EBattleTrainerRole::Player);
 	if (Snapshot.bCaptureStateVisible)
 	{
 		Snapshot.CaptureCapacity = State->CaptureCapacity;
@@ -6913,8 +6948,10 @@ FBattleSnapshot FBattleEngine::BuildSnapshot(const FTrainerId* ObserverTrainerId
 		Snapshot.ActiveAssignments = State->BuildActiveProjection();
 		for (const FBattleBattlerState& Battler : State->Battlers)
 		{
-			const FBattleTrainerState* Trainer = State->FindTrainer(Battler.TrainerId);
-			if (Trainer == nullptr || Trainer->Role != EBattleTrainerRole::Partner)
+			const FBattleTrainerEncounterPolicy* TrainerPolicy =
+				FindTrainerEncounterPolicy(*State, Battler.TrainerId);
+			if (TrainerPolicy == nullptr
+				|| !TrainerPolicy->bPartnerOwnsSeparatePartyAndBag)
 			{
 				continue;
 			}
@@ -7144,6 +7181,12 @@ FBattleSnapshot FBattleEngine::GetSnapshot() const
 FBattleSnapshot FBattleEngine::GetSnapshotForObserver(const FTrainerId ObserverTrainerId) const
 {
 	return BuildSnapshot(&ObserverTrainerId);
+}
+
+const FBattleCompiledEncounterPolicies& FBattleEngine::GetCompiledEncounterPolicies() const
+{
+	check(State.IsValid());
+	return State->CompiledEncounterPolicies;
 }
 
 TOptional<FBattleDecisionRequest> FBattleEngine::GetPendingDecision() const
@@ -8256,7 +8299,12 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 			EBattleEventCause::Item));
 		return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
 	};
-	if (TargetBattler == nullptr || !State->EncounterPolicies.bBagAllowed)
+	const FBattleTrainerEncounterPolicy* ActingTrainerPolicy = ActingTrainer != nullptr
+		? FindTrainerEncounterPolicy(*State, ActingTrainer->TrainerId)
+		: nullptr;
+	if (TargetBattler == nullptr
+		|| ActingTrainerPolicy == nullptr
+		|| !ActingTrainerPolicy->bMayUseBag)
 	{
 		return CancelStaleUse();
 	}
@@ -12419,7 +12467,10 @@ FBattleResolution FBattleEngine::SubmitDecision(const FBattleDecision& Decision)
 		State->AppendResolution(Resolution);
 		return Resolution;
 	}
-	if (ActionKind != EBattleActionKind::ScriptedEnd && ActionKind != EBattleActionKind::Abandon)
+	if ((ActionKind == EBattleActionKind::ScriptedEnd
+			&& !State->CompiledEncounterPolicies.IsScriptedEndingAllowed())
+		|| (ActionKind != EBattleActionKind::ScriptedEnd
+			&& ActionKind != EBattleActionKind::Abandon))
 	{
 		Rejection.Reason = EBattleRejectionReason::IllegalAction;
 		return MakeRejectedResolution(
