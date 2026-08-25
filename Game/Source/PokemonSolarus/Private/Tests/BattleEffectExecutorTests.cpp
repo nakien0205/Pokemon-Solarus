@@ -7,7 +7,9 @@
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleEffectExecutor.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Engine/DataTable.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectGlobals.h"
@@ -123,97 +125,8 @@ namespace BattleEffectExecutorTests
 	const TCHAR* WeatherConditionName = TEXT("Condition.C05B.Weather");
 	const TCHAR* SideConditionName = TEXT("Condition.C05B.Side");
 
-	struct FExpectedDraw
-	{
-		uint32 Minimum = 0;
-		uint32 Maximum = 0;
-		uint32 Result = 0;
-		FDefinitionId RulePurpose;
-	};
-
-	class FStrictScriptedRandom final : public IBattleRandom
-	{
-	public:
-		explicit FStrictScriptedRandom(TArray<FExpectedDraw> InExpectedDraws)
-			: ExpectedDraws(MoveTemp(InExpectedDraws))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (bMismatch || !ExpectedDraws.IsValidIndex(NextExpectedIndex))
-			{
-				bMismatch = true;
-				Mismatch = TEXT("An unexpected extra RNG draw was requested");
-				return false;
-			}
-
-			const FExpectedDraw& Expected = ExpectedDraws[NextExpectedIndex];
-			if (!Context.IsValid()
-				|| InclusiveMinimum != Expected.Minimum
-				|| InclusiveMaximum != Expected.Maximum
-				|| Context.RulePurpose != Expected.RulePurpose
-				|| Expected.Result < InclusiveMinimum
-				|| Expected.Result > InclusiveMaximum)
-			{
-				bMismatch = true;
-				Mismatch = FString::Printf(
-					TEXT("RNG draw %d differed: got U[%u,%u] purpose %s, expected U[%u,%u] purpose %s result %u"),
-					NextExpectedIndex,
-					InclusiveMinimum,
-					InclusiveMaximum,
-					*Context.RulePurpose.GetName().ToString(),
-					Expected.Minimum,
-					Expected.Maximum,
-					*Expected.RulePurpose.GetName().ToString(),
-					Expected.Result);
-				return false;
-			}
-
-			++NextExpectedIndex;
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = Expected.Result;
-			OutDraw.Result = Expected.Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-		[[nodiscard]] bool IsExact() const
-		{
-			return !bMismatch && NextExpectedIndex == ExpectedDraws.Num();
-		}
-
-		[[nodiscard]] const FString& GetMismatch() const
-		{
-			return Mismatch;
-		}
-
-	private:
-		TArray<FExpectedDraw> ExpectedDraws;
-		int32 NextExpectedIndex = 0;
-		bool bMismatch = false;
-		FString Mismatch;
-		TArray<FBattleRandomDraw> Trace;
-	};
+	using FExpectedDraw = BattleTest::FBattleExpectedRandomDraw;
+	using FStrictScriptedRandom = BattleTest::FStrictBattleRandom;
 
 	FBattleEffectHookResult MakeHookResult(
 		const EBattleEffectExecutionOutcome Outcome = EBattleEffectExecutionOutcome::Applied,
@@ -2654,14 +2567,18 @@ namespace BattleEffectExecutorTests
 			OpponentLeftBattlerValue);
 
 		TArray<FBattleMoveEffectDescriptor> UserFutureEffects;
-		UserFutureEffects.Add(MakeEffect(0, EBattleMoveEffectKind::Protect, EBattleEffectTarget::User));
-		UserFutureEffects.Add(MakeEffect(1, EBattleMoveEffectKind::Charge, EBattleEffectTarget::User));
-		UserFutureEffects.Add(MakeEffect(2, EBattleMoveEffectKind::Recharge, EBattleEffectTarget::User));
-		UserFutureEffects.Add(MakeEffect(3, EBattleMoveEffectKind::SemiInvulnerability, EBattleEffectTarget::User));
-		for (FBattleMoveEffectDescriptor& Effect : UserFutureEffects)
-		{
-			Effect.ConditionId = MakeDefinitionId<FConditionId>(VolatileConditionName);
-		}
+		FBattleMoveEffectDescriptor Protect = MakeEffect(
+			0,
+			EBattleMoveEffectKind::Protect,
+			EBattleEffectTarget::User);
+		Protect.ConditionId = FBattleVolatileRules::GetProtectId();
+		UserFutureEffects.Add(Protect);
+		FBattleMoveEffectDescriptor Recharge = MakeEffect(
+			1,
+			EBattleMoveEffectKind::Recharge,
+			EBattleEffectTarget::User);
+		Recharge.ConditionId = FBattleVolatileRules::GetRechargeId();
+		UserFutureEffects.Add(Recharge);
 		const FBattleMoveDefinition UserFutureMove = MakeStatusMove(
 			EBattleTargetClass::Self,
 			MoveTemp(UserFutureEffects));
@@ -2670,7 +2587,7 @@ namespace BattleEffectExecutorTests
 		FBattleEffectExecutionResult UserFutureResult;
 		EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
 		TestTrue(
-			TEXT("Protect, charge, recharge, and semi-invulnerability route through hooks"),
+			TEXT("Protect and recharge route through the generic non-HP hook"),
 			FBattleEffectExecutor::TryExecute(
 				MakeRequest(UserFutureMove, {UserTarget}),
 				UserFutureContext,
@@ -2678,9 +2595,9 @@ namespace BattleEffectExecutorTests
 				UserFutureResult,
 				Error));
 		TestEqual(
-			TEXT("The four not-yet-concrete user operations are typed deferred"),
+			TEXT("The mock hook reports both user operations as typed deferred"),
 			CountExecutionEvents(UserFutureResult.Events, EBattleEventType::EffectDeferred),
-			4);
+			2);
 		TestEqual(
 			TEXT("Deferred user operations produce no generic mutation event"),
 			CountExecutionEvents(UserFutureResult.Events, EBattleEventType::StatusChanged)
@@ -2933,7 +2850,7 @@ namespace BattleEffectExecutorTests
 		TestEqual(
 			TEXT("C05B preserves the current replay schema"),
 			FirstRecord.GetSchemaVersion(),
-			static_cast<uint32>(5));
+			static_cast<uint32>(6));
 		TestEqual(
 			TEXT("The first record has exactly one direct damage mutation"),
 			CountResolutionEvents(FirstRecord.GetResolutions(), EBattleEventType::Damage),

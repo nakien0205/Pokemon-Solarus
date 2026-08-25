@@ -5,6 +5,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleWildFlow.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 class FBattleC09BWildFlowEngineFixture
@@ -91,6 +92,7 @@ namespace
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
+	using BattleTest::FSequenceBattleRandom;
 
 	constexpr uint64 PlayerTrainerValue = 1;
 	constexpr uint64 OpponentTrainerValue = 2;
@@ -102,60 +104,6 @@ namespace
 	const TCHAR* PlayerSpeciesName = TEXT("Species.C09B.WildFlow.Player");
 	const TCHAR* WildSpeciesName = TEXT("Species.C09B.WildFlow.Wild");
 	const TCHAR* ProbeMoveName = TEXT("Move.C09B.WildFlow.Probe");
-
-	class FSequenceBattleRandom final : public IBattleRandom
-	{
-	public:
-		explicit FSequenceBattleRandom(TArray<uint32> InResults)
-			: Results(MoveTemp(InResults))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (InclusiveMinimum > InclusiveMaximum
-				|| !Context.IsValid()
-				|| !Results.IsValidIndex(NextResultIndex))
-			{
-				return false;
-			}
-			const uint32 Result = Results[NextResultIndex++];
-			if (Result < InclusiveMinimum || Result > InclusiveMaximum)
-			{
-				return false;
-			}
-
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1ULL;
-			OutDraw.RawValue = Result;
-			OutDraw.Result = Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num()) + 1ULL;
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<uint32> Results;
-		int32 NextResultIndex = 0;
-		TArray<FBattleRandomDraw> Trace;
-	};
 
 	struct FWildFlowScenario
 	{

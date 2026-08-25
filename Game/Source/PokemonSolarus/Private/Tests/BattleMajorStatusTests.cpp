@@ -8,6 +8,7 @@
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleState.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 class FBattleC07BEngineFixture
@@ -361,78 +362,8 @@ namespace BattleMajorStatusTests
 	const TCHAR* AbilityName = TEXT("Ability.C07B.Test");
 	const TCHAR* GenericStatusName = TEXT("Condition.C07B.GenericMajorStatus");
 
-	struct FExpectedDraw
-	{
-		uint32 Minimum = 0;
-		uint32 Maximum = 0;
-		uint32 Result = 0;
-		FDefinitionId Purpose;
-	};
-
-	class FScriptedStatusRandom final : public IBattleRandom
-	{
-	public:
-		explicit FScriptedStatusRandom(TArray<FExpectedDraw> InExpected)
-			: Expected(MoveTemp(InExpected))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (bMismatch || !Expected.IsValidIndex(NextIndex))
-			{
-				bMismatch = true;
-				return false;
-			}
-			const FExpectedDraw& Draw = Expected[NextIndex];
-			if (!Context.IsValid()
-				|| Draw.Minimum != InclusiveMinimum
-				|| Draw.Maximum != InclusiveMaximum
-				|| Draw.Purpose != Context.RulePurpose
-				|| Draw.Result < InclusiveMinimum
-				|| Draw.Result > InclusiveMaximum)
-			{
-				bMismatch = true;
-				return false;
-			}
-			++NextIndex;
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = Draw.Result;
-			OutDraw.Result = Draw.Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-		[[nodiscard]] bool IsExact() const
-		{
-			return !bMismatch && NextIndex == Expected.Num();
-		}
-
-	private:
-		TArray<FExpectedDraw> Expected;
-		int32 NextIndex = 0;
-		bool bMismatch = false;
-		TArray<FBattleRandomDraw> Trace;
-	};
+	using FExpectedDraw = BattleTest::FBattleExpectedRandomDraw;
+	using FScriptedStatusRandom = BattleTest::FStrictBattleRandom;
 
 	FBattleRandomContext MakeRandomContext(const FDefinitionId& Purpose)
 	{
@@ -2015,7 +1946,7 @@ bool FBattleC07BDeterminismTest::RunTest(const FString& Parameters)
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
 	TestTrue(TEXT("The first replay is valid"), FirstRecord.IsValid());
-	TestEqual(TEXT("Replay schema remains current"), FirstRecord.GetSchemaVersion(), 5U);
+	TestEqual(TEXT("Replay schema remains current"), FirstRecord.GetSchemaVersion(), 6U);
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection FirstRejection;

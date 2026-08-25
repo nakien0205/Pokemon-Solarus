@@ -7,6 +7,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -105,73 +106,8 @@ namespace BattleAbilityTests
 		return Entries;
 	}
 
-	struct FExpectedIntegrationDraw
-	{
-		uint32 Minimum = 0;
-		uint32 Maximum = 0;
-		uint32 Result = 0;
-		FDefinitionId Purpose;
-	};
-
-	class FScriptedIntegrationRandom final : public IBattleRandom
-	{
-	public:
-		explicit FScriptedIntegrationRandom(TArray<FExpectedIntegrationDraw> InExpected)
-			: Expected(MoveTemp(InExpected))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (bMismatch || !Expected.IsValidIndex(NextIndex))
-			{
-				bMismatch = true;
-				return false;
-			}
-			const FExpectedIntegrationDraw& ExpectedDraw = Expected[NextIndex];
-			if (!Context.IsValid()
-				|| ExpectedDraw.Minimum != InclusiveMinimum
-				|| ExpectedDraw.Maximum != InclusiveMaximum
-				|| ExpectedDraw.Purpose != Context.RulePurpose
-				|| ExpectedDraw.Result < InclusiveMinimum
-				|| ExpectedDraw.Result > InclusiveMaximum)
-			{
-				bMismatch = true;
-				return false;
-			}
-			++NextIndex;
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = ExpectedDraw.Result;
-			OutDraw.Result = ExpectedDraw.Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<FExpectedIntegrationDraw> Expected;
-		int32 NextIndex = 0;
-		bool bMismatch = false;
-		TArray<FBattleRandomDraw> Trace;
-	};
+	using FExpectedIntegrationDraw = BattleTest::FBattleExpectedRandomDraw;
+	using FScriptedIntegrationRandom = BattleTest::FStrictBattleRandom;
 
 	FBattleMoveDefinition MakeIntegrationMove(
 		const EPokemonType MoveType = EPokemonType::Normal)

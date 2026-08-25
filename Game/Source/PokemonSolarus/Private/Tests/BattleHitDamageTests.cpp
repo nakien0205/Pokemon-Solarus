@@ -3,6 +3,7 @@
 #include "Battle/BattleFinalDamageCalculator.h"
 #include "Battle/BattleHitResolver.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Math/NumericLimits.h"
 #include "Misc/AutomationTest.h"
 
@@ -10,62 +11,7 @@ namespace BattleC05AHitDamageTests
 {
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
-
-	class FSequenceBattleRandom final : public IBattleRandom
-	{
-	public:
-		explicit FSequenceBattleRandom(TArray<uint32> InResults)
-			: Results(MoveTemp(InResults))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (InclusiveMinimum > InclusiveMaximum
-				|| !Context.IsValid()
-				|| !Results.IsValidIndex(NextResultIndex))
-			{
-				return false;
-			}
-
-			const uint32 Result = Results[NextResultIndex];
-			if (Result < InclusiveMinimum || Result > InclusiveMaximum)
-			{
-				return false;
-			}
-
-			++NextResultIndex;
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1ULL;
-			OutDraw.RawValue = Result;
-			OutDraw.Result = Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<uint32> Results;
-		int32 NextResultIndex = 0;
-		TArray<FBattleRandomDraw> Trace;
-	};
+	using BattleTest::FSequenceBattleRandom;
 
 	FBattleRandomContext MakeRandomContext(
 		const TCHAR* RulePurpose,

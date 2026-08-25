@@ -4,6 +4,7 @@
 #include "Battle/BattleEffectExecutor.h"
 #include "Battle/BattleReplay.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 namespace BattleFaintOutcomeTests
@@ -12,6 +13,7 @@ namespace BattleFaintOutcomeTests
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
+	using FC05CStrictRandom = BattleTest::FStrictBattleRandom;
 
 	constexpr uint64 BattleValue = 5506;
 	constexpr uint64 PlayerTrainerValue = 1;
@@ -84,63 +86,6 @@ namespace BattleFaintOutcomeTests
 		TArray<FString> EventOrder;
 		TArray<FBattleRandomDraw> RandomTrace;
 		TArray<uint8> ReplayBytes;
-	};
-
-	class FC05CStrictRandom final : public IBattleRandom
-	{
-	public:
-		explicit FC05CStrictRandom(const int32 InExpectedDamageDraws)
-			: ExpectedDamageDraws(InExpectedDamageDraws)
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (bMismatch
-				|| Trace.Num() >= ExpectedDamageDraws
-				|| InclusiveMinimum != 0
-				|| InclusiveMaximum != 15
-				|| !Context.IsValid()
-				|| Context.RulePurpose != FBattleEffectExecutor::GetDamageRandomRulePurpose())
-			{
-				bMismatch = true;
-				return false;
-			}
-
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = 16;
-			OutDraw.RawValue = 0;
-			OutDraw.Result = 0;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-		[[nodiscard]] bool IsExact() const
-		{
-			return !bMismatch && Trace.Num() == ExpectedDamageDraws;
-		}
-
-	private:
-		int32 ExpectedDamageDraws = 0;
-		bool bMismatch = false;
-		TArray<FBattleRandomDraw> Trace;
 	};
 
 	FBattleMoveEffectDescriptor MakeEffect(
@@ -528,7 +473,12 @@ namespace BattleFaintOutcomeTests
 	{
 		FC05CEvidence Evidence;
 		TUniquePtr<FC05CStrictRandom> Random = MakeUnique<FC05CStrictRandom>(
-			Scenario.ExpectedDamageDraws);
+			BattleTest::MakeRepeatedExpectedRandomDraws(
+				Scenario.ExpectedDamageDraws,
+				0,
+				15,
+				0,
+				FBattleEffectExecutor::GetDamageRandomRulePurpose()));
 		FC05CStrictRandom* RandomView = Random.Get();
 		TUniquePtr<IBattleRandom> RandomOwner = MoveTemp(Random);
 		TUniquePtr<FBattleEngine> Engine;

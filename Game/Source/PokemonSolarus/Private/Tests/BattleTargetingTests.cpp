@@ -4,6 +4,7 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleTargeting.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 namespace BattleTargetingTests
@@ -12,6 +13,7 @@ namespace BattleTargetingTests
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
+	using BattleTest::FSequenceBattleRandom;
 
 	constexpr uint64 PlayerTrainerValue = 1;
 	constexpr uint64 OpponentTrainerValue = 2;
@@ -22,63 +24,9 @@ namespace BattleTargetingTests
 
 	const TCHAR* FixedSpreadMoveName = TEXT("Move.C04B.FixedSpread");
 	const TCHAR* FieldConditionName = TEXT("Condition.C04B.Field");
+	const TCHAR* SideConditionName = TEXT("Condition.C04B.Side");
 	const TCHAR* AbilityName = TEXT("Ability.C04B.Core");
 	const TCHAR* SpeciesName = TEXT("Species.C04B.Core");
-
-	class FSequenceBattleRandom final : public IBattleRandom
-	{
-	public:
-		explicit FSequenceBattleRandom(TArray<uint32> InResults)
-			: Results(MoveTemp(InResults))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (InclusiveMinimum > InclusiveMaximum
-				|| !Context.IsValid()
-				|| !Results.IsValidIndex(NextResultIndex))
-			{
-				return false;
-			}
-
-			const uint32 Result = Results[NextResultIndex++];
-			if (Result < InclusiveMinimum || Result > InclusiveMaximum)
-			{
-				return false;
-			}
-
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = Result;
-			OutDraw.Result = Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<uint32> Results;
-		int32 NextResultIndex = 0;
-		TArray<FBattleRandomDraw> Trace;
-	};
 
 	FBattleTargetPositionFacts MakePosition(
 		const EBattleSide Side,
@@ -270,26 +218,44 @@ namespace BattleTargetingTests
 	{
 		FBattleDefinitionCatalogInput Input;
 		Input.TypeChartEntries = MakeTypeChart();
+		const bool bTargetsField = MoveTargetClass == EBattleTargetClass::Field;
+		const bool bTargetsSide = MoveTargetClass == EBattleTargetClass::UserSide
+			|| MoveTargetClass == EBattleTargetClass::OpponentSide
+			|| MoveTargetClass == EBattleTargetClass::BothSides;
 
 		FBattleMoveDefinition Move;
 		Move.Id = MakeDefinitionId<FMoveId>(FixedSpreadMoveName);
 		Move.Type = EPokemonType::Normal;
-		Move.Category = MoveCategory;
-		Move.Power = MoveCategory == EBattleMoveCategory::Status ? 0 : 40;
-		Move.bAlwaysHits = MoveCategory == EBattleMoveCategory::Status;
+		Move.Category = bTargetsField || bTargetsSide
+			? EBattleMoveCategory::Status
+			: MoveCategory;
+		Move.Power = Move.Category == EBattleMoveCategory::Status ? 0 : 40;
+		Move.bAlwaysHits = Move.Category == EBattleMoveCategory::Status;
 		Move.Accuracy = Move.bAlwaysHits ? 0 : 100;
 		Move.BasePP = 20;
 		Move.Priority = 0;
 		Move.TargetClass = MoveTargetClass;
 		FBattleMoveEffectDescriptor Effect;
 		Effect.Order = 0;
-		if (MoveCategory == EBattleMoveCategory::Status)
+		if (bTargetsField)
 		{
 			Effect.Kind = EBattleMoveEffectKind::SetFieldCondition;
 			Effect.Target = EBattleEffectTarget::Field;
 			Effect.ConditionId = MakeDefinitionId<FConditionId>(FieldConditionName);
 			Effect.DurationTurns = 5;
 			Input.Conditions.Add({Effect.ConditionId, EBattleConditionKind::Weather});
+		}
+		else if (bTargetsSide)
+		{
+			Effect.Kind = EBattleMoveEffectKind::SetSideCondition;
+			Effect.Target = MoveTargetClass == EBattleTargetClass::UserSide
+				? EBattleEffectTarget::UserSide
+				: MoveTargetClass == EBattleTargetClass::OpponentSide
+					? EBattleEffectTarget::TargetSide
+					: EBattleEffectTarget::BothSides;
+			Effect.ConditionId = MakeDefinitionId<FConditionId>(SideConditionName);
+			Effect.DurationTurns = 5;
+			Input.Conditions.Add({Effect.ConditionId, EBattleConditionKind::SideCondition});
 		}
 		else
 		{
@@ -1479,7 +1445,7 @@ namespace BattleTargetingTests
 
 		const FBattleReplayRecord FirstRecord = FirstEngine->ExportReplayRecord();
 		TestTrue(TEXT("The integration replay record is valid"), FirstRecord.IsValid());
-		TestEqual(TEXT("C04B exports the current replay schema"), FirstRecord.GetSchemaVersion(), 5U);
+		TestEqual(TEXT("C04B exports the current replay schema"), FirstRecord.GetSchemaVersion(), 6U);
 		TArray<uint8> FirstBytes;
 		TestTrue(
 			TEXT("The first C04B replay serializes canonically"),

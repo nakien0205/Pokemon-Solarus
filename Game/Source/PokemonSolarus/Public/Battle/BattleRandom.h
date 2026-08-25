@@ -61,6 +61,20 @@ struct POKEMONSOLARUS_API FBattleRandomDraw
 	}
 };
 
+/** Typed reason why a staged Battle RNG transaction could not commit. */
+enum class EBattleRandomTransactionCommitError : uint8
+{
+	None = 0,
+	AlreadyFinalized,
+	ParentIdentityMismatch,
+	ParentPositionMismatch,
+	ResolutionIdentityMismatch,
+	ActionIdentityMismatch,
+	StagedDrawRejected
+};
+
+class IBattleRandomTransaction;
+
 /** Lifetime-safe injectable source of bounded, traced battle randomness. */
 class POKEMONSOLARUS_API IBattleRandom
 {
@@ -79,6 +93,44 @@ public:
 
 	/** Returns the ordered, read-only trace of every successful semantic draw. */
 	[[nodiscard]] virtual TConstArrayView<FBattleRandomDraw> GetTrace() const = 0;
+
+	/**
+	 * Creates a private working stream for one resolution checkpoint and its
+	 * owning action. Invalid identities reset OutTransaction and change nothing.
+	 */
+	[[nodiscard]] virtual bool TryCreateTransaction(
+		FResolutionId ResolutionId,
+		FActionId OwningActionId,
+		TUniquePtr<IBattleRandomTransaction>& OutTransaction) = 0;
+};
+
+/**
+ * Private working RNG stream whose draws are invisible to its parent until one
+ * exact commit. Transactions are resolution/action scoped and cannot nest.
+ */
+class POKEMONSOLARUS_API IBattleRandomTransaction : public IBattleRandom
+{
+public:
+	virtual ~IBattleRandomTransaction() override = default;
+
+	/** Transactions cannot create nested transactions. */
+	[[nodiscard]] virtual bool TryCreateTransaction(
+		FResolutionId ResolutionId,
+		FActionId OwningActionId,
+		TUniquePtr<IBattleRandomTransaction>& OutTransaction) final override;
+
+	/**
+	 * Publishes the staged working position and ordered trace exactly once.
+	 * Every false return supplies a typed reason and leaves Parent unchanged.
+	 */
+	[[nodiscard]] virtual bool TryCommit(
+		IBattleRandom& Parent,
+		FResolutionId ResolutionId,
+		FActionId OwningActionId,
+		EBattleRandomTransactionCommitError& OutError) = 0;
+
+	/** Discards all staged work. Repeated rollback is harmless. */
+	virtual void Rollback() = 0;
 };
 
 /** Fixed SplitMix64 stream with unbiased bounded mapping and stable replay behavior. */
@@ -99,6 +151,11 @@ public:
 
 	virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override;
 
+	virtual bool TryCreateTransaction(
+		FResolutionId ResolutionId,
+		FActionId OwningActionId,
+		TUniquePtr<IBattleRandomTransaction>& OutTransaction) override;
+
 	/** Returns the seed needed to reproduce this stream. */
 	[[nodiscard]] uint64 GetInitialSeed() const
 	{
@@ -106,10 +163,13 @@ public:
 	}
 
 private:
+	class FTransaction;
+
 	[[nodiscard]] uint64 NextRawValue();
 
 	uint64 InitialSeed = 0;
 	uint64 State = 0;
 	uint64 NextCallOrdinal = 1;
+	uint64 PositionVersion = 1;
 	TArray<FBattleRandomDraw> Trace;
 };

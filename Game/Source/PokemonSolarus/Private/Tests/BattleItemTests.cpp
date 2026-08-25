@@ -9,6 +9,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 class FBattleC08CEngineFixture
@@ -410,72 +411,8 @@ namespace BattleItemTests
 		int32 OpponentSpeed = 80;
 	};
 
-	struct FExpectedDraw
-	{
-		uint32 Minimum = 0;
-		uint32 Maximum = 0;
-		uint32 Result = 0;
-		FDefinitionId Purpose;
-	};
-
-	class FScriptedRandom final : public IBattleRandom
-	{
-	public:
-		explicit FScriptedRandom(TArray<FExpectedDraw> InExpected)
-			: Expected(MoveTemp(InExpected))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (!Expected.IsValidIndex(NextIndex))
-			{
-				bMismatch = true;
-				return false;
-			}
-			const FExpectedDraw& Next = Expected[NextIndex++];
-			if (!Context.IsValid()
-				|| InclusiveMinimum != Next.Minimum
-				|| InclusiveMaximum != Next.Maximum
-				|| Context.RulePurpose != Next.Purpose
-				|| Next.Result < InclusiveMinimum
-				|| Next.Result > InclusiveMaximum)
-			{
-				bMismatch = true;
-				return false;
-			}
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = Next.Result;
-			OutDraw.Result = Next.Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<FExpectedDraw> Expected;
-		TArray<FBattleRandomDraw> Trace;
-		int32 NextIndex = 0;
-		bool bMismatch = false;
-	};
+	using FExpectedDraw = BattleTest::FBattleExpectedRandomDraw;
+	using FScriptedRandom = BattleTest::FStrictBattleRandom;
 
 	TArray<FBattleTypeChartEntry> MakeNeutralTypeChart()
 	{

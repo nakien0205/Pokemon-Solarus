@@ -3,6 +3,7 @@
 #include "Battle/BattleActionQueue.h"
 #include "Battle/BattleEngine.h"
 #include "BattleTestFactories.h"
+#include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
 namespace
@@ -11,6 +12,7 @@ namespace
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
+	using BattleTest::FSequenceBattleRandom;
 
 	constexpr uint64 PlayerTrainerValue = 1;
 	constexpr uint64 OpponentTrainerValue = 2;
@@ -29,60 +31,6 @@ namespace
 	const TCHAR* HyperPotionName = TEXT("Item.HyperPotion");
 	const TCHAR* PokeBallName = TEXT("Item.PokeBall");
 	const TCHAR* SpeciesName = TEXT("Species.C04A.Core");
-
-	class FSequenceBattleRandom final : public IBattleRandom
-	{
-	public:
-		explicit FSequenceBattleRandom(TArray<uint32> InResults)
-			: Results(MoveTemp(InResults))
-		{
-		}
-
-		virtual bool TryDrawUniform(
-			const uint32 InclusiveMinimum,
-			const uint32 InclusiveMaximum,
-			const FBattleRandomContext& Context,
-			FBattleRandomDraw& OutDraw) override
-		{
-			OutDraw = FBattleRandomDraw();
-			if (InclusiveMinimum > InclusiveMaximum
-				|| !Context.IsValid()
-				|| !Results.IsValidIndex(NextResultIndex))
-			{
-				return false;
-			}
-			const uint32 Result = Results[NextResultIndex++];
-			if (Result < InclusiveMinimum || Result > InclusiveMaximum)
-			{
-				return false;
-			}
-
-			OutDraw.InclusiveMinimum = InclusiveMinimum;
-			OutDraw.InclusiveMaximum = InclusiveMaximum;
-			OutDraw.Bound = static_cast<uint64>(InclusiveMaximum)
-				- static_cast<uint64>(InclusiveMinimum) + 1;
-			OutDraw.RawValue = Result;
-			OutDraw.Result = Result;
-			OutDraw.CallOrdinal = static_cast<uint64>(Trace.Num() + 1);
-			OutDraw.BattleId = Context.BattleId;
-			OutDraw.TurnId = Context.TurnId;
-			OutDraw.ActionId = Context.ActionId;
-			OutDraw.ResolutionId = Context.ResolutionId;
-			OutDraw.RulePurpose = Context.RulePurpose;
-			Trace.Add(OutDraw);
-			return true;
-		}
-
-		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
-		{
-			return Trace;
-		}
-
-	private:
-		TArray<uint32> Results;
-		int32 NextResultIndex = 0;
-		TArray<FBattleRandomDraw> Trace;
-	};
 
 	TArray<FBattleTypeChartEntry> MakeTypeChart()
 	{
