@@ -301,16 +301,18 @@ bool FBattleCaptureCalculator::IsInputValid(const FBattleCaptureCalculationInput
 		&& Input.RandomContext.ActionId.IsValid();
 }
 
-bool FBattleCaptureCalculator::TryResolve(
+bool FBattleCaptureCalculator::TryPrepare(
 	const FBattleCaptureCalculationInput& Input,
-	IBattleRandom& Random,
-	FBattleCaptureCalculationResult& OutResult)
+	FBattleCapturePreparation& OutPreparation)
 {
-	OutResult = FBattleCaptureCalculationResult();
+	OutPreparation = FBattleCapturePreparation();
 	if (!IsInputValid(Input))
 	{
 		return false;
 	}
+
+	FBattleCaptureCalculationResult& OutResult = OutPreparation.PreparedResult;
+	OutPreparation.RandomContext = Input.RandomContext;
 
 	OutResult.BadgeModifierQ12 = GetBadgeModifierQ12(
 		Input.Progression.BadgeCount,
@@ -324,6 +326,7 @@ bool FBattleCaptureCalculator::TryResolve(
 		OutResult.bValid = true;
 		OutResult.bSucceeded = true;
 		OutResult.VisualShakeCount = 3;
+		OutPreparation.bValid = true;
 		return true;
 	}
 
@@ -405,18 +408,63 @@ bool FBattleCaptureCalculator::TryResolve(
 		}
 		OutResult.CriticalThreshold = static_cast<uint32>(
 			(CriticalQ12 / 6ULL) / Q12Neutral);
-		FBattleRandomContext CriticalContext = Input.RandomContext;
+	}
+
+	OutResult.bGuaranteedCapture = IndicatorQ12 >= GuaranteedIndicatorQ12;
+	if (!OutResult.bGuaranteedCapture
+		&& !TryCalculateShakeThreshold(IndicatorQ12, OutResult.ShakeThreshold))
+	{
+		return false;
+	}
+
+	OutPreparation.bRequiresRandomResolution = OutResult.bCriticalEligible
+		|| !OutResult.bGuaranteedCapture;
+	if (!OutPreparation.bRequiresRandomResolution)
+	{
+		OutResult.bValid = true;
+		OutResult.bSucceeded = true;
+		OutResult.VisualShakeCount = 3;
+	}
+	OutPreparation.bValid = true;
+	return true;
+}
+
+bool FBattleCaptureCalculator::TryResolveRandom(
+	const FBattleCapturePreparation& Preparation,
+	IBattleRandom& Random,
+	FBattleCaptureCalculationResult& OutResult)
+{
+	OutResult = FBattleCaptureCalculationResult();
+	if (!Preparation.bValid
+		|| !Preparation.bRequiresRandomResolution
+		|| !Preparation.RandomContext.IsValid()
+		|| !Preparation.RandomContext.ActionId.IsValid()
+		|| Preparation.PreparedResult.bValid
+		|| Preparation.PreparedResult.bMustCapture
+		|| Preparation.PreparedResult.CaptureIndicatorQ12 == 0
+		|| (Preparation.PreparedResult.bGuaranteedCapture
+			&& !Preparation.PreparedResult.bCriticalEligible)
+		|| (!Preparation.PreparedResult.bGuaranteedCapture
+			&& Preparation.PreparedResult.ShakeThreshold == 0))
+	{
+		return false;
+	}
+
+	OutResult = Preparation.PreparedResult;
+	if (OutResult.bCriticalEligible)
+	{
+		FBattleRandomContext CriticalContext = Preparation.RandomContext;
 		CriticalContext.RulePurpose = GetCriticalCapturePurpose();
 		FBattleRandomDraw Draw;
 		if (!Random.TryDrawUniform(0, 255, CriticalContext, Draw))
 		{
+			OutResult = FBattleCaptureCalculationResult();
 			return false;
 		}
 		OutResult.CriticalDraw = Draw;
 		OutResult.bCriticalCapture = Draw.Result < OutResult.CriticalThreshold;
 	}
 
-	OutResult.bGuaranteedCapture = IndicatorQ12 >= GuaranteedIndicatorQ12;
 	if (OutResult.bGuaranteedCapture)
 	{
 		OutResult.bValid = true;
@@ -425,18 +473,15 @@ bool FBattleCaptureCalculator::TryResolve(
 		return true;
 	}
 
-	if (!TryCalculateShakeThreshold(IndicatorQ12, OutResult.ShakeThreshold))
-	{
-		return false;
-	}
 	OutResult.RequiredShakeChecks = OutResult.bCriticalCapture ? 1 : 4;
-	FBattleRandomContext ShakeContext = Input.RandomContext;
+	FBattleRandomContext ShakeContext = Preparation.RandomContext;
 	ShakeContext.RulePurpose = GetShakeCheckPurpose();
 	for (uint8 CheckIndex = 0; CheckIndex < OutResult.RequiredShakeChecks; ++CheckIndex)
 	{
 		FBattleRandomDraw Draw;
 		if (!Random.TryDrawUniform(0, 65535, ShakeContext, Draw))
 		{
+			OutResult = FBattleCaptureCalculationResult();
 			return false;
 		}
 		OutResult.ShakeDraws.Add(Draw);

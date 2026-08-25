@@ -84,6 +84,15 @@ struct POKEMONSOLARUS_API FBattleCaptureCalculationResult
 	TArray<FBattleRandomDraw> ShakeDraws;
 };
 
+/** Deterministic capture facts frozen before any gameplay RNG transaction exists. */
+struct POKEMONSOLARUS_API FBattleCapturePreparation
+{
+	bool bValid = false;
+	bool bRequiresRandomResolution = false;
+	FBattleRandomContext RandomContext;
+	FBattleCaptureCalculationResult PreparedResult;
+};
+
 /** Public capture metadata attached to CaptureAttempted and Captured events. */
 struct POKEMONSOLARUS_API FBattleCaptureEventMetadata
 {
@@ -183,9 +192,14 @@ public:
 	/** Validates every immutable input without consuming RNG. */
 	[[nodiscard]] static bool IsInputValid(const FBattleCaptureCalculationInput& Input);
 
-	/** Calculates the indicator, critical check, shake boundary, and final result. */
-	[[nodiscard]] static bool TryResolve(
+	/** Completes every deterministic calculation without acquiring or using RNG. */
+	[[nodiscard]] static bool TryPrepare(
 		const FBattleCaptureCalculationInput& Input,
+		FBattleCapturePreparation& OutPreparation);
+
+	/** Resolves only the critical and early-stopping shake draws from prepared facts. */
+	[[nodiscard]] static bool TryResolveRandom(
+		const FBattleCapturePreparation& Preparation,
 		IBattleRandom& Random,
 		FBattleCaptureCalculationResult& OutResult);
 

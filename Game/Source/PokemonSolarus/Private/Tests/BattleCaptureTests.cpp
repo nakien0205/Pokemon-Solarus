@@ -13,6 +13,12 @@
 class FBattleC09BCaptureEngineFixture
 {
 public:
+	static FBattleEngineState& GetMutableState(FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
 	static const FBattleEngineState& GetState(const FBattleEngine& Engine)
 	{
 		check(Engine.State.IsValid());
@@ -35,6 +41,26 @@ public:
 			{
 				return Position.BattlerId == BattlerId;
 			});
+	}
+
+	static bool SetCurrentHP(
+		FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const int32 CurrentHP)
+	{
+		FBattleBattlerState* Battler = GetMutableState(Engine).FindMutableBattler(
+			BattlerId);
+		if (Battler == nullptr
+			|| CurrentHP <= 0
+			|| CurrentHP > Battler->PermanentStats.MaxHP)
+		{
+			return false;
+		}
+		Battler->CurrentHP = CurrentHP;
+		Battler->bFainted = false;
+		Battler->bFaintTransitionPending = false;
+		Battler->bRemoved = false;
+		return true;
 	}
 };
 
@@ -59,6 +85,7 @@ namespace
 	const TCHAR* ReinforcementSpeciesName = TEXT("Species.C09B.Capture.Reinforcement");
 	const TCHAR* ProbeMoveName = TEXT("Move.C09B.Capture.Probe");
 	const TCHAR* TagMoveName = TEXT("Move.C09B.Capture.Tag");
+	const TCHAR* FinisherMoveName = TEXT("Move.ADR0002.3D3.Capture.Finisher");
 	const TCHAR* LeftHeldItemName = TEXT("Item.C09B.Capture.LeftHeld");
 	const TCHAR* RightHeldItemName = TEXT("Item.C09B.Capture.RightHeld");
 
@@ -79,6 +106,8 @@ namespace
 		EBattleCaptureSpeciesClassification RightClassification =
 			EBattleCaptureSpeciesClassification::Normal;
 		bool bConfiguredReinforcement = false;
+		bool bRunAllowed = false;
+		bool bOpponentRightHasFinisher = false;
 		FBattleCaptureProgressionSnapshot Progression;
 	};
 
@@ -145,6 +174,24 @@ namespace
 		return Move;
 	}
 
+	FBattleMoveDefinition MakeFinisherMove()
+	{
+		FBattleMoveDefinition Move;
+		Move.Id = MakeDefinitionId<FMoveId>(FinisherMoveName);
+		Move.Type = EPokemonType::Normal;
+		Move.Category = EBattleMoveCategory::Physical;
+		Move.Power = 250;
+		Move.bAlwaysHits = true;
+		Move.BasePP = 20;
+		Move.TargetClass = EBattleTargetClass::SelectedOpponent;
+		Move.Flags = EBattleMoveFlags::NeverCritical;
+		FBattleMoveEffectDescriptor Effect;
+		Effect.Kind = EBattleMoveEffectKind::Damage;
+		Effect.Target = EBattleEffectTarget::ResolvedTarget;
+		Move.Effects.Add(Effect);
+		return Move;
+	}
+
 	FBattleSpeciesFormDefinition MakeSpecies(
 		const TCHAR* Name,
 		const int32 CatchRate)
@@ -164,6 +211,7 @@ namespace
 		Input.TypeChartEntries = MakeNeutralTypeChart();
 		Input.Moves.Add(MakeProbeMove());
 		Input.Moves.Add(MakeTagMove());
+		Input.Moves.Add(MakeFinisherMove());
 		Input.Abilities.Add({FBattleAbilityRules::GetBlazeId()});
 		Input.Items.Add({FBattleBagItemRules::GetPokeBallId(), EBattleItemKind::Capture});
 		Input.Items.Add({MakeDefinitionId<FItemId>(LeftHeldItemName), EBattleItemKind::Held});
@@ -221,7 +269,8 @@ namespace
 		const int32 ProbePP,
 		const FItemId OriginalItemId = FItemId(),
 		const FItemId CurrentItemId = FItemId(),
-		const bool bAddTagMove = false)
+		const bool bAddTagMove = false,
+		const bool bAddFinisherMove = false)
 	{
 		FBattlePartyEntrySetup Entry;
 		Entry.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
@@ -240,6 +289,10 @@ namespace
 		if (bAddTagMove)
 		{
 			Entry.Moves.Add({1, MakeDefinitionId<FMoveId>(TagMoveName), 20, 20});
+		}
+		if (bAddFinisherMove)
+		{
+			Entry.Moves.Add({1, MakeDefinitionId<FMoveId>(FinisherMoveName), 20, 20});
 		}
 		return Entry;
 	}
@@ -272,7 +325,7 @@ namespace
 		Input.CaptureProgression = Scenario.Progression;
 		Input.Policies.bBagAllowed = true;
 		Input.Policies.bCaptureAllowed = true;
-		Input.Policies.bRunAllowed = false;
+		Input.Policies.bRunAllowed = Scenario.bRunAllowed;
 		Input.Policies.WildFleeMode = EBattleWildFleeMode::Disabled;
 
 		Input.Trainers.Add(MakeTrainer(
@@ -347,7 +400,9 @@ namespace
 				Scenario.RightClassification,
 				17,
 				MakeDefinitionId<FItemId>(RightHeldItemName),
-				FItemId()));
+				FItemId(),
+				false,
+				Scenario.bOpponentRightHasFinisher));
 			Input.StartingActive.Add(MakeActive(
 				EBattleSide::Player,
 				EBattlePosition::Right,
@@ -477,6 +532,22 @@ namespace
 		return Decision;
 	}
 
+	FBattleDecision MakeSimpleActionDecision(
+		const FBattleDecisionRequest& Request,
+		const EBattleActionKind ActionKind)
+	{
+		FBattleDecision Decision;
+		const bool bCreated = FBattleDecision::TryCreateSimpleAction(
+			Request.GetStateVersion(),
+			Request.GetRequestKind(),
+			Request.GetDecisionOwnerTrainerId(),
+			Request.GetActingBattlerId(),
+			ActionKind,
+			Decision);
+		check(bCreated);
+		return Decision;
+	}
+
 	FBattleDecisionBatch MakeBatch(
 		const TArray<FBattleDecisionRequest>& Requests,
 		TArray<FBattleDecision> Decisions)
@@ -591,6 +662,101 @@ namespace
 			}
 			if (!Engine.SubmitDecisionBatch(
 				MakeBatch(Requests, MoveTemp(Decisions))).WasAccepted())
+			{
+				return false;
+			}
+		}
+		return Guard < 4
+			&& Engine.GetSnapshot().GetPhase() == EBattlePhase::Locked;
+	}
+
+	bool LockRunTurn(FBattleEngine& Engine)
+	{
+		if (Engine.GetSnapshot().GetPhase() == EBattlePhase::Setup)
+		{
+			FBattleRejection Rejection;
+			if (!Engine.TryBeginActionDecisionSequence(Rejection))
+			{
+				return false;
+			}
+		}
+
+		int32 Guard = 0;
+		while (!Engine.GetPendingDecisionRequests().IsEmpty() && Guard++ < 4)
+		{
+			const TArray<FBattleDecisionRequest> Requests =
+				Engine.GetPendingDecisionRequests();
+			TArray<FBattleDecision> Decisions;
+			for (const FBattleDecisionRequest& Request : Requests)
+			{
+				if (Request.GetActingBattlerId()
+					== MakeNumericId<FBattlerId>(PlayerLeftValue))
+				{
+					Decisions.Add(MakeSimpleActionDecision(
+						Request,
+						EBattleActionKind::Run));
+					continue;
+				}
+				const FActiveSlotId DesiredTarget =
+					Request.GetDecisionOwnerTrainerId()
+						== MakeNumericId<FTrainerId>(PlayerTrainerValue)
+					? MakeActiveSlotId(
+						EBattleSide::Opponent,
+						EBattlePosition::Right)
+					: MakeActiveSlotId(
+						EBattleSide::Player,
+						EBattlePosition::Left);
+				Decisions.Add(MakeFightDecision(
+					Request,
+					MakeDefinitionId<FMoveId>(ProbeMoveName),
+					DesiredTarget));
+			}
+			if (!Engine.SubmitDecisionBatch(
+					MakeBatch(Requests, MoveTemp(Decisions))).WasAccepted())
+			{
+				return false;
+			}
+		}
+		return Guard < 4
+			&& Engine.GetSnapshot().GetPhase() == EBattlePhase::Locked;
+	}
+
+	bool LockFinisherTurn(
+		FBattleEngine& Engine,
+		const FActiveSlotId PlayerTarget)
+	{
+		if (Engine.GetSnapshot().GetPhase() == EBattlePhase::Setup)
+		{
+			FBattleRejection Rejection;
+			if (!Engine.TryBeginActionDecisionSequence(Rejection))
+			{
+				return false;
+			}
+		}
+
+		int32 Guard = 0;
+		while (!Engine.GetPendingDecisionRequests().IsEmpty() && Guard++ < 4)
+		{
+			const TArray<FBattleDecisionRequest> Requests =
+				Engine.GetPendingDecisionRequests();
+			TArray<FBattleDecision> Decisions;
+			for (const FBattleDecisionRequest& Request : Requests)
+			{
+				const bool bFinisher = Request.GetActingBattlerId()
+					== MakeNumericId<FBattlerId>(OpponentRightValue);
+				const FActiveSlotId DesiredTarget = bFinisher
+					? PlayerTarget
+					: MakeActiveSlotId(
+						EBattleSide::Opponent,
+						EBattlePosition::Right);
+				Decisions.Add(MakeFightDecision(
+					Request,
+					MakeDefinitionId<FMoveId>(
+						bFinisher ? FinisherMoveName : ProbeMoveName),
+					DesiredTarget));
+			}
+			if (!Engine.SubmitDecisionBatch(
+					MakeBatch(Requests, MoveTemp(Decisions))).WasAccepted())
 			{
 				return false;
 			}
@@ -791,6 +957,28 @@ namespace
 			TEXT("Rule.C09B.Capture.Test"));
 		return Input;
 	}
+
+	bool TryResolveCaptureForTest(
+		const FBattleCaptureCalculationInput& Input,
+		IBattleRandom& Random,
+		FBattleCaptureCalculationResult& OutResult)
+	{
+		FBattleCapturePreparation Preparation;
+		if (!FBattleCaptureCalculator::TryPrepare(Input, Preparation))
+		{
+			OutResult = FBattleCaptureCalculationResult();
+			return false;
+		}
+		if (Preparation.bRequiresRandomResolution)
+		{
+			return FBattleCaptureCalculator::TryResolveRandom(
+				Preparation,
+				Random,
+				OutResult);
+		}
+		OutResult = Preparation.PreparedResult;
+		return OutResult.bValid;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -810,7 +998,7 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 	FSequenceBattleRandom NormalRandom({39055, 39055, 39055, 39055});
 	FBattleCaptureCalculationResult NormalResult;
 	TestTrue(TEXT("The normal golden vector resolves"),
-		FBattleCaptureCalculator::TryResolve(Normal, NormalRandom, NormalResult));
+		TryResolveCaptureForTest(Normal, NormalRandom, NormalResult));
 	TestTrue(TEXT("The normal golden vector succeeds"), NormalResult.bSucceeded);
 	TestEqual(TEXT("Caught-count HP modifier is exact"),
 		NormalResult.CaughtCountHPModifierQ12, 2867U);
@@ -826,7 +1014,7 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 	FSequenceBattleRandom BoundaryFailureRandom({39056, 0});
 	FBattleCaptureCalculationResult BoundaryFailure;
 	TestTrue(TEXT("The boundary-failure vector resolves"),
-		FBattleCaptureCalculator::TryResolve(
+		TryResolveCaptureForTest(
 			Normal,
 			BoundaryFailureRandom,
 			BoundaryFailure));
@@ -850,7 +1038,7 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 	FSequenceBattleRandom CriticalRandom({0, 65391});
 	FBattleCaptureCalculationResult CriticalResult;
 	TestTrue(TEXT("The critical golden vector resolves"),
-		FBattleCaptureCalculator::TryResolve(Critical, CriticalRandom, CriticalResult));
+		TryResolveCaptureForTest(Critical, CriticalRandom, CriticalResult));
 	TestTrue(TEXT("The critical draw succeeds"), CriticalResult.bCriticalCapture);
 	TestTrue(TEXT("The critical capture succeeds"), CriticalResult.bSucceeded);
 	TestEqual(TEXT("Critical capture indicator is exact"),
@@ -877,7 +1065,7 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 	FSequenceBattleRandom GuaranteedRandom({255});
 	FBattleCaptureCalculationResult GuaranteedResult;
 	TestTrue(TEXT("The guaranteed golden vector resolves"),
-		FBattleCaptureCalculator::TryResolve(
+		TryResolveCaptureForTest(
 			Guaranteed,
 			GuaranteedRandom,
 			GuaranteedResult));
@@ -895,7 +1083,7 @@ bool FBattleC09BCaptureCalculationTest::RunTest(const FString& Parameters)
 	FSequenceBattleRandom MustRandom({});
 	FBattleCaptureCalculationResult MustResult;
 	TestTrue(TEXT("The must-capture vector resolves"),
-		FBattleCaptureCalculator::TryResolve(MustCapture, MustRandom, MustResult));
+		TryResolveCaptureForTest(MustCapture, MustRandom, MustResult));
 	TestTrue(TEXT("Must-capture succeeds"), MustResult.bSucceeded && MustResult.bMustCapture);
 	TestEqual(TEXT("Must-capture consumes no RNG"), MustRandom.GetTrace().Num(), 0);
 	TestEqual(TEXT("Must-capture exposes the completed visual state"),
@@ -925,7 +1113,7 @@ bool FBattleADR00023B1CaptureBadgeOverflowTest::RunTest(const FString& Parameter
 	FBattleCaptureCalculationResult Result;
 	TestTrue(
 		TEXT("Capture badge overflow resolves without special failure"),
-		FBattleCaptureCalculator::TryResolve(Input, Random, Result));
+		TryResolveCaptureForTest(Input, Random, Result));
 	TestEqual(
 		TEXT("Capture badge overflow uses the neutral modifier"),
 		Result.BadgeModifierQ12,
@@ -1363,19 +1551,141 @@ bool FBattleC09BCaptureResultsReplayTest::RunTest(const FString& Parameters)
 	TArray<uint8> SecondBytes;
 	FBattleRejection FirstRejection;
 	FBattleRejection SecondRejection;
-	TestTrue(TEXT("The first schema-5 replay serializes canonically"),
+	TestTrue(TEXT("The first schema-6 replay serializes canonically"),
 		FBattleReplaySerializer::TrySerializeCanonical(
 			FirstRecord,
 			FirstBytes,
 			FirstRejection));
-	TestTrue(TEXT("The repeated schema-5 replay serializes canonically"),
+	TestTrue(TEXT("The repeated schema-6 replay serializes canonically"),
 		FBattleReplaySerializer::TrySerializeCanonical(
 			SecondRecord,
 			SecondBytes,
 			SecondRejection));
-	TestFalse(TEXT("The schema-5 replay is non-empty"), FirstBytes.IsEmpty());
+	TestFalse(TEXT("The schema-6 replay is non-empty"), FirstBytes.IsEmpty());
 	TestTrue(TEXT("Identical setup, decisions, results, and capture state replay equally"),
 		FirstBytes == SecondBytes);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023D3CaptureOutcomePersistenceTest,
+	"PokemonSolarus.Battle.ADR0002.3D3.Capture.Outcomes.PendingCaptureSurvivesEscapeAndDefeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023D3CaptureOutcomePersistenceTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	const FActiveSlotId OpponentLeft = MakeActiveSlotId(
+		EBattleSide::Opponent,
+		EBattlePosition::Left);
+	const FActiveSlotId PlayerLeft = MakeActiveSlotId(
+		EBattleSide::Player,
+		EBattlePosition::Left);
+	const FActiveSlotId PlayerRight = MakeActiveSlotId(
+		EBattleSide::Player,
+		EBattlePosition::Right);
+
+	FCaptureScenario EscapeScenario = MakeScenario();
+	EscapeScenario.Format = EBattleFormat::Double;
+	EscapeScenario.bRunAllowed = true;
+	TUniquePtr<FBattleEngine> EscapeEngine;
+	if (!TestTrue(TEXT("Pending-capture Escape engine is created"),
+		TryMakeEngine(EscapeScenario, {}, EscapeEngine))
+		|| !TestTrue(TEXT("Escape proof Capture turn locks"),
+			LockCaptureTurn(*EscapeEngine, OpponentLeft))
+		|| !TestTrue(TEXT("Escape proof Capture turn reaches its boundary"),
+			ExecuteQueueToBoundary(*EscapeEngine))
+		|| !TestTrue(TEXT("Escape proof advances to the next selection"),
+			AdvanceFromEndTurn(*EscapeEngine)))
+	{
+		return false;
+	}
+	const FBattleSnapshot EscapeSnapshotBefore = EscapeEngine->GetSnapshot();
+	const TConstArrayView<FBattlePendingCaptureRecord> EscapePendingView =
+		EscapeSnapshotBefore.GetPendingCaptures();
+	TArray<FBattlePendingCaptureRecord> EscapePendingBefore;
+	EscapePendingBefore.Append(EscapePendingView.GetData(), EscapePendingView.Num());
+	if (!TestEqual(TEXT("Escape proof begins with one pending Capture"),
+		EscapePendingBefore.Num(), 1)
+		|| !TestTrue(TEXT("Escape proof Run turn locks"),
+			LockRunTurn(*EscapeEngine)))
+	{
+		return false;
+	}
+	const TArray<FBattleLockedAction> EscapeQueue = EscapeEngine->GetLockedActions();
+	if (!TestTrue(TEXT("Run owns the first post-Capture action"),
+		!EscapeQueue.IsEmpty()
+			&& EscapeQueue[0].Decision.GetActionKind() == EBattleActionKind::Run)
+		|| !TestTrue(TEXT("Post-Capture Run starts"),
+			EscapeEngine->BeginNextLockedAction().WasAccepted()))
+	{
+		return false;
+	}
+	const FBattleResolution EscapeResolution = EscapeEngine->ExecuteCurrentWildAction();
+	TestTrue(TEXT("Post-Capture Run succeeds"), EscapeResolution.WasAccepted());
+	TestEqual(TEXT("Later Run produces Escape"),
+		EscapeEngine->GetSnapshot().GetOutcome(), EBattleOutcome::Escape);
+	TestTrue(TEXT("Pending Capture survives the later Escape unchanged"),
+		EscapeEngine->GetSnapshot().GetPendingCaptures() == EscapePendingBefore);
+
+	FCaptureScenario DefeatScenario = MakeScenario();
+	DefeatScenario.Format = EBattleFormat::Double;
+	DefeatScenario.bOpponentRightHasFinisher = true;
+	TUniquePtr<FBattleEngine> DefeatEngine;
+	if (!TestTrue(TEXT("Pending-capture Defeat engine is created"),
+		TryMakeEngine(DefeatScenario, {0, 0}, DefeatEngine))
+		|| !TestTrue(TEXT("Defeat proof Capture turn locks"),
+			LockCaptureTurn(*DefeatEngine, OpponentLeft))
+		|| !TestTrue(TEXT("Defeat proof Capture turn reaches its boundary"),
+			ExecuteQueueToBoundary(*DefeatEngine)))
+	{
+		return false;
+	}
+	const FBattleSnapshot DefeatSnapshotBefore = DefeatEngine->GetSnapshot();
+	const TConstArrayView<FBattlePendingCaptureRecord> DefeatPendingView =
+		DefeatSnapshotBefore.GetPendingCaptures();
+	TArray<FBattlePendingCaptureRecord> DefeatPendingBefore;
+	DefeatPendingBefore.Append(DefeatPendingView.GetData(), DefeatPendingView.Num());
+	if (!TestEqual(TEXT("Defeat proof begins with one pending Capture"),
+		DefeatPendingBefore.Num(), 1)
+		|| !TestTrue(TEXT("Player Left is prepared for a legal later faint"),
+			FBattleC09BCaptureEngineFixture::SetCurrentHP(
+				*DefeatEngine,
+				MakeNumericId<FBattlerId>(PlayerLeftValue),
+				1))
+		|| !TestTrue(TEXT("Player Right is prepared for a legal later faint"),
+			FBattleC09BCaptureEngineFixture::SetCurrentHP(
+				*DefeatEngine,
+				MakeNumericId<FBattlerId>(PlayerRightValue),
+				1))
+		|| !TestTrue(TEXT("Defeat proof advances to the first finisher turn"),
+			AdvanceFromEndTurn(*DefeatEngine))
+		|| !TestTrue(TEXT("First finisher turn locks"),
+			LockFinisherTurn(*DefeatEngine, PlayerLeft))
+		|| !TestTrue(TEXT("First finisher turn reaches its boundary"),
+			ExecuteQueueToBoundary(*DefeatEngine)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("One surviving player keeps the battle in progress"),
+		DefeatEngine->GetSnapshot().GetOutcome(), EBattleOutcome::InProgress);
+	TestTrue(TEXT("Pending Capture survives the intermediate player faint"),
+		DefeatEngine->GetSnapshot().GetPendingCaptures() == DefeatPendingBefore);
+	if (!TestTrue(TEXT("Defeat proof advances to the second finisher turn"),
+		AdvanceFromEndTurn(*DefeatEngine))
+		|| !TestTrue(TEXT("Second finisher turn locks"),
+			LockFinisherTurn(*DefeatEngine, PlayerRight))
+		|| !TestTrue(TEXT("Second finisher turn reaches terminal outcome"),
+			ExecuteQueueToBoundary(*DefeatEngine)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The later ordinary outcome is Defeat"),
+		DefeatEngine->GetSnapshot().GetOutcome(), EBattleOutcome::Defeat);
+	TestEqual(TEXT("The later Defeat keeps its ordinary cause"),
+		DefeatEngine->GetSnapshot().GetOutcomeCause(), EBattleOutcomeCause::Ordinary);
+	TestTrue(TEXT("Pending Capture survives the later Defeat unchanged"),
+		DefeatEngine->GetSnapshot().GetPendingCaptures() == DefeatPendingBefore);
 	return true;
 }
 

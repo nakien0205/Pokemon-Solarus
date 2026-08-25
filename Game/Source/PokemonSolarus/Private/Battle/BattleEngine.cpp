@@ -6551,7 +6551,8 @@ namespace
 	bool TryStageMajorStatusCleanup(
 		FWildActionCleanupStage& Stage,
 		const FConditionId& StatusId,
-		const FBattlerId BattlerId)
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		if (!FBattleMajorStatusRules::IsCanonical(StatusId))
 		{
@@ -6566,7 +6567,7 @@ namespace
 				Stage.TriggerFramework,
 				StatusId,
 				Owner,
-				EBattleTriggerCleanupReason::Removal,
+				Reason,
 				Operation,
 				Error))
 		{
@@ -6579,7 +6580,8 @@ namespace
 	bool TryStageAbilityCleanup(
 		FWildActionCleanupStage& Stage,
 		const FAbilityId& AbilityId,
-		const FBattlerId BattlerId)
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		if (!FBattleAbilityRules::IsCanonical(AbilityId))
 		{
@@ -6596,7 +6598,7 @@ namespace
 		}
 
 		FBattleTriggerCleanupRequest Cleanup;
-		Cleanup.Reason = EBattleTriggerCleanupReason::Removal;
+		Cleanup.Reason = Reason;
 		Cleanup.AffectedOwners.Add(Owner);
 		Cleanup.SourceDefinitionFilter = SourceDefinition;
 		Cleanup.Context = Operation;
@@ -6612,7 +6614,8 @@ namespace
 	bool TryStageItemCleanup(
 		FWildActionCleanupStage& Stage,
 		const FItemId& ItemId,
-		const FBattlerId BattlerId)
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		if (!FBattleItemRules::IsCanonical(ItemId))
 		{
@@ -6629,7 +6632,7 @@ namespace
 		}
 
 		FBattleTriggerCleanupRequest Cleanup;
-		Cleanup.Reason = EBattleTriggerCleanupReason::Removal;
+		Cleanup.Reason = Reason;
 		Cleanup.AffectedOwners.Add(Owner);
 		Cleanup.SourceDefinitionFilter = SourceDefinition;
 		Cleanup.Context = Operation;
@@ -6645,7 +6648,8 @@ namespace
 	bool TryStageVolatileCleanup(
 		FWildActionCleanupStage& Stage,
 		const FConditionId& VolatileId,
-		const FBattlerId BattlerId)
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		if (!FBattleVolatileRules::IsCanonical(VolatileId))
 		{
@@ -6660,7 +6664,7 @@ namespace
 				Stage.TriggerFramework,
 				VolatileId,
 				Owner,
-				EBattleTriggerCleanupReason::Removal,
+				Reason,
 				Operation,
 				Error))
 		{
@@ -6672,7 +6676,8 @@ namespace
 
 	bool TryStageSourceDependentVolatileCleanup(
 		FWildActionCleanupStage& Stage,
-		const FBattlerId SourceBattlerId)
+		const FBattlerId SourceBattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		for (FWildActionStagedVolatiles& Candidate : Stage.BattlerVolatiles)
 		{
@@ -6688,7 +6693,7 @@ namespace
 			}
 			for (const FConditionId& Id : ToRemove)
 			{
-				if (!TryStageVolatileCleanup(Stage, Id, Candidate.BattlerId))
+				if (!TryStageVolatileCleanup(Stage, Id, Candidate.BattlerId, Reason))
 				{
 					return false;
 				}
@@ -6704,7 +6709,8 @@ namespace
 
 	bool TryStageAllOwnedVolatileCleanup(
 		FWildActionCleanupStage& Stage,
-		const FBattlerId BattlerId)
+		const FBattlerId BattlerId,
+		const EBattleTriggerCleanupReason Reason = EBattleTriggerCleanupReason::Removal)
 	{
 		FWildActionStagedVolatiles* Battler = Stage.FindMutableVolatiles(BattlerId);
 		if (Battler == nullptr)
@@ -6721,7 +6727,7 @@ namespace
 		}
 		for (const FConditionId& Id : Ids)
 		{
-			if (!TryStageVolatileCleanup(Stage, Id, BattlerId))
+			if (!TryStageVolatileCleanup(Stage, Id, BattlerId, Reason))
 			{
 				return false;
 			}
@@ -7290,6 +7296,361 @@ namespace
 		State.PendingDecision = Delta.PendingDecision;
 		State.PendingDecisionRequests = Delta.PendingDecisionRequests;
 		State.PendingReplacements = Delta.PendingReplacements;
+	}
+
+	struct FCaptureQueuedCancellationFact
+	{
+		FActionId ActionId;
+		bool bCapturedActor = false;
+		bool bCapturedTarget = false;
+	};
+
+	/** Complete private mutation set for one legal Capture attempt. */
+	struct FCaptureStateDelta
+	{
+		FTrainerId ActingTrainerId;
+		TArray<FBattleBagItemCount> Bag;
+		bool bBagActionAvailable = false;
+		bool bSucceeded = false;
+		FBattlerId TargetBattlerId;
+		FBattleBattlerState TargetBattler;
+		FActiveSlotId ClearedActiveSlotId;
+		TOptional<FBattlePendingCaptureRecord> PendingCapture;
+		TArray<FCaptureQueuedCancellationFact> QueuedCancellations;
+		bool bApplyCleanupStage = false;
+		FWildActionCleanupStage CleanupStage;
+		int32 NextLockedActionIndex = INDEX_NONE;
+		EBattlePhase Phase = EBattlePhase::Resolving;
+		EBattleOutcome Outcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+		TOptional<FBattleDecisionRequest> PendingDecision;
+		TArray<FBattleDecisionRequest> PendingDecisionRequests;
+		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TOptional<uint64> OpponentRemovalCheckpointOrdinal;
+	};
+
+	void InitializeCaptureDelta(
+		const FBattleEngineState& State,
+		const FBattleTrainerBagState& AppliedBag,
+		const FTrainerId ActingTrainerId,
+		const FBattlerId TargetBattlerId,
+		FCaptureStateDelta& OutDelta)
+	{
+		OutDelta = FCaptureStateDelta();
+		OutDelta.ActingTrainerId = ActingTrainerId;
+		OutDelta.Bag = AppliedBag.Items;
+		OutDelta.bBagActionAvailable = AppliedBag.bBagActionAvailable;
+		OutDelta.TargetBattlerId = TargetBattlerId;
+		OutDelta.NextLockedActionIndex = State.CurrentLockedActionIndex + 1;
+		OutDelta.Phase = State.Phase;
+		OutDelta.Outcome = State.Outcome;
+		OutDelta.OutcomeCause = State.OutcomeCause;
+		OutDelta.PendingDecision = State.PendingDecision;
+		OutDelta.PendingDecisionRequests = State.PendingDecisionRequests;
+		OutDelta.PendingReplacements = State.PendingReplacements;
+	}
+
+	bool TryBuildPendingCaptureRecord(
+		const FBattleEngineState& State,
+		const FBattleBattlerState& TargetBattler,
+		FBattlePendingCaptureRecord& OutRecord)
+	{
+		OutRecord = FBattlePendingCaptureRecord();
+		OutRecord.CaptureOrdinal =
+			static_cast<uint64>(State.PendingCaptures.Num()) + 1ULL;
+		OutRecord.Destination = State.PendingCaptures.Num()
+			< State.CaptureCapacity.PartySlotsRemaining
+			? EBattlePendingCaptureDestination::Party
+			: EBattlePendingCaptureDestination::Storage;
+		OutRecord.OriginalTrainerId = TargetBattler.TrainerId;
+		OutRecord.BattlerId = TargetBattler.BattlerId;
+		OutRecord.SourcePokemonId = TargetBattler.SourcePokemonId;
+		OutRecord.SpeciesFormId = TargetBattler.SpeciesFormId;
+		OutRecord.SpeciesClassification = TargetBattler.CaptureClassification;
+		OutRecord.Level = TargetBattler.Level;
+		OutRecord.CurrentHP = TargetBattler.CurrentHP;
+		OutRecord.MaxHP = TargetBattler.PermanentStats.MaxHP;
+		OutRecord.MajorStatusId = TargetBattler.MajorStatusId;
+		for (const FBattleMoveSlotState& Move : TargetBattler.Moves)
+		{
+			FBattleCapturedMoveFact& MoveFact = OutRecord.Moves.AddDefaulted_GetRef();
+			MoveFact.SlotIndex = Move.SlotIndex;
+			MoveFact.MoveId = Move.MoveId;
+			MoveFact.CurrentPP = Move.CurrentPP;
+			MoveFact.MaxPP = Move.MaxPP;
+		}
+		OutRecord.HeldItem.OriginalItemId = TargetBattler.HeldItem.OriginalItemId;
+		OutRecord.HeldItem.CurrentItemId = TargetBattler.HeldItem.CurrentItemId;
+		OutRecord.HeldItem.bConsumed = TargetBattler.HeldItem.bConsumed;
+		OutRecord.HeldItem.bSuppressed = TargetBattler.HeldItem.bSuppressed;
+		OutRecord.HeldItem.bRevealed = TargetBattler.HeldItem.bRevealed;
+		OutRecord.HeldItem.bTemporarilyRemoved =
+			TargetBattler.HeldItem.bTemporarilyRemoved;
+		OutRecord.HeldItem.ChoiceLockedMoveId =
+			TargetBattler.HeldItem.ChoiceLockedMoveId;
+		return OutRecord.IsValid();
+	}
+
+	void StageCaptureQueueCancellationFacts(
+		const FBattleEngineState& State,
+		const FBattlerId TargetBattlerId,
+		FCaptureStateDelta& Delta)
+	{
+		Delta.QueuedCancellations.Reset();
+		for (int32 ActionIndex = State.CurrentLockedActionIndex + 1;
+			ActionIndex < State.LockedActions.Num();
+			++ActionIndex)
+		{
+			const FBattleLockedActionState& Candidate = State.LockedActions[ActionIndex];
+			FCaptureQueuedCancellationFact Fact;
+			Fact.ActionId = Candidate.ActionId;
+			Fact.bCapturedActor =
+				Candidate.Decision.GetActingBattlerId() == TargetBattlerId;
+			Fact.bCapturedTarget =
+				Candidate.Decision.GetActionKind() == EBattleActionKind::Fight
+				&& Candidate.SelectedTargetBattlerId == TargetBattlerId;
+			if (Fact.bCapturedActor || Fact.bCapturedTarget)
+			{
+				Delta.QueuedCancellations.Add(Fact);
+			}
+		}
+	}
+
+	bool DoesLivingOpponentRemainAfterCapture(
+		const FBattleEngineState& State,
+		const FBattlerId CapturedBattlerId)
+	{
+		for (const FBattleBattlerState& Battler : State.Battlers)
+		{
+			if (Battler.BattlerId == CapturedBattlerId)
+			{
+				continue;
+			}
+			const FBattleTrainerState* Trainer = State.FindTrainer(Battler.TrainerId);
+			if (Trainer != nullptr
+				&& Trainer->Side == EBattleSide::Opponent
+				&& IsLivingSelectableBattler(&Battler))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool TryPrepareCaptureBoundary(
+		const FBattleEngineState& State,
+		const uint64 RequestStateVersion,
+		FCaptureStateDelta& Delta,
+		TArray<FBattleReplacementRequirement>& OutRequirements)
+	{
+		OutRequirements.Reset();
+		if (RequestStateVersion == 0
+			|| !Delta.TargetBattlerId.IsValid()
+			|| Delta.NextLockedActionIndex <= State.CurrentLockedActionIndex)
+		{
+			return false;
+		}
+
+		if (Delta.Phase == EBattlePhase::Terminal)
+		{
+			Delta.PendingDecision.Reset();
+			Delta.PendingDecisionRequests.Reset();
+			Delta.PendingReplacements.Reset();
+			return true;
+		}
+
+		FBattleEngineState Projection;
+		Projection.Setup = State.Setup;
+		Projection.Catalog = State.Catalog;
+		Projection.bHasCatalog = State.bHasCatalog;
+		Projection.StateVersion = State.StateVersion;
+		Projection.TurnId = State.TurnId;
+		Projection.EncounterKind = State.EncounterKind;
+		Projection.Format = State.Format;
+		Projection.Phase = Delta.Phase;
+		Projection.Outcome = Delta.Outcome;
+		Projection.OutcomeCause = Delta.OutcomeCause;
+		Projection.Trainers = State.Trainers;
+		Projection.Battlers = State.Battlers;
+		Projection.ActivePositions = State.ActivePositions;
+		Projection.CompiledEncounterPolicies = State.CompiledEncounterPolicies;
+		Projection.LockedActions = State.LockedActions;
+		Projection.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
+		Projection.PendingDecision = Delta.PendingDecision;
+		Projection.PendingDecisionRequests = Delta.PendingDecisionRequests;
+		Projection.PendingReplacements = Delta.PendingReplacements;
+
+		if (Delta.bSucceeded)
+		{
+			FBattleBattlerState* ProjectedTarget = Projection.FindMutableBattler(
+				Delta.TargetBattlerId);
+			FBattleActivePositionState* ProjectedActive =
+				Projection.FindMutableActivePosition(Delta.ClearedActiveSlotId);
+			if (ProjectedTarget == nullptr
+				|| ProjectedActive == nullptr
+				|| ProjectedActive->BattlerId != Delta.TargetBattlerId)
+			{
+				return false;
+			}
+			*ProjectedTarget = Delta.TargetBattler;
+			ProjectedActive->TrainerId = FTrainerId();
+			ProjectedActive->BattlerId = FBattlerId();
+		}
+
+		FBattleFaintOutcomeResolver::ResolveQueueBoundary(
+			Projection,
+			OutRequirements);
+		Delta.Phase = Projection.Phase;
+		if (Projection.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			Projection.PendingReplacements.Reset();
+			for (const FBattleReplacementRequirement& Requirement : OutRequirements)
+			{
+				FBattlePendingReplacementState& Pending =
+					Projection.PendingReplacements.AddDefaulted_GetRef();
+				Pending.TrainerId = Requirement.Target.TrainerId;
+				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
+			}
+			TArray<FBattleDecisionRequest> Requests;
+			if (!TryBuildReplacementCheckpointRequests(
+					Projection,
+					RequestStateVersion,
+					true,
+					Requests)
+				|| Requests.IsEmpty())
+			{
+				return false;
+			}
+			Delta.PendingReplacements = Projection.PendingReplacements;
+			Delta.PendingDecisionRequests = MoveTemp(Requests);
+			Delta.PendingDecision = Delta.PendingDecisionRequests[0];
+		}
+		else if (Projection.Phase == EBattlePhase::EndOfTurn)
+		{
+			Delta.PendingReplacements.Reset();
+			Delta.PendingDecisionRequests.Reset();
+			Delta.PendingDecision.Reset();
+		}
+		return true;
+	}
+
+	FBattleEventSpec MakeStagedCaptureEventSpec(
+		const FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const FBattleEventSource& Source,
+		const EBattleEventType Type,
+		const EBattleEventCause Cause,
+		const EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None,
+		const FBattleEventTarget* Target = nullptr,
+		const FBattleCaptureEventMetadata* Capture = nullptr)
+	{
+		FBattleEventSpec Spec;
+		Spec.BattleId = State.Setup.GetBattleId();
+		Spec.TurnId = State.TurnId;
+		Spec.ActionId = ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = Type;
+		Spec.Cause = Cause;
+		Spec.CauseActionKind = EBattleActionKind::Bag;
+		Spec.OutcomeCause = OutcomeCause;
+		Spec.Source = Source;
+		if (Target != nullptr)
+		{
+			Spec.Targets.Add(*Target);
+		}
+		if (Capture != nullptr)
+		{
+			Spec.Capture = *Capture;
+		}
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+		Spec.Visibility.bRevealSourceDefinition =
+			Type == EBattleEventType::ItemUsed
+			|| Type == EBattleEventType::ItemConsumed
+			|| Type == EBattleEventType::CaptureAttempted
+			|| Type == EBattleEventType::Captured;
+		return Spec;
+	}
+
+	void ApplyCaptureDelta(
+		FBattleEngineState& State,
+		const FBattleResolutionCommitIdentity& Identity,
+		const FCaptureStateDelta& Delta)
+	{
+		check(State.LockedActions.IsValidIndex(Identity.ExpectedLockedActionIndex));
+		FBattleLockedActionState& Action =
+			State.LockedActions[Identity.ExpectedLockedActionIndex];
+		FBattleTrainerState* ActingTrainer = State.FindMutableTrainer(
+			Delta.ActingTrainerId);
+		check(Action.ActionId == Identity.OwningActionId
+			&& Action.bStarted
+			&& !Action.bFinished
+			&& ActingTrainer != nullptr);
+
+		ActingTrainer->Bag = Delta.Bag;
+		ActingTrainer->ActionAllowance.bBagActionAvailable =
+			Delta.bBagActionAvailable;
+		if (Delta.bApplyCleanupStage)
+		{
+			State.TriggerFramework = Delta.CleanupStage.TriggerFramework;
+			State.NextTriggerReentrancyToken =
+				Delta.CleanupStage.NextTriggerReentrancyToken;
+			for (const FWildActionStagedVolatiles& Staged :
+				Delta.CleanupStage.BattlerVolatiles)
+			{
+				FBattleBattlerState* Battler = State.FindMutableBattler(Staged.BattlerId);
+				check(Battler != nullptr);
+				Battler->Volatiles = Staged.Volatiles;
+			}
+		}
+
+		if (Delta.bSucceeded)
+		{
+			FBattleBattlerState* TargetBattler = State.FindMutableBattler(
+				Delta.TargetBattlerId);
+			FBattleActivePositionState* TargetActive = State.FindMutableActivePosition(
+				Delta.ClearedActiveSlotId);
+			check(TargetBattler != nullptr
+				&& TargetActive != nullptr
+				&& TargetActive->BattlerId == Delta.TargetBattlerId
+				&& Delta.TargetBattler.BattlerId == Delta.TargetBattlerId
+				&& Delta.PendingCapture.IsSet()
+				&& Delta.PendingCapture.GetValue().CaptureOrdinal
+					== static_cast<uint64>(State.PendingCaptures.Num()) + 1ULL);
+			*TargetBattler = Delta.TargetBattler;
+			TargetActive->TrainerId = FTrainerId();
+			TargetActive->BattlerId = FBattlerId();
+			State.PendingCaptures.Add(Delta.PendingCapture.GetValue());
+
+			for (const FCaptureQueuedCancellationFact& Fact : Delta.QueuedCancellations)
+			{
+				const FBattleLockedActionState* Queued = State.LockedActions.FindByPredicate(
+					[&Fact](const FBattleLockedActionState& Candidate)
+					{
+						return Candidate.ActionId == Fact.ActionId;
+					});
+				check(Queued != nullptr
+					&& ((!Fact.bCapturedActor
+							|| Queued->Decision.GetActingBattlerId() == Delta.TargetBattlerId)
+						&& (!Fact.bCapturedTarget
+							|| (Queued->Decision.GetActionKind() == EBattleActionKind::Fight
+								&& Queued->SelectedTargetBattlerId == Delta.TargetBattlerId))));
+			}
+		}
+
+		Action.bFinished = true;
+		State.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
+		State.Phase = Delta.Phase;
+		State.Outcome = Delta.Outcome;
+		State.OutcomeCause = Delta.OutcomeCause;
+		State.PendingDecision = Delta.PendingDecision;
+		State.PendingDecisionRequests = Delta.PendingDecisionRequests;
+		State.PendingReplacements = Delta.PendingReplacements;
+		if (Delta.OpponentRemovalCheckpointOrdinal.IsSet())
+		{
+			State.AvailableOpponentRemovalCheckpoints.Add(
+				Delta.OpponentRemovalCheckpointOrdinal.GetValue());
+		}
 	}
 
 }
@@ -9736,205 +10097,347 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 		}
 		bBagCheckpointPrepared = true;
 	}
-	ActingTrainer->Bag = AppliedBag->Items;
-	ActingTrainer->ActionAllowance.bBagActionAvailable =
-		AppliedBag->bBagActionAvailable;
+	if (!bCaptureUse)
+	{
+		ActingTrainer->Bag = AppliedBag->Items;
+		ActingTrainer->ActionAllowance.bBagActionAvailable =
+			AppliedBag->bBagActionAvailable;
+	}
 
 	if (bCaptureUse)
 	{
-		FBattleCaptureCalculationResult CaptureResult;
-		if (!FBattleCaptureCalculator::TryResolve(
-				CaptureInput,
-				*State->Random,
-				CaptureResult))
+		const FActionId ActionId = Action->ActionId;
+		const FTrainerId ActingTrainerId = ActingTrainer->TrainerId;
+		const FBattlerId ActingBattlerId = ActingBattler->BattlerId;
+		const FBattlerId TargetBattlerId = TargetBattler->BattlerId;
+		const FBattleEventSource Source = SourceFromLockedAction(*State, *Action);
+		FBattleResolutionCommitIdentity CommitIdentity;
+		if (!FBattleResolutionCommit::TryCaptureIdentity(
+				*State,
+				ResolutionId,
+				ActionId,
+				CommitIdentity))
 		{
-			UE_LOG(
-				LogTemp,
-				Fatal,
-				TEXT("Validated C09B capture calculation or RNG could not be resolved."));
+			return PublishBagItemCheckpointRejection(
+				*State,
+				ResolutionId,
+				ActionId,
+				EBattleRejectionReason::CheckpointPreparationFailed,
+				ActingTrainerId,
+				ActingBattlerId,
+				Source);
+		}
+
+		FBattleResolutionCommitPlan CommitPlan;
+		TUniquePtr<IBattleRandomTransaction> RandomTransaction;
+		auto RejectPreparedCheckpoint = [&](const EBattleRejectionReason Reason)
+		{
+			if (RandomTransaction.IsValid())
+			{
+				RandomTransaction->Rollback();
+				RandomTransaction.Reset();
+			}
+			return PublishBagItemCheckpointRejection(
+				*State,
+				ResolutionId,
+				ActionId,
+				Reason,
+				ActingTrainerId,
+				ActingBattlerId,
+				Source);
+		};
+		if (!FBattleResolutionCommit::TryBeginAcceptedPlan(
+				CommitIdentity,
+				CommitPlan))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		FBattleCapturePreparation CapturePreparation;
+		if (!FBattleCaptureCalculator::TryPrepare(
+				CaptureInput,
+				CapturePreparation))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		FCaptureStateDelta CaptureDelta;
+		InitializeCaptureDelta(
+			*State,
+			*AppliedBag,
+			ActingTrainerId,
+			TargetBattlerId,
+			CaptureDelta);
+
+		FBattleCaptureCalculationResult CaptureResult;
+		if (CapturePreparation.bRequiresRandomResolution)
+		{
+			if (!State->Random->TryCreateTransaction(
+					ResolutionId,
+					ActionId,
+					RandomTransaction)
+				|| !RandomTransaction.IsValid()
+				|| !FBattleCaptureCalculator::TryResolveRandom(
+					CapturePreparation,
+					*RandomTransaction,
+					CaptureResult)
+				|| RandomTransaction->GetTrace().IsEmpty())
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointRandomStageFailed);
+			}
+		}
+		else
+		{
+			CaptureResult = CapturePreparation.PreparedResult;
+			if (!CaptureResult.bValid)
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
 		}
 
 		FBattleEventTarget CaptureTarget;
 		CaptureTarget.TrainerId = TargetBattler->TrainerId;
 		CaptureTarget.BattlerId = TargetBattler->BattlerId;
 		CaptureTarget.ActiveSlotId = TargetActive->ActiveSlotId;
-		Events.Add(MakeBagItemMutationEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::ItemUsed,
-			CaptureTarget));
-		Events.Add(MakeBagItemMutationEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::ItemConsumed,
-			CaptureTarget));
-
 		FBattleCaptureEventMetadata CaptureMetadata =
 			FBattleCaptureCalculator::MakeEventMetadata(CaptureResult);
-		Events.Add(MakeCaptureEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::CaptureAttempted,
-			CaptureTarget,
-			CaptureMetadata));
-		if (!CaptureResult.bSucceeded)
+		TArray<FBattleReplacementRequirement> ReplacementRequirements;
+		const bool bTerminalCapture = CaptureResult.bSucceeded
+			&& !DoesLivingOpponentRemainAfterCapture(*State, TargetBattlerId);
+		if (CaptureResult.bSucceeded)
 		{
-			return FinishAcceptedAction(
-				Events,
-				TOptional<EBattleOutcomeCause>());
-		}
-
-		FBattlePendingCaptureRecord PendingCapture;
-		PendingCapture.CaptureOrdinal =
-			static_cast<uint64>(State->PendingCaptures.Num()) + 1ULL;
-		PendingCapture.Destination = State->PendingCaptures.Num()
-			< State->CaptureCapacity.PartySlotsRemaining
-			? EBattlePendingCaptureDestination::Party
-			: EBattlePendingCaptureDestination::Storage;
-		PendingCapture.OriginalTrainerId = TargetBattler->TrainerId;
-		PendingCapture.BattlerId = TargetBattler->BattlerId;
-		PendingCapture.SourcePokemonId = TargetBattler->SourcePokemonId;
-		PendingCapture.SpeciesFormId = TargetBattler->SpeciesFormId;
-		PendingCapture.SpeciesClassification = TargetBattler->CaptureClassification;
-		PendingCapture.Level = TargetBattler->Level;
-		PendingCapture.CurrentHP = TargetBattler->CurrentHP;
-		PendingCapture.MaxHP = TargetBattler->PermanentStats.MaxHP;
-		PendingCapture.MajorStatusId = TargetBattler->MajorStatusId;
-		for (const FBattleMoveSlotState& Move : TargetBattler->Moves)
-		{
-			FBattleCapturedMoveFact& MoveFact =
-				PendingCapture.Moves.AddDefaulted_GetRef();
-			MoveFact.SlotIndex = Move.SlotIndex;
-			MoveFact.MoveId = Move.MoveId;
-			MoveFact.CurrentPP = Move.CurrentPP;
-			MoveFact.MaxPP = Move.MaxPP;
-		}
-		PendingCapture.HeldItem.OriginalItemId =
-			TargetBattler->HeldItem.OriginalItemId;
-		PendingCapture.HeldItem.CurrentItemId =
-			TargetBattler->HeldItem.CurrentItemId;
-		PendingCapture.HeldItem.bConsumed = TargetBattler->HeldItem.bConsumed;
-		PendingCapture.HeldItem.bSuppressed = TargetBattler->HeldItem.bSuppressed;
-		PendingCapture.HeldItem.bRevealed = TargetBattler->HeldItem.bRevealed;
-		PendingCapture.HeldItem.bTemporarilyRemoved =
-			TargetBattler->HeldItem.bTemporarilyRemoved;
-		PendingCapture.HeldItem.ChoiceLockedMoveId =
-			TargetBattler->HeldItem.ChoiceLockedMoveId;
-		check(PendingCapture.IsValid());
-
-		const bool bCaptureTriggersCleaned =
-			TryCleanupSourceDependentVolatiles(
-				*State,
-				TargetBattler->BattlerId,
-				EBattleTriggerCleanupReason::Capture)
-			&& TryCleanupAbilityTriggers(
-				*State,
-				TargetBattler->AbilityId,
-				TargetBattler->BattlerId,
-				EBattleTriggerCleanupReason::Capture)
-			&& TryCleanupItemTriggers(
-				*State,
-				TargetBattler->HeldItem.CurrentItemId,
-				TargetBattler->BattlerId,
-				EBattleTriggerCleanupReason::Capture)
-			&& (!FBattleMajorStatusRules::IsCanonical(TargetBattler->MajorStatusId)
-				|| TryCleanupMajorStatusTriggers(
+			FBattlePendingCaptureRecord PendingCapture;
+			if (!TryBuildPendingCaptureRecord(
 					*State,
-					TargetBattler->MajorStatusId,
-					TargetBattler->BattlerId,
-					EBattleTriggerCleanupReason::Capture))
-			&& TryCleanupAllOwnedVolatileTriggers(
-				*State,
-				*TargetBattler,
-				EBattleTriggerCleanupReason::Capture);
-		check(bCaptureTriggersCleaned);
-
-		FBattleActivePositionState* MutableTargetActive =
-			State->FindMutableActivePosition(CaptureTarget.ActiveSlotId);
-		check(MutableTargetActive != nullptr
-			&& MutableTargetActive->BattlerId == TargetBattler->BattlerId);
-		TargetBattler->MajorStatusId = FConditionId();
-		TargetBattler->Stages = FBattleStatStages();
-		TargetBattler->Volatiles.Reset();
-		TargetBattler->LastMoveId = FMoveId();
-		TargetBattler->bAbilitySuppressed = false;
-		TargetBattler->HeldItem.ChoiceLockedMoveId = FMoveId();
-		TargetBattler->EnteredActiveOnTurnId = FTurnId();
-		TargetBattler->bCaptured = true;
-		TargetBattler->bRemoved = true;
-		TargetBattler->bFaintTransitionPending = false;
-		MutableTargetActive->TrainerId = FTrainerId();
-		MutableTargetActive->BattlerId = FBattlerId();
-		State->PendingCaptures.Add(PendingCapture);
-
-		CaptureMetadata.bHasPendingDestination = true;
-		CaptureMetadata.PendingCaptureOrdinal = PendingCapture.CaptureOrdinal;
-		CaptureMetadata.PendingDestination = PendingCapture.Destination;
-		Events.Add(MakeCaptureEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::Captured,
-			CaptureTarget,
-			CaptureMetadata));
-		Events.Add(MakeTargetedActionEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::LeftActiveSlot,
-			EBattleEventCause::Capture,
-			CaptureTarget));
-		Events.Add(MakeTargetedActionEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::Removed,
-			EBattleEventCause::Capture,
-			CaptureTarget));
-		FBattleEvent RemovalCheckpoint = MakeTargetedActionEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::OpponentRemovalCheckpoint,
-			EBattleEventCause::Rule,
-			CaptureTarget);
-		State->AvailableOpponentRemovalCheckpoints.Add(
-			RemovalCheckpoint.GetEventOrdinal());
-		Events.Add(MoveTemp(RemovalCheckpoint));
-
-		bool bLivingOpponentRemains = false;
-		for (const FBattleBattlerState& Battler : State->Battlers)
-		{
-			const FBattleTrainerState* Trainer = State->FindTrainer(Battler.TrainerId);
-			if (Trainer != nullptr
-				&& Trainer->Side == EBattleSide::Opponent
-				&& IsLivingSelectableBattler(&Battler))
+					*TargetBattler,
+					PendingCapture))
 			{
-				bLivingOpponentRemains = true;
-				break;
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			CaptureDelta.bSucceeded = true;
+			CaptureDelta.PendingCapture = PendingCapture;
+			CaptureDelta.ClearedActiveSlotId = TargetActive->ActiveSlotId;
+			CaptureDelta.TargetBattler = *TargetBattler;
+			CaptureDelta.TargetBattler.MajorStatusId = FConditionId();
+			CaptureDelta.TargetBattler.Stages = FBattleStatStages();
+			CaptureDelta.TargetBattler.Volatiles.Reset();
+			CaptureDelta.TargetBattler.LastMoveId = FMoveId();
+			CaptureDelta.TargetBattler.bAbilitySuppressed = false;
+			CaptureDelta.TargetBattler.HeldItem.ChoiceLockedMoveId = FMoveId();
+			CaptureDelta.TargetBattler.EnteredActiveOnTurnId = FTurnId();
+			CaptureDelta.TargetBattler.bCaptured = true;
+			CaptureDelta.TargetBattler.bRemoved = true;
+			CaptureDelta.TargetBattler.bFaintTransitionPending = false;
+			StageCaptureQueueCancellationFacts(
+				*State,
+				TargetBattlerId,
+				CaptureDelta);
+
+			CaptureDelta.CleanupStage.Capture(*State);
+			if (!TryStageSourceDependentVolatileCleanup(
+					CaptureDelta.CleanupStage,
+					TargetBattlerId,
+					EBattleTriggerCleanupReason::Capture)
+				|| !TryStageAbilityCleanup(
+					CaptureDelta.CleanupStage,
+					TargetBattler->AbilityId,
+					TargetBattlerId,
+					EBattleTriggerCleanupReason::Capture)
+				|| !TryStageItemCleanup(
+					CaptureDelta.CleanupStage,
+					TargetBattler->HeldItem.CurrentItemId,
+					TargetBattlerId,
+					EBattleTriggerCleanupReason::Capture)
+				|| !TryStageMajorStatusCleanup(
+					CaptureDelta.CleanupStage,
+					TargetBattler->MajorStatusId,
+					TargetBattlerId,
+					EBattleTriggerCleanupReason::Capture)
+				|| !TryStageAllOwnedVolatileCleanup(
+					CaptureDelta.CleanupStage,
+					TargetBattlerId,
+					EBattleTriggerCleanupReason::Capture))
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			CaptureDelta.bApplyCleanupStage = true;
+			if (bTerminalCapture)
+			{
+				CaptureDelta.Phase = EBattlePhase::Terminal;
+				CaptureDelta.Outcome = EBattleOutcome::Victory;
+				CaptureDelta.OutcomeCause = EBattleOutcomeCause::Capture;
+				if (!TryStageBattleEndCleanup(CaptureDelta.CleanupStage))
+				{
+					return RejectPreparedCheckpoint(
+						EBattleRejectionReason::CheckpointPreparationFailed);
+				}
 			}
 		}
-		if (!bLivingOpponentRemains)
+
+		if (CommitIdentity.ExpectedStateVersion == TNumericLimits<uint64>::Max()
+			|| !TryPrepareCaptureBoundary(
+				*State,
+				CommitIdentity.ExpectedStateVersion + 1,
+				CaptureDelta,
+				ReplacementRequirements))
 		{
-			State->Phase = EBattlePhase::Terminal;
-			State->Outcome = EBattleOutcome::Victory;
-			State->OutcomeCause = EBattleOutcomeCause::Capture;
-			State->PendingDecision.Reset();
-			State->PendingDecisionRequests.Reset();
-			State->PendingReplacements.Reset();
-			const bool bBattleEndCleaned = TryCleanupBattleEndTriggers(*State);
-			check(bBattleEndCleaned);
-			return FinishAcceptedAction(
-				Events,
-				TOptional<EBattleOutcomeCause>(EBattleOutcomeCause::Capture));
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
 
-		return FinishAcceptedAction(
-			Events,
-			TOptional<EBattleOutcomeCause>());
+		auto StageEvent = [&](const EBattleEventType Type,
+			const EBattleEventCause Cause,
+			const EBattleOutcomeCause OutcomeCause,
+			const FBattleEventTarget* Target,
+			const FBattleCaptureEventMetadata* Metadata)
+		{
+			return FBattleResolutionCommit::TryStageEvent(
+				CommitPlan,
+				MakeStagedCaptureEventSpec(
+					*State,
+					ResolutionId,
+					ActionId,
+					Source,
+					Type,
+					Cause,
+					OutcomeCause,
+					Target,
+					Metadata));
+		};
+
+		if (!StageEvent(
+				EBattleEventType::ItemUsed,
+				EBattleEventCause::Item,
+				EBattleOutcomeCause::None,
+				&CaptureTarget,
+				nullptr)
+			|| !StageEvent(
+				EBattleEventType::ItemConsumed,
+				EBattleEventCause::Item,
+				EBattleOutcomeCause::None,
+				&CaptureTarget,
+				nullptr)
+			|| !StageEvent(
+				EBattleEventType::CaptureAttempted,
+				EBattleEventCause::Capture,
+				EBattleOutcomeCause::None,
+				&CaptureTarget,
+				&CaptureMetadata))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (CaptureResult.bSucceeded)
+		{
+			const FBattlePendingCaptureRecord& PendingCapture =
+				CaptureDelta.PendingCapture.GetValue();
+			CaptureMetadata.bHasPendingDestination = true;
+			CaptureMetadata.PendingCaptureOrdinal = PendingCapture.CaptureOrdinal;
+			CaptureMetadata.PendingDestination = PendingCapture.Destination;
+			if (!StageEvent(
+					EBattleEventType::Captured,
+					EBattleEventCause::Capture,
+					EBattleOutcomeCause::None,
+					&CaptureTarget,
+					&CaptureMetadata)
+				|| !StageEvent(
+					EBattleEventType::LeftActiveSlot,
+					EBattleEventCause::Capture,
+					EBattleOutcomeCause::None,
+					&CaptureTarget,
+					nullptr)
+				|| !StageEvent(
+					EBattleEventType::Removed,
+					EBattleEventCause::Capture,
+					EBattleOutcomeCause::None,
+					&CaptureTarget,
+					nullptr)
+				|| !StageEvent(
+					EBattleEventType::OpponentRemovalCheckpoint,
+					EBattleEventCause::Rule,
+					EBattleOutcomeCause::None,
+					&CaptureTarget,
+					nullptr))
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			CaptureDelta.OpponentRemovalCheckpointOrdinal =
+				CommitPlan.Events.Last().GetEventOrdinal();
+		}
+
+		if (!StageEvent(
+				EBattleEventType::ActionCompleted,
+				EBattleEventCause::Action,
+				EBattleOutcomeCause::None,
+				nullptr,
+				nullptr))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		for (const FBattleReplacementRequirement& Requirement : ReplacementRequirements)
+		{
+			if (!StageEvent(
+					EBattleEventType::ReplacementRequired,
+					EBattleEventCause::Rule,
+					EBattleOutcomeCause::None,
+					&Requirement.Target,
+					nullptr))
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+		}
+		if ((bTerminalCapture
+				&& !StageEvent(
+					EBattleEventType::BattleEnded,
+					EBattleEventCause::Outcome,
+					EBattleOutcomeCause::Capture,
+					nullptr,
+					nullptr))
+			|| !FBattleResolutionCommit::TryFinishAcceptedPlan(CommitPlan))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (!FBattleResolutionCommit::IsIdentityCurrent(*State, CommitIdentity))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::StaleCheckpointIdentity);
+		}
+		if (RandomTransaction.IsValid())
+		{
+			EBattleRandomTransactionCommitError RandomError =
+				EBattleRandomTransactionCommitError::None;
+			if (!RandomTransaction->TryCommit(
+					*State->Random,
+					ResolutionId,
+					ActionId,
+					RandomError))
+			{
+				return RejectPreparedCheckpoint(
+					EBattleRejectionReason::RandomTransactionCommitFailed);
+			}
+			RandomTransaction.Reset();
+		}
+
+		ApplyCaptureDelta(*State, CommitIdentity, CaptureDelta);
+		const FBattleResolution Resolution = FBattleResolutionCommit::PublishPrepared(
+			*State,
+			CommitPlan);
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		const bool bStateValid = State->ValidateInvariants(StateError);
+		check(bStateValid);
+		return Resolution;
 	}
 
 	check(bBagCheckpointPrepared);
