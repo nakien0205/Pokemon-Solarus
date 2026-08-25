@@ -37,7 +37,11 @@ enum class EBattleRejectionReason : uint8
 	DecisionSequenceNotStarted = 17,
 	InvalidDecisionBatch = 18,
 	WrongDecisionCount = 19,
-	WrongDecisionOrder = 20
+	WrongDecisionOrder = 20,
+	CheckpointPreparationFailed = 21,
+	CheckpointRandomStageFailed = 22,
+	StaleCheckpointIdentity = 23,
+	RandomTransactionCommitFailed = 24
 };
 
 /** Kind of unavailable selector option described without presentation text. */

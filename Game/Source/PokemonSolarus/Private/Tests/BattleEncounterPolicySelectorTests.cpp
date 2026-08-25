@@ -8,6 +8,11 @@
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
 
+namespace BattleBagItemTestAccess
+{
+	bool IsBagActionAvailable(const FBattleEngine& Engine, FTrainerId TrainerId);
+}
+
 namespace BattleEncounterPolicySelectorTests
 {
 	using BattleTest::MakeActiveSlotId;
@@ -809,6 +814,7 @@ namespace BattleEncounterPolicySelectorTests
 
 	bool FBattleC09ABossReviveRequestTest::RunTest(const FString& Parameters)
 	{
+		(void)Parameters;
 		TUniquePtr<FBattleEngine> Engine = MakeEngine(
 			EBattleEncounterKind::BossGym,
 			EBattleFormat::Single,
@@ -830,6 +836,79 @@ namespace BattleEncounterPolicySelectorTests
 				{
 					return Option.ItemId == ReviveId && Option.PartySlotId == ReserveSlot;
 				}));
+
+		FBattleDecision BossRevive;
+		TestTrue(
+			TEXT("The generated boss Revive action can be constructed exactly"),
+			FBattleDecision::TryCreateBag(
+				BossRequest.GetStateVersion(),
+				BossRequest.GetDecisionOwnerTrainerId(),
+				BossRequest.GetActingBattlerId(),
+				ReviveId,
+				ReserveSlot,
+				FActiveSlotId(),
+				BossRevive));
+		TestTrue(TEXT("The generated boss Revive action is accepted"),
+			Engine->SubmitDecision(BossRevive).WasAccepted());
+		TestEqual(TEXT("Both selections lock the action queue"),
+			Engine->GetSnapshot().GetPhase(),
+			EBattlePhase::Locked);
+		TestTrue(TEXT("The higher-priority boss Bag action starts first"),
+			Engine->BeginNextLockedAction().WasAccepted());
+		const TOptional<FBattleLockedAction> CurrentAction =
+			Engine->GetCurrentLockedAction();
+		TestTrue(TEXT("The started action remains the selected boss Revive"),
+			CurrentAction.IsSet()
+				&& CurrentAction->Decision.GetRequestKind()
+					== EBattleDecisionRequestKind::Action
+				&& CurrentAction->Decision.GetActionKind() == EBattleActionKind::Bag
+				&& CurrentAction->Decision.GetDecisionOwnerTrainerId()
+					== MakeNumericId<FTrainerId>(OpponentTrainerValue)
+				&& CurrentAction->Decision.GetItemId() == ReviveId
+				&& CurrentAction->Decision.GetItemPartyTargetId() == ReserveSlot);
+
+		const FBattleResolution Applied = Engine->ExecuteCurrentBagItem();
+		TestTrue(TEXT("The boss Revive resolves through the normal Bag path"),
+			Applied.WasAccepted());
+		const TConstArrayView<FBattleEvent> Events = Applied.GetEvents();
+		TestTrue(TEXT("Boss Revive publishes the established Bag event sequence"),
+			Events.Num() == 5
+				&& Events[0].GetType() == EBattleEventType::ItemUsed
+				&& Events[1].GetType() == EBattleEventType::ItemConsumed
+				&& Events[2].GetType() == EBattleEventType::Healing
+				&& Events[3].GetType() == EBattleEventType::HPChanged
+				&& Events[4].GetType() == EBattleEventType::ActionCompleted);
+
+		const FBattleSnapshot AfterRevive = Engine->GetSnapshot();
+		const FBattlePartyEntrySetup* RevivedReserve =
+			AfterRevive.GetPartyEntries().FindByPredicate(
+				[](const FBattlePartyEntrySetup& Entry)
+				{
+					return Entry.BattlerId
+						== MakeNumericId<FBattlerId>(OpponentReserveBattlerValue);
+				});
+		TestTrue(TEXT("Boss Revive restores the fainted reserve to half HP"),
+			RevivedReserve != nullptr && RevivedReserve->CurrentHP == 100);
+		const FBattleTrainerSetup* BossTrainer =
+			AfterRevive.GetTrainers().FindByPredicate(
+				[](const FBattleTrainerSetup& Trainer)
+				{
+					return Trainer.TrainerId
+						== MakeNumericId<FTrainerId>(OpponentTrainerValue);
+				});
+		const FBattleBagItemCount* ReviveCount = BossTrainer != nullptr
+			? BossTrainer->Bag.FindByPredicate(
+				[ReviveId](const FBattleBagItemCount& Entry)
+				{
+					return Entry.ItemId == ReviveId;
+				})
+			: nullptr;
+		TestTrue(TEXT("Boss Revive consumes the stocked item exactly once"),
+			ReviveCount != nullptr && ReviveCount->Count == 0);
+		TestFalse(TEXT("Boss Revive consumes the Trainer's one Bag action quota"),
+			BattleBagItemTestAccess::IsBagActionAvailable(
+				*Engine,
+				MakeNumericId<FTrainerId>(OpponentTrainerValue)));
 		return true;
 	}
 

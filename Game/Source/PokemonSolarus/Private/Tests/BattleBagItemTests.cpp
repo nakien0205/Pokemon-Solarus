@@ -7,6 +7,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
+#include "Math/NumericLimits.h"
 #include "Misc/AutomationTest.h"
 
 class FBattleC08CBagEngineFixture
@@ -55,6 +56,72 @@ public:
 	static uint64 GetNextEventOrdinal(const FBattleEngine& Engine)
 	{
 		return Engine.State.IsValid() ? Engine.State->NextEventOrdinal : 0;
+	}
+
+	static int32 GetOrderedEventCount(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid() ? Engine.State->OrderedEvents.Num() : INDEX_NONE;
+	}
+
+	static uint64 GetStateVersion(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid() ? Engine.State->StateVersion : 0;
+	}
+
+	static int32 GetCurrentLockedActionIndex(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->CurrentLockedActionIndex
+			: INDEX_NONE;
+	}
+
+	static bool IsCurrentActionStartedAndUnfinished(const FBattleEngine& Engine)
+	{
+		if (!Engine.State.IsValid()
+			|| !Engine.State->LockedActions.IsValidIndex(
+				Engine.State->CurrentLockedActionIndex))
+		{
+			return false;
+		}
+		const FBattleLockedActionState& Action =
+			Engine.State->LockedActions[Engine.State->CurrentLockedActionIndex];
+		return Action.bStarted && !Action.bFinished;
+	}
+
+	static uint64 GetNextTriggerReentrancyToken(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->NextTriggerReentrancyToken
+			: 0;
+	}
+
+	static void SetNextTriggerReentrancyToken(
+		FBattleEngine& Engine,
+		const uint64 Value)
+	{
+		check(Engine.State.IsValid());
+		Engine.State->NextTriggerReentrancyToken = Value;
+	}
+
+	static int32 GetActiveTriggerRegistrationCount(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->TriggerFramework.GetActiveRegistrations().Num()
+			: INDEX_NONE;
+	}
+
+	static int32 GetPendingTriggerDispatchCount(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->TriggerFramework.GetPendingDispatchCount()
+			: INDEX_NONE;
+	}
+
+	static int32 GetPendingTriggerEffectRequestCount(const FBattleEngine& Engine)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->TriggerFramework.GetPendingEffectRequestCount()
+			: INDEX_NONE;
 	}
 
 	static bool SetCurrentHP(
@@ -341,6 +408,19 @@ public:
 		return State.ValidateInvariants(Validation);
 	}
 };
+
+namespace BattleBagItemTestAccess
+{
+	bool IsBagActionAvailable(
+		const FBattleEngine& Engine,
+		const FTrainerId TrainerId)
+	{
+		const FBattleTrainerState* Trainer =
+			FBattleC08CBagEngineFixture::GetTrainer(Engine, TrainerId);
+		return Trainer != nullptr
+			&& Trainer->ActionAllowance.bBagActionAvailable;
+	}
+}
 
 namespace BattleBagItemTests
 {
@@ -873,6 +953,75 @@ namespace BattleBagItemTests
 		return INDEX_NONE;
 	}
 
+	bool HasExactEventOrder(
+		const FBattleResolution& Resolution,
+		const TArray<EBattleEventType>& Expected)
+	{
+		if (Resolution.GetEvents().Num() != Expected.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Expected.Num(); ++Index)
+		{
+			if (Resolution.GetEvents()[Index].GetType() != Expected[Index])
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool IsReturnedResolutionAppendedExactlyOnce(
+		const FBattleEngine& Engine,
+		const FBattleResolution& Returned)
+	{
+		const FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetState(Engine);
+		int32 MatchingIdentityCount = 0;
+		const FBattleResolution* Appended = nullptr;
+		for (const FBattleResolution& Candidate : State.Resolutions)
+		{
+			if (Candidate.GetResolutionId() == Returned.GetResolutionId())
+			{
+				++MatchingIdentityCount;
+				Appended = &Candidate;
+			}
+		}
+		if (MatchingIdentityCount != 1
+			|| Appended == nullptr
+			|| Appended->WasAccepted() != Returned.WasAccepted()
+			|| Appended->GetBeforeStateVersion()
+				!= Returned.GetBeforeStateVersion()
+			|| Appended->GetAfterStateVersion()
+				!= Returned.GetAfterStateVersion()
+			|| Appended->GetRejection().Reason
+				!= Returned.GetRejection().Reason
+			|| Appended->GetEvents().Num() != Returned.GetEvents().Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Appended->GetEvents().Num(); ++Index)
+		{
+			const FBattleEvent& Left = Appended->GetEvents()[Index];
+			const FBattleEvent& Right = Returned.GetEvents()[Index];
+			if (Left.GetEventOrdinal() != Right.GetEventOrdinal()
+				|| Left.GetBattleId() != Right.GetBattleId()
+				|| Left.GetTurnId() != Right.GetTurnId()
+				|| Left.GetActionId() != Right.GetActionId()
+				|| Left.GetResolutionId() != Right.GetResolutionId()
+				|| Left.GetType() != Right.GetType()
+				|| Left.GetCause() != Right.GetCause()
+				|| Left.GetCauseActionKind() != Right.GetCauseActionKind()
+				|| Left.GetNumericBefore() != Right.GetNumericBefore()
+				|| Left.GetNumericAfter() != Right.GetNumericAfter()
+				|| Left.GetNumericDelta() != Right.GetNumericDelta())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool HasUnavailableItem(
 		const FBattleDecisionRequest& Request,
 		const FItemId& ItemId,
@@ -1398,6 +1547,392 @@ namespace BattleBagItemTests
 						PlayerId,
 						FBattleVolatileRules::GetSubstituteId()) > 0);
 			}
+		}
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023D2FullHealAtomicCleanupTest,
+		"PokemonSolarus.Battle.ADR0002.3D2.Bag.FullHeal.SuccessAndPreparationFailure",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023D2FullHealAtomicCleanupTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		const FItemId FullHealId = FBattleBagItemRules::GetFullHealId();
+		const FConditionId ToxicId = FBattleMajorStatusRules::GetToxicId();
+		const FConditionId ConfusionId = FBattleVolatileRules::GetConfusionId();
+		const FConditionId SubstituteId = FBattleVolatileRules::GetSubstituteId();
+		const FTrainerId PlayerTrainerId =
+			MakeNumericId<FTrainerId>(PlayerTrainerValue);
+		const FBattlerId PlayerId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+		const FBattlerId OpponentId =
+			MakeNumericId<FBattlerId>(OpponentBattlerValue);
+
+		auto MakePreparedEngine = [&](const uint64 Seed)
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerBag = {{FullHealId, 1}};
+			TUniquePtr<FBattleEngine> Engine = MakeEngine(Scenario, Seed);
+			const bool bPrepared =
+				FBattleC08CBagEngineFixture::AddMajorStatus(
+					*Engine,
+					PlayerId,
+					ToxicId)
+				&& FBattleC08CBagEngineFixture::SetConditionRegistrationLayers(
+					*Engine,
+					PlayerId,
+					ToxicId,
+					6)
+				&& FBattleC08CBagEngineFixture::AddVolatile(
+					*Engine,
+					PlayerId,
+					ConfusionId,
+					OpponentId)
+				&& FBattleC08CBagEngineFixture::AddVolatile(
+					*Engine,
+					PlayerId,
+					SubstituteId,
+					PlayerId,
+					50)
+				&& LockPlayerBagAndOpponentFight(
+					*Engine,
+					FullHealId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted();
+			return TPair<TUniquePtr<FBattleEngine>, bool>(MoveTemp(Engine), bPrepared);
+		};
+
+		auto SuccessPair = MakePreparedEngine(8130);
+		TUniquePtr<FBattleEngine> Success = MoveTemp(SuccessPair.Key);
+		if (!TestTrue(TEXT("Successful Full Heal fixture is prepared"), SuccessPair.Value))
+		{
+			return false;
+		}
+		const int32 SuccessResolutionCountBefore =
+			FBattleC08CBagEngineFixture::GetResolutionCount(*Success);
+		const FBattleResolution Applied = Success->ExecuteCurrentBagItem();
+		TestTrue(TEXT("Full Heal succeeds after private cleanup is staged"),
+			Applied.WasAccepted());
+		TestTrue(TEXT("Successful Full Heal returns the exact appended resolution once"),
+			IsReturnedResolutionAppendedExactlyOnce(*Success, Applied));
+		TestEqual(TEXT("Successful Full Heal appends one resolution"),
+			FBattleC08CBagEngineFixture::GetResolutionCount(*Success),
+			SuccessResolutionCountBefore + 1);
+		TestTrue(TEXT("Successful Full Heal preserves exact public event order"),
+			HasExactEventOrder(Applied, {
+				EBattleEventType::ItemUsed,
+				EBattleEventType::ItemConsumed,
+				EBattleEventType::StatusChanged,
+				EBattleEventType::ActionCompleted}));
+		const FBattleBattlerState* SuccessfulPlayer =
+			FBattleC08CBagEngineFixture::GetBattler(*Success, PlayerId);
+		TestTrue(TEXT("Successful Full Heal clears Toxic and Confusion"),
+			SuccessfulPlayer != nullptr
+				&& !SuccessfulPlayer->MajorStatusId.IsValid()
+				&& !FBattleC08CBagEngineFixture::HasVolatile(
+					*Success,
+					PlayerId,
+					ConfusionId));
+		TestTrue(TEXT("Successful Full Heal preserves unrelated Substitute"),
+			FBattleC08CBagEngineFixture::HasVolatile(
+				*Success,
+				PlayerId,
+				SubstituteId));
+		TestEqual(TEXT("Successful Full Heal clears Toxic's private registration"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Success,
+				PlayerId,
+				ToxicId),
+			0);
+		TestEqual(TEXT("Successful Full Heal clears Confusion's registration"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Success,
+				PlayerId,
+				ConfusionId),
+			0);
+		TestTrue(TEXT("Successful Full Heal preserves Substitute's registration"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Success,
+				PlayerId,
+				SubstituteId) > 0);
+		TestEqual(TEXT("Successful Full Heal consumes exactly one item"),
+			GetBagCount(*Success, PlayerTrainerId, FullHealId),
+			0);
+		const FBattleTrainerState* SuccessfulTrainer =
+			FBattleC08CBagEngineFixture::GetTrainer(*Success, PlayerTrainerId);
+		TestTrue(TEXT("Successful Full Heal consumes the Trainer Bag quota"),
+			SuccessfulTrainer != nullptr
+				&& !SuccessfulTrainer->ActionAllowance.bBagActionAvailable);
+
+		auto FailurePair = MakePreparedEngine(8131);
+		TUniquePtr<FBattleEngine> Failure = MoveTemp(FailurePair.Key);
+		if (!TestTrue(TEXT("Failing Full Heal fixture is prepared"), FailurePair.Value))
+		{
+			return false;
+		}
+		FBattleC08CBagEngineFixture::SetNextTriggerReentrancyToken(
+			*Failure,
+			TNumericLimits<uint64>::Max());
+		const uint64 StateVersionBefore =
+			FBattleC08CBagEngineFixture::GetStateVersion(*Failure);
+		const uint64 NextResolutionBefore =
+			FBattleC08CBagEngineFixture::GetNextResolutionValue(*Failure);
+		const uint64 NextEventBefore =
+			FBattleC08CBagEngineFixture::GetNextEventOrdinal(*Failure);
+		const uint64 TriggerTokenBefore =
+			FBattleC08CBagEngineFixture::GetNextTriggerReentrancyToken(*Failure);
+		const int32 CursorBefore =
+			FBattleC08CBagEngineFixture::GetCurrentLockedActionIndex(*Failure);
+		const int32 ResolutionCountBefore =
+			FBattleC08CBagEngineFixture::GetResolutionCount(*Failure);
+		const int32 EventCountBefore =
+			FBattleC08CBagEngineFixture::GetOrderedEventCount(*Failure);
+		const int32 RegistrationCountBefore =
+			FBattleC08CBagEngineFixture::GetActiveTriggerRegistrationCount(*Failure);
+		const int32 DispatchCountBefore =
+			FBattleC08CBagEngineFixture::GetPendingTriggerDispatchCount(*Failure);
+		const int32 EffectRequestCountBefore =
+			FBattleC08CBagEngineFixture::GetPendingTriggerEffectRequestCount(*Failure);
+		const int32 ToxicRegistrationsBefore =
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				ToxicId);
+		const int32 ConfusionRegistrationsBefore =
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				ConfusionId);
+		const int32 SubstituteRegistrationsBefore =
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				SubstituteId);
+		const int32 RandomTraceBefore = Failure->ExportRandomTrace().Num();
+
+		const FBattleResolution Rejected = Failure->ExecuteCurrentBagItem();
+		TestFalse(TEXT("Injected Full Heal cleanup failure is rejected"),
+			Rejected.WasAccepted());
+		TestEqual(TEXT("Injected cleanup failure has the typed preparation reason"),
+			Rejected.GetRejection().Reason,
+			EBattleRejectionReason::CheckpointPreparationFailed);
+		TestTrue(TEXT("Rejected Full Heal returns the exact appended resolution once"),
+			IsReturnedResolutionAppendedExactlyOnce(*Failure, Rejected));
+		TestTrue(TEXT("Rejected Full Heal publishes exactly ActionCanceled"),
+			HasExactEventOrder(Rejected, {EBattleEventType::ActionCanceled}));
+		TestFalse(TEXT("Rejected Full Heal publishes no ItemUsed fact"),
+			FindEvent(Rejected, EBattleEventType::ItemUsed) != INDEX_NONE);
+		TestFalse(TEXT("Rejected Full Heal publishes no ItemConsumed fact"),
+			FindEvent(Rejected, EBattleEventType::ItemConsumed) != INDEX_NONE);
+		TestFalse(TEXT("Rejected Full Heal publishes no StatusChanged fact"),
+			FindEvent(Rejected, EBattleEventType::StatusChanged) != INDEX_NONE);
+		TestFalse(TEXT("Rejected Full Heal publishes no ActionCompleted fact"),
+			FindEvent(Rejected, EBattleEventType::ActionCompleted) != INDEX_NONE);
+		TestEqual(TEXT("Rejected Full Heal appends exactly one resolution"),
+			FBattleC08CBagEngineFixture::GetResolutionCount(*Failure),
+			ResolutionCountBefore + 1);
+		TestEqual(TEXT("Rejected Full Heal appends exactly one event"),
+			FBattleC08CBagEngineFixture::GetOrderedEventCount(*Failure),
+			EventCountBefore + 1);
+		TestEqual(TEXT("Rejected Full Heal consumes one invocation resolution ID"),
+			FBattleC08CBagEngineFixture::GetNextResolutionValue(*Failure),
+			NextResolutionBefore + 1);
+		TestEqual(TEXT("Rejected Full Heal consumes one event ordinal"),
+			FBattleC08CBagEngineFixture::GetNextEventOrdinal(*Failure),
+			NextEventBefore + 1);
+		TestEqual(TEXT("Rejected Full Heal does not advance state version"),
+			FBattleC08CBagEngineFixture::GetStateVersion(*Failure),
+			StateVersionBefore);
+		TestEqual(TEXT("Rejected Full Heal does not advance the action cursor"),
+			FBattleC08CBagEngineFixture::GetCurrentLockedActionIndex(*Failure),
+			CursorBefore);
+		TestTrue(TEXT("Rejected Full Heal leaves the action started and unfinished"),
+			FBattleC08CBagEngineFixture::IsCurrentActionStartedAndUnfinished(*Failure));
+		TestEqual(TEXT("Rejected Full Heal consumes no item"),
+			GetBagCount(*Failure, PlayerTrainerId, FullHealId),
+			1);
+		const FBattleTrainerState* FailedTrainer =
+			FBattleC08CBagEngineFixture::GetTrainer(*Failure, PlayerTrainerId);
+		TestTrue(TEXT("Rejected Full Heal consumes no Trainer Bag quota"),
+			FailedTrainer != nullptr
+				&& FailedTrainer->ActionAllowance.bBagActionAvailable);
+		const FBattleBattlerState* FailedPlayer =
+			FBattleC08CBagEngineFixture::GetBattler(*Failure, PlayerId);
+		TestTrue(TEXT("Rejected Full Heal preserves Toxic target state"),
+			FailedPlayer != nullptr && FailedPlayer->MajorStatusId == ToxicId);
+		TestTrue(TEXT("Rejected Full Heal preserves Confusion target state"),
+			FBattleC08CBagEngineFixture::HasVolatile(
+				*Failure,
+				PlayerId,
+				ConfusionId));
+		TestTrue(TEXT("Rejected Full Heal preserves unrelated volatile state"),
+			FBattleC08CBagEngineFixture::HasVolatile(
+				*Failure,
+				PlayerId,
+				SubstituteId));
+		TestEqual(TEXT("Rejected Full Heal preserves all trigger registrations"),
+			FBattleC08CBagEngineFixture::GetActiveTriggerRegistrationCount(*Failure),
+			RegistrationCountBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves Toxic trigger state"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				ToxicId),
+			ToxicRegistrationsBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves Confusion trigger state"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				ConfusionId),
+			ConfusionRegistrationsBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves unrelated trigger state"),
+			FBattleC08CBagEngineFixture::CountConditionRegistrations(
+				*Failure,
+				PlayerId,
+				SubstituteId),
+			SubstituteRegistrationsBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves pending trigger dispatches"),
+			FBattleC08CBagEngineFixture::GetPendingTriggerDispatchCount(*Failure),
+			DispatchCountBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves pending trigger effects"),
+			FBattleC08CBagEngineFixture::GetPendingTriggerEffectRequestCount(*Failure),
+			EffectRequestCountBefore);
+		TestEqual(TEXT("Rejected Full Heal preserves the trigger token"),
+			FBattleC08CBagEngineFixture::GetNextTriggerReentrancyToken(*Failure),
+			TriggerTokenBefore);
+		TestEqual(TEXT("Rejected Full Heal consumes no RNG"),
+			Failure->ExportRandomTrace().Num(),
+			RandomTraceBefore);
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023D2PrevalidatedBagTransitionsTest,
+		"PokemonSolarus.Battle.ADR0002.3D2.Bag.PrevalidatedTransitions.ExactOncePublication",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023D2PrevalidatedBagTransitionsTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		const FTrainerId PlayerTrainerId =
+			MakeNumericId<FTrainerId>(PlayerTrainerValue);
+		const FBattlerId PlayerId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+		const FBattlerId ReserveId = MakeNumericId<FBattlerId>(PlayerReserveValue);
+
+		const FItemId HyperPotionId = FBattleBagItemRules::GetHyperPotionId();
+		FBagScenario HyperScenario;
+		HyperScenario.PlayerHP = 50;
+		HyperScenario.PlayerBag = {{HyperPotionId, 1}};
+		TUniquePtr<FBattleEngine> Hyper = MakeEngine(HyperScenario, 8132);
+		if (!TestTrue(TEXT("Hyper Potion transition locks"),
+			LockPlayerBagAndOpponentFight(
+				*Hyper,
+				HyperPotionId,
+				MakePartySlotId(0)))
+			|| !TestTrue(TEXT("Hyper Potion transition starts"),
+				Hyper->BeginNextLockedAction().WasAccepted()))
+		{
+			return false;
+		}
+		const FBattleResolution HyperResolution = Hyper->ExecuteCurrentBagItem();
+		TestTrue(TEXT("Hyper Potion remains accepted"), HyperResolution.WasAccepted());
+		TestTrue(TEXT("Hyper Potion returns the exact appended resolution once"),
+			IsReturnedResolutionAppendedExactlyOnce(*Hyper, HyperResolution));
+		TestTrue(TEXT("Hyper Potion preserves exact event order"),
+			HasExactEventOrder(HyperResolution, {
+				EBattleEventType::ItemUsed,
+				EBattleEventType::ItemConsumed,
+				EBattleEventType::Healing,
+				EBattleEventType::HPChanged,
+				EBattleEventType::ActionCompleted}));
+		TestEqual(TEXT("Hyper Potion still heals exactly 120"),
+			FBattleC08CBagEngineFixture::GetBattler(*Hyper, PlayerId)->CurrentHP,
+			170);
+		TestEqual(TEXT("Hyper Potion still consumes one item"),
+			GetBagCount(*Hyper, PlayerTrainerId, HyperPotionId),
+			0);
+
+		const FItemId ReviveId = FBattleBagItemRules::GetReviveId();
+		FBagScenario ReviveScenario;
+		ReviveScenario.PlayerReserveHP = 0;
+		ReviveScenario.PlayerBag = {{ReviveId, 1}};
+		TUniquePtr<FBattleEngine> Revive = MakeEngine(ReviveScenario, 8133);
+		if (!TestTrue(TEXT("Revive transition locks"),
+			LockPlayerBagAndOpponentFight(
+				*Revive,
+				ReviveId,
+				MakePartySlotId(1)))
+			|| !TestTrue(TEXT("Revive transition starts"),
+				Revive->BeginNextLockedAction().WasAccepted()))
+		{
+			return false;
+		}
+		const FBattleResolution ReviveResolution = Revive->ExecuteCurrentBagItem();
+		TestTrue(TEXT("Revive remains accepted"), ReviveResolution.WasAccepted());
+		TestTrue(TEXT("Revive returns the exact appended resolution once"),
+			IsReturnedResolutionAppendedExactlyOnce(*Revive, ReviveResolution));
+		TestTrue(TEXT("Revive preserves exact event order"),
+			HasExactEventOrder(ReviveResolution, {
+				EBattleEventType::ItemUsed,
+				EBattleEventType::ItemConsumed,
+				EBattleEventType::Healing,
+				EBattleEventType::HPChanged,
+				EBattleEventType::ActionCompleted}));
+		const FBattleBattlerState* Revived =
+			FBattleC08CBagEngineFixture::GetBattler(*Revive, ReserveId);
+		TestTrue(TEXT("Revive preserves its exact half-HP lifecycle transition"),
+			Revived != nullptr
+				&& Revived->CurrentHP == 100
+				&& !Revived->bFainted
+				&& !Revived->bFaintTransitionPending
+				&& !Revived->bRemoved);
+		TestEqual(TEXT("Revive still consumes one item"),
+			GetBagCount(*Revive, PlayerTrainerId, ReviveId),
+			0);
+
+		const FItemId XAttackId = FBattleBagItemRules::GetXAttackId();
+		FBagScenario XAttackScenario;
+		XAttackScenario.PlayerBag = {{XAttackId, 1}};
+		TUniquePtr<FBattleEngine> XAttack = MakeEngine(XAttackScenario, 8134);
+		if (!TestTrue(TEXT("X Attack transition locks"),
+			LockPlayerBagAndOpponentFight(
+				*XAttack,
+				XAttackId,
+				FPartySlotId(),
+				MakeActiveSlotId(
+					EBattleSide::Player,
+					EBattlePosition::Left)))
+			|| !TestTrue(TEXT("X Attack transition starts"),
+				XAttack->BeginNextLockedAction().WasAccepted()))
+		{
+			return false;
+		}
+		const FBattleResolution XAttackResolution = XAttack->ExecuteCurrentBagItem();
+		TestTrue(TEXT("X Attack remains accepted"), XAttackResolution.WasAccepted());
+		TestTrue(TEXT("X Attack returns the exact appended resolution once"),
+			IsReturnedResolutionAppendedExactlyOnce(*XAttack, XAttackResolution));
+		TestTrue(TEXT("X Attack preserves exact event order"),
+			HasExactEventOrder(XAttackResolution, {
+				EBattleEventType::ItemUsed,
+				EBattleEventType::ItemConsumed,
+				EBattleEventType::StatStageChanged,
+				EBattleEventType::ActionCompleted}));
+		TestEqual(TEXT("X Attack still raises Attack by two"),
+			FBattleC08CBagEngineFixture::GetAttackStage(*XAttack, PlayerId),
+			2);
+		TestEqual(TEXT("X Attack still consumes one item"),
+			GetBagCount(*XAttack, PlayerTrainerId, XAttackId),
+			0);
+		for (const TUniquePtr<FBattleEngine>* Engine : {&Hyper, &Revive, &XAttack})
+		{
+			const FBattleTrainerState* Trainer =
+				FBattleC08CBagEngineFixture::GetTrainer(**Engine, PlayerTrainerId);
+			TestTrue(TEXT("Each prevalidated transition consumes its Trainer Bag quota"),
+				Trainer != nullptr
+					&& !Trainer->ActionAllowance.bBagActionAvailable);
 		}
 		return true;
 	}

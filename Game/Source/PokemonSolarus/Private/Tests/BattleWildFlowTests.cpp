@@ -4,87 +4,10 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleWildFlow.h"
+#include "BattleAtomicCheckpointTestHarness.h"
 #include "BattleTestFactories.h"
 #include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
-
-class FBattleC09BWildFlowEngineFixture
-{
-public:
-	static FBattleEngineState& GetMutableState(FBattleEngine& Engine)
-	{
-		check(Engine.State.IsValid());
-		return *Engine.State;
-	}
-
-	static const FBattleEngineState& GetState(const FBattleEngine& Engine)
-	{
-		check(Engine.State.IsValid());
-		return *Engine.State;
-	}
-
-	static int32 GetRemainingActions(
-		const FBattleEngine& Engine,
-		const FTrainerId TrainerId)
-	{
-		const FBattleTrainerState* Trainer = GetState(Engine).FindTrainer(TrainerId);
-		return Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE;
-	}
-
-	static bool ApplySpeedStage(
-		FBattleEngine& Engine,
-		const FBattlerId BattlerId,
-		const int32 Delta)
-	{
-		FBattleBattlerState* Battler = GetMutableState(Engine).FindMutableBattler(BattlerId);
-		return Battler != nullptr
-			&& Battler->Stages.ApplyChange(EBattleStat::Speed, Delta).Outcome
-				== EBattleStatStageChangeOutcome::Applied;
-	}
-
-	static bool SetPermanentSpeed(
-		FBattleEngine& Engine,
-		const FBattlerId BattlerId,
-		const int32 Speed)
-	{
-		FBattleBattlerState* Battler = GetMutableState(Engine).FindMutableBattler(BattlerId);
-		if (Battler == nullptr)
-		{
-			return false;
-		}
-		Battler->PermanentStats.Speed = Speed;
-		return true;
-	}
-
-	static bool IsActive(const FBattleEngine& Engine, const FBattlerId BattlerId)
-	{
-		return GetState(Engine).ActivePositions.ContainsByPredicate(
-			[BattlerId](const FBattleActivePositionState& Position)
-			{
-				return Position.BattlerId == BattlerId;
-			});
-	}
-
-	static bool IsRemoved(const FBattleEngine& Engine, const FBattlerId BattlerId)
-	{
-		const FBattleBattlerState* Battler = GetState(Engine).FindBattler(BattlerId);
-		return Battler != nullptr && Battler->bRemoved;
-	}
-
-	static int32 GetMovePP(const FBattleEngine& Engine, const FBattlerId BattlerId)
-	{
-		const FBattleBattlerState* Battler = GetState(Engine).FindBattler(BattlerId);
-		return Battler != nullptr && !Battler->Moves.IsEmpty()
-			? Battler->Moves[0].CurrentPP
-			: INDEX_NONE;
-	}
-
-	static TConstArrayView<FBattleWildFleePolicyState> GetWildFleePolicies(
-		const FBattleEngine& Engine)
-	{
-		return GetState(Engine).WildFleePolicies;
-	}
-};
 
 namespace
 {
