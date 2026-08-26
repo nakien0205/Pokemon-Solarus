@@ -2,7 +2,7 @@
 
 > **Status**: Approved
 > **Author**: phong + Codex
-> **Last Updated**: 2026-08-23
+> **Last Updated**: 2026-08-24
 > **Template**: Battle HUD UX Spec
 > **Scope**: Battle UI only. This document is not the art bible or visual direction for the whole game.
 
@@ -30,8 +30,9 @@ The Battle HUD must make the current battle state and next required decision
 immediately understandable without obscuring the staged battle. In the current
 scope, vivid faceted-crystal surfaces are reserved for the four top-level
 command buttons. The supplied icy-blue battle text box provides the message
-surface. Health panels and all other Battle UI visuals remain undecided and
-must not inherit this styling by assumption. Focus must remain unmistakable
+surface. The move-tile component has the separate approved visual contract
+below. Health panels and all other Battle UI visuals remain undecided and must
+not inherit either styling by assumption. Focus must remain unmistakable
 without relying on color or continuous animation.
 
 ---
@@ -44,7 +45,146 @@ The directional 2×2 command menu uses four asymmetric gemstone buttons: red
 Fight, gold Bag, green Pokémon, and blue Run. Their labels and symbols remain
 visible alongside color. The central stone is not a fifth command. These visual
 rules do not apply to moves, items, party choices, targets, or other Battle
-interactions; those require separate design decisions.
+interactions. Move tiles follow their separate contract below; the remaining
+interactions require separate design decisions.
+
+### Move Tile Visual Contract
+
+This section governs one reusable move tile. It does not determine the
+placement, spacing, or arrangement of the complete move selector.
+
+The implementation uses one reusable move-tile widget with eighteen authored
+visual variants, one for each supported Pokémon type. The move's type selects
+the visual variant at runtime. The eighteen variants are not displayed
+together and must not become eighteen duplicated widget implementations.
+
+Move name, effectiveness, and current/maximum PP remain live UI data. They must
+not be baked into any type artwork or background texture.
+
+#### Tile Layout
+
+| Zone | Relative width | Content |
+| --- | ---: | --- |
+| Type badge | 16 | Complete circular type SVG with its white symbol and strong type color C |
+| Move information | 56.5 | Move name above the effectiveness label, over light type color L |
+| Fade transition | 3.6 total | Three equal-width strips blending L toward N |
+| PP | 24 | Current/maximum PP over neutral color N |
+
+The values are normalized as relative weights because their stated rounded
+total is 100.1. Each fade strip uses one third of the transition zone.
+
+The three fade strips blend from L toward N at 10%, 35%, and 75%. The PP zone
+then begins at 100% N.
+
+The circular type badge supplies the slight parenthesis-shaped `)` boundary
+between the icon and move-information zones.
+
+#### Color Construction
+
+- `C` is the strong color embedded in the selected type icon.
+- `L` is an authored per-type color approximately halfway between C and N.
+- `L` is selected and approved visually by the user rather than calculated at
+  runtime.
+- `N` is `#F3F3F3`.
+- These colors and this layout apply only to move tiles.
+- They must not be reused elsewhere without separate user approval.
+
+#### Type Assets
+
+Use the eighteen SVG icons from:
+
+`https://github.com/partywhale/pokemon-type-icons`
+
+The imported assets must retain the repository's MIT copyright and license
+notice. Import must pin an exact source revision. The game must not download
+these assets at runtime.
+
+The user owns creation and visual tuning of the eighteen type variants. Codex
+owns the reusable widget contract, data binding, input mechanics, validation,
+and automated tests.
+
+#### Live Content
+
+Every displayed ordinary move tile receives:
+
+- Localized move name.
+- Move type and matching visual style.
+- Current PP.
+- Maximum PP.
+- Typed effectiveness knowledge.
+- Current availability and typed unavailable reason.
+- Current focus state.
+
+PP is formatted as `current/max`. PP and effectiveness refresh from accepted
+Battle presentation data; the widget does not calculate or own either value.
+
+#### Effectiveness Presentation
+
+| Runtime value | Display |
+| --- | --- |
+| Unknown | No effectiveness text |
+| Not Applicable | `-` in the ordinary dark neutral text color |
+| Neutral | `Effective` in the ordinary dark neutral text color |
+| Not Very Effective | `Not Very Effective` in user-tuned bluish-white with a thin dark outline or shadow |
+| Super Effective | `Super Effective` in user-tuned yellow with a thin dark outline or shadow |
+| Immune | `No effect` in the ordinary dark neutral text color |
+| Varies | `Varies` in the ordinary dark neutral text color |
+
+The written label communicates effectiveness independently from its color.
+The colored fill plus outline or shadow must remain readable against every L
+background at actual size.
+
+#### Focus and Availability
+
+A focused tile uses four persistent corner brackets based on the approved
+reference. Focus may not rely on type color or animation alone.
+
+An unavailable authored move:
+
+- Remains visible.
+- Remains focusable.
+- Retains its move name, type, effectiveness, and PP.
+- Uses a dimmed visual state while keeping text readable.
+- Shows its typed unavailable reason through the Battle presentation layer.
+- Refuses submission without consuming PP or changing Battle state.
+
+This state applies generically to zero PP, Disable, Encore, Choice restrictions,
+missing legal targets, and other typed selection restrictions.
+
+#### Struggle Edge Case
+
+When the Battle request exposes the engine-owned Struggle fallback, the tile
+uses a special neutral system style rather than one of the eighteen type
+variants. This does not create a nineteenth Pokémon type.
+
+The Struggle tile:
+
+- Displays the localized name `Struggle`.
+- Uses a neutral typeless badge supplied by the user.
+- Uses neutral C/L styling derived from N rather than a Pokémon type color.
+- Displays `—` in the PP zone because Struggle does not use PP.
+- Displays `Effective` for a known opponent and no effectiveness text for an
+  unknown opponent, following the authoritative snapshot.
+- Remains selectable only when exposed as legal by the Battle request.
+- Never invents `0/0` PP or assigns Struggle the Normal type.
+
+When every authored move has zero PP, the request exposes only Struggle.
+Struggle may also be the only legal fallback when every authored move lacks a
+legal target or another authoritative rule leaves no legal ordinary move. The
+UI follows the request and does not infer the reason. Authored unavailable
+moves do not appear beside Struggle in a Struggle-only request.
+
+#### Validation
+
+A tile fails closed rather than displaying misleading information when:
+
+- Its move identity cannot be resolved.
+- An ordinary move has no valid supported type.
+- Its required type style or icon is missing.
+- PP is negative, exceeds maximum PP, or maximum PP is invalid.
+- Required effectiveness or availability data contradicts the active request.
+
+No fallback may silently assign an ordinary move or Struggle the Normal type.
 
 ### Information Surfaces
 
@@ -150,10 +290,17 @@ The current Battle HUD communicates:
 - Current command focus
 - Command availability
 - An explanation when a command cannot be used
+- Contextual move name
+- Move type through both color and symbol
+- Move effectiveness
+- Current/maximum move PP
+- Move focus and availability
 
-The opponent's exact HP remains hidden. Move details, party information, item
-information, target information, status indicators, and other future Battle
-information are outside this HUD design and require separate decisions.
+The opponent's exact HP remains hidden. The approved move-tile component is
+contextual and appears only inside Move Selection. The complete move-selector
+arrangement, held move details, party information, item information, target
+information, status indicators, and other future Battle information remain
+outside this pass and require separate decisions.
 
 ### Categorization
 
@@ -162,6 +309,7 @@ information are outside this HUD design and require separate decisions.
 | Must Show | Both Pokémon names, both HP bars, player exact HP, and the current Battle message or prompt |
 | Contextual | Fight, Bag, Pokémon, and Run; command focus; and command availability while awaiting a top-level command |
 | Contextual | An unavailable-command explanation when the player attempts or focuses an unusable command |
+| Contextual | Each visible move tile's localized name, type color and symbol, effectiveness, current/maximum PP, focus, and availability during Move Selection |
 | On Demand | None in the current HUD |
 | Hidden | Opponent exact HP |
 
@@ -197,7 +345,7 @@ changing this ownership rule.
 
 The presentation flow is:
 
-`Battle core -> observer-safe snapshot, decision request, and ordered events -> presentation adapter -> validated Battle UI state -> Battle widgets`
+`Battle core -> observer-safe snapshots, typed decision requests, and FBattleObservedResolution envelopes -> FBattleActionOrchestrator -> FBattlePresentationBatch -> presentation coordinator and adapter -> validated Battle UI state -> Battle widgets`
 
 | UI information | Authoritative source | Presentation owner | Update trigger | Missing or invalid behavior |
 | --- | --- | --- | --- | --- |
@@ -205,8 +353,9 @@ The presentation flow is:
 | Current and maximum HP | Observer-filtered battler facts | Presentation adapter provides targets; health-panel widget owns only the displayed animation value | Initial display and each accepted HP or active-battler change | Maximum HP must be positive and current HP must be in range; otherwise fail closed |
 | Command availability | Pending `FBattleDecisionRequest` legal action kinds | Presentation adapter | A new or replaced decision request | May be absent only while the command menu is hidden; absence during command selection is invalid |
 | Unavailable-command reason | Typed `FBattleUnavailableDecisionOption` mapped to localized presentation text | Presentation adapter | Focus or Confirm on an unavailable command, or a replaced request | A visible unavailable command requires a typed reason; no generic invented fallback text |
+| Move-tile name, type, PP, effectiveness, and availability | Observer-safe move projection keyed by move identity, catalog-backed presentation data, and the pending move decision request | Presentation adapter | Entering Move Selection and each accepted snapshot or request replacement | Required values must agree by move identity; missing or contradictory data fails closed rather than inventing a type, PP, effectiveness, or legal state |
 | Command prompt | Acting battler identity, pending request, and localized prompt template | Presentation adapter | Entering or returning to top-level command selection | Required while the command menu is visible; otherwise fail closed |
-| Battle message | Ordered events from an accepted `FBattleResolution`, mapped to localized presentation text | Presentation adapter maps events; presentation coordinator owns queue timing | Accepted resolution and advancement of the current line | An empty queue is valid only when no presentable event remains; event order is never rearranged or fabricated |
+| Battle message | Ordered observer-safe events from complete `FBattleObservedResolution` values delivered in an `FBattlePresentationBatch` | Presentation adapter maps events; presentation coordinator owns queue timing | Presentation batch delivery and advancement of the current line | An empty queue is valid only when no presentable event remains; event order is never rearranged or fabricated |
 | Current command focus | Local command-navigation state | Command widget under presentation-coordinator control | Command-menu entry, return from Battle Info, or directional input | May be absent only while the menu is hidden; a new selection phase defaults to Fight |
 | HUD phase and command-menu visibility | Snapshot phase, pending-decision state, and message-queue state | Presentation coordinator | State-version, request, or queue-state change | Contradictory phase data stops presentation and command input |
 
@@ -237,7 +386,7 @@ choice. Cancel-only HP and EXP animation completion remains unchanged.
 | Loading and validation | The entire HUD remains hidden until required presentation data validates. |
 | Battle introduction | The text box appears only for an introduction line. Each health panel appears when its Pokémon enters the field. |
 | Top-level command selection | Both health panels, the text box, all four command gems, and the decorative stone are visible. |
-| Child selector | The command cluster hides. The separately designed move, Battle Bag, party, or target UI takes its place. |
+| Child selector | The command cluster hides. Move Selection uses the approved move-tile component inside an otherwise deferred selector arrangement; the separately designed Battle Bag, party, or target UI takes its place in the other child flows. |
 | Battle Info | The current selector freezes and stops accepting input. The read-only Battle Info view takes the foreground. |
 | Action resolution | The command cluster hides. Health panels and ordered Battle messages remain visible. |
 | Faint or forced replacement | Commands remain hidden until replacement presentation and any required choice are ready. |
@@ -326,6 +475,7 @@ define their own combined visual budgets.
 | Battle text box | Must Show | Uses the supplied icy-blue prototype plate. Displays live Battle messages, command prompts, and unavailable-command explanations. |
 | Command menu | Contextual | A directional 2×2 group containing Fight, Bag, Pokémon, and Run. Visible only while awaiting a top-level command. |
 | Command gem | Contextual | Uses its supplied prototype image while remaining a real focusable UI control. Receives the Lifted Gem focus treatment. |
+| Move tile | Contextual | One reusable live-data control styled through one of eighteen type variants, or through the neutral Struggle system style. Displays move name, effectiveness, and PP and is visible only inside Move Selection. |
 | Central stone | Decoration | Static, non-focusable, and non-interactive. It communicates no currently available mechanic. |
 
 The current prototype command PNGs retain their baked English labels and
@@ -446,6 +596,11 @@ compression timing, and provisional layout positions and spacing. Designer
 changes must preserve the approved interaction behavior, readability,
 native-image rule, and Battle-only scope.
 
+Move-tile parameters are the eighteen authored L colors, the Super Effective
+and Not Very Effective text fills and outlines, unavailable-tile brightness,
+corner-bracket treatment, and neutral Struggle style. Their final visual values
+remain user-owned and require actual-size tuning.
+
 ---
 
 ## Accessibility
@@ -468,6 +623,17 @@ claiming formal WCAG compliance.
 - Roboto Bold remains approximately 21 px at 1280×720.
 - Every button retains an accessible command name even while the current baked
   labels are used.
+- Every ordinary move identifies its type with both a symbol and a type color.
+- Every known effectiveness result uses a written label; color is supplemental.
+- Super Effective and Not Very Effective text, including its outline or shadow,
+  maintains at least 4.5:1 contrast against every authored L background at both
+  supported resolutions.
+- Move focus uses persistent corner brackets with at least 3:1 non-text
+  contrast and never depends on type color or motion alone.
+- Unavailable move tiles remain readable and focusable while their written
+  reason is exposed through the Battle presentation layer.
+- Struggle's neutral typeless badge and PP dash must not imply that it is a
+  Pokémon type or that it has a zero-PP pool.
 - Text, command identity, focus, and HP information must remain readable at
   1280×720.
 - No essential information depends only on animation, audio, or controller
@@ -528,14 +694,43 @@ project-wide accessibility certification.
   presentation, Battle outcome, and presentation errors.
 - [ ] Application focus loss and controller disconnection do not select
   commands or show a custom interruption notice.
+- [ ] One reusable move-tile widget renders all eighteen ordinary type variants;
+  the variants are not eighteen duplicated widget implementations and are not
+  displayed as a type gallery.
+- [ ] Move name, current/maximum PP, effectiveness, availability, and focus come
+  from live presentation state and are not baked into type artwork.
+- [ ] Every ordinary move selects the matching icon, C background, and
+  user-authored L background for its authoritative type.
+- [ ] Ordinary move PP displays the authoritative `current/max` value and
+  refreshes after every accepted PP change.
+- [ ] Unknown, Not Applicable, Neutral, Not Very Effective, Super Effective,
+  Immune, and Varies render exactly as defined in the effectiveness table.
+- [ ] Super Effective yellow and Not Very Effective bluish-white remain readable
+  over every L background at actual size in both supported resolutions.
+- [ ] Focus is always visible through four persistent corner brackets rather
+  than through type color alone.
+- [ ] An unavailable authored move remains visible and focusable, shows its
+  typed reason, and cannot submit or consume PP.
+- [ ] A request-provided Struggle tile uses the neutral typeless system style,
+  displays a PP dash, and never displays Normal type or `0/0` PP.
+- [ ] A missing icon, style, move identity, or valid PP/effectiveness contract
+  fails closed instead of showing misleading fallback data.
+- [ ] Move tiles are compared at actual in-game size at both 1920×1080 and
+  1280×720 before visual acceptance.
+- [ ] The move-tile layout, palette, and state language are not reused by any
+  other Battle or non-Battle UI without separate user approval.
 
 ---
 
 ## Open Questions
 
 - Health-panel visual design is intentionally deferred.
-- Move, item, party, target-selection, status, and Battle Info UI designs are
+- Complete move-selector placement, tile height and spacing, held move details,
+  item, party, target-selection, status, and Battle Info UI designs are
   intentionally deferred.
+- The eighteen L values, two colored effectiveness text fills and outlines,
+  unavailable brightness, focus brackets, and neutral Struggle badge require
+  user-authored actual-size visual tuning before implementation acceptance.
 - The supplied crystal assets require final contrast validation against the
   confirmed FoundationMap Battle Camera scene after integration.
 - A formal project accessibility tier and screen-reader support remain
@@ -550,6 +745,13 @@ project-wide accessibility certification.
   It is not added to a project-wide interaction pattern library and must not be
   reused outside this Battle-specific scope by assumption.
 - No navigation mismatch remains for the current command layout.
+- The move-tile contract represents the authoritative move type through color
+  and symbol while also presenting live move name, effectiveness, PP, focus,
+  and availability. It does not assign the complete selector arrangement.
+- Corner Bracket Move Focus is a local move-tile pattern. It is not Lifted Gem
+  and must not be reused outside move tiles by assumption.
+- Struggle remains typeless and PP-free, follows the authoritative request, and
+  is never presented as a Normal-type move.
 - Missing required presentation data has a defined fail-closed behavior.
 - Cancel-only HP- and EXP-animation skipping is aligned with the authoritative
   battle handoff.
