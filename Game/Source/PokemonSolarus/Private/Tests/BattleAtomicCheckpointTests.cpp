@@ -29,6 +29,7 @@ namespace
 	constexpr uint64 OpponentTrainerValue = 2;
 	constexpr uint64 PlayerLeftValue = 11;
 	constexpr uint64 PlayerRightValue = 12;
+	constexpr uint64 PlayerReserveValue = 13;
 	constexpr uint64 OpponentLeftValue = 21;
 	constexpr uint64 OpponentRightValue = 22;
 
@@ -59,6 +60,10 @@ namespace
 		bool bPlayerSubjectToObedience = false;
 		uint8 PlayerReferenceLevel = 20;
 		uint8 PlayerBadgeCount = 0;
+		bool bVoluntarySwitchFlow = false;
+		int32 SwitchIncomingCurrentHP = 200;
+		FAbilityId SwitchIncomingAbilityId;
+		FItemId SwitchIncomingHeldItemId;
 	};
 
 	TArray<FBattleTypeChartEntry> MakeNeutralTypeChart()
@@ -115,6 +120,7 @@ namespace
 		Species.BaseStats = {80, 80, 80, 80, 80, 80};
 		Species.CatchRate = CatchRate;
 		Species.AbilityChoices.Add(FBattleAbilityRules::GetBlazeId());
+		Species.AbilityChoices.Add(FBattleAbilityRules::GetIntimidateId());
 		return Species;
 	}
 
@@ -125,14 +131,23 @@ namespace
 		Input.Moves.Add(MakeProbeMove());
 		Input.Moves.Add(MakeTargetProbeMove());
 		Input.Abilities.Add({FBattleAbilityRules::GetBlazeId()});
+		Input.Abilities.Add({FBattleAbilityRules::GetIntimidateId()});
 		Input.Items.Add({FBattleBagItemRules::GetPokeBallId(), EBattleItemKind::Capture});
 		Input.Items.Add({FBattleItemRules::GetLeftoversId(), EBattleItemKind::Held});
+		Input.Items.Add({FBattleItemRules::GetSitrusBerryId(), EBattleItemKind::Held});
+		Input.Items.Add({FBattleItemRules::GetAirBalloonId(), EBattleItemKind::Held});
 		Input.Items.Add({
 			MakeDefinitionId<FItemId>(CaptureHeldItemName),
 			EBattleItemKind::Held});
 		Input.Conditions.Add({
 			FBattleFieldSideConditionRules::GetMagicRoomId(),
 			EBattleConditionKind::Room});
+		Input.Conditions.Add({
+			FBattleFieldSideConditionRules::GetSpikesId(),
+			EBattleConditionKind::Hazard});
+		Input.Conditions.Add({
+			FBattleFieldSideConditionRules::GetStealthRockId(),
+			EBattleConditionKind::Hazard});
 		for (const FConditionId& VolatileId : FBattleVolatileRules::GetCanonicalIds())
 		{
 			Input.Conditions.Add({VolatileId, EBattleConditionKind::Volatile});
@@ -178,7 +193,8 @@ namespace
 		const int32 Speed,
 		const int32 CurrentHP = 200,
 		const FItemId OriginalHeldItemId = FItemId(),
-		const FItemId CurrentHeldItemId = FItemId())
+		const FItemId CurrentHeldItemId = FItemId(),
+		const FAbilityId AbilityId = FBattleAbilityRules::GetBlazeId())
 	{
 		FBattlePartyEntrySetup Entry;
 		Entry.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
@@ -189,7 +205,7 @@ namespace
 		Entry.Level = 50;
 		Entry.Stats = {200, 100, 100, 100, 100, Speed};
 		Entry.CurrentHP = CurrentHP;
-		Entry.AbilityId = FBattleAbilityRules::GetBlazeId();
+		Entry.AbilityId = AbilityId;
 		Entry.OriginalHeldItemId = OriginalHeldItemId;
 		Entry.CurrentHeldItemId = CurrentHeldItemId;
 		Entry.CaptureClassification = EBattleCaptureSpeciesClassification::Normal;
@@ -275,6 +291,21 @@ namespace
 			Scenario.bCaptureFlow
 				? MakeDefinitionId<FItemId>(CaptureHeldItemName)
 				: FItemId()));
+		if (Scenario.bVoluntarySwitchFlow)
+		{
+			Input.PartyEntries.Add(MakePartyEntry(
+				PlayerTrainerValue,
+				PlayerReserveValue,
+				1,
+				PlayerSpeciesName,
+				60,
+				Scenario.SwitchIncomingCurrentHP,
+				Scenario.SwitchIncomingHeldItemId,
+				Scenario.SwitchIncomingHeldItemId,
+				Scenario.SwitchIncomingAbilityId.IsValid()
+					? Scenario.SwitchIncomingAbilityId
+					: FBattleAbilityRules::GetBlazeId()));
+		}
 		Input.StartingActive.Add(MakeActive(
 			EBattleSide::Player,
 			EBattlePosition::Left,
@@ -1685,6 +1716,586 @@ namespace
 				&& Replay.GetResolutions().Last().GetRejection().Reason
 					== ExpectedReason);
 		return bValid;
+	}
+
+	FAtomicWildScenario MakeAtomicVoluntarySwitchScenario(
+		const FItemId IncomingItemId = FItemId(),
+		const FAbilityId IncomingAbilityId = FBattleAbilityRules::GetBlazeId(),
+		const int32 IncomingCurrentHP = 200)
+	{
+		FAtomicWildScenario Scenario;
+		Scenario.bVoluntarySwitchFlow = true;
+		Scenario.SwitchIncomingHeldItemId = IncomingItemId;
+		Scenario.SwitchIncomingAbilityId = IncomingAbilityId;
+		Scenario.SwitchIncomingCurrentHP = IncomingCurrentHP;
+		return Scenario;
+	}
+
+	bool TryPrepareAtomicVoluntarySwitch(FBattleEngine& Engine)
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		const FBattlerId OutgoingBattlerId =
+			MakeNumericId<FBattlerId>(PlayerLeftValue);
+		const FBattleBattlerState* Outgoing = State.FindBattler(OutgoingBattlerId);
+		const FBattleActivePositionState* Active = State.ActivePositions.FindByPredicate(
+			[OutgoingBattlerId](const FBattleActivePositionState& Candidate)
+			{
+				return Candidate.BattlerId == OutgoingBattlerId;
+			});
+		FBattleTrainerState* Trainer = Outgoing != nullptr
+			? State.FindMutableTrainer(Outgoing->TrainerId)
+			: nullptr;
+		if (Outgoing == nullptr || Active == nullptr || Trainer == nullptr)
+		{
+			return false;
+		}
+
+		FBattleDecision Decision;
+		if (!FBattleDecision::TryCreateSwitch(
+				State.StateVersion,
+				EBattleDecisionRequestKind::Action,
+				Outgoing->TrainerId,
+				OutgoingBattlerId,
+				MakePartySlotId(1),
+				Active->ActiveSlotId,
+				Decision))
+		{
+			return false;
+		}
+		FBattleLockedActionState Action;
+		Action.ActionId = MakeNumericId<FActionId>(3003201);
+		Action.QueueOrdinal = 1;
+		Action.Decision = MoveTemp(Decision);
+		Action.OrderKey.CommandBand = EBattleActionCommandBand::VoluntarySwitch;
+		Action.OrderKey.EffectiveSpeed = Outgoing->PermanentStats.Speed;
+		Action.OrderKey.ActingSlotId = Active->ActiveSlotId;
+		State.LockedActions = {MoveTemp(Action)};
+		State.CurrentLockedActionIndex = 0;
+		State.PendingDecision.Reset();
+		State.PendingDecisionRequests.Reset();
+		State.PendingReplacements.Reset();
+		State.DecisionOwnerSequence.Reset();
+		State.AcceptedSelections.Reset();
+		State.Phase = EBattlePhase::Locked;
+		Trainer->ActionAllowance.MaximumActions = 1;
+		Trainer->ActionAllowance.RemainingActions = 1;
+		EBattleStateValidationError Validation = EBattleStateValidationError::None;
+		return State.ValidateInvariants(Validation);
+	}
+
+	bool TryBeginAtomicVoluntarySwitch(FBattleEngine& Engine)
+	{
+		if (!Engine.BeginNextLockedAction().WasAccepted())
+		{
+			return false;
+		}
+		const TOptional<FBattleLockedAction> Current = Engine.GetCurrentLockedAction();
+		return Current.IsSet()
+			&& Current->Decision.GetActionKind() == EBattleActionKind::Switch
+			&& Current->Decision.GetActingBattlerId()
+				== MakeNumericId<FBattlerId>(PlayerLeftValue)
+			&& Current->Decision.GetSwitchPartySlotId() == MakePartySlotId(1);
+	}
+
+	bool TrySeedAtomicSwitchHazard(
+		FBattleEngine& Engine,
+		const FConditionId HazardId,
+		const int32 Layers = 1)
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		FBattleTriggerSubject Owner;
+		FBattleTriggerSubject Source;
+		const FBattlerId SourceBattlerId =
+			MakeNumericId<FBattlerId>(OpponentLeftValue);
+		if (Layers <= 0
+			|| FBattleFieldSideConditionRules::GetConditionFamily(HazardId)
+				!= EBattleConditionKind::Hazard
+			|| !FBattleTriggerSubject::TryCreateSide(EBattleSide::Player, Owner)
+			|| !FBattleTriggerSubject::TryCreateBattler(SourceBattlerId, Source))
+		{
+			return false;
+		}
+		FBattleSideState* Side = State.Sides.FindByPredicate(
+			[](const FBattleSideState& Candidate)
+			{
+				return Candidate.Side == EBattleSide::Player;
+			});
+		if (Side == nullptr
+			|| Side->Hazards.ContainsByPredicate(
+				[HazardId](const FBattleConditionState& Candidate)
+				{
+					return Candidate.ConditionId == HazardId;
+				}))
+		{
+			return false;
+		}
+
+		FBattleFieldSideTriggerRegistrationFacts Facts;
+		Facts.ConditionId = HazardId;
+		Facts.PayloadId = HazardId.GetDefinitionId();
+		Facts.Owner = Owner;
+		Facts.Source = Source;
+		Facts.Targets.Add(Owner);
+		Facts.Layers = Layers;
+		EBattleTriggerError TriggerError = EBattleTriggerError::None;
+		if (!FBattleFieldSideConditionRules::TryRegisterTriggers(
+				State.TriggerFramework,
+				Facts,
+				TriggerError))
+		{
+			return false;
+		}
+		FBattleConditionState Condition;
+		Condition.ConditionId = HazardId;
+		Condition.LayerCount = Layers;
+		Condition.CreationOrdinal = State.NextConditionCreationOrdinal++;
+		Condition.SourceBattlerId = SourceBattlerId;
+		Side->Hazards.Add(MoveTemp(Condition));
+		TArray<FBattleTriggerEffectRequest> IgnoredRequests;
+		TArray<FBattleTriggerLifecycleFact> IgnoredLifecycle;
+		State.TriggerFramework.DrainEffectRequests(IgnoredRequests);
+		State.TriggerFramework.DrainLifecycleFacts(IgnoredLifecycle);
+		return true;
+	}
+
+	bool TrySeedAtomicSwitchOutgoingTransients(FBattleEngine& Engine)
+	{
+		const FBattlerId OutgoingId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		FBattleBattlerState* Outgoing = State.FindMutableBattler(OutgoingId);
+		if (Outgoing == nullptr)
+		{
+			return false;
+		}
+		const FBattleStatStageChangeResult Change =
+			Outgoing->Stages.ApplyChange(EBattleStat::Attack, 2);
+		Outgoing->LastMoveId = MakeDefinitionId<FMoveId>(ProbeMoveName);
+		return Change.Outcome == EBattleStatStageChangeOutcome::Applied;
+	}
+
+	struct FAtomicSwitchConditionObservation
+	{
+		FConditionId ConditionId;
+		int32 RemainingTurns = 0;
+		int32 LayerCount = 0;
+		uint64 CreationOrdinal = 0;
+		FBattlerId SourceBattlerId;
+		bool bHasRemainingTurns = false;
+	};
+
+	FAtomicSwitchConditionObservation ObserveAtomicSwitchCondition(
+		const FBattleConditionState& Condition)
+	{
+		FAtomicSwitchConditionObservation Observation;
+		Observation.ConditionId = Condition.ConditionId;
+		Observation.bHasRemainingTurns = Condition.RemainingTurns.IsSet();
+		Observation.RemainingTurns = Condition.RemainingTurns.Get(0);
+		Observation.LayerCount = Condition.LayerCount;
+		Observation.CreationOrdinal = Condition.CreationOrdinal;
+		Observation.SourceBattlerId = Condition.SourceBattlerId;
+		return Observation;
+	}
+
+	bool AreAtomicSwitchConditionsIdentical(
+		const TArray<FAtomicSwitchConditionObservation>& Left,
+		const TArray<FAtomicSwitchConditionObservation>& Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			const FAtomicSwitchConditionObservation& L = Left[Index];
+			const FAtomicSwitchConditionObservation& R = Right[Index];
+			if (L.ConditionId != R.ConditionId
+				|| L.bHasRemainingTurns != R.bHasRemainingTurns
+				|| L.RemainingTurns != R.RemainingTurns
+				|| L.LayerCount != R.LayerCount
+				|| L.CreationOrdinal != R.CreationOrdinal
+				|| L.SourceBattlerId != R.SourceBattlerId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	struct FAtomicSwitchBattlerObservation
+	{
+		FTrainerId TrainerId;
+		FBattlerId BattlerId;
+		FPartySlotId PartySlotId;
+		int32 CurrentHP = 0;
+		TArray<int32> Stages;
+		TArray<FAtomicSwitchConditionObservation> Volatiles;
+		FConditionId MajorStatusId;
+		FAbilityId AbilityId;
+		FBattleHeldItemState HeldItem;
+		FMoveId LastMoveId;
+		FTurnId EnteredActiveOnTurnId;
+		bool bFainted = false;
+		bool bCaptured = false;
+		bool bRemoved = false;
+		bool bFaintTransitionPending = false;
+		bool bAbilitySuppressed = false;
+	};
+
+	FAtomicSwitchBattlerObservation ObserveAtomicSwitchBattler(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId)
+	{
+		FAtomicSwitchBattlerObservation Observation;
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		if (Battler == nullptr)
+		{
+			return Observation;
+		}
+		Observation.TrainerId = Battler->TrainerId;
+		Observation.BattlerId = Battler->BattlerId;
+		Observation.PartySlotId = Battler->PartySlotId;
+		Observation.CurrentHP = Battler->CurrentHP;
+		for (uint8 StatValue = static_cast<uint8>(EBattleStat::Attack);
+			StatValue <= static_cast<uint8>(EBattleStat::Evasion);
+			++StatValue)
+		{
+			int32 Stage = 0;
+			const bool bRead = Battler->Stages.TryGetStage(
+				static_cast<EBattleStat>(StatValue),
+				Stage);
+			check(bRead);
+			Observation.Stages.Add(Stage);
+		}
+		for (const FBattleConditionState& Condition : Battler->Volatiles)
+		{
+			Observation.Volatiles.Add(ObserveAtomicSwitchCondition(Condition));
+		}
+		Observation.MajorStatusId = Battler->MajorStatusId;
+		Observation.AbilityId = Battler->AbilityId;
+		Observation.HeldItem = Battler->HeldItem;
+		Observation.LastMoveId = Battler->LastMoveId;
+		Observation.EnteredActiveOnTurnId = Battler->EnteredActiveOnTurnId;
+		Observation.bFainted = Battler->bFainted;
+		Observation.bCaptured = Battler->bCaptured;
+		Observation.bRemoved = Battler->bRemoved;
+		Observation.bFaintTransitionPending = Battler->bFaintTransitionPending;
+		Observation.bAbilitySuppressed = Battler->bAbilitySuppressed;
+		return Observation;
+	}
+
+	bool AreAtomicSwitchBattlersIdentical(
+		const FAtomicSwitchBattlerObservation& Left,
+		const FAtomicSwitchBattlerObservation& Right)
+	{
+		return Left.TrainerId == Right.TrainerId
+			&& Left.BattlerId == Right.BattlerId
+			&& Left.PartySlotId == Right.PartySlotId
+			&& Left.CurrentHP == Right.CurrentHP
+			&& Left.Stages == Right.Stages
+			&& AreAtomicSwitchConditionsIdentical(Left.Volatiles, Right.Volatiles)
+			&& Left.MajorStatusId == Right.MajorStatusId
+			&& Left.AbilityId == Right.AbilityId
+			&& AreActionStartHeldItemsIdentical(Left.HeldItem, Right.HeldItem)
+			&& Left.LastMoveId == Right.LastMoveId
+			&& Left.EnteredActiveOnTurnId == Right.EnteredActiveOnTurnId
+			&& Left.bFainted == Right.bFainted
+			&& Left.bCaptured == Right.bCaptured
+			&& Left.bRemoved == Right.bRemoved
+			&& Left.bFaintTransitionPending == Right.bFaintTransitionPending
+			&& Left.bAbilitySuppressed == Right.bAbilitySuppressed;
+	}
+
+	bool IsAtomicSwitchDefinitionRevealed(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const bool bAbility)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		FBattleTriggerSubject Owner;
+		FBattleTriggerSourceDefinition Source;
+		if (Battler == nullptr
+			|| !FBattleTriggerSubject::TryCreateBattler(BattlerId, Owner)
+			|| !(bAbility
+				? FBattleTriggerSourceDefinition::TryCreateAbility(Battler->AbilityId, Source)
+				: FBattleTriggerSourceDefinition::TryCreateItem(
+					Battler->HeldItem.CurrentItemId,
+					Source)))
+		{
+			return false;
+		}
+		return State.AbilityItemRevealTracker.HasBeenRevealed(Source, Owner);
+	}
+
+	struct FAtomicSwitchCheckpointObservation
+	{
+		uint64 StateVersion = 0;
+		uint64 NextResolutionId = 0;
+		uint64 NextEventOrdinal = 0;
+		uint64 NextConditionCreationOrdinal = 0;
+		uint64 NextTriggerToken = 0;
+		int32 ActionIndex = INDEX_NONE;
+		int32 ResolutionCount = 0;
+		int32 EventCount = 0;
+		int32 RandomTraceCount = 0;
+		int32 PendingDecisionRequestCount = 0;
+		int32 PendingReplacementCount = 0;
+		int32 OpponentRemovalCheckpointCount = 0;
+		int32 PendingTriggerDispatchCount = 0;
+		int32 PendingTriggerEffectCount = 0;
+		int32 PendingTriggerLifecycleCount = 0;
+		EBattlePhase Phase = EBattlePhase::Setup;
+		EBattleOutcome Outcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+		bool bPendingDecisionSet = false;
+		bool bActionStarted = false;
+		bool bActionFinished = false;
+		bool bIncomingAbilityRevealed = false;
+		bool bIncomingItemRevealed = false;
+		FAtomicSwitchBattlerObservation Outgoing;
+		FAtomicSwitchBattlerObservation Incoming;
+		FAtomicSwitchBattlerObservation Opponent;
+		TArray<FActiveSlotId> ActiveSlotIds;
+		TArray<FTrainerId> ActiveTrainerIds;
+		TArray<FBattlerId> ActiveBattlerIds;
+		TArray<uint8> ActiveAvailability;
+		TArray<FAtomicSwitchConditionObservation> PlayerHazards;
+		TArray<FBattleHeldItemInstanceState> LedgerStates;
+		TArray<FBattleTriggerRegistrationId> TriggerRegistrationIds;
+		TArray<uint64> TriggerCreationOrdinals;
+		TArray<FBattleTriggerSourceDefinition> TriggerSources;
+		TArray<uint8> TriggerSuppression;
+	};
+
+	FAtomicSwitchCheckpointObservation ObserveAtomicSwitchCheckpoint(
+		const FBattleEngine& Engine)
+	{
+		const FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetState(Engine);
+		FAtomicSwitchCheckpointObservation Observation;
+		Observation.StateVersion = State.StateVersion;
+		Observation.NextResolutionId = State.NextResolutionId;
+		Observation.NextEventOrdinal = State.NextEventOrdinal;
+		Observation.NextConditionCreationOrdinal = State.NextConditionCreationOrdinal;
+		Observation.NextTriggerToken = State.NextTriggerReentrancyToken;
+		Observation.ActionIndex = State.CurrentLockedActionIndex;
+		Observation.ResolutionCount = State.Resolutions.Num();
+		Observation.EventCount = State.OrderedEvents.Num();
+		Observation.RandomTraceCount = State.Random->GetTrace().Num();
+		Observation.PendingDecisionRequestCount = State.PendingDecisionRequests.Num();
+		Observation.PendingReplacementCount = State.PendingReplacements.Num();
+		Observation.OpponentRemovalCheckpointCount =
+			State.AvailableOpponentRemovalCheckpoints.Num();
+		Observation.PendingTriggerDispatchCount =
+			State.TriggerFramework.GetPendingDispatchCount();
+		Observation.PendingTriggerEffectCount =
+			State.TriggerFramework.GetPendingEffectRequestCount();
+		Observation.PendingTriggerLifecycleCount =
+			State.TriggerFramework.GetPendingLifecycleFactCount();
+		Observation.Phase = State.Phase;
+		Observation.Outcome = State.Outcome;
+		Observation.OutcomeCause = State.OutcomeCause;
+		Observation.bPendingDecisionSet = State.PendingDecision.IsSet();
+		if (State.LockedActions.IsValidIndex(State.CurrentLockedActionIndex))
+		{
+			const FBattleLockedActionState& Action =
+				State.LockedActions[State.CurrentLockedActionIndex];
+			Observation.bActionStarted = Action.bStarted;
+			Observation.bActionFinished = Action.bFinished;
+		}
+		const FBattlerId OutgoingId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+		const FBattlerId IncomingId = MakeNumericId<FBattlerId>(PlayerReserveValue);
+		Observation.Outgoing = ObserveAtomicSwitchBattler(State, OutgoingId);
+		Observation.Incoming = ObserveAtomicSwitchBattler(State, IncomingId);
+		Observation.Opponent = ObserveAtomicSwitchBattler(
+			State,
+			MakeNumericId<FBattlerId>(OpponentLeftValue));
+		Observation.bIncomingAbilityRevealed =
+			IsAtomicSwitchDefinitionRevealed(State, IncomingId, true);
+		Observation.bIncomingItemRevealed =
+			IsAtomicSwitchDefinitionRevealed(State, IncomingId, false);
+		for (const FBattleActivePositionState& Active : State.ActivePositions)
+		{
+			Observation.ActiveSlotIds.Add(Active.ActiveSlotId);
+			Observation.ActiveTrainerIds.Add(Active.TrainerId);
+			Observation.ActiveBattlerIds.Add(Active.BattlerId);
+			Observation.ActiveAvailability.Add(Active.bAvailable ? 1 : 0);
+		}
+		const FBattleSideState* PlayerSide = State.Sides.FindByPredicate(
+			[](const FBattleSideState& Candidate)
+			{
+				return Candidate.Side == EBattleSide::Player;
+			});
+		if (PlayerSide != nullptr)
+		{
+			for (const FBattleConditionState& Hazard : PlayerSide->Hazards)
+			{
+				Observation.PlayerHazards.Add(ObserveAtomicSwitchCondition(Hazard));
+			}
+		}
+		Observation.LedgerStates.Append(State.HeldItemLedger.GetStates());
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			Observation.TriggerRegistrationIds.Add(Registration.RegistrationId);
+			Observation.TriggerCreationOrdinals.Add(Registration.CreationOrdinal);
+			Observation.TriggerSources.Add(Registration.Spec.SourceDefinition);
+			Observation.TriggerSuppression.Add(Registration.bSuppressed ? 1 : 0);
+		}
+		return Observation;
+	}
+
+	bool AreAtomicSwitchMechanicsIdentical(
+		const FAtomicSwitchCheckpointObservation& Left,
+		const FAtomicSwitchCheckpointObservation& Right)
+	{
+		return Left.NextConditionCreationOrdinal == Right.NextConditionCreationOrdinal
+			&& Left.NextTriggerToken == Right.NextTriggerToken
+			&& Left.ActionIndex == Right.ActionIndex
+			&& Left.RandomTraceCount == Right.RandomTraceCount
+			&& Left.PendingDecisionRequestCount == Right.PendingDecisionRequestCount
+			&& Left.PendingReplacementCount == Right.PendingReplacementCount
+			&& Left.OpponentRemovalCheckpointCount == Right.OpponentRemovalCheckpointCount
+			&& Left.PendingTriggerDispatchCount == Right.PendingTriggerDispatchCount
+			&& Left.PendingTriggerEffectCount == Right.PendingTriggerEffectCount
+			&& Left.PendingTriggerLifecycleCount == Right.PendingTriggerLifecycleCount
+			&& Left.Phase == Right.Phase
+			&& Left.Outcome == Right.Outcome
+			&& Left.OutcomeCause == Right.OutcomeCause
+			&& Left.bPendingDecisionSet == Right.bPendingDecisionSet
+			&& Left.bActionStarted == Right.bActionStarted
+			&& Left.bActionFinished == Right.bActionFinished
+			&& Left.bIncomingAbilityRevealed == Right.bIncomingAbilityRevealed
+			&& Left.bIncomingItemRevealed == Right.bIncomingItemRevealed
+			&& AreAtomicSwitchBattlersIdentical(Left.Outgoing, Right.Outgoing)
+			&& AreAtomicSwitchBattlersIdentical(Left.Incoming, Right.Incoming)
+			&& AreAtomicSwitchBattlersIdentical(Left.Opponent, Right.Opponent)
+			&& Left.ActiveSlotIds == Right.ActiveSlotIds
+			&& Left.ActiveTrainerIds == Right.ActiveTrainerIds
+			&& Left.ActiveBattlerIds == Right.ActiveBattlerIds
+			&& Left.ActiveAvailability == Right.ActiveAvailability
+			&& AreAtomicSwitchConditionsIdentical(Left.PlayerHazards, Right.PlayerHazards)
+			&& Left.LedgerStates == Right.LedgerStates
+			&& Left.TriggerRegistrationIds == Right.TriggerRegistrationIds
+			&& Left.TriggerCreationOrdinals == Right.TriggerCreationOrdinals
+			&& Left.TriggerSources == Right.TriggerSources
+			&& Left.TriggerSuppression == Right.TriggerSuppression;
+	}
+
+	bool VerifyRejectedAtomicVoluntarySwitch(
+		FAutomationTestBase& Test,
+		const FBattleEngine& Engine,
+		const FAtomicSwitchCheckpointObservation& Before,
+		const uint64 ExpectedStateVersion,
+		const EBattleRejectionReason ExpectedReason,
+		const FBattleResolution& Returned)
+	{
+		const FAtomicSwitchCheckpointObservation After =
+			ObserveAtomicSwitchCheckpoint(Engine);
+		bool bValid = true;
+		bValid &= Test.TestFalse(TEXT("Voluntary Switch checkpoint failure is rejected"),
+			Returned.WasAccepted());
+		bValid &= Test.TestEqual(TEXT("Voluntary Switch rejection is typed"),
+			Returned.GetRejection().Reason,
+			ExpectedReason);
+		bValid &= Test.TestTrue(TEXT("Rejected Switch is appended exactly once"),
+			IsReturnedResolutionAppendedExactlyOnce(Engine, Returned));
+		bValid &= Test.TestTrue(TEXT("Rejected Switch publishes cancellation only"),
+			Returned.GetEvents().Num() == 1
+				&& Returned.GetEvents()[0].GetType() == EBattleEventType::ActionCanceled
+				&& Returned.GetEvents()[0].GetCause() == EBattleEventCause::Rule);
+		bValid &= Test.TestEqual(TEXT("Rejection appends one resolution"),
+			After.ResolutionCount, Before.ResolutionCount + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection appends one event"),
+			After.EventCount, Before.EventCount + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection consumes one resolution id"),
+			After.NextResolutionId, Before.NextResolutionId + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection consumes one event ordinal"),
+			After.NextEventOrdinal, Before.NextEventOrdinal + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection has no accepted version delta"),
+			After.StateVersion, ExpectedStateVersion);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves every staged gameplay domain"),
+			AreAtomicSwitchMechanicsIdentical(After, Before));
+		const FBattleReplayRecord Replay = Engine.ExportReplayRecord();
+		bValid &= Test.TestEqual(TEXT("Rejected Switch replay uses schema 6"),
+			Replay.GetSchemaVersion(), FBattleReplayRecord::CurrentSchemaVersion);
+		bValid &= Test.TestTrue(TEXT("Rejected Switch replay contains the same fact"),
+			!Replay.GetResolutions().IsEmpty()
+				&& Replay.GetResolutions().Last().GetResolutionId()
+					== Returned.GetResolutionId()
+				&& Replay.GetResolutions().Last().GetRejection().Reason
+					== Returned.GetRejection().Reason);
+		return bValid;
+	}
+
+	enum class EAtomicSwitchFailureFamily : uint8
+	{
+		EntryItemReveal,
+		EntryHazard,
+		ImmediateHeldItem,
+		EntryAbility
+	};
+
+	bool RunAtomicVoluntarySwitchFailureFamily(
+		FAutomationTestBase& Test,
+		const EAtomicSwitchFailureFamily Family)
+	{
+		FItemId IncomingItemId;
+		FAbilityId IncomingAbilityId = FBattleAbilityRules::GetBlazeId();
+		if (Family == EAtomicSwitchFailureFamily::EntryItemReveal)
+		{
+			IncomingItemId = FBattleItemRules::GetAirBalloonId();
+		}
+		else if (Family == EAtomicSwitchFailureFamily::ImmediateHeldItem)
+		{
+			IncomingItemId = FBattleItemRules::GetSitrusBerryId();
+		}
+		else if (Family == EAtomicSwitchFailureFamily::EntryAbility)
+		{
+			IncomingAbilityId = FBattleAbilityRules::GetIntimidateId();
+		}
+		TUniquePtr<FBattleEngine> Engine;
+		if (!Test.TestTrue(TEXT("Failure-family Switch engine is created"),
+				TryMakeSequenceEngine(
+					MakeAtomicVoluntarySwitchScenario(
+						IncomingItemId,
+						IncomingAbilityId,
+						Family == EAtomicSwitchFailureFamily::ImmediateHeldItem ? 90 : 200),
+					{},
+					Engine))
+			|| !Test.TestTrue(TEXT("Failure-family Switch is locked"),
+				TryPrepareAtomicVoluntarySwitch(*Engine))
+			|| !Test.TestTrue(TEXT("Outgoing transient state is seeded"),
+				TrySeedAtomicSwitchOutgoingTransients(*Engine))
+			|| !Test.TestTrue(TEXT("Failure-family Switch is started"),
+				TryBeginAtomicVoluntarySwitch(*Engine)))
+		{
+			return false;
+		}
+		if (Family == EAtomicSwitchFailureFamily::EntryHazard
+			&& !Test.TestTrue(TEXT("Entry hazard is seeded"),
+				TrySeedAtomicSwitchHazard(
+					*Engine,
+					FBattleFieldSideConditionRules::GetSpikesId())))
+		{
+			return false;
+		}
+		FBattleEngineState& MutableState =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(*Engine);
+		MutableState.NextTriggerReentrancyToken =
+			TNumericLimits<uint64>::Max() - 1;
+		const FAtomicSwitchCheckpointObservation Before =
+			ObserveAtomicSwitchCheckpoint(*Engine);
+		const FBattleResolution Rejected = Engine->ExecuteCurrentSwitch();
+		return VerifyRejectedAtomicVoluntarySwitch(
+			Test,
+			*Engine,
+			Before,
+			Before.StateVersion,
+			EBattleRejectionReason::CheckpointPreparationFailed,
+			Rejected);
 	}
 }
 
@@ -3185,6 +3796,359 @@ bool FBattleADR00023E1ActionStartPlanFailureTest::RunTest(
 		Before,
 		Before.StateVersion,
 		EBattleRejectionReason::CheckpointPreparationFailed,
+		Rejected);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchFullEntryChainTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Success.FullEntryChain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchFullEntryChainTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Full-chain Switch engine is created"),
+			TryMakeSequenceEngine(
+				MakeAtomicVoluntarySwitchScenario(
+					FBattleItemRules::GetSitrusBerryId(),
+					FBattleAbilityRules::GetIntimidateId(),
+					110),
+				{},
+				Engine))
+		|| !TestTrue(TEXT("Full-chain Switch is locked"),
+			TryPrepareAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Full-chain outgoing transients are seeded"),
+			TrySeedAtomicSwitchOutgoingTransients(*Engine))
+		|| !TestTrue(TEXT("Full-chain Switch is started"),
+			TryBeginAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Full-chain Stealth Rock is seeded"),
+			TrySeedAtomicSwitchHazard(
+				*Engine,
+				FBattleFieldSideConditionRules::GetStealthRockId())))
+	{
+		return false;
+	}
+
+	const FAtomicSwitchCheckpointObservation Before =
+		ObserveAtomicSwitchCheckpoint(*Engine);
+	const FBattleResolution Resolution = Engine->ExecuteCurrentSwitch();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Outgoing = State.FindBattler(
+		MakeNumericId<FBattlerId>(PlayerLeftValue));
+	const FBattleBattlerState* Incoming = State.FindBattler(
+		MakeNumericId<FBattlerId>(PlayerReserveValue));
+	const FBattleBattlerState* Opponent = State.FindBattler(
+		MakeNumericId<FBattlerId>(OpponentLeftValue));
+	const FBattleActivePositionState* PlayerActive = State.FindActivePosition(
+		MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left));
+	int32 OpponentAttackStage = 0;
+	const bool bOpponentStageRead = Opponent != nullptr
+		&& Opponent->Stages.TryGetStage(EBattleStat::Attack, OpponentAttackStage);
+
+	TestTrue(TEXT("Full entry chain is accepted"), Resolution.WasAccepted());
+	TestTrue(TEXT("Full entry chain has exact event order"),
+		HasExactEventOrder(
+			Resolution,
+			{
+				EBattleEventType::LeftActiveSlot,
+				EBattleEventType::SwitchTransientStateCleared,
+				EBattleEventType::EnteredActiveSlot,
+				EBattleEventType::Switched,
+				EBattleEventType::Damage,
+				EBattleEventType::HPChanged,
+				EBattleEventType::ItemActivated,
+				EBattleEventType::ItemConsumed,
+				EBattleEventType::Healing,
+				EBattleEventType::HPChanged,
+				EBattleEventType::AbilityActivated,
+				EBattleEventType::StatStageChanged,
+				EBattleEventType::ActionCompleted
+			}));
+	TestTrue(TEXT("Full entry chain is appended exactly once"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Full entry chain advances one version"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Full entry chain consumes no gameplay RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	TestTrue(TEXT("Outgoing battler is inactive and fully cleaned"),
+		Outgoing != nullptr
+			&& PlayerActive != nullptr
+			&& PlayerActive->BattlerId == MakeNumericId<FBattlerId>(PlayerReserveValue)
+			&& Outgoing->Volatiles.IsEmpty()
+			&& !Outgoing->LastMoveId.IsValid()
+			&& !Outgoing->bAbilitySuppressed
+			&& !Outgoing->EnteredActiveOnTurnId.IsValid());
+	int32 OutgoingAttackStage = 1;
+	TestTrue(TEXT("Outgoing stages reset at commit"),
+		Outgoing != nullptr
+			&& Outgoing->Stages.TryGetStage(EBattleStat::Attack, OutgoingAttackStage)
+			&& OutgoingAttackStage == 0);
+	TestTrue(TEXT("Incoming hazard, item, and entry Ability all commit"),
+		Incoming != nullptr
+			&& Incoming->CurrentHP == 135
+			&& Incoming->HeldItem.bConsumed
+			&& !Incoming->HeldItem.CurrentItemId.IsValid()
+			&& Incoming->EnteredActiveOnTurnId == State.TurnId
+			&& bOpponentStageRead
+			&& OpponentAttackStage == -1);
+	TestTrue(TEXT("Incoming Sitrus and Intimidate reveal facts commit"),
+		IsAtomicSwitchDefinitionRevealed(
+			State,
+			MakeNumericId<FBattlerId>(PlayerReserveValue),
+			true)
+			&& Incoming != nullptr
+			&& Incoming->HeldItem.bRevealed);
+	TestEqual(TEXT("Full entry chain reaches EndOfTurn"),
+		State.Phase, EBattlePhase::EndOfTurn);
+	TestEqual(TEXT("Full entry chain advances the action cursor"),
+		State.CurrentLockedActionIndex, 1);
+	TestTrue(TEXT("Full entry chain marks its exact action finished"),
+		State.LockedActions.Num() == 1 && State.LockedActions[0].bFinished);
+	const FBattleReplayRecord Replay = Engine->ExportReplayRecord();
+	TestEqual(TEXT("Full entry chain replay keeps schema 6"),
+		Replay.GetSchemaVersion(), FBattleReplayRecord::CurrentSchemaVersion);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchAirBalloonTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Success.AirBalloonReveal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchAirBalloonTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Air Balloon Switch engine is created"),
+			TryMakeSequenceEngine(
+				MakeAtomicVoluntarySwitchScenario(FBattleItemRules::GetAirBalloonId()),
+				{},
+				Engine))
+		|| !TestTrue(TEXT("Air Balloon Switch is locked"),
+			TryPrepareAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Air Balloon Switch is started"),
+			TryBeginAtomicVoluntarySwitch(*Engine)))
+	{
+		return false;
+	}
+	const FAtomicSwitchCheckpointObservation Before =
+		ObserveAtomicSwitchCheckpoint(*Engine);
+	const FBattleResolution Resolution = Engine->ExecuteCurrentSwitch();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Incoming = State.FindBattler(
+		MakeNumericId<FBattlerId>(PlayerReserveValue));
+	TestTrue(TEXT("Air Balloon Switch is accepted"), Resolution.WasAccepted());
+	TestTrue(TEXT("Air Balloon Switch has exact event order"),
+		HasExactEventOrder(
+			Resolution,
+			{
+				EBattleEventType::LeftActiveSlot,
+				EBattleEventType::SwitchTransientStateCleared,
+				EBattleEventType::EnteredActiveSlot,
+				EBattleEventType::Switched,
+				EBattleEventType::ItemActivated,
+				EBattleEventType::ActionCompleted
+			}));
+	TestTrue(TEXT("Air Balloon Switch is appended exactly once"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestTrue(TEXT("Air Balloon reveal commits to mirror and tracker"),
+		Incoming != nullptr
+			&& Incoming->HeldItem.CurrentItemId == FBattleItemRules::GetAirBalloonId()
+			&& Incoming->HeldItem.bRevealed
+			&& IsAtomicSwitchDefinitionRevealed(
+				State,
+				Incoming->BattlerId,
+				false));
+	TestEqual(TEXT("Air Balloon Switch advances one version"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Air Balloon Switch consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchLethalHazardTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Success.LethalHazardReplacementBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchLethalHazardTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Lethal-hazard Switch engine is created"),
+			TryMakeSequenceEngine(MakeAtomicVoluntarySwitchScenario(FItemId(),
+				FBattleAbilityRules::GetBlazeId(), 10), {}, Engine))
+		|| !TestTrue(TEXT("Lethal-hazard Switch is locked"),
+			TryPrepareAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Lethal-hazard Switch is started"),
+			TryBeginAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Lethal Stealth Rock is seeded"),
+			TrySeedAtomicSwitchHazard(
+				*Engine,
+				FBattleFieldSideConditionRules::GetStealthRockId())))
+	{
+		return false;
+	}
+	const FAtomicSwitchCheckpointObservation Before =
+		ObserveAtomicSwitchCheckpoint(*Engine);
+	const FBattleResolution Resolution = Engine->ExecuteCurrentSwitch();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Incoming = State.FindBattler(
+		MakeNumericId<FBattlerId>(PlayerReserveValue));
+	const FBattleActivePositionState* PlayerActive = State.FindActivePosition(
+		MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left));
+	TestTrue(TEXT("Lethal-hazard Switch is accepted"), Resolution.WasAccepted());
+	TestTrue(TEXT("Lethal-hazard Switch has exact event and boundary order"),
+		HasExactEventOrder(
+			Resolution,
+			{
+				EBattleEventType::LeftActiveSlot,
+				EBattleEventType::SwitchTransientStateCleared,
+				EBattleEventType::EnteredActiveSlot,
+				EBattleEventType::Switched,
+				EBattleEventType::Damage,
+				EBattleEventType::HPChanged,
+				EBattleEventType::Fainted,
+				EBattleEventType::LeftActiveSlot,
+				EBattleEventType::Removed,
+				EBattleEventType::ActionCompleted,
+				EBattleEventType::ReplacementRequired
+			}));
+	TestTrue(TEXT("Lethal-hazard Switch is appended exactly once"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestTrue(TEXT("Lethal incoming battler fully faints and leaves its slot"),
+		Incoming != nullptr
+			&& Incoming->CurrentHP == 0
+			&& Incoming->bFainted
+			&& Incoming->bRemoved
+			&& PlayerActive != nullptr
+			&& !PlayerActive->BattlerId.IsValid()
+			&& !PlayerActive->TrainerId.IsValid());
+	TestEqual(TEXT("Lethal hazard reaches mandatory replacement"),
+		State.Phase, EBattlePhase::MandatoryReplacement);
+	TestTrue(TEXT("Lethal hazard prepares one complete replacement checkpoint"),
+		State.PendingReplacements.Num() == 1
+			&& State.PendingDecisionRequests.Num() == 1
+			&& State.PendingDecision.IsSet()
+			&& State.PendingReplacements[0].TrainerId
+				== MakeNumericId<FTrainerId>(PlayerTrainerValue));
+	TestEqual(TEXT("Lethal hazard advances one version"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Lethal hazard consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchEntryItemFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Failure.EntryItemReveal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchEntryItemFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	return RunAtomicVoluntarySwitchFailureFamily(
+		*this,
+		EAtomicSwitchFailureFamily::EntryItemReveal);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchEntryHazardFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Failure.EntryHazard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchEntryHazardFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	return RunAtomicVoluntarySwitchFailureFamily(
+		*this,
+		EAtomicSwitchFailureFamily::EntryHazard);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchImmediateItemFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Failure.ImmediateHeldItem",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchImmediateItemFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	return RunAtomicVoluntarySwitchFailureFamily(
+		*this,
+		EAtomicSwitchFailureFamily::ImmediateHeldItem);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchEntryAbilityFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Failure.EntryAbility",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchEntryAbilityFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	return RunAtomicVoluntarySwitchFailureFamily(
+		*this,
+		EAtomicSwitchFailureFamily::EntryAbility);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E2VoluntarySwitchStaleIdentityTest,
+	"PokemonSolarus.Battle.ADR0002.3E2.VoluntarySwitch.Failure.StaleIdentityBeforeCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E2VoluntarySwitchStaleIdentityTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	FActionStartStaleRandom* Random = nullptr;
+	if (!TestTrue(TEXT("Stale Switch engine is created"),
+			TryMakeActionStartStaleEngine(
+				MakeAtomicVoluntarySwitchScenario(),
+				Engine,
+				Random))
+		|| !TestNotNull(TEXT("Stale Switch random seam is retained"), Random)
+		|| !TestTrue(TEXT("Stale Switch is locked"),
+			TryPrepareAtomicVoluntarySwitch(*Engine))
+		|| !TestTrue(TEXT("Stale Switch outgoing transients are seeded"),
+			TrySeedAtomicSwitchOutgoingTransients(*Engine))
+		|| !TestTrue(TEXT("Stale Switch is started"),
+			TryBeginAtomicVoluntarySwitch(*Engine)))
+	{
+		return false;
+	}
+	const FAtomicSwitchCheckpointObservation Before =
+		ObserveAtomicSwitchCheckpoint(*Engine);
+	check(Random != nullptr);
+	Random->ArmAfterTraceRead(
+		2,
+		[EnginePtr = Engine.Get()]()
+		{
+			FBattleC09BWildFlowEngineFixture::AdvanceStateVersion(*EnginePtr);
+		});
+	const FBattleResolution Rejected = Engine->ExecuteCurrentSwitch();
+	const int32 TraceReads = Random->GetReadsSinceArm();
+	const bool bInjected = Random->WasInjected();
+	Random->Disarm();
+	TestTrue(TEXT("Stale identity is injected only at the final recheck"),
+		bInjected && TraceReads == 2);
+	return VerifyRejectedAtomicVoluntarySwitch(
+		*this,
+		*Engine,
+		Before,
+		Before.StateVersion + 1,
+		EBattleRejectionReason::StaleCheckpointIdentity,
 		Rejected);
 }
 

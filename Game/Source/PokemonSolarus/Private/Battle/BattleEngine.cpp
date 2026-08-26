@@ -8485,6 +8485,657 @@ namespace
 		State.PendingReplacements = Delta.PendingReplacements;
 	}
 
+	struct FVoluntarySwitchBattlerIdentity
+	{
+		FTrainerId TrainerId;
+		FBattlerId BattlerId;
+		FSourcePokemonId SourcePokemonId;
+		FPartySlotId PartySlotId;
+		FBattleHeldItemInstanceId HeldItemInstanceId;
+		FItemId CurrentHeldItemId;
+		FAbilityId AbilityId;
+		FConditionId MajorStatusId;
+		FMoveId LastMoveId;
+		FTurnId EnteredActiveOnTurnId;
+		int32 CurrentHP = 0;
+		int32 VolatileCount = 0;
+		bool bFainted = false;
+		bool bCaptured = false;
+		bool bRemoved = false;
+		bool bFaintTransitionPending = false;
+		bool bEgg = false;
+		bool bAbilitySuppressed = false;
+	};
+
+	struct FVoluntarySwitchActiveIdentity
+	{
+		FActiveSlotId ActiveSlotId;
+		FTrainerId TrainerId;
+		FBattlerId BattlerId;
+		bool bAvailable = false;
+	};
+
+	/** Exact caller-serialized identity for one already-started voluntary Switch action. */
+	struct FVoluntarySwitchCheckpointIdentity
+	{
+		FBattleResolutionCommitIdentity CommitIdentity;
+		int32 ExpectedLockedActionCount = 0;
+		int32 ExpectedEventCount = 0;
+		int32 ExpectedTrainerCount = 0;
+		int32 ExpectedPendingDecisionRequestCount = 0;
+		int32 ExpectedPendingReplacementCount = 0;
+		int32 ExpectedOpponentRemovalCheckpointCount = 0;
+		int32 ExpectedPendingTriggerDispatchCount = 0;
+		int32 ExpectedPendingTriggerEffectCount = 0;
+		int32 ExpectedPendingTriggerLifecycleCount = 0;
+		uint64 ExpectedNextConditionCreationOrdinal = 0;
+		uint64 ExpectedNextTriggerReentrancyToken = 0;
+		uint64 ExpectedQueueOrdinal = 0;
+		FTrainerId ExpectedDecisionOwnerTrainerId;
+		FBattlerId ExpectedOutgoingBattlerId;
+		FBattlerId ExpectedIncomingBattlerId;
+		FPartySlotId ExpectedIncomingPartySlotId;
+		FActiveSlotId ExpectedActingSlotId;
+		FMoveId ExpectedMoveId;
+		FItemId ExpectedItemId;
+		FPartySlotId ExpectedItemPartyTargetId;
+		FActiveSlotId ExpectedActiveTargetId;
+		EBattleTargetClass ExpectedTargetClass = EBattleTargetClass::SelectedOpponent;
+		FBattlerId ExpectedSelectedTargetBattlerId;
+		bool bExpectedMoveCommitted = false;
+		bool bExpectedTargetResolution = false;
+		EBattleLockedEffectExecutionState ExpectedEffectExecutionState =
+			EBattleLockedEffectExecutionState::Pending;
+		TArray<FVoluntarySwitchBattlerIdentity> Battlers;
+		TArray<FVoluntarySwitchActiveIdentity> ActivePositions;
+		TArray<FBattleHeldItemInstanceId> HeldItemInstances;
+		TArray<FBattleTriggerRegistrationId> TriggerRegistrations;
+	};
+
+	FVoluntarySwitchBattlerIdentity MakeVoluntarySwitchBattlerIdentity(
+		const FBattleBattlerState& Battler)
+	{
+		FVoluntarySwitchBattlerIdentity Identity;
+		Identity.TrainerId = Battler.TrainerId;
+		Identity.BattlerId = Battler.BattlerId;
+		Identity.SourcePokemonId = Battler.SourcePokemonId;
+		Identity.PartySlotId = Battler.PartySlotId;
+		Identity.HeldItemInstanceId = Battler.HeldItem.InstanceId;
+		Identity.CurrentHeldItemId = Battler.HeldItem.CurrentItemId;
+		Identity.AbilityId = Battler.AbilityId;
+		Identity.MajorStatusId = Battler.MajorStatusId;
+		Identity.LastMoveId = Battler.LastMoveId;
+		Identity.EnteredActiveOnTurnId = Battler.EnteredActiveOnTurnId;
+		Identity.CurrentHP = Battler.CurrentHP;
+		Identity.VolatileCount = Battler.Volatiles.Num();
+		Identity.bFainted = Battler.bFainted;
+		Identity.bCaptured = Battler.bCaptured;
+		Identity.bRemoved = Battler.bRemoved;
+		Identity.bFaintTransitionPending = Battler.bFaintTransitionPending;
+		Identity.bEgg = Battler.bEgg;
+		Identity.bAbilitySuppressed = Battler.bAbilitySuppressed;
+		return Identity;
+	}
+
+	bool MatchesVoluntarySwitchBattlerIdentity(
+		const FBattleBattlerState& Battler,
+		const FVoluntarySwitchBattlerIdentity& Identity)
+	{
+		return Battler.TrainerId == Identity.TrainerId
+			&& Battler.BattlerId == Identity.BattlerId
+			&& Battler.SourcePokemonId == Identity.SourcePokemonId
+			&& Battler.PartySlotId == Identity.PartySlotId
+			&& Battler.HeldItem.InstanceId == Identity.HeldItemInstanceId
+			&& Battler.HeldItem.CurrentItemId == Identity.CurrentHeldItemId
+			&& Battler.AbilityId == Identity.AbilityId
+			&& Battler.MajorStatusId == Identity.MajorStatusId
+			&& Battler.LastMoveId == Identity.LastMoveId
+			&& Battler.EnteredActiveOnTurnId == Identity.EnteredActiveOnTurnId
+			&& Battler.CurrentHP == Identity.CurrentHP
+			&& Battler.Volatiles.Num() == Identity.VolatileCount
+			&& Battler.bFainted == Identity.bFainted
+			&& Battler.bCaptured == Identity.bCaptured
+			&& Battler.bRemoved == Identity.bRemoved
+			&& Battler.bFaintTransitionPending == Identity.bFaintTransitionPending
+			&& Battler.bEgg == Identity.bEgg
+			&& Battler.bAbilitySuppressed == Identity.bAbilitySuppressed;
+	}
+
+	bool TryCaptureVoluntarySwitchCheckpointIdentity(
+		const FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		FVoluntarySwitchCheckpointIdentity& OutIdentity)
+	{
+		OutIdentity = FVoluntarySwitchCheckpointIdentity();
+		FBattleResolutionCommitIdentity CommitIdentity;
+		if (Action.Decision.GetActionKind() != EBattleActionKind::Switch
+			|| !Action.bStarted
+			|| Action.bFinished
+			|| !FBattleResolutionCommit::TryCaptureIdentity(
+				State,
+				ResolutionId,
+				Action.ActionId,
+				CommitIdentity))
+		{
+			return false;
+		}
+
+		const FTrainerId TrainerId = Action.Decision.GetDecisionOwnerTrainerId();
+		const FBattlerId OutgoingBattlerId = Action.Decision.GetActingBattlerId();
+		const FPartySlotId IncomingPartySlotId = Action.Decision.GetSwitchPartySlotId();
+		const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+		const FBattleBattlerState* Outgoing = State.FindBattler(OutgoingBattlerId);
+		const FBattleActivePositionState* Active = State.FindActivePosition(
+			Action.OrderKey.ActingSlotId);
+		const FBattlePartySlotState* IncomingPartySlot = Trainer != nullptr
+			? Trainer->PartySlots.FindByPredicate(
+				[IncomingPartySlotId](const FBattlePartySlotState& Candidate)
+				{
+					return Candidate.PartySlotId == IncomingPartySlotId;
+				})
+			: nullptr;
+		const FBattleBattlerState* Incoming = IncomingPartySlot != nullptr
+			? State.FindBattler(IncomingPartySlot->BattlerId)
+			: nullptr;
+		if (Trainer == nullptr
+			|| Outgoing == nullptr
+			|| Active == nullptr
+			|| Incoming == nullptr
+			|| !Active->bAvailable
+			|| Active->TrainerId != TrainerId
+			|| Active->BattlerId != OutgoingBattlerId
+			|| Outgoing->TrainerId != TrainerId
+			|| Incoming->TrainerId != TrainerId
+			|| Incoming->PartySlotId != IncomingPartySlotId)
+		{
+			return false;
+		}
+
+		OutIdentity.CommitIdentity = CommitIdentity;
+		OutIdentity.ExpectedLockedActionCount = State.LockedActions.Num();
+		OutIdentity.ExpectedEventCount = State.OrderedEvents.Num();
+		OutIdentity.ExpectedTrainerCount = State.Trainers.Num();
+		OutIdentity.ExpectedPendingDecisionRequestCount = State.PendingDecisionRequests.Num();
+		OutIdentity.ExpectedPendingReplacementCount = State.PendingReplacements.Num();
+		OutIdentity.ExpectedOpponentRemovalCheckpointCount =
+			State.AvailableOpponentRemovalCheckpoints.Num();
+		OutIdentity.ExpectedPendingTriggerDispatchCount =
+			State.TriggerFramework.GetPendingDispatchCount();
+		OutIdentity.ExpectedPendingTriggerEffectCount =
+			State.TriggerFramework.GetPendingEffectRequestCount();
+		OutIdentity.ExpectedPendingTriggerLifecycleCount =
+			State.TriggerFramework.GetPendingLifecycleFactCount();
+		OutIdentity.ExpectedNextConditionCreationOrdinal =
+			State.NextConditionCreationOrdinal;
+		OutIdentity.ExpectedNextTriggerReentrancyToken =
+			State.NextTriggerReentrancyToken;
+		OutIdentity.ExpectedQueueOrdinal = Action.QueueOrdinal;
+		OutIdentity.ExpectedDecisionOwnerTrainerId = TrainerId;
+		OutIdentity.ExpectedOutgoingBattlerId = OutgoingBattlerId;
+		OutIdentity.ExpectedIncomingBattlerId = Incoming->BattlerId;
+		OutIdentity.ExpectedIncomingPartySlotId = IncomingPartySlotId;
+		OutIdentity.ExpectedActingSlotId = Action.OrderKey.ActingSlotId;
+		OutIdentity.ExpectedMoveId = Action.Decision.GetMoveId();
+		OutIdentity.ExpectedItemId = Action.Decision.GetItemId();
+		OutIdentity.ExpectedItemPartyTargetId = Action.Decision.GetItemPartyTargetId();
+		OutIdentity.ExpectedActiveTargetId = Action.Decision.GetActiveTargetId();
+		OutIdentity.ExpectedTargetClass = Action.TargetClass;
+		OutIdentity.ExpectedSelectedTargetBattlerId = Action.SelectedTargetBattlerId;
+		OutIdentity.bExpectedMoveCommitted = Action.bMoveCommitted;
+		OutIdentity.bExpectedTargetResolution = Action.TargetResolution.IsSet();
+		OutIdentity.ExpectedEffectExecutionState = Action.EffectExecutionState;
+
+		OutIdentity.Battlers.Reserve(State.Battlers.Num());
+		for (const FBattleBattlerState& Battler : State.Battlers)
+		{
+			OutIdentity.Battlers.Add(MakeVoluntarySwitchBattlerIdentity(Battler));
+		}
+		OutIdentity.ActivePositions.Reserve(State.ActivePositions.Num());
+		for (const FBattleActivePositionState& Position : State.ActivePositions)
+		{
+			FVoluntarySwitchActiveIdentity& Identity =
+				OutIdentity.ActivePositions.AddDefaulted_GetRef();
+			Identity.ActiveSlotId = Position.ActiveSlotId;
+			Identity.TrainerId = Position.TrainerId;
+			Identity.BattlerId = Position.BattlerId;
+			Identity.bAvailable = Position.bAvailable;
+		}
+		for (const FBattleHeldItemInstanceState& Item : State.HeldItemLedger.GetStates())
+		{
+			OutIdentity.HeldItemInstances.Add(Item.InstanceId);
+		}
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			OutIdentity.TriggerRegistrations.Add(Registration.RegistrationId);
+		}
+		return true;
+	}
+
+	bool IsVoluntarySwitchCheckpointIdentityCurrent(
+		const FBattleEngineState& State,
+		const FVoluntarySwitchCheckpointIdentity& Identity)
+	{
+		// Read first so a caller-serialized identity seam cannot mutate state after
+		// the state-version comparison has already passed.
+		const int32 RandomTraceCount = State.Random.IsValid()
+			? State.Random->GetTrace().Num()
+			: INDEX_NONE;
+		const FBattleResolutionCommitIdentity& Commit = Identity.CommitIdentity;
+		if (!Commit.ResolutionId.IsValid()
+			|| !Commit.OwningActionId.IsValid()
+			|| State.Phase != EBattlePhase::Resolving
+			|| State.StateVersion != Commit.ExpectedStateVersion
+			|| State.CurrentLockedActionIndex != Commit.ExpectedLockedActionIndex
+			|| State.LockedActions.Num() != Identity.ExpectedLockedActionCount
+			|| State.OrderedEvents.Num() != Identity.ExpectedEventCount
+			|| State.Trainers.Num() != Identity.ExpectedTrainerCount
+			|| State.NextResolutionId != Commit.ExpectedNextResolutionId
+			|| State.NextEventOrdinal != Commit.ExpectedEventOrdinal
+			|| State.NextConditionCreationOrdinal
+				!= Identity.ExpectedNextConditionCreationOrdinal
+			|| State.NextTriggerReentrancyToken
+				!= Identity.ExpectedNextTriggerReentrancyToken
+			|| State.Resolutions.Num() != Commit.ExpectedResolutionCount
+			|| State.PendingDecisionRequests.Num()
+				!= Identity.ExpectedPendingDecisionRequestCount
+			|| State.PendingReplacements.Num() != Identity.ExpectedPendingReplacementCount
+			|| State.AvailableOpponentRemovalCheckpoints.Num()
+				!= Identity.ExpectedOpponentRemovalCheckpointCount
+			|| State.TriggerFramework.GetPendingDispatchCount()
+				!= Identity.ExpectedPendingTriggerDispatchCount
+			|| State.TriggerFramework.GetPendingEffectRequestCount()
+				!= Identity.ExpectedPendingTriggerEffectCount
+			|| State.TriggerFramework.GetPendingLifecycleFactCount()
+				!= Identity.ExpectedPendingTriggerLifecycleCount
+			|| RandomTraceCount != Commit.ExpectedRandomTraceCount
+			|| State.Battlers.Num() != Identity.Battlers.Num()
+			|| State.ActivePositions.Num() != Identity.ActivePositions.Num()
+			|| State.HeldItemLedger.GetStates().Num() != Identity.HeldItemInstances.Num()
+			|| State.TriggerFramework.GetActiveRegistrations().Num()
+				!= Identity.TriggerRegistrations.Num()
+			|| !State.LockedActions.IsValidIndex(Commit.ExpectedLockedActionIndex))
+		{
+			return false;
+		}
+
+		const FBattleLockedActionState& Action =
+			State.LockedActions[Commit.ExpectedLockedActionIndex];
+		if (Action.ActionId != Commit.OwningActionId
+			|| Action.QueueOrdinal != Identity.ExpectedQueueOrdinal
+			|| Action.Decision.GetDecisionOwnerTrainerId()
+				!= Identity.ExpectedDecisionOwnerTrainerId
+			|| Action.Decision.GetActingBattlerId()
+				!= Identity.ExpectedOutgoingBattlerId
+			|| Action.Decision.GetSwitchPartySlotId()
+				!= Identity.ExpectedIncomingPartySlotId
+			|| Action.Decision.GetActionKind() != EBattleActionKind::Switch
+			|| Action.Decision.GetMoveId() != Identity.ExpectedMoveId
+			|| Action.Decision.GetItemId() != Identity.ExpectedItemId
+			|| Action.Decision.GetItemPartyTargetId()
+				!= Identity.ExpectedItemPartyTargetId
+			|| Action.Decision.GetActiveTargetId() != Identity.ExpectedActiveTargetId
+			|| Action.OrderKey.ActingSlotId != Identity.ExpectedActingSlotId
+			|| Action.TargetClass != Identity.ExpectedTargetClass
+			|| Action.SelectedTargetBattlerId
+				!= Identity.ExpectedSelectedTargetBattlerId
+			|| !Action.bStarted
+			|| Action.bMoveCommitted != Identity.bExpectedMoveCommitted
+			|| Action.TargetResolution.IsSet() != Identity.bExpectedTargetResolution
+			|| Action.EffectExecutionState != Identity.ExpectedEffectExecutionState
+			|| Action.bFinished)
+		{
+			return false;
+		}
+
+		for (const FVoluntarySwitchBattlerIdentity& Expected : Identity.Battlers)
+		{
+			const FBattleBattlerState* Battler = State.FindBattler(Expected.BattlerId);
+			if (Battler == nullptr || !MatchesVoluntarySwitchBattlerIdentity(*Battler, Expected))
+			{
+				return false;
+			}
+		}
+		for (const FVoluntarySwitchActiveIdentity& Expected : Identity.ActivePositions)
+		{
+			const FBattleActivePositionState* Position =
+				State.FindActivePosition(Expected.ActiveSlotId);
+			if (Position == nullptr
+				|| Position->bAvailable != Expected.bAvailable
+				|| Position->TrainerId != Expected.TrainerId
+				|| Position->BattlerId != Expected.BattlerId)
+			{
+				return false;
+			}
+		}
+		for (const FBattleHeldItemInstanceId InstanceId : Identity.HeldItemInstances)
+		{
+			if (State.HeldItemLedger.FindState(InstanceId) == nullptr)
+			{
+				return false;
+			}
+		}
+		for (const FBattleTriggerRegistrationId RegistrationId : Identity.TriggerRegistrations)
+		{
+			if (!State.TriggerFramework.GetActiveRegistrations().ContainsByPredicate(
+					[RegistrationId](const FBattleTriggerRegistrationState& Candidate)
+					{
+						return Candidate.RegistrationId == RegistrationId;
+					}))
+			{
+				return false;
+			}
+		}
+
+		const FBattleActivePositionState* Active =
+			State.FindActivePosition(Identity.ExpectedActingSlotId);
+		const FBattleBattlerState* Outgoing =
+			State.FindBattler(Identity.ExpectedOutgoingBattlerId);
+		const FBattleBattlerState* Incoming =
+			State.FindBattler(Identity.ExpectedIncomingBattlerId);
+		return Active != nullptr
+			&& Outgoing != nullptr
+			&& Incoming != nullptr
+			&& Active->TrainerId == Identity.ExpectedDecisionOwnerTrainerId
+			&& Active->BattlerId == Identity.ExpectedOutgoingBattlerId
+			&& Outgoing->TrainerId == Identity.ExpectedDecisionOwnerTrainerId
+			&& Incoming->TrainerId == Identity.ExpectedDecisionOwnerTrainerId
+			&& Incoming->PartySlotId == Identity.ExpectedIncomingPartySlotId;
+	}
+
+	void PopulateVoluntarySwitchProjection(
+		const FBattleEngineState& State,
+		FBattleEngineState& Projection)
+	{
+		Projection.Setup = State.Setup;
+		Projection.Catalog = State.Catalog;
+		Projection.bHasCatalog = State.bHasCatalog;
+		Projection.StateVersion = State.StateVersion;
+		Projection.TurnId = State.TurnId;
+		Projection.EncounterKind = State.EncounterKind;
+		Projection.Format = State.Format;
+		Projection.Phase = State.Phase;
+		Projection.Outcome = State.Outcome;
+		Projection.OutcomeCause = State.OutcomeCause;
+		Projection.Trainers = State.Trainers;
+		Projection.Battlers = State.Battlers;
+		Projection.ActivePositions = State.ActivePositions;
+		Projection.Field = State.Field;
+		Projection.Sides = State.Sides;
+		Projection.PendingCaptures = State.PendingCaptures;
+		Projection.bReinforcementSucceeded = State.bReinforcementSucceeded;
+		Projection.EscapeAttemptCount = State.EscapeAttemptCount;
+		Projection.CaptureCapacity = State.CaptureCapacity;
+		Projection.CompiledEncounterPolicies = State.CompiledEncounterPolicies;
+		Projection.WildFleePolicies = State.WildFleePolicies;
+		Projection.LockedActions = State.LockedActions;
+		Projection.bLockedOrderReversesSpeed = State.bLockedOrderReversesSpeed;
+		Projection.CurrentLockedActionIndex = State.CurrentLockedActionIndex;
+		Projection.PendingDecision = State.PendingDecision;
+		Projection.DecisionOwnerSequence = State.DecisionOwnerSequence;
+		Projection.CurrentDecisionOwnerIndex = State.CurrentDecisionOwnerIndex;
+		Projection.CurrentDecisionActorOffset = State.CurrentDecisionActorOffset;
+		Projection.PendingDecisionRequests = State.PendingDecisionRequests;
+		Projection.PendingReplacements = State.PendingReplacements;
+		Projection.AcceptedSelections = State.AcceptedSelections;
+		Projection.TriggerFramework = State.TriggerFramework;
+		Projection.AbilityItemRevealTracker = State.AbilityItemRevealTracker;
+		Projection.HeldItemLedger = State.HeldItemLedger;
+		Projection.NextResolutionId = State.NextResolutionId;
+		Projection.NextActionId = State.NextActionId;
+		Projection.NextEventOrdinal = State.NextEventOrdinal;
+		Projection.NextConditionCreationOrdinal = State.NextConditionCreationOrdinal;
+		Projection.NextTriggerReentrancyToken = State.NextTriggerReentrancyToken;
+		Projection.bEndTurnTriggerPassComplete = State.bEndTurnTriggerPassComplete;
+		Projection.AvailableOpponentRemovalCheckpoints =
+			State.AvailableOpponentRemovalCheckpoints;
+	}
+
+	bool TryAppendVoluntarySwitchBoundaryEvents(
+		FBattleEngineState& Projection,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		TArray<FBattleEvent>& Events)
+	{
+		TArray<FBattleReplacementRequirement> Requirements;
+		FBattleFaintOutcomeResolver::ResolveQueueBoundary(Projection, Requirements);
+		if (Projection.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			if (Requirements.IsEmpty()
+				|| Projection.StateVersion == TNumericLimits<uint64>::Max())
+			{
+				return false;
+			}
+			Projection.PendingReplacements.Reset();
+			for (const FBattleReplacementRequirement& Requirement : Requirements)
+			{
+				FBattlePendingReplacementState& Pending =
+					Projection.PendingReplacements.AddDefaulted_GetRef();
+				Pending.TrainerId = Requirement.Target.TrainerId;
+				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
+			}
+			TArray<FBattleDecisionRequest> Requests;
+			if (!TryBuildReplacementCheckpointRequests(
+					Projection,
+					Projection.StateVersion + 1,
+					true,
+					Requests)
+				|| Requests.IsEmpty())
+			{
+				return false;
+			}
+			Projection.PendingDecisionRequests = MoveTemp(Requests);
+			Projection.PendingDecision = Projection.PendingDecisionRequests[0];
+		}
+		else if (Projection.Phase == EBattlePhase::EndOfTurn)
+		{
+			Projection.PendingReplacements.Reset();
+			Projection.PendingDecisionRequests.Reset();
+			Projection.PendingDecision.Reset();
+		}
+		else if (Projection.Phase != EBattlePhase::Resolving
+			&& Projection.Phase != EBattlePhase::Terminal)
+		{
+			return false;
+		}
+
+		for (const FBattleReplacementRequirement& Requirement : Requirements)
+		{
+			Events.Add(MakeTargetedActionEvent(
+				Projection,
+				ResolutionId,
+				Action,
+				EBattleEventType::ReplacementRequired,
+				EBattleEventCause::Rule,
+				Requirement.Target));
+		}
+		return true;
+	}
+
+	FBattleEventSpec MakeVoluntarySwitchStagedEventSpec(const FBattleEvent& Event)
+	{
+		FBattleEventSpec Spec;
+		Spec.BattleId = Event.GetBattleId();
+		Spec.TurnId = Event.GetTurnId();
+		Spec.ActionId = Event.GetActionId();
+		Spec.ResolutionId = Event.GetResolutionId();
+		Spec.Type = Event.GetType();
+		Spec.Cause = Event.GetCause();
+		Spec.CauseActionKind = Event.GetCauseActionKind();
+		Spec.OutcomeCause = Event.GetOutcomeCause();
+		Spec.Source = Event.GetSource();
+		for (const FBattleEventTarget& Target : Event.GetTargets())
+		{
+			Spec.Targets.Add(Target);
+		}
+		Spec.NumericBefore = Event.GetNumericBefore();
+		Spec.NumericAfter = Event.GetNumericAfter();
+		Spec.NumericDelta = Event.GetNumericDelta();
+		Spec.SimultaneousGroupId = Event.GetSimultaneousGroupId();
+		Spec.HitIndex = Event.GetHitIndex();
+		Spec.HitCount = Event.GetHitCount();
+		Spec.ActionOrder = Event.GetActionOrder();
+		Spec.TargetResolution = Event.GetTargetResolution();
+		Spec.Capture = Event.GetCapture();
+		Spec.Visibility = Event.GetVisibility();
+		return Spec;
+	}
+
+	struct FVoluntarySwitchStateDelta
+	{
+		TArray<FBattleBattlerState> Battlers;
+		TArray<FBattleActivePositionState> ActivePositions;
+		FBattleFieldState Field;
+		TArray<FBattleSideState> Sides;
+		FBattleTriggerFramework TriggerFramework;
+		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
+		FBattleHeldItemLedger HeldItemLedger;
+		uint64 NextConditionCreationOrdinal = 0;
+		uint64 NextTriggerReentrancyToken = 0;
+		int32 NextLockedActionIndex = INDEX_NONE;
+		EBattlePhase Phase = EBattlePhase::Resolving;
+		EBattleOutcome Outcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+		TOptional<FBattleDecisionRequest> PendingDecision;
+		TArray<FBattleDecisionRequest> PendingDecisionRequests;
+		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TArray<uint64> AvailableOpponentRemovalCheckpoints;
+	};
+
+	void CaptureVoluntarySwitchDelta(
+		const FBattleEngineState& Projection,
+		FVoluntarySwitchStateDelta& Delta)
+	{
+		Delta.Battlers = Projection.Battlers;
+		Delta.ActivePositions = Projection.ActivePositions;
+		Delta.Field = Projection.Field;
+		Delta.Sides = Projection.Sides;
+		Delta.TriggerFramework = Projection.TriggerFramework;
+		Delta.AbilityItemRevealTracker = Projection.AbilityItemRevealTracker;
+		Delta.HeldItemLedger = Projection.HeldItemLedger;
+		Delta.NextConditionCreationOrdinal = Projection.NextConditionCreationOrdinal;
+		Delta.NextTriggerReentrancyToken = Projection.NextTriggerReentrancyToken;
+		Delta.NextLockedActionIndex = Projection.CurrentLockedActionIndex;
+		Delta.Phase = Projection.Phase;
+		Delta.Outcome = Projection.Outcome;
+		Delta.OutcomeCause = Projection.OutcomeCause;
+		Delta.PendingDecision = Projection.PendingDecision;
+		Delta.PendingDecisionRequests = Projection.PendingDecisionRequests;
+		Delta.PendingReplacements = Projection.PendingReplacements;
+		Delta.AvailableOpponentRemovalCheckpoints =
+			Projection.AvailableOpponentRemovalCheckpoints;
+	}
+
+	bool AreVoluntarySwitchDeltaRecordsValid(
+		const FVoluntarySwitchCheckpointIdentity& Identity,
+		const FVoluntarySwitchStateDelta& Delta)
+	{
+		if (Delta.Battlers.Num() != Identity.Battlers.Num()
+			|| Delta.ActivePositions.Num() != Identity.ActivePositions.Num())
+		{
+			return false;
+		}
+		for (const FVoluntarySwitchBattlerIdentity& Expected : Identity.Battlers)
+		{
+			const FBattleBattlerState* Staged = Delta.Battlers.FindByPredicate(
+				[&Expected](const FBattleBattlerState& Candidate)
+				{
+					return Candidate.BattlerId == Expected.BattlerId;
+				});
+			if (Staged == nullptr
+				|| Staged->TrainerId != Expected.TrainerId
+				|| Staged->SourcePokemonId != Expected.SourcePokemonId
+				|| Staged->PartySlotId != Expected.PartySlotId)
+			{
+				return false;
+			}
+		}
+		for (const FVoluntarySwitchActiveIdentity& Expected : Identity.ActivePositions)
+		{
+			if (!Delta.ActivePositions.ContainsByPredicate(
+					[&Expected](const FBattleActivePositionState& Candidate)
+					{
+						return Candidate.ActiveSlotId == Expected.ActiveSlotId
+							&& Candidate.bAvailable == Expected.bAvailable;
+					}))
+			{
+				return false;
+			}
+		}
+		for (const FBattleHeldItemInstanceState& Item : Delta.HeldItemLedger.GetStates())
+		{
+			if (!Item.InstanceId.IsValid())
+			{
+				return false;
+			}
+		}
+		for (const FBattleTriggerRegistrationState& Registration :
+			Delta.TriggerFramework.GetActiveRegistrations())
+		{
+			if (!Registration.RegistrationId.IsValid())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void ApplyVoluntarySwitchDelta(
+		FBattleEngineState& State,
+		const FVoluntarySwitchCheckpointIdentity& Identity,
+		const FVoluntarySwitchStateDelta& Delta)
+	{
+		check(State.LockedActions.IsValidIndex(
+			Identity.CommitIdentity.ExpectedLockedActionIndex));
+		FBattleLockedActionState& Action =
+			State.LockedActions[Identity.CommitIdentity.ExpectedLockedActionIndex];
+		check(Action.ActionId == Identity.CommitIdentity.OwningActionId);
+		State.Battlers = Delta.Battlers;
+		State.ActivePositions = Delta.ActivePositions;
+		State.Field = Delta.Field;
+		State.Sides = Delta.Sides;
+		State.TriggerFramework = Delta.TriggerFramework;
+		State.AbilityItemRevealTracker = Delta.AbilityItemRevealTracker;
+		State.HeldItemLedger = Delta.HeldItemLedger;
+		State.NextConditionCreationOrdinal = Delta.NextConditionCreationOrdinal;
+		State.NextTriggerReentrancyToken = Delta.NextTriggerReentrancyToken;
+		Action.bFinished = true;
+		State.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
+		State.Phase = Delta.Phase;
+		State.Outcome = Delta.Outcome;
+		State.OutcomeCause = Delta.OutcomeCause;
+		State.PendingDecision = Delta.PendingDecision;
+		State.PendingDecisionRequests = Delta.PendingDecisionRequests;
+		State.PendingReplacements = Delta.PendingReplacements;
+		State.AvailableOpponentRemovalCheckpoints =
+			Delta.AvailableOpponentRemovalCheckpoints;
+	}
+
+	FBattleResolution PublishVoluntarySwitchCheckpointRejection(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleRejectionReason Reason,
+		const FTrainerId TrainerId,
+		const FBattlerId BattlerId,
+		const FBattleEventSource& Source)
+	{
+		FBattleResolutionCommitPlan RejectedPlan;
+		const bool bPrepared = FBattleResolutionCommit::TryBuildRejectedPlan(
+			State,
+			ResolutionId,
+			ActionId,
+			Reason,
+			TrainerId,
+			BattlerId,
+			EBattleActionKind::Switch,
+			Source,
+			RejectedPlan);
+		check(bPrepared);
+		return FBattleResolutionCommit::PublishPrepared(State, RejectedPlan);
+	}
+
 }
 
 FBattleEngine::FBattleEngine(TUniquePtr<FBattleEngineState>&& InState)
@@ -9760,7 +10411,54 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 	}
 
 	check(Action != nullptr);
-	const uint64 BeforeStateVersion = State->StateVersion;
+	const FActionId ActionId = Action->ActionId;
+	const FTrainerId DecisionOwnerTrainerId =
+		Action->Decision.GetDecisionOwnerTrainerId();
+	const FBattlerId OutgoingBattlerId = Action->Decision.GetActingBattlerId();
+	const FBattleEventSource Source = SourceFromLockedAction(*State, *Action);
+	FVoluntarySwitchCheckpointIdentity CheckpointIdentity;
+	if (!TryCaptureVoluntarySwitchCheckpointIdentity(
+			*State,
+			ResolutionId,
+			*Action,
+			CheckpointIdentity))
+	{
+		return PublishVoluntarySwitchCheckpointRejection(
+			*State,
+			ResolutionId,
+			ActionId,
+			EBattleRejectionReason::CheckpointPreparationFailed,
+			DecisionOwnerTrainerId,
+			OutgoingBattlerId,
+			Source);
+	}
+
+	FBattleResolutionCommitPlan CommitPlan;
+	if (!FBattleResolutionCommit::TryBeginAcceptedPlan(
+			CheckpointIdentity.CommitIdentity,
+			CommitPlan))
+	{
+		return PublishVoluntarySwitchCheckpointRejection(
+			*State,
+			ResolutionId,
+			ActionId,
+			EBattleRejectionReason::CheckpointPreparationFailed,
+			DecisionOwnerTrainerId,
+			OutgoingBattlerId,
+			Source);
+	}
+	auto RejectPreparedCheckpoint = [&](const EBattleRejectionReason Reason)
+	{
+		return PublishVoluntarySwitchCheckpointRejection(
+			*State,
+			ResolutionId,
+			ActionId,
+			Reason,
+			DecisionOwnerTrainerId,
+			OutgoingBattlerId,
+			Source);
+	};
+
 	TArray<FPartySlotId> ReservedPartySlots;
 	for (int32 Index = 0; Index < State->LockedActions.Num(); ++Index)
 	{
@@ -9790,116 +10488,151 @@ FBattleResolution FBattleEngine::ExecuteCurrentSwitch()
 	FBattleSwitchSelectionSpec SelectionSpec;
 	SelectionSpec.RequestedPartySlotId = Action->Decision.GetSwitchPartySlotId();
 	FBattleSwitchResolution SwitchResolution;
+	FNoDrawBattleRandom NoDrawRandom;
 	const bool bResolved = bLegalityBuilt
 		&& FBattleSwitchResolver::TryResolve(
 			Legality,
 			SelectionSpec,
-			*State->Random,
+			NoDrawRandom,
 			SwitchResolution);
+	if (!bResolved || !NoDrawRandom.GetTrace().IsEmpty())
+	{
+		return RejectPreparedCheckpoint(
+			EBattleRejectionReason::CheckpointPreparationFailed);
+	}
 
+	FBattleEngineState Projection;
+	PopulateVoluntarySwitchProjection(*State, Projection);
+	if (!Projection.LockedActions.IsValidIndex(Projection.CurrentLockedActionIndex))
+	{
+		return RejectPreparedCheckpoint(
+			EBattleRejectionReason::CheckpointPreparationFailed);
+	}
+	FBattleLockedActionState& ProjectedAction =
+		Projection.LockedActions[Projection.CurrentLockedActionIndex];
 	TArray<FBattleEvent> Events;
 	FBattleEventTarget OutgoingTarget;
 	FBattleEventTarget IncomingTarget;
-	const bool bApplied = bResolved
-		&& SwitchResolution.HasSelection()
-		&& TryApplySwitchSelection(
-			*State,
-			Action->Decision.GetDecisionOwnerTrainerId(),
-			Action->Decision.GetActingBattlerId(),
-			Action->OrderKey.ActingSlotId,
-			SwitchResolution,
-			OutgoingTarget,
-			IncomingTarget);
-	if (bApplied)
+	if (SwitchResolution.HasSelection())
 	{
+		if (!TryApplySwitchSelection(
+				Projection,
+				DecisionOwnerTrainerId,
+				OutgoingBattlerId,
+				ProjectedAction.OrderKey.ActingSlotId,
+				SwitchResolution,
+				OutgoingTarget,
+				IncomingTarget))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
 		AppendSwitchTransitionEvents(
-			*State,
+			Projection,
 			ResolutionId,
-			*Action,
+			ProjectedAction,
 			OutgoingTarget,
 			IncomingTarget,
 			Events);
-		const bool bItemEntryRevealed = TryRevealAirBalloonOnEntry(
-			*State,
-			IncomingTarget.BattlerId,
-			ResolutionId,
-			EBattleActionKind::Switch,
-			Events);
-		if (!bItemEntryRevealed)
+		if (!TryRevealAirBalloonOnEntry(
+				Projection,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				EBattleActionKind::Switch,
+				Events))
 		{
-			UE_LOG(LogTemp, Fatal, TEXT("C08C voluntary-switch held-item entry could not be resolved."));
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
-		const bool bHazardsResolved = TryResolveEntryHazards(
-			*State,
-			IncomingTarget.BattlerId,
-			IncomingTarget.ActiveSlotId,
-			ResolutionId,
-			Events);
-		if (!bHazardsResolved)
+		if (!TryResolveEntryHazards(
+				Projection,
+				IncomingTarget.BattlerId,
+				IncomingTarget.ActiveSlotId,
+				ResolutionId,
+				Events))
 		{
-			UE_LOG(
-				LogTemp,
-				Fatal,
-				TEXT("Validated C07D voluntary-switch entry hazards could not be resolved."));
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
-		const bool bImmediateItemsResolved = TryResolveImmediateHeldItem(
-			*State,
-			IncomingTarget.BattlerId,
-			ResolutionId,
-			Action->ActionId,
-			EBattleActionKind::Switch,
-			Events);
-		if (!bImmediateItemsResolved)
+		if (!TryResolveImmediateHeldItem(
+				Projection,
+				IncomingTarget.BattlerId,
+				ResolutionId,
+				ActionId,
+				EBattleActionKind::Switch,
+				Events))
 		{
-			UE_LOG(LogTemp, Fatal, TEXT("C08C voluntary-switch immediate held items could not be resolved."));
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
 		const TArray<FBattlerId> AbilityEntrants{IncomingTarget.BattlerId};
-		const bool bAbilitiesResolved = TryResolveAbilityEntries(
-			*State,
-			AbilityEntrants,
-			ResolutionId,
-			EBattleActionKind::Switch,
-			Events);
-		if (!bAbilitiesResolved)
+		if (!TryResolveAbilityEntries(
+				Projection,
+				AbilityEntrants,
+				ResolutionId,
+				EBattleActionKind::Switch,
+				Events))
 		{
-			UE_LOG(LogTemp, Fatal, TEXT("C08B voluntary-switch entry Abilities could not be resolved."));
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
 	}
 	else
 	{
 		Events.Add(MakeActionDetailEvent(
-			*State,
+			Projection,
 			ResolutionId,
-			*Action,
+			ProjectedAction,
 			EBattleEventType::ActionCanceled,
 			EBattleEventCause::Switch));
 	}
 
-	Action->bFinished = true;
+	ProjectedAction.bFinished = true;
 	Events.Add(MakeActionDetailEvent(
-		*State,
+		Projection,
 		ResolutionId,
-		*Action,
+		ProjectedAction,
 		EBattleEventType::ActionCompleted,
 		EBattleEventCause::Action));
-	++State->CurrentLockedActionIndex;
-	AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
-	++State->StateVersion;
+	++Projection.CurrentLockedActionIndex;
+	if (!TryAppendVoluntarySwitchBoundaryEvents(
+			Projection,
+			ResolutionId,
+			ProjectedAction,
+			Events))
+	{
+		return RejectPreparedCheckpoint(
+			EBattleRejectionReason::CheckpointPreparationFailed);
+	}
 
-	EBattleStateValidationError StateError = EBattleStateValidationError::None;
-	const bool bStateValid = State->ValidateInvariants(StateError);
-	check(bStateValid);
+	for (const FBattleEvent& Event : Events)
+	{
+		if (!FBattleResolutionCommit::TryStageEvent(
+				CommitPlan,
+				MakeVoluntarySwitchStagedEventSpec(Event)))
+		{
+			return RejectPreparedCheckpoint(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+	}
+	FVoluntarySwitchStateDelta Delta;
+	CaptureVoluntarySwitchDelta(Projection, Delta);
+	if (!FBattleResolutionCommit::TryFinishAcceptedPlan(CommitPlan))
+	{
+		return RejectPreparedCheckpoint(
+			EBattleRejectionReason::CheckpointPreparationFailed);
+	}
+	if (!IsVoluntarySwitchCheckpointIdentityCurrent(*State, CheckpointIdentity)
+		|| !AreVoluntarySwitchDeltaRecordsValid(CheckpointIdentity, Delta))
+	{
+		return RejectPreparedCheckpoint(
+			EBattleRejectionReason::StaleCheckpointIdentity);
+	}
 
-	FBattleResolutionSpec ResolutionSpec;
-	ResolutionSpec.ResolutionId = ResolutionId;
-	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
-	ResolutionSpec.AfterStateVersion = State->StateVersion;
-	ResolutionSpec.bAccepted = true;
-	ResolutionSpec.Events = MoveTemp(Events);
-	FBattleResolution Resolution;
-	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
-	check(bResolutionCreated);
-	State->AppendResolution(Resolution);
+	ApplyVoluntarySwitchDelta(*State, CheckpointIdentity, Delta);
+	const FBattleResolution Resolution = FBattleResolutionCommit::PublishPrepared(
+		*State,
+		CommitPlan);
 	return Resolution;
 }
 
