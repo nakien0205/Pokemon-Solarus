@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 session-start",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') session-start\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') session-start\"",
             "timeout": 10,
             "additionalContextLimit": 5000,
             "statusMessage": "Loading Pokemon Solarus session state"
@@ -23,7 +23,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 pre-tool",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') pre-tool\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') pre-tool\"",
             "timeout": 15,
             "statusMessage": "Checking repository command policy"
           }
@@ -37,7 +37,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 post-tool",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') post-tool\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') post-tool\"",
             "timeout": 15,
             "statusMessage": "Validating edited project files"
           }
@@ -51,7 +51,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 pre-compact",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') pre-compact\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') pre-compact\"",
             "timeout": 10
           }
         ]
@@ -64,7 +64,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 post-compact",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') post-compact\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') post-compact\"",
             "timeout": 10,
             "additionalContextLimit": 3000
           }
@@ -77,7 +77,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 subagent-start",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') subagent-start\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') subagent-start\"",
             "timeout": 5
           }
         ]
@@ -89,7 +89,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 subagent-stop",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') subagent-stop\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') subagent-stop\"",
             "timeout": 5
           }
         ]
@@ -102,7 +102,7 @@
           {
             "type": "command",
             "command": "pwsh -NoProfile -File .codex/hooks/project-hooks.ps1 session-end",
-            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$root = git rev-parse --show-toplevel; & (Join-Path $root '.codex/hooks/project-hooks.ps1') session-end\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project-hooks.ps1') session-end\"",
             "timeout": 3
           }
         ]
