@@ -19,7 +19,8 @@
 - The user confirmed that the disposable Editor, Play In Editor, command-line,
   log-reading, and editor-Python capability tests passed. Do not repeat them as
   setup checks.
-- No real `.uproject` exists yet. Creating it requires separate user approval.
+- The authoritative project exists at `Game/PokemonSolarus.uproject`; its live
+  source and configuration supersede this historical pre-project setup note.
 - Do not launch Unreal solely to re-check this setup record.
 
 The project is pinned to the exact installed build, not merely the `5.8` release
@@ -50,4 +51,3 @@ and unrelated Unreal systems are not approved for this milestone.
 - [Unreal Engine 5.8 release notes](https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-engine-5-8-release-notes)
 - [UE 5.8 release and 5.8.1 hotfix notes](https://forums.unrealengine.com/t/unreal-engine-5-8-released/2729274)
 - [Visual Studio setup and UE 5.8 compatibility](https://dev.epicgames.com/documentation/unreal-engine/setting-up-visual-studio-development-environment-for-cplusplus-projects-in-unreal-engine)
-

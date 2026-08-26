@@ -2,10 +2,11 @@
 
 **Last verified:** 2026-08-19
 
-There is no project migration to perform: no real `.uproject` or project code
-has been created. This file records only verified UE 5.8 changes that may affect
-the approved prototype. The broad generic UE 5.7 migration notes are preserved
-under `legacy-generic-5.7/` and are not active guidance.
+`Game/PokemonSolarus.uproject` and live C++ project code now exist. This file
+records only verified UE 5.8 changes that may affect the approved prototype; it
+does not claim that an engine migration is currently required. The broad
+generic UE 5.7 migration notes are preserved under `legacy-generic-5.7/` and
+are not active guidance.
 
 ## Input Changes Relevant to This Project
 
@@ -36,4 +37,3 @@ bug is suspected.
 - [UE 5.8 release notes](https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-engine-5-8-release-notes)
 - [UE 5.8 release and 5.8.1 hotfix notes](https://forums.unrealengine.com/t/unreal-engine-5-8-released/2729274)
 - [Visual Studio setup for UE 5.8](https://dev.epicgames.com/documentation/unreal-engine/setting-up-visual-studio-development-environment-for-cplusplus-projects-in-unreal-engine)
-

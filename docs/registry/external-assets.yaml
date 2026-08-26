@@ -1,0 +1,172 @@
+# Pokemon Solarus External-Asset Registry
+#
+# PURPOSE: Durable, project-wide provenance and use-status record for acquired
+# third-party assets, including assets that are known locally but not approved.
+# This registry is not a license and does not place the source files in Git.
+#
+# STATUS VALUES:
+#   proposed  - named by a Proposed ADR; no implementation/use authorization yet
+#   approved  - approved by an Accepted decision for the stated exact scope
+#   deferred  - recorded for discovery only; no import/use authorization
+#   rejected  - evaluated and intentionally not usable
+#   deprecated - retained as history after replacement
+
+version: 1
+last_updated: "2026-08-26"
+
+governance:
+  source_site: "The Sounds Resource"
+  source_site_help_url: "https://sounds.spriters-resource.com/page/help/"
+  source_site_help_last_updated: "2026-04-12"
+  source_site_terms_url: "https://sounds.spriters-resource.com/page/tou/"
+  source_site_terms_last_updated: "2025-03-31"
+  policy_checked_on: "2026-08-26"
+  policy_summary:
+    - "The archive says it does not own and cannot license the underlying assets."
+    - "Rights-holder credit is expected; ripper/uploader credit is optional courtesy provenance."
+    - "The archive limits its stated use policy to non-commercial contexts and warns against established-marketplace publication even when free."
+  project_rule: "Attribution is not permission. Raw or imported third-party asset inclusion and public distribution require a separate documented rights review and project-owner approval."
+  underlying_rights_notice: "Pokemon and related audio © Nintendo / Creatures Inc. / GAME FREAK inc.; source-game-specific notices apply."
+
+local_audit:
+  audited_on: "2026-08-26"
+  staging_area: "External local Solaris audio staging area; intentionally not version-controlled and not recorded as a machine-specific absolute path."
+  filesystem_date_observed: "2026-08-25"
+  acquisition_date_confirmed: false
+  extracted_tree_sha256_method: "SHA-256 of UTF-8 lines '<lowercase per-file sha256>  <forward-slash relative path>\\n', ordered by PowerShell Sort-Object FullName on the audit host."
+  format_checks:
+    wav: "All 1,425 audited WAV files had valid RIFF/WAVE headers, PCM format code 1, and 16-bit samples."
+    mp3: "All 993 audited MP3 files passed header validation."
+
+assets:
+  - id: pokemon_sun_moon_attack_move_sfx_tsr
+    name: "Pokemon Sun/Moon Attack Move Sound Effects"
+    status: proposed
+    use_scope: "Exact allowlisted battle move cues under ADR-0003 only."
+    authorization: "No import or use until ADR-0003 is independently reviewed and Accepted; each file and cue placement also requires explicit project-owner approval."
+    decision_refs:
+      - "docs/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md"
+    local_folder_label: "Gen 7 Moves SFX"
+    local_inventory:
+      audio_file_count: 993
+      other_file_count: 0
+      total_bytes: 290403975
+      formats:
+        - mp3
+      extracted_tree_sha256: "c56b5be094de7dace58f84fd5bf2f966a46f331e2965e8955f5f89d8633b5090"
+    source:
+      game: "Pokemon Sun/Moon"
+      asset_title: "Attack Move Sound Effects"
+      asset_url: "https://sounds.spriters-resource.com/3ds/pokemonsunmoon/asset/428216/"
+      submitted_on: "2020-04-22"
+      uploaded_by: "BellBlitzKing"
+      uploader_collection_url: "https://bellblitzking.itch.io/pokemon-sound-collection"
+      accessed_on: "2026-08-26"
+    rights:
+      source_game_notice: "Pokemon Sun and Pokemon Moon ©2016 Pokemon. ©1995–2016 Nintendo/Creatures Inc./GAME FREAK inc."
+      uploader_role: "Extractor/uploader provenance and courtesy credit; not recorded as underlying rights owner or licensor."
+      clearance: "Not established by the archive or this registry."
+    initial_candidate_files:
+      - move_id: Flamethrower
+        cue_id: "gen7_flamethrower_main"
+        relative_path: "Flamethrower.mp3"
+        sha256: "8c4bdfb8cca9ebaa2eb41fd66a1e068b78b0ce75af6e6ee4dd24b6f3b37d4d69"
+        bytes: 290982
+        destination_object_path: "/Game/Audio/Battle/MovePresentation/Gen7/SW_G7_Flamethrower.SW_G7_Flamethrower"
+        import_profile: "move_sfx_pilot_v1"
+        hash_identity: "Acquired MP3 only; not converted WAV, uasset, or cooked payload."
+        status: "eligible_for_owner_audition"
+      - move_id: VineWhip
+        cue_id: "gen7_vine_whip_main"
+        relative_path: "Vine Whip.mp3"
+        sha256: "790678aab83c3a6bb2c0a820ed4a36317872878f99bf4aaafac8748025bdbba6"
+        bytes: 163498
+        destination_object_path: "/Game/Audio/Battle/MovePresentation/Gen7/SW_G7_VineWhip.SW_G7_VineWhip"
+        import_profile: "move_sfx_pilot_v1"
+        hash_identity: "Acquired MP3 only; not converted WAV, uasset, or cooked payload."
+        status: "eligible_for_owner_audition"
+
+  - id: pokemon_black_white_general_sfx_tsr
+    name: "Pokemon Black/White Sound Effects"
+    status: deferred
+    use_scope: "None. Recorded for future discovery only; broad SFX are outside ADR-0003."
+    authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
+    decision_refs: []
+    local_folder_label: "Gen 5 SFX"
+    local_inventory:
+      audio_file_count: 505
+      other_file_count: 1
+      total_bytes: 500137470
+      formats:
+        - wav
+        - txt
+      extracted_tree_sha256: "3697c1777cc958d700091d831d40573f502e55349e25c29f2d844812443773a8"
+      notes: "The local readme describes sequence-folder organization; it is not a license."
+    source:
+      game: "Pokemon Black/White"
+      asset_title: "Sound Effects"
+      asset_url: "https://sounds.spriters-resource.com/ds_dsi/pokemonblackwhite/asset/487564/"
+      submitted_on: "2025-11-01"
+      uploaded_by: "Charles29"
+      accessed_on: "2026-08-26"
+    rights:
+      uploader_role: "Archive uploader provenance and optional courtesy credit."
+      clearance: "Not established by the archive or this registry."
+
+  - id: pokemon_ultra_sun_ultra_moon_cries_tsr
+    name: "Pokemon Ultra Sun/Ultra Moon Pokemon Cries, Generations 1–7"
+    status: deferred
+    use_scope: "None. Recorded for future discovery only; cries are outside ADR-0003."
+    authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
+    decision_refs: []
+    local_folder_label: "Gen 7 Cry SFX"
+    local_inventory:
+      audio_file_count: 878
+      other_file_count: 0
+      total_bytes: 64053812
+      formats:
+        - wav
+      extracted_tree_sha256: "365bc9cea1555303b84b1c68a790da52e416887f51c05ae3534d462a51b27e5d"
+    source:
+      game: "Pokemon Ultra Sun/Ultra Moon"
+      asset_title: "Pokemon Cries (1st–7th Generation)"
+      asset_urls:
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403075/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403076/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403077/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403078/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403079/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403080/"
+        - "https://sounds.spriters-resource.com/3ds/pokemonultrasunultramoon/asset/403081/"
+      submitted_on: "2016-12-04"
+      uploaded_by: "Random Talking Bush"
+      accessed_on: "2026-08-26"
+    rights:
+      uploader_role: "Extractor/uploader provenance and optional courtesy credit."
+      clearance: "Not established by the archive or this registry."
+
+  - id: pokemon_sun_moon_jingles_tsr
+    name: "Pokemon Sun/Moon Jingles"
+    status: deferred
+    use_scope: "None. Recorded for future discovery only; jingles are outside ADR-0003."
+    authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
+    decision_refs: []
+    local_folder_label: "Gen 7 Mics SFX"
+    local_inventory:
+      audio_file_count: 42
+      other_file_count: 0
+      total_bytes: 16925980
+      formats:
+        - wav
+      extracted_tree_sha256: "12f2f8284b09536c93519fac58ad0f1325d0d43890ab27191c9aa126d56e846a"
+      notes: "The local folder label is a misnomer; the source submission is titled Jingles."
+    source:
+      game: "Pokemon Sun/Moon"
+      asset_title: "Jingles"
+      asset_url: "https://sounds.spriters-resource.com/3ds/pokemonsunmoon/asset/405698/"
+      submitted_on: "2017-07-11"
+      uploaded_by: "SuprRooster"
+      accessed_on: "2026-08-26"
+    rights:
+      uploader_role: "Archive uploader provenance and optional courtesy credit."
+      clearance: "Not established by the archive or this registry."
