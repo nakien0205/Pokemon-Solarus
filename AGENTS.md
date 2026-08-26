@@ -7,6 +7,10 @@
 - Read `production/session-state/active.md` before continuing ongoing work.
 - Live source, the current roadmap package, the worktree, and exported Unreal
   Automation reports override historical status notes.
+- Read `docs/registry/external-assets.yaml` before importing or using third-party
+  assets. Source files represented by `deferred` entries are provenance
+  references only and are not approved for import, use, repository inclusion,
+  or distribution.
 
 ## Collaboration and ownership
 
