@@ -13,7 +13,8 @@ namespace BattleTargetingTests
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 	using BattleTest::MakePartySlotId;
-	using BattleTest::FSequenceBattleRandom;
+	using BattleTest::FBattleExpectedRandomDraw;
+	using BattleTest::FStrictBattleRandom;
 
 	constexpr uint64 PlayerTrainerValue = 1;
 	constexpr uint64 OpponentTrainerValue = 2;
@@ -657,7 +658,18 @@ namespace BattleTargetingTests
 			{
 				ExplicitTarget = OpponentLeft;
 			}
-			FSequenceBattleRandom Random({0});
+			TArray<FBattleExpectedRandomDraw> ExpectedDraws;
+			if (TargetClass == EBattleTargetClass::RandomLegalOpponent)
+			{
+				ExpectedDraws.Add(
+					{
+						0,
+						0,
+						0,
+						FBattleTargetResolver::GetRandomLegalOpponentRulePurpose()
+					});
+			}
+			FStrictBattleRandom Random(MoveTemp(ExpectedDraws));
 			FBattleTargetResolutionResult Result;
 			Error = EBattleTargetingError::None;
 			const bool bResolved = FBattleTargetResolver::TryResolve(
@@ -666,6 +678,7 @@ namespace BattleTargetingTests
 				Result,
 				Error);
 			TestTrue(TEXT("Each legal Singles target class resolves"), bResolved);
+			TestTrue(TEXT("Each Singles target class consumes its exact targeting RNG contract"), Random.IsExact());
 			TestEqual(TEXT("Each legal Singles class resolves a target set"), Result.Outcome, EBattleTargetResolutionOutcome::Resolved);
 
 			if (TargetClass == EBattleTargetClass::UserSide
@@ -856,7 +869,18 @@ namespace BattleTargetingTests
 			}
 
 			TestEqual(TEXT("Doubles candidate count matches the target class"), Selection.BattlerCandidates.Num(), ExpectedCandidateCount);
-			FSequenceBattleRandom Random({1});
+			TArray<FBattleExpectedRandomDraw> ExpectedDraws;
+			if (TargetClass == EBattleTargetClass::RandomLegalOpponent)
+			{
+				ExpectedDraws.Add(
+					{
+						0,
+						1,
+						1,
+						FBattleTargetResolver::GetRandomLegalOpponentRulePurpose()
+					});
+			}
+			FStrictBattleRandom Random(MoveTemp(ExpectedDraws));
 			FBattleTargetResolutionResult Result;
 			const bool bResolved = FBattleTargetResolver::TryResolve(
 				MakeResolutionSpec(TargetClass, MakeDoublePositions(), ExplicitTarget),
@@ -864,6 +888,7 @@ namespace BattleTargetingTests
 				Result,
 				Error);
 			TestTrue(TEXT("Each Doubles target class resolves"), bResolved);
+			TestTrue(TEXT("Each Doubles target class consumes its exact targeting RNG contract"), Random.IsExact());
 			TestEqual(TEXT("Each Doubles target class resolves successfully"), Result.Outcome, EBattleTargetResolutionOutcome::Resolved);
 			TestEqual(TEXT("Doubles resolved-target count matches the class"), Result.Targets.Num(), ExpectedResolvedCount);
 
@@ -985,7 +1010,7 @@ namespace BattleTargetingTests
 			TEXT("The semi-invulnerable target stays in the legal choices"),
 			ContainsCandidate(AirborneSelection.BattlerCandidates, OpponentRight));
 
-		FSequenceBattleRandom AirborneRandom({});
+		FStrictBattleRandom AirborneRandom({});
 		FBattleTargetResolutionResult AirborneResult;
 		TestTrue(
 			TEXT("Target resolution does not perform the later reachability check"),
@@ -997,10 +1022,11 @@ namespace BattleTargetingTests
 				AirborneRandom,
 				AirborneResult,
 				Error));
+		TestTrue(TEXT("Semi-invulnerable target resolution consumes no RNG"), AirborneRandom.IsExact());
 
 		TArray<FBattleTargetPositionFacts> ReturnedPositions = AirbornePositions;
 		ReturnedPositions[0].bSemiInvulnerable = false;
-		FSequenceBattleRandom ReturnedRandom({});
+		FStrictBattleRandom ReturnedRandom({});
 		FBattleTargetResolutionResult ReturnedResult;
 		TestTrue(
 			TEXT("A target that returned also resolves normally"),
@@ -1012,6 +1038,7 @@ namespace BattleTargetingTests
 				ReturnedRandom,
 				ReturnedResult,
 				Error));
+		TestTrue(TEXT("Returned target resolution consumes no RNG"), ReturnedRandom.IsExact());
 		TestTrue(TEXT("Both lifecycle paths freeze the same target"), AirborneResult.Targets[0] == ReturnedResult.Targets[0]);
 		return true;
 	}
@@ -1038,7 +1065,7 @@ namespace BattleTargetingTests
 			EBattleTargetClass::SelectedOpponent,
 			FaintedPositions,
 			OpponentLeft);
-		FSequenceBattleRandom FaintedRandom({});
+		FStrictBattleRandom FaintedRandom({});
 		FBattleTargetResolutionResult FaintedResult;
 		EBattleTargetingError Error = EBattleTargetingError::None;
 		TestTrue(
@@ -1048,6 +1075,7 @@ namespace BattleTargetingTests
 		TestTrue(TEXT("Fainted fallback is marked as redirection"), FaintedResult.bWasRedirected);
 		TestTrue(TEXT("Fainted fallback has its specific metadata"), FaintedResult.bUsedFaintedTargetFallback);
 		TestTrue(TEXT("Fainted fallback consumes no target RNG"), FaintedRandom.GetTrace().IsEmpty());
+		TestTrue(TEXT("Fainted fallback satisfies the exact no-draw contract"), FaintedRandom.IsExact());
 
 		TArray<FBattleTargetPositionFacts> CapturedPositions = MakeDoublePositions();
 		CapturedPositions[2].State = EBattleTargetPositionState::Captured;
@@ -1056,7 +1084,7 @@ namespace BattleTargetingTests
 			CapturedPositions,
 			OpponentLeft);
 		CapturedSpec.RedirectionProposals.Add(FBattleTargetRedirectionProposal());
-		FSequenceBattleRandom CapturedRandom({});
+		FStrictBattleRandom CapturedRandom({});
 		FBattleTargetResolutionResult CapturedResult;
 		TestTrue(
 			TEXT("Captured-target cancellation succeeds before redirection validation"),
@@ -1068,10 +1096,11 @@ namespace BattleTargetingTests
 		TestTrue(TEXT("Captured cancellation exposes no target"), CapturedResult.Targets.IsEmpty());
 		TestFalse(TEXT("Captured cancellation is not ordinary redirection"), CapturedResult.bWasRedirected);
 		TestTrue(TEXT("Captured cancellation consumes no RNG"), CapturedRandom.GetTrace().IsEmpty());
+		TestTrue(TEXT("Captured cancellation satisfies the exact no-draw contract"), CapturedRandom.IsExact());
 
 		TArray<FBattleTargetPositionFacts> NoFallbackPositions = FaintedPositions;
 		NoFallbackPositions[0].State = EBattleTargetPositionState::Removed;
-		FSequenceBattleRandom NoFallbackRandom({});
+		FStrictBattleRandom NoFallbackRandom({});
 		FBattleTargetResolutionResult NoFallbackResult;
 		TestTrue(
 			TEXT("A fainted target with no other living opponent resolves cleanly"),
@@ -1084,6 +1113,7 @@ namespace BattleTargetingTests
 				NoFallbackResult,
 				Error));
 		TestEqual(TEXT("No living fallback yields no legal target"), NoFallbackResult.Outcome, EBattleTargetResolutionOutcome::NoLegalTarget);
+		TestTrue(TEXT("No-fallback resolution satisfies the exact no-draw contract"), NoFallbackRandom.IsExact());
 		return true;
 	}
 
@@ -1116,7 +1146,7 @@ namespace BattleTargetingTests
 		Spec.RedirectionProposals.Add({OpponentRight});
 		Spec.RedirectionProposals.Add({OpponentLeft});
 
-		FSequenceBattleRandom Random({});
+		FStrictBattleRandom Random({});
 		FBattleTargetResolutionResult Result;
 		EBattleTargetingError Error = EBattleTargetingError::None;
 		TestTrue(
@@ -1126,13 +1156,14 @@ namespace BattleTargetingTests
 		TestTrue(TEXT("The effective replacement is reported"), Result.bWasRedirected);
 		TestFalse(TEXT("Rule redirection is distinct from faint fallback"), Result.bUsedFaintedTargetFallback);
 		TestTrue(TEXT("Non-random redirection consumes no RNG"), Random.GetTrace().IsEmpty());
+		TestTrue(TEXT("Redirection satisfies the exact no-draw contract"), Random.IsExact());
 
 		FBattleTargetResolutionSpec InvalidSpec = MakeResolutionSpec(
 			EBattleTargetClass::SelectedOpponent,
 			MakeDoublePositions(),
 			OpponentLeft);
 		InvalidSpec.RedirectionProposals.Add(FBattleTargetRedirectionProposal());
-		FSequenceBattleRandom InvalidRandom({});
+		FStrictBattleRandom InvalidRandom({});
 		FBattleTargetResolutionResult InvalidResult;
 		Error = EBattleTargetingError::None;
 		TestFalse(
@@ -1140,6 +1171,7 @@ namespace BattleTargetingTests
 			FBattleTargetResolver::TryResolve(InvalidSpec, InvalidRandom, InvalidResult, Error));
 		TestEqual(TEXT("Invalid proposals have a typed error"), Error, EBattleTargetingError::InvalidRedirectionProposal);
 		TestEqual(TEXT("Rejected redirection leaves an invalid result"), InvalidResult.Outcome, EBattleTargetResolutionOutcome::Invalid);
+		TestTrue(TEXT("Rejected redirection satisfies the exact no-draw contract"), InvalidRandom.IsExact());
 		return true;
 	}
 
@@ -1162,7 +1194,13 @@ namespace BattleTargetingTests
 			EBattleTargetClass::RandomLegalOpponent,
 			MakeDoublePositions());
 
-		FSequenceBattleRandom FirstRandom({0});
+		FStrictBattleRandom FirstRandom(
+			{{
+				0,
+				1,
+				0,
+				FBattleTargetResolver::GetRandomLegalOpponentRulePurpose()
+			}});
 		FBattleTargetResolutionResult FirstResult;
 		EBattleTargetingError Error = EBattleTargetingError::None;
 		TestTrue(
@@ -1176,10 +1214,17 @@ namespace BattleTargetingTests
 			TEXT("The target draw uses the typed purpose"),
 			FirstRandom.GetTrace()[0].RulePurpose
 				== FBattleTargetResolver::GetRandomLegalOpponentRulePurpose());
+		TestTrue(TEXT("Two-candidate targeting satisfies the exact draw contract"), FirstRandom.IsExact());
 
 		TArray<FBattleTargetPositionFacts> OneCandidatePositions = MakeDoublePositions();
 		OneCandidatePositions[0].State = EBattleTargetPositionState::Removed;
-		FSequenceBattleRandom OneCandidateRandom({0});
+		FStrictBattleRandom OneCandidateRandom(
+			{{
+				0,
+				0,
+				0,
+				FBattleTargetResolver::GetRandomLegalOpponentRulePurpose()
+			}});
 		FBattleTargetResolutionResult OneCandidateResult;
 		TestTrue(
 			TEXT("One candidate still resolves through RNG"),
@@ -1193,11 +1238,12 @@ namespace BattleTargetingTests
 		TestTrue(TEXT("The sole candidate is selected"), OneCandidateResult.Targets[0].GetBattler() == OpponentLeft);
 		TestEqual(TEXT("One candidate consumes one draw"), OneCandidateRandom.GetTrace().Num(), 1);
 		TestEqual(TEXT("One-candidate range is U[0,0]"), OneCandidateRandom.GetTrace()[0].InclusiveMaximum, 0U);
+		TestTrue(TEXT("One-candidate targeting satisfies the exact draw contract"), OneCandidateRandom.IsExact());
 
 		TArray<FBattleTargetPositionFacts> EmptyPositions = MakeDoublePositions();
 		EmptyPositions[0].State = EBattleTargetPositionState::Removed;
 		EmptyPositions[2].State = EBattleTargetPositionState::Fainted;
-		FSequenceBattleRandom EmptyRandom({});
+		FStrictBattleRandom EmptyRandom({});
 		FBattleTargetResolutionResult EmptyResult;
 		TestTrue(
 			TEXT("An empty legal opponent set is a valid no-target result"),
@@ -1208,6 +1254,7 @@ namespace BattleTargetingTests
 				Error));
 		TestEqual(TEXT("Empty random sets report no legal target"), EmptyResult.Outcome, EBattleTargetResolutionOutcome::NoLegalTarget);
 		TestTrue(TEXT("Empty random sets consume no draw"), EmptyRandom.GetTrace().IsEmpty());
+		TestTrue(TEXT("Empty random targeting satisfies the exact no-draw contract"), EmptyRandom.IsExact());
 
 		FSeededBattleRandom SeededA(404404);
 		FSeededBattleRandom SeededB(404404);
@@ -1410,7 +1457,7 @@ namespace BattleTargetingTests
 				&& !SideEvent->GetTargets()[0].bField);
 		TArray<uint8> SideReplayBytes;
 		TestTrue(
-			TEXT("The schema-four side-target event serializes canonically"),
+			TEXT("The side-target event serializes canonically"),
 			FBattleReplaySerializer::TrySerializeCanonical(
 				SideEngine->ExportReplayRecord(),
 				SideReplayBytes,
@@ -1437,7 +1484,7 @@ namespace BattleTargetingTests
 				&& !FieldEvent->GetTargets()[0].bHasSide);
 		TArray<uint8> FieldReplayBytes;
 		TestTrue(
-			TEXT("The schema-four field-target event serializes canonically"),
+			TEXT("The field-target event serializes canonically"),
 			FBattleReplaySerializer::TrySerializeCanonical(
 				FieldEngine->ExportReplayRecord(),
 				FieldReplayBytes,
@@ -1462,7 +1509,7 @@ namespace BattleTargetingTests
 		TestTrue(
 			TEXT("The repeated C04B replay serializes canonically"),
 			FBattleReplaySerializer::TrySerializeCanonical(SecondRecord, SecondBytes, Rejection));
-		TestTrue(TEXT("Identical setup, decisions, and RNG produce identical schema-four replay bytes"), FirstBytes == SecondBytes);
+		TestTrue(TEXT("Identical setup, decisions, and RNG produce identical canonical replay bytes"), FirstBytes == SecondBytes);
 		return true;
 	}
 }
