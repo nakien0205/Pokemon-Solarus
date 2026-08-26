@@ -132,7 +132,31 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	FBattleEngineState& State,
 	FBattleFaintOutcomeResolution& OutResolution)
 {
-	OutResolution = FBattleFaintOutcomeResolution();
+	FBattleFaintOutcomePlan Plan;
+	if (!TryResolveAction(
+			EffectResult,
+			TargetClass,
+			ResolutionId,
+			static_cast<const FBattleEngineState&>(State),
+			Plan)
+		|| !TryApplyActionPlan(State, Plan))
+	{
+		OutResolution = FBattleFaintOutcomeResolution();
+		return false;
+	}
+	OutResolution = Plan.Resolution;
+	return true;
+}
+
+bool FBattleFaintOutcomeResolver::TryResolveAction(
+	const FBattleEffectExecutionResult& EffectResult,
+	const EBattleTargetClass TargetClass,
+	const FResolutionId ResolutionId,
+	const FBattleEngineState& State,
+	FBattleFaintOutcomePlan& OutPlan)
+{
+	OutPlan = FBattleFaintOutcomePlan();
+	FBattleFaintOutcomeResolution& OutResolution = OutPlan.Resolution;
 	if (!EffectResult.bValid || !ResolutionId.IsValid())
 	{
 		return false;
@@ -235,21 +259,6 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 			Transition.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent;
 	}
 
-	for (const FBattleFaintTransitionRecord& Transition : OutResolution.Removals)
-	{
-		FBattleBattlerState* Battler = State.FindMutableBattler(Transition.Target.BattlerId);
-		FBattleActivePositionState* Position = State.FindMutableActivePosition(
-			Transition.Target.ActiveSlotId);
-		check(Battler != nullptr && Position != nullptr);
-		Battler->MajorStatusId = FConditionId();
-		Battler->Stages = FBattleStatStages();
-		Battler->Volatiles.Reset();
-		Battler->bRemoved = true;
-		Battler->bFaintTransitionPending = false;
-		Position->TrainerId = FTrainerId();
-		Position->BattlerId = FBattlerId();
-	}
-
 	const int32 PlayerUsable = CountUsableOnSide(State, EBattleSide::Player);
 	const int32 OpponentUsable = CountUsableOnSide(State, EBattleSide::Opponent);
 	if (PlayerUsable == 0
@@ -272,13 +281,14 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 			: EBattleOutcomeCause::Ordinary;
 		if (bOnlyPartnerRemains)
 		{
-			FBattlePartnerTeamVictoryRecovery Recovery;
-			if (!FBattlePartnerFlow::TryApplyTeamVictoryRecovery(State, Recovery))
+			FBattlePartnerTeamVictoryRecoveryPlan RecoveryPlan;
+			if (!FBattlePartnerFlow::TryApplyTeamVictoryRecovery(State, RecoveryPlan))
 			{
-				OutResolution = FBattleFaintOutcomeResolution();
+				OutPlan = FBattleFaintOutcomePlan();
 				return false;
 			}
-			OutResolution.PartnerTeamVictoryRecovery = MoveTemp(Recovery);
+			OutResolution.PartnerTeamVictoryRecovery = RecoveryPlan.Recovery;
+			OutPlan.PartnerRecoveryPlan = MoveTemp(RecoveryPlan);
 		}
 	}
 	else if (PlayerUsable == 0)
@@ -290,9 +300,75 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	if (OutResolution.Outcome != EBattleOutcome::InProgress)
 	{
 		OutResolution.bBattleEnded = true;
+	}
+	return true;
+}
+
+bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
+	FBattleEngineState& State,
+	const FBattleFaintOutcomePlan& Plan)
+{
+	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
+	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(
+			Transition.Target.BattlerId);
+		const FBattleActivePositionState* Position = State.FindActivePosition(
+			Transition.Target.ActiveSlotId);
+		if (Battler == nullptr
+			|| Position == nullptr
+			|| Position->TrainerId != Transition.Target.TrainerId
+			|| Position->BattlerId != Transition.Target.BattlerId
+			|| Battler->CurrentHP != 0
+			|| !Battler->bFainted
+			|| !Battler->bFaintTransitionPending)
+		{
+			return false;
+		}
+	}
+
+	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
+	{
+		FBattleBattlerState* Battler = State.FindMutableBattler(
+			Transition.Target.BattlerId);
+		FBattleActivePositionState* Position = State.FindMutableActivePosition(
+			Transition.Target.ActiveSlotId);
+		if (Battler == nullptr || Position == nullptr)
+		{
+			return false;
+		}
+		Battler->MajorStatusId = FConditionId();
+		Battler->Stages = FBattleStatStages();
+		Battler->Volatiles.Reset();
+		Battler->bRemoved = true;
+		Battler->bFaintTransitionPending = false;
+		Position->TrainerId = FTrainerId();
+		Position->BattlerId = FBattlerId();
+	}
+
+	if (Plan.PartnerRecoveryPlan.IsSet()
+		&& !FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(
+			State,
+			Plan.PartnerRecoveryPlan.GetValue()))
+	{
+		return false;
+	}
+	if (Plan.PartnerRecoveryPlan.IsSet()
+		!= Resolution.PartnerTeamVictoryRecovery.IsSet())
+	{
+		return false;
+	}
+
+	if (Resolution.bBattleEnded)
+	{
+		if (Resolution.Outcome == EBattleOutcome::InProgress
+			|| Resolution.OutcomeCause == EBattleOutcomeCause::None)
+		{
+			return false;
+		}
 		State.Phase = EBattlePhase::Terminal;
-		State.Outcome = OutResolution.Outcome;
-		State.OutcomeCause = OutResolution.OutcomeCause;
+		State.Outcome = Resolution.Outcome;
+		State.OutcomeCause = Resolution.OutcomeCause;
 		State.PendingDecision.Reset();
 		State.PendingDecisionRequests.Reset();
 	}
@@ -303,32 +379,47 @@ void FBattleFaintOutcomeResolver::ResolveQueueBoundary(
 	FBattleEngineState& State,
 	TArray<FBattleReplacementRequirement>& OutRequirements)
 {
-	OutRequirements.Reset();
+	FBattleQueueBoundaryPlan Plan;
+	if (!ResolveQueueBoundary(static_cast<const FBattleEngineState&>(State), Plan)
+		|| !TryApplyQueueBoundaryPlan(State, Plan))
+	{
+		OutRequirements.Reset();
+		return;
+	}
+	OutRequirements = MoveTemp(Plan.Requirements);
+}
+
+bool FBattleFaintOutcomeResolver::ResolveQueueBoundary(
+	const FBattleEngineState& State,
+	FBattleQueueBoundaryPlan& OutPlan)
+{
+	OutPlan = FBattleQueueBoundaryPlan();
+	OutPlan.PhaseAfter = State.Phase;
 	if (State.Outcome != EBattleOutcome::InProgress
 		|| State.Phase != EBattlePhase::Resolving
 		|| State.CurrentLockedActionIndex < State.LockedActions.Num())
 	{
-		return;
+		return true;
 	}
 
-	TArray<const FBattleActivePositionState*> EmptyPositions;
+	TArray<FActiveSlotId> EmptyPositions;
 	for (const FBattleActivePositionState& Position : State.ActivePositions)
 	{
 		if (Position.bAvailable && !Position.BattlerId.IsValid())
 		{
-			EmptyPositions.Add(&Position);
+			EmptyPositions.Add(Position.ActiveSlotId);
 		}
 	}
 	EmptyPositions.Sort(
-		[](const FBattleActivePositionState& Left, const FBattleActivePositionState& Right)
+		[](const FActiveSlotId Left, const FActiveSlotId Right)
 		{
-			return FaintActiveSlotLess(Left.ActiveSlotId, Right.ActiveSlotId);
+			return FaintActiveSlotLess(Left, Right);
 		});
 
 	TMap<FTrainerId, int32> RemainingReserves;
-	for (const FBattleActivePositionState* Position : EmptyPositions)
+	for (const FActiveSlotId ActiveSlotId : EmptyPositions)
 	{
-		const FTrainerId TrainerId = FindInitialSlotOwner(State, Position->ActiveSlotId);
+		const FTrainerId TrainerId = FindInitialSlotOwner(State, ActiveSlotId);
 		if (!TrainerId.IsValid())
 		{
 			continue;
@@ -346,12 +437,37 @@ void FBattleFaintOutcomeResolver::ResolveQueueBoundary(
 		}
 
 		--(*Remaining);
-		FBattleReplacementRequirement& Requirement = OutRequirements.AddDefaulted_GetRef();
+		FBattleReplacementRequirement& Requirement =
+			OutPlan.Requirements.AddDefaulted_GetRef();
 		Requirement.Target.TrainerId = TrainerId;
-		Requirement.Target.ActiveSlotId = Position->ActiveSlotId;
+		Requirement.Target.ActiveSlotId = ActiveSlotId;
 	}
 
-	State.Phase = OutRequirements.IsEmpty()
+	OutPlan.PhaseAfter = OutPlan.Requirements.IsEmpty()
 		? EBattlePhase::EndOfTurn
 		: EBattlePhase::MandatoryReplacement;
+	return true;
+}
+
+bool FBattleFaintOutcomeResolver::TryApplyQueueBoundaryPlan(
+	FBattleEngineState& State,
+	const FBattleQueueBoundaryPlan& Plan)
+{
+	if (Plan.PhaseAfter != EBattlePhase::Resolving
+		&& Plan.PhaseAfter != EBattlePhase::EndOfTurn
+		&& Plan.PhaseAfter != EBattlePhase::MandatoryReplacement
+		&& Plan.PhaseAfter != EBattlePhase::Terminal)
+	{
+		return false;
+	}
+	for (const FBattleReplacementRequirement& Requirement : Plan.Requirements)
+	{
+		if (!Requirement.Target.TrainerId.IsValid()
+			|| !Requirement.Target.ActiveSlotId.IsValid())
+		{
+			return false;
+		}
+	}
+	State.Phase = Plan.PhaseAfter;
+	return true;
 }

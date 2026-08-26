@@ -14,6 +14,12 @@ struct FBattlePartnerTeamVictoryRecovery
 	bool bMajorStatusCured = false;
 };
 
+/** Owned, non-mutating preparation for one Partner Team Victory recovery. */
+struct FBattlePartnerTeamVictoryRecoveryPlan
+{
+	FBattlePartnerTeamVictoryRecovery Recovery;
+};
+
 /** Private C09C partner-only outcome mutations. */
 class FBattlePartnerFlow
 {
@@ -22,4 +28,14 @@ public:
 	[[nodiscard]] static bool TryApplyTeamVictoryRecovery(
 		FBattleEngineState& State,
 		FBattlePartnerTeamVictoryRecovery& OutRecovery);
+
+	/** Produces exact recovery facts without changing the supplied state. */
+	[[nodiscard]] static bool TryApplyTeamVictoryRecovery(
+		const FBattleEngineState& State,
+		FBattlePartnerTeamVictoryRecoveryPlan& OutPlan);
+
+	/** Applies an already prepared recovery plan to caller-owned staged state. */
+	[[nodiscard]] static bool TryApplyTeamVictoryRecoveryPlan(
+		FBattleEngineState& State,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
 };

@@ -34,6 +34,20 @@ struct FBattleFaintOutcomeResolution
 	TOptional<FBattlePartnerTeamVictoryRecovery> PartnerTeamVictoryRecovery;
 };
 
+/** Owned projection plan for one action's faint, outcome, and recovery mutations. */
+struct FBattleFaintOutcomePlan
+{
+	FBattleFaintOutcomeResolution Resolution;
+	TOptional<FBattlePartnerTeamVictoryRecoveryPlan> PartnerRecoveryPlan;
+};
+
+/** Owned projection plan for the queue-exhaustion replacement boundary. */
+struct FBattleQueueBoundaryPlan
+{
+	EBattlePhase PhaseAfter = EBattlePhase::Resolving;
+	TArray<FBattleReplacementRequirement> Requirements;
+};
+
 /** Private deterministic C05C rules for faint cleanup, outcomes, and queue boundaries. */
 class FBattleFaintOutcomeResolver
 {
@@ -46,8 +60,31 @@ public:
 		FBattleEngineState& State,
 		FBattleFaintOutcomeResolution& OutResolution);
 
+	/** Produces every faint/outcome mutation without changing the supplied state. */
+	[[nodiscard]] static bool TryResolveAction(
+		const FBattleEffectExecutionResult& EffectResult,
+		EBattleTargetClass TargetClass,
+		FResolutionId ResolutionId,
+		const FBattleEngineState& State,
+		FBattleFaintOutcomePlan& OutPlan);
+
+	/** Applies an already validated action plan to caller-owned staged state. */
+	[[nodiscard]] static bool TryApplyActionPlan(
+		FBattleEngineState& State,
+		const FBattleFaintOutcomePlan& Plan);
+
 	/** Enters MandatoryReplacement or EndOfTurn after the locked queue is exhausted. */
 	static void ResolveQueueBoundary(
 		FBattleEngineState& State,
 		TArray<FBattleReplacementRequirement>& OutRequirements);
+
+	/** Produces the queue-boundary phase and requirements without mutation. */
+	[[nodiscard]] static bool ResolveQueueBoundary(
+		const FBattleEngineState& State,
+		FBattleQueueBoundaryPlan& OutPlan);
+
+	/** Applies one validated queue-boundary plan to caller-owned staged state. */
+	[[nodiscard]] static bool TryApplyQueueBoundaryPlan(
+		FBattleEngineState& State,
+		const FBattleQueueBoundaryPlan& Plan);
 };
