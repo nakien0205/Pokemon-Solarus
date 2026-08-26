@@ -4,8 +4,11 @@
 #include "Battle/BattleBagItem.h"
 #include "Battle/BattleCapture.h"
 #include "Battle/BattleEngine.h"
+#include "Battle/BattleFieldSideConditions.h"
+#include "Battle/BattleItem.h"
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleVolatile.h"
 #include "Battle/BattleWildFlow.h"
 #include "BattleAtomicCheckpointTestHarness.h"
 #include "BattleTestFactories.h"
@@ -32,6 +35,7 @@ namespace
 	const TCHAR* PlayerSpeciesName = TEXT("Species.ADR0002.3D1.Player");
 	const TCHAR* WildSpeciesName = TEXT("Species.ADR0002.3D1.Wild");
 	const TCHAR* ProbeMoveName = TEXT("Move.ADR0002.3D1.Probe");
+	const TCHAR* TargetProbeMoveName = TEXT("Move.ADR0002.3E1.TargetProbe");
 	const TCHAR* CaptureHeldItemName = TEXT("Item.ADR0002.3D3.Capture.Held");
 
 	struct FAtomicWildScenario
@@ -51,6 +55,10 @@ namespace
 		int32 PartyCaptureCapacity = 1;
 		int32 StorageCaptureCapacity = 2;
 		FBattleCaptureProgressionSnapshot CaptureProgression;
+		bool bPlayerHasCanonicalHeldItem = false;
+		bool bPlayerSubjectToObedience = false;
+		uint8 PlayerReferenceLevel = 20;
+		uint8 PlayerBadgeCount = 0;
 	};
 
 	TArray<FBattleTypeChartEntry> MakeNeutralTypeChart()
@@ -89,6 +97,14 @@ namespace
 		return Move;
 	}
 
+	FBattleMoveDefinition MakeTargetProbeMove()
+	{
+		FBattleMoveDefinition Move = MakeProbeMove();
+		Move.Id = MakeDefinitionId<FMoveId>(TargetProbeMoveName);
+		Move.TargetClass = EBattleTargetClass::SelectedOpponent;
+		return Move;
+	}
+
 	FBattleSpeciesFormDefinition MakeSpecies(
 		const TCHAR* Name,
 		const int32 CatchRate = 45)
@@ -107,11 +123,20 @@ namespace
 		FBattleDefinitionCatalogInput Input;
 		Input.TypeChartEntries = MakeNeutralTypeChart();
 		Input.Moves.Add(MakeProbeMove());
+		Input.Moves.Add(MakeTargetProbeMove());
 		Input.Abilities.Add({FBattleAbilityRules::GetBlazeId()});
 		Input.Items.Add({FBattleBagItemRules::GetPokeBallId(), EBattleItemKind::Capture});
+		Input.Items.Add({FBattleItemRules::GetLeftoversId(), EBattleItemKind::Held});
 		Input.Items.Add({
 			MakeDefinitionId<FItemId>(CaptureHeldItemName),
 			EBattleItemKind::Held});
+		Input.Conditions.Add({
+			FBattleFieldSideConditionRules::GetMagicRoomId(),
+			EBattleConditionKind::Room});
+		for (const FConditionId& VolatileId : FBattleVolatileRules::GetCanonicalIds())
+		{
+			Input.Conditions.Add({VolatileId, EBattleConditionKind::Volatile});
+		}
 		Input.SpeciesForms.Add(MakeSpecies(PlayerSpeciesName));
 		Input.SpeciesForms.Add(MakeSpecies(WildSpeciesName, Scenario.CatchRate));
 
@@ -169,6 +194,7 @@ namespace
 		Entry.CurrentHeldItemId = CurrentHeldItemId;
 		Entry.CaptureClassification = EBattleCaptureSpeciesClassification::Normal;
 		Entry.Moves.Add({0, MakeDefinitionId<FMoveId>(ProbeMoveName), 20, 20});
+		Entry.Moves.Add({1, MakeDefinitionId<FMoveId>(TargetProbeMoveName), 20, 20});
 		return Entry;
 	}
 
@@ -228,7 +254,14 @@ namespace
 			PlayerLeftValue,
 			0,
 			PlayerSpeciesName,
-			Scenario.PlayerLeftSpeed));
+			Scenario.PlayerLeftSpeed,
+			200,
+			Scenario.bPlayerHasCanonicalHeldItem
+				? FBattleItemRules::GetLeftoversId()
+				: FItemId(),
+			Scenario.bPlayerHasCanonicalHeldItem
+				? FBattleItemRules::GetLeftoversId()
+				: FItemId()));
 		Input.PartyEntries.Add(MakePartyEntry(
 			OpponentTrainerValue,
 			OpponentLeftValue,
@@ -278,6 +311,14 @@ namespace
 				OpponentTrainerValue,
 				OpponentRightValue));
 		}
+		if (Scenario.bPlayerSubjectToObedience)
+		{
+			Input.ObedienceInputs.Add({
+				MakeNumericId<FBattlerId>(PlayerLeftValue),
+				true,
+				Scenario.PlayerReferenceLevel,
+				Scenario.PlayerBadgeCount});
+		}
 		return Input;
 	}
 
@@ -323,18 +364,39 @@ namespace
 
 	FBattleDecision MakeDecision(
 		const FBattleDecisionRequest& Request,
-		const EBattleActionKind ActionKind)
+		const EBattleActionKind ActionKind,
+		const FMoveId FightMoveId = FMoveId())
 	{
 		FBattleDecision Decision;
 		bool bCreated = false;
 		if (ActionKind == EBattleActionKind::Fight)
 		{
-			bCreated = FBattleDecision::TryCreateAutomaticallyTargetedFight(
-				Request.GetStateVersion(),
-				Request.GetDecisionOwnerTrainerId(),
-				Request.GetActingBattlerId(),
-				MakeDefinitionId<FMoveId>(ProbeMoveName),
-				Decision);
+			if (FightMoveId.IsValid())
+			{
+				const FBattleMoveTargetOption* Target =
+					Request.GetLegalMoveTargets().FindByPredicate(
+						[FightMoveId](const FBattleMoveTargetOption& Option)
+						{
+							return Option.MoveId == FightMoveId;
+						});
+				check(Target != nullptr);
+				bCreated = FBattleDecision::TryCreateFight(
+					Request.GetStateVersion(),
+					Request.GetDecisionOwnerTrainerId(),
+					Request.GetActingBattlerId(),
+					FightMoveId,
+					Target->ActiveSlotId,
+					Decision);
+			}
+			else
+			{
+				bCreated = FBattleDecision::TryCreateAutomaticallyTargetedFight(
+					Request.GetStateVersion(),
+					Request.GetDecisionOwnerTrainerId(),
+					Request.GetActingBattlerId(),
+					MakeDefinitionId<FMoveId>(ProbeMoveName),
+					Decision);
+			}
 		}
 		else if (ActionKind == EBattleActionKind::Bag)
 		{
@@ -393,7 +455,8 @@ namespace
 	bool LockTurn(
 		FBattleEngine& Engine,
 		const uint64 SpecialBattlerValue,
-		const EBattleActionKind SpecialAction)
+		const EBattleActionKind SpecialAction,
+		const FMoveId SpecialFightMoveId = FMoveId())
 	{
 		if (Engine.GetSnapshot().GetPhase() == EBattlePhase::Setup)
 		{
@@ -415,7 +478,59 @@ namespace
 					== MakeNumericId<FBattlerId>(SpecialBattlerValue)
 					? SpecialAction
 					: EBattleActionKind::Fight;
-				Decisions.Add(MakeDecision(Request, Choice));
+				Decisions.Add(MakeDecision(
+					Request,
+					Choice,
+					Request.GetActingBattlerId()
+						== MakeNumericId<FBattlerId>(SpecialBattlerValue)
+						? SpecialFightMoveId
+						: FMoveId()));
+			}
+			if (!Engine.SubmitDecisionBatch(
+					MakeBatch(Requests, MoveTemp(Decisions))).WasAccepted())
+			{
+				return false;
+			}
+		}
+		return Guard < 4 && Engine.GetSnapshot().GetPhase() == EBattlePhase::Locked;
+	}
+
+	bool LockCaptureThenTargetTurn(FBattleEngine& Engine)
+	{
+		if (Engine.GetSnapshot().GetPhase() == EBattlePhase::Setup)
+		{
+			FBattleRejection Rejection;
+			if (!Engine.TryBeginActionDecisionSequence(Rejection))
+			{
+				return false;
+			}
+		}
+
+		int32 Guard = 0;
+		while (!Engine.GetPendingDecisionRequests().IsEmpty() && Guard++ < 4)
+		{
+			const TArray<FBattleDecisionRequest> Requests =
+				Engine.GetPendingDecisionRequests();
+			TArray<FBattleDecision> Decisions;
+			for (const FBattleDecisionRequest& Request : Requests)
+			{
+				if (Request.GetActingBattlerId()
+					== MakeNumericId<FBattlerId>(PlayerLeftValue))
+				{
+					Decisions.Add(MakeDecision(Request, EBattleActionKind::Bag));
+				}
+				else if (Request.GetActingBattlerId()
+					== MakeNumericId<FBattlerId>(PlayerRightValue))
+				{
+					Decisions.Add(MakeDecision(
+						Request,
+						EBattleActionKind::Fight,
+						MakeDefinitionId<FMoveId>(TargetProbeMoveName)));
+				}
+				else
+				{
+					Decisions.Add(MakeDecision(Request, EBattleActionKind::Fight));
+				}
 			}
 			if (!Engine.SubmitDecisionBatch(
 					MakeBatch(Requests, MoveTemp(Decisions))).WasAccepted())
@@ -1066,6 +1181,510 @@ namespace
 		OutRandom = Fault.Get();
 		TUniquePtr<IBattleRandom> Random = MoveTemp(Fault);
 		return TryMakeEngine(Scenario, MoveTemp(Random), OutEngine);
+	}
+
+	bool TrySeedActionStartVolatile(
+		FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const FConditionId VolatileId,
+		const FDefinitionId PayloadId = FDefinitionId())
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		FBattleBattlerState* Battler = State.FindMutableBattler(BattlerId);
+		if (Battler == nullptr
+			|| Battler->Volatiles.ContainsByPredicate(
+				[VolatileId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == VolatileId;
+				}))
+		{
+			return false;
+		}
+
+		FBattleTriggerSubject Owner;
+		if (!FBattleTriggerSubject::TryCreateBattler(BattlerId, Owner))
+		{
+			return false;
+		}
+		FBattleVolatileTriggerRegistrationFacts Facts;
+		Facts.VolatileId = VolatileId;
+		Facts.PayloadId = PayloadId.IsValid()
+			? PayloadId
+			: VolatileId.GetDefinitionId();
+		Facts.Owner = Owner;
+		Facts.Source = Owner;
+		Facts.Targets.Add(Owner);
+		Facts.Layers = 1;
+		EBattleTriggerError TriggerError = EBattleTriggerError::None;
+		if (!FBattleVolatileRules::TryRegisterTriggers(
+				State.TriggerFramework,
+				Facts,
+				TriggerError))
+		{
+			return false;
+		}
+
+		FBattleConditionState Condition;
+		Condition.ConditionId = VolatileId;
+		Condition.LayerCount = 1;
+		Condition.CreationOrdinal = State.NextConditionCreationOrdinal++;
+		Condition.SourceBattlerId = BattlerId;
+		Battler->Volatiles.Add(MoveTemp(Condition));
+		TArray<FBattleTriggerLifecycleFact> IgnoredFacts;
+		State.TriggerFramework.DrainLifecycleFacts(IgnoredFacts);
+		return true;
+	}
+
+	bool TrySeedActionStartMagicRoom(
+		FBattleEngine& Engine,
+		const FBattlerId SourceBattlerId)
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		const FConditionId MagicRoomId =
+			FBattleFieldSideConditionRules::GetMagicRoomId();
+		if (State.Field.Rooms.ContainsByPredicate(
+			[MagicRoomId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == MagicRoomId;
+			}))
+		{
+			return false;
+		}
+
+		FBattleTriggerSubject Source;
+		if (!FBattleTriggerSubject::TryCreateBattler(SourceBattlerId, Source))
+		{
+			return false;
+		}
+		FBattleFieldSideTriggerRegistrationFacts Facts;
+		Facts.ConditionId = MagicRoomId;
+		Facts.PayloadId = MagicRoomId.GetDefinitionId();
+		Facts.Owner = FBattleTriggerSubject::CreateField();
+		Facts.Source = Source;
+		Facts.Targets.Add(Facts.Owner);
+		Facts.RemainingTurns = 5;
+		Facts.Layers = 1;
+		EBattleTriggerError TriggerError = EBattleTriggerError::None;
+		if (!FBattleFieldSideConditionRules::TryRegisterTriggers(
+				State.TriggerFramework,
+				Facts,
+				TriggerError))
+		{
+			return false;
+		}
+
+		FBattleConditionState MagicRoom;
+		MagicRoom.ConditionId = MagicRoomId;
+		MagicRoom.RemainingTurns = Facts.RemainingTurns;
+		MagicRoom.LayerCount = Facts.Layers;
+		MagicRoom.CreationOrdinal = State.NextConditionCreationOrdinal++;
+		MagicRoom.SourceBattlerId = SourceBattlerId;
+		State.Field.Rooms.Add(MoveTemp(MagicRoom));
+		TArray<FBattleTriggerLifecycleFact> IgnoredFacts;
+		State.TriggerFramework.DrainLifecycleFacts(IgnoredFacts);
+		return true;
+	}
+
+	bool HasActionStartVolatile(
+		const FBattleEngineState& State,
+		const FBattlerId BattlerId,
+		const FConditionId VolatileId)
+	{
+		const FBattleBattlerState* Battler = State.FindBattler(BattlerId);
+		return Battler != nullptr
+			&& Battler->Volatiles.ContainsByPredicate(
+				[VolatileId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == VolatileId;
+				});
+	}
+
+	int32 CountActionStartTriggerRegistrations(
+		const FBattleEngineState& State,
+		const FDefinitionId DefinitionId)
+	{
+		int32 Count = 0;
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			const FBattleTriggerSourceDefinition& Source =
+				Registration.Spec.SourceDefinition;
+			bool bMatches = false;
+			switch (Source.Kind)
+			{
+			case EBattleTriggerSourceDefinitionKind::Condition:
+				bMatches = Source.ConditionId.GetDefinitionId() == DefinitionId;
+				break;
+			case EBattleTriggerSourceDefinitionKind::Ability:
+				bMatches = Source.AbilityId.GetDefinitionId() == DefinitionId;
+				break;
+			case EBattleTriggerSourceDefinitionKind::Item:
+				bMatches = Source.ItemId.GetDefinitionId() == DefinitionId;
+				break;
+			default:
+				break;
+			}
+			Count += bMatches ? 1 : 0;
+		}
+		return Count;
+	}
+
+	bool TryPrepareLastLockedAction(
+		FBattleEngine& Engine,
+		const FBattlerId ExpectedActorId)
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		if (State.LockedActions.Num() < 2)
+		{
+			return false;
+		}
+		const int32 LastIndex = State.LockedActions.Num() - 1;
+		if (State.LockedActions[LastIndex].Decision.GetActingBattlerId()
+			!= ExpectedActorId)
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < LastIndex; ++Index)
+		{
+			State.LockedActions[Index].bStarted = true;
+			State.LockedActions[Index].bFinished = true;
+		}
+		State.CurrentLockedActionIndex = LastIndex;
+		State.Phase = EBattlePhase::Resolving;
+		EBattleStateValidationError StateError = EBattleStateValidationError::None;
+		return State.ValidateInvariants(StateError);
+	}
+
+	bool TryClearActionStartActiveSlot(
+		FBattleEngine& Engine,
+		const FActiveSlotId ActiveSlotId)
+	{
+		FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetMutableState(Engine);
+		FBattleActivePositionState* Active = State.FindMutableActivePosition(ActiveSlotId);
+		if (Active == nullptr)
+		{
+			return false;
+		}
+		Active->TrainerId = FTrainerId();
+		Active->BattlerId = FBattlerId();
+		return true;
+	}
+
+	class FActionStartStaleRandom final : public FScriptedBattleRandomBase
+	{
+	public:
+		explicit FActionStartStaleRandom(TArray<uint32> Results)
+			: FScriptedBattleRandomBase(MoveTemp(Results))
+		{
+		}
+
+		void ArmAfterTraceRead(
+			const int32 TraceReadOrdinal,
+			TFunction<void()>&& InCallback)
+		{
+			ReadsSinceArm = 0;
+			InjectionReadOrdinal = TraceReadOrdinal;
+			Callback = MoveTemp(InCallback);
+			bInjected = false;
+		}
+
+		void Disarm()
+		{
+			InjectionReadOrdinal = INDEX_NONE;
+			Callback = TFunction<void()>();
+		}
+
+		int32 GetReadsSinceArm() const { return ReadsSinceArm; }
+		bool WasInjected() const { return bInjected; }
+
+		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
+		{
+			const TConstArrayView<FBattleRandomDraw> Trace =
+				FScriptedBattleRandomBase::GetTrace();
+			if (InjectionReadOrdinal != INDEX_NONE)
+			{
+				++ReadsSinceArm;
+				if (!bInjected
+					&& ReadsSinceArm == InjectionReadOrdinal
+					&& static_cast<bool>(Callback))
+				{
+					bInjected = true;
+					Callback();
+				}
+			}
+			return Trace;
+		}
+
+	private:
+		mutable int32 ReadsSinceArm = 0;
+		mutable int32 InjectionReadOrdinal = INDEX_NONE;
+		mutable TFunction<void()> Callback;
+		mutable bool bInjected = false;
+	};
+
+	bool TryMakeActionStartStaleEngine(
+		const FAtomicWildScenario& Scenario,
+		TUniquePtr<FBattleEngine>& OutEngine,
+		FActionStartStaleRandom*& OutRandom)
+	{
+		TUniquePtr<FActionStartStaleRandom> Random =
+			MakeUnique<FActionStartStaleRandom>(TArray<uint32>());
+		OutRandom = Random.Get();
+		TUniquePtr<IBattleRandom> Base = MoveTemp(Random);
+		return TryMakeEngine(Scenario, MoveTemp(Base), OutEngine);
+	}
+
+	struct FActionStartCheckpointObservation
+	{
+		uint64 StateVersion = 0;
+		uint64 NextResolutionId = 0;
+		uint64 NextEventOrdinal = 0;
+		uint64 NextTriggerToken = 0;
+		uint64 NextConditionCreationOrdinal = 0;
+		int32 ActionIndex = INDEX_NONE;
+		int32 ResolutionCount = 0;
+		int32 EventCount = 0;
+		int32 RandomTraceCount = 0;
+		int32 TotalMovePP = 0;
+		int32 MaximumActions = INDEX_NONE;
+		int32 RemainingActions = INDEX_NONE;
+		bool bBagActionAvailable = false;
+		EBattlePhase Phase = EBattlePhase::Setup;
+		EBattleOutcome Outcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+		bool bActionStarted = false;
+		bool bMoveCommitted = false;
+		bool bTargetResolutionSet = false;
+		EBattleLockedEffectExecutionState EffectExecutionState =
+			EBattleLockedEffectExecutionState::Pending;
+		bool bActionFinished = false;
+		bool bPendingDecisionSet = false;
+		int32 PendingDecisionRequestCount = 0;
+		int32 PendingReplacementCount = 0;
+		int32 RoomCount = 0;
+		bool bActorActive = false;
+		bool bHasHeldItem = false;
+		FBattleHeldItemState HeldItem;
+		TArray<FBattleHeldItemInstanceState> LedgerStates;
+		TArray<FConditionId> ActorVolatileIds;
+		TArray<FBattleTriggerRegistrationId> TriggerRegistrationIds;
+		TArray<uint64> TriggerCreationOrdinals;
+		TArray<FBattleTriggerSourceDefinition> TriggerSources;
+		TArray<uint8> TriggerSuppression;
+		int32 PendingTriggerDispatchCount = 0;
+		int32 PendingTriggerEffectCount = 0;
+		int32 PendingTriggerLifecycleCount = 0;
+	};
+
+	FActionStartCheckpointObservation ObserveActionStartCheckpoint(
+		const FBattleEngine& Engine,
+		const FBattlerId ActorId,
+		const FTrainerId TrainerId)
+	{
+		const FBattleEngineState& State =
+			FBattleC09BWildFlowEngineFixture::GetState(Engine);
+		FActionStartCheckpointObservation Observation;
+		Observation.StateVersion = State.StateVersion;
+		Observation.NextResolutionId = State.NextResolutionId;
+		Observation.NextEventOrdinal = State.NextEventOrdinal;
+		Observation.NextTriggerToken = State.NextTriggerReentrancyToken;
+		Observation.NextConditionCreationOrdinal = State.NextConditionCreationOrdinal;
+		Observation.ActionIndex = State.CurrentLockedActionIndex;
+		Observation.ResolutionCount = State.Resolutions.Num();
+		Observation.EventCount = State.OrderedEvents.Num();
+		Observation.RandomTraceCount = State.Random->GetTrace().Num();
+		Observation.Phase = State.Phase;
+		Observation.Outcome = State.Outcome;
+		Observation.OutcomeCause = State.OutcomeCause;
+		Observation.bPendingDecisionSet = State.PendingDecision.IsSet();
+		Observation.PendingDecisionRequestCount = State.PendingDecisionRequests.Num();
+		Observation.PendingReplacementCount = State.PendingReplacements.Num();
+		Observation.RoomCount = State.Field.Rooms.Num();
+		if (State.LockedActions.IsValidIndex(Observation.ActionIndex))
+		{
+			const FBattleLockedActionState& Action =
+				State.LockedActions[Observation.ActionIndex];
+			Observation.bActionStarted = Action.bStarted;
+			Observation.bMoveCommitted = Action.bMoveCommitted;
+			Observation.bTargetResolutionSet = Action.TargetResolution.IsSet();
+			Observation.EffectExecutionState = Action.EffectExecutionState;
+			Observation.bActionFinished = Action.bFinished;
+		}
+		const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+		if (Trainer != nullptr)
+		{
+			Observation.MaximumActions = Trainer->ActionAllowance.MaximumActions;
+			Observation.RemainingActions = Trainer->ActionAllowance.RemainingActions;
+			Observation.bBagActionAvailable =
+				Trainer->ActionAllowance.bBagActionAvailable;
+		}
+		const FBattleBattlerState* Actor = State.FindBattler(ActorId);
+		if (Actor != nullptr)
+		{
+			for (const FBattleMoveSlotState& Move : Actor->Moves)
+			{
+				Observation.TotalMovePP += Move.CurrentPP;
+			}
+			Observation.bHasHeldItem = Actor->HeldItem.InstanceId.IsValid();
+			Observation.HeldItem = Actor->HeldItem;
+			for (const FBattleConditionState& Condition : Actor->Volatiles)
+			{
+				Observation.ActorVolatileIds.Add(Condition.ConditionId);
+			}
+		}
+		Observation.bActorActive = State.ActivePositions.ContainsByPredicate(
+			[ActorId](const FBattleActivePositionState& Active)
+			{
+				return Active.BattlerId == ActorId;
+			});
+		Observation.LedgerStates.Append(State.HeldItemLedger.GetStates());
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			Observation.TriggerRegistrationIds.Add(Registration.RegistrationId);
+			Observation.TriggerCreationOrdinals.Add(Registration.CreationOrdinal);
+			Observation.TriggerSources.Add(Registration.Spec.SourceDefinition);
+			Observation.TriggerSuppression.Add(Registration.bSuppressed ? 1 : 0);
+		}
+		Observation.PendingTriggerDispatchCount =
+			State.TriggerFramework.GetPendingDispatchCount();
+		Observation.PendingTriggerEffectCount =
+			State.TriggerFramework.GetPendingEffectRequestCount();
+		Observation.PendingTriggerLifecycleCount =
+			State.TriggerFramework.GetPendingLifecycleFactCount();
+		return Observation;
+	}
+
+	bool AreActionStartHeldItemsIdentical(
+		const FBattleHeldItemState& Left,
+		const FBattleHeldItemState& Right)
+	{
+		return Left.InstanceId == Right.InstanceId
+			&& Left.OriginalItemId == Right.OriginalItemId
+			&& Left.CurrentItemId == Right.CurrentItemId
+			&& Left.bConsumed == Right.bConsumed
+			&& Left.bSuppressed == Right.bSuppressed
+			&& Left.bRevealed == Right.bRevealed
+			&& Left.bTemporarilyRemoved == Right.bTemporarilyRemoved
+			&& Left.ChoiceLockedMoveId == Right.ChoiceLockedMoveId;
+	}
+
+	bool VerifyRejectedActionStartCheckpoint(
+		FAutomationTestBase& Test,
+		const FBattleEngine& Engine,
+		const FBattlerId ActorId,
+		const FTrainerId TrainerId,
+		const FActionStartCheckpointObservation& Before,
+		const uint64 ExpectedStateVersion,
+		const EBattleRejectionReason ExpectedReason,
+		const FBattleResolution& Returned)
+	{
+		const FActionStartCheckpointObservation After =
+			ObserveActionStartCheckpoint(Engine, ActorId, TrainerId);
+		bool bValid = true;
+		bValid &= Test.TestFalse(TEXT("Action-start checkpoint failure is rejected"),
+			Returned.WasAccepted());
+		bValid &= Test.TestEqual(TEXT("Action-start rejection reason is typed"),
+			Returned.GetRejection().Reason, ExpectedReason);
+		bValid &= Test.TestTrue(TEXT("Action-start rejection is appended exactly once"),
+			IsReturnedResolutionAppendedExactlyOnce(Engine, Returned));
+		bValid &= Test.TestTrue(TEXT("Action-start rejection publishes one cancellation only"),
+			Returned.GetEvents().Num() == 1
+				&& Returned.GetEvents()[0].GetType()
+					== EBattleEventType::ActionCanceled
+				&& Returned.GetEvents()[0].GetCause() == EBattleEventCause::Rule
+				&& Returned.GetEvents()[0].GetEventOrdinal()
+					== Before.NextEventOrdinal
+				&& Returned.GetEvents()[0].GetVisibility().Level
+					== EBattleVisibilityLevel::Public);
+		bValid &= Test.TestEqual(TEXT("Rejection appends one resolution"),
+			After.ResolutionCount, Before.ResolutionCount + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection appends one event"),
+			After.EventCount, Before.EventCount + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection consumes one resolution identity"),
+			After.NextResolutionId, Before.NextResolutionId + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection consumes one event ordinal"),
+			After.NextEventOrdinal, Before.NextEventOrdinal + 1);
+		bValid &= Test.TestEqual(TEXT("Rejection publishes no accepted version delta"),
+			After.StateVersion, ExpectedStateVersion);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves the action cursor"),
+			After.ActionIndex, Before.ActionIndex);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves phase"),
+			After.Phase, Before.Phase);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves outcome"),
+			After.Outcome, Before.Outcome);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves outcome cause"),
+			After.OutcomeCause, Before.OutcomeCause);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves Trainer maximum allowance"),
+			After.MaximumActions, Before.MaximumActions);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves Trainer remaining allowance"),
+			After.RemainingActions, Before.RemainingActions);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves Trainer Bag allowance"),
+			After.bBagActionAvailable, Before.bBagActionAvailable);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves bStarted"),
+			After.bActionStarted, Before.bActionStarted);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves bMoveCommitted"),
+			After.bMoveCommitted, Before.bMoveCommitted);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves target-resolution state"),
+			After.bTargetResolutionSet, Before.bTargetResolutionSet);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves effect-execution state"),
+			After.EffectExecutionState, Before.EffectExecutionState);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves bFinished"),
+			After.bActionFinished, Before.bActionFinished);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves move PP"),
+			After.TotalMovePP, Before.TotalMovePP);
+		bValid &= Test.TestEqual(TEXT("Rejection consumes no gameplay RNG"),
+			After.RandomTraceCount, Before.RandomTraceCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves trigger token"),
+			After.NextTriggerToken, Before.NextTriggerToken);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves condition ordinal"),
+			After.NextConditionCreationOrdinal, Before.NextConditionCreationOrdinal);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves room state"),
+			After.RoomCount, Before.RoomCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves actor active state"),
+			After.bActorActive, Before.bActorActive);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending-decision presence"),
+			After.bPendingDecisionSet, Before.bPendingDecisionSet);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending decision requests"),
+			After.PendingDecisionRequestCount, Before.PendingDecisionRequestCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending replacements"),
+			After.PendingReplacementCount, Before.PendingReplacementCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves held-item presence"),
+			After.bHasHeldItem, Before.bHasHeldItem);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves held-item battler facts"),
+			AreActionStartHeldItemsIdentical(After.HeldItem, Before.HeldItem));
+		bValid &= Test.TestTrue(TEXT("Rejection preserves the held-item ledger"),
+			After.LedgerStates == Before.LedgerStates);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves actor volatiles"),
+			After.ActorVolatileIds == Before.ActorVolatileIds);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves trigger registration ids"),
+			After.TriggerRegistrationIds == Before.TriggerRegistrationIds);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves trigger creation order"),
+			After.TriggerCreationOrdinals == Before.TriggerCreationOrdinals);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves trigger sources"),
+			After.TriggerSources == Before.TriggerSources);
+		bValid &= Test.TestTrue(TEXT("Rejection preserves trigger suppression"),
+			After.TriggerSuppression == Before.TriggerSuppression);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending trigger dispatches"),
+			After.PendingTriggerDispatchCount, Before.PendingTriggerDispatchCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending trigger effects"),
+			After.PendingTriggerEffectCount, Before.PendingTriggerEffectCount);
+		bValid &= Test.TestEqual(TEXT("Rejection preserves pending trigger lifecycle facts"),
+			After.PendingTriggerLifecycleCount, Before.PendingTriggerLifecycleCount);
+		const FBattleReplayRecord Replay = Engine.ExportReplayRecord();
+		bValid &= Test.TestEqual(TEXT("Rejection replay keeps the canonical schema"),
+			Replay.GetSchemaVersion(), FBattleReplayRecord::CurrentSchemaVersion);
+		bValid &= Test.TestTrue(TEXT("Rejection replay contains the same resolution"),
+			!Replay.GetResolutions().IsEmpty()
+				&& Replay.GetResolutions().Last().GetResolutionId()
+					== Returned.GetResolutionId()
+				&& Replay.GetResolutions().Last().GetRejection().Reason
+					== ExpectedReason);
+		return bValid;
 	}
 }
 
@@ -1930,6 +2549,643 @@ bool FBattleADR00023D3CaptureAtomicPublicationTest::RunTest(const FString& Param
 	TestTrue(TEXT("Successful Capture returns the exact single append"),
 		IsReturnedResolutionAppendedExactlyOnce(*SuccessEngine, Succeeded));
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartProceedTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Success.ProceedSuppressionAndObedience",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartProceedTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	Scenario.bPlayerHasCanonicalHeldItem = true;
+	Scenario.bPlayerSubjectToObedience = true;
+	Scenario.PlayerReferenceLevel = 20;
+	Scenario.PlayerBadgeCount = 0;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Proceed engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Proceed action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight))
+		|| !TestTrue(TEXT("Magic Room is seeded before action start"),
+			TrySeedActionStartMagicRoom(*Engine, ActorId)))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Resolution = Engine->BeginNextLockedAction();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+	const FBattleBattlerState* Actor = State.FindBattler(ActorId);
+	const FBattleHeldItemInstanceState* LedgerItem = Actor != nullptr
+		? State.HeldItemLedger.FindState(Actor->HeldItem.InstanceId)
+		: nullptr;
+
+	TestTrue(TEXT("Proceed action start is accepted"), Resolution.WasAccepted());
+	TestTrue(TEXT("Proceed keeps exact action-start event order"),
+		HasExactEventOrder(Resolution, {
+			EBattleEventType::ActionStarted,
+			EBattleEventType::ObedienceConfirmed}));
+	TestTrue(TEXT("Proceed obedience fact keeps canonical numeric metadata"),
+		Resolution.GetEvents().Num() == 2
+			&& Resolution.GetEvents()[1].GetNumericBefore()
+				== TOptional<int64>(20)
+			&& Resolution.GetEvents()[1].GetNumericAfter()
+				== TOptional<int64>(20)
+			&& Resolution.GetEvents()[1].GetNumericDelta()
+				== TOptional<int64>(0));
+	TestTrue(TEXT("Obedience confirmation remains CoreOnly"),
+		Resolution.GetEvents().Num() == 2
+			&& Resolution.GetEvents()[0].GetVisibility().Level
+				== EBattleVisibilityLevel::Public
+			&& Resolution.GetEvents()[1].GetVisibility().Level
+				== EBattleVisibilityLevel::CoreOnly);
+	TestTrue(TEXT("Proceed returns the exact single append"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Proceed increments state version once"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Proceed resolution reports the exact version pair"),
+		Resolution.GetBeforeStateVersion(), Before.StateVersion);
+	TestEqual(TEXT("Proceed resolution reports one after-version"),
+		Resolution.GetAfterStateVersion(), Before.StateVersion + 1);
+	TestEqual(TEXT("Proceed keeps the current action cursor"),
+		State.CurrentLockedActionIndex, Before.ActionIndex);
+	TestEqual(TEXT("Proceed enters Resolving"), State.Phase, EBattlePhase::Resolving);
+	TestTrue(TEXT("Proceed starts without finishing or committing the action"),
+		State.LockedActions.IsValidIndex(Before.ActionIndex)
+			&& State.LockedActions[Before.ActionIndex].bStarted
+			&& !State.LockedActions[Before.ActionIndex].bFinished
+			&& !State.LockedActions[Before.ActionIndex].bMoveCommitted
+			&& !State.LockedActions[Before.ActionIndex].TargetResolution.IsSet()
+			&& State.LockedActions[Before.ActionIndex].EffectExecutionState
+				== EBattleLockedEffectExecutionState::Pending);
+	TestEqual(TEXT("Proceed consumes one Trainer action"),
+		Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE,
+		Before.RemainingActions - 1);
+	TestTrue(TEXT("Proceed suppresses both battler and ledger held-item facts"),
+		Actor != nullptr
+			&& Actor->HeldItem.CurrentItemId == FBattleItemRules::GetLeftoversId()
+			&& Actor->HeldItem.bSuppressed
+			&& !Actor->HeldItem.bConsumed
+			&& LedgerItem != nullptr
+			&& LedgerItem->bSuppressed
+			&& !LedgerItem->bConsumed);
+	TestTrue(TEXT("Proceed preserves Magic Room and re-registers suppressed item hooks"),
+		CountActionStartTriggerRegistrations(
+			State,
+			FBattleFieldSideConditionRules::GetMagicRoomId().GetDefinitionId()) > 0
+			&& CountActionStartTriggerRegistrations(
+				State,
+				FBattleItemRules::GetLeftoversId().GetDefinitionId()) > 0
+			&& State.TriggerFramework.GetActiveRegistrations().ContainsByPredicate(
+				[](const FBattleTriggerRegistrationState& Registration)
+				{
+					return Registration.Spec.SourceDefinition.Kind
+							== EBattleTriggerSourceDefinitionKind::Item
+						&& Registration.Spec.SourceDefinition.ItemId
+							== FBattleItemRules::GetLeftoversId()
+						&& Registration.bSuppressed;
+				}));
+	TestEqual(TEXT("Proceed commits the staged Magic Room and item-cleanup tokens"),
+		State.NextTriggerReentrancyToken, Before.NextTriggerToken + 2);
+	TestEqual(TEXT("Proceed consumes no PP"),
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId).TotalMovePP,
+		Before.TotalMovePP);
+	TestEqual(TEXT("Proceed consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartRechargeTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Success.RechargeDenial",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartRechargeTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	const FMoveId MoveId = MakeDefinitionId<FMoveId>(ProbeMoveName);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Recharge engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Recharge action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight))
+		|| !TestTrue(TEXT("Charging is seeded"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				ActorId,
+				FBattleVolatileRules::GetChargingId(),
+				MoveId.GetDefinitionId()))
+		|| !TestTrue(TEXT("Fly semi-invulnerability is seeded"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				ActorId,
+				FBattleVolatileRules::GetFlySemiInvulnerableId()))
+		|| !TestTrue(TEXT("Recharge is seeded"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				ActorId,
+				FBattleVolatileRules::GetRechargeId())))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Resolution = Engine->BeginNextLockedAction();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+
+	TestTrue(TEXT("Recharge denial is an accepted consumed action"),
+		Resolution.WasAccepted());
+	TestTrue(TEXT("Recharge denial keeps exact event order"),
+		HasExactEventOrder(Resolution, {
+			EBattleEventType::ActionStarted,
+			EBattleEventType::StatusChanged,
+			EBattleEventType::EffectPrevented,
+			EBattleEventType::ActionCanceled,
+			EBattleEventType::ActionCompleted}));
+	TestTrue(TEXT("Recharge status removal keeps exact numeric metadata"),
+		Resolution.GetEvents().Num() == 5
+			&& Resolution.GetEvents()[1].GetNumericBefore()
+				== TOptional<int64>(1)
+			&& Resolution.GetEvents()[1].GetNumericAfter()
+				== TOptional<int64>(0)
+			&& Resolution.GetEvents()[1].GetNumericDelta()
+				== TOptional<int64>(-1));
+	TestTrue(TEXT("Recharge denial returns the exact single append"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Recharge denial increments state version once"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Recharge denial advances exactly one queue action"),
+		State.CurrentLockedActionIndex, Before.ActionIndex + 1);
+	TestEqual(TEXT("Recharge denial remains Resolving while another action waits"),
+		State.Phase, EBattlePhase::Resolving);
+	TestTrue(TEXT("Recharge denial marks the consumed action started and finished"),
+		State.LockedActions.IsValidIndex(Before.ActionIndex)
+			&& State.LockedActions[Before.ActionIndex].bStarted
+			&& State.LockedActions[Before.ActionIndex].bFinished
+			&& !State.LockedActions[Before.ActionIndex].bMoveCommitted);
+	TestEqual(TEXT("Recharge denial consumes one Trainer action"),
+		Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE,
+		Before.RemainingActions - 1);
+	TestFalse(TEXT("Recharge denial removes Recharge"),
+		HasActionStartVolatile(State, ActorId, FBattleVolatileRules::GetRechargeId()));
+	TestFalse(TEXT("Recharge denial clears Charging"),
+		HasActionStartVolatile(State, ActorId, FBattleVolatileRules::GetChargingId()));
+	TestFalse(TEXT("Recharge denial clears Fly semi-invulnerability"),
+		HasActionStartVolatile(
+			State,
+			ActorId,
+			FBattleVolatileRules::GetFlySemiInvulnerableId()));
+	TestTrue(TEXT("Recharge and charge trigger registrations are cleaned"),
+		CountActionStartTriggerRegistrations(
+			State,
+			FBattleVolatileRules::GetRechargeId().GetDefinitionId()) == 0
+			&& CountActionStartTriggerRegistrations(
+				State,
+				FBattleVolatileRules::GetChargingId().GetDefinitionId()) == 0
+			&& CountActionStartTriggerRegistrations(
+				State,
+				FBattleVolatileRules::GetFlySemiInvulnerableId().GetDefinitionId()) == 0);
+	TestEqual(TEXT("Recharge denial commits dispatch plus three cleanup tokens"),
+		State.NextTriggerReentrancyToken, Before.NextTriggerToken + 4);
+	TestEqual(TEXT("Recharge denial consumes no PP"),
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId).TotalMovePP,
+		Before.TotalMovePP);
+	TestEqual(TEXT("Recharge denial consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartObedienceRefusalTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Success.ObedienceRefusalAndChargeCleanup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartObedienceRefusalTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	Scenario.bPlayerSubjectToObedience = true;
+	Scenario.PlayerReferenceLevel = 21;
+	Scenario.PlayerBadgeCount = 0;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	const FMoveId MoveId = MakeDefinitionId<FMoveId>(ProbeMoveName);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Obedience-refusal engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Obedience-refusal action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight))
+		|| !TestTrue(TEXT("Refused action Charging is seeded"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				ActorId,
+				FBattleVolatileRules::GetChargingId(),
+				MoveId.GetDefinitionId()))
+		|| !TestTrue(TEXT("Refused action Fly state is seeded"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				ActorId,
+				FBattleVolatileRules::GetFlySemiInvulnerableId())))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Resolution = Engine->BeginNextLockedAction();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+
+	TestTrue(TEXT("Obedience refusal is an accepted consumed action"),
+		Resolution.WasAccepted());
+	TestTrue(TEXT("Obedience refusal keeps exact event order"),
+		HasExactEventOrder(Resolution, {
+			EBattleEventType::ActionStarted,
+			EBattleEventType::ObedienceRefused,
+			EBattleEventType::ActionCompleted}));
+	TestTrue(TEXT("Obedience refusal keeps exact public numeric metadata"),
+		Resolution.GetEvents().Num() == 3
+			&& Resolution.GetEvents()[1].GetVisibility().Level
+				== EBattleVisibilityLevel::Public
+			&& Resolution.GetEvents()[1].GetNumericBefore()
+				== TOptional<int64>(21)
+			&& Resolution.GetEvents()[1].GetNumericAfter()
+				== TOptional<int64>(20)
+			&& Resolution.GetEvents()[1].GetNumericDelta()
+				== TOptional<int64>(1));
+	TestTrue(TEXT("Obedience refusal returns the exact single append"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Obedience refusal increments state version once"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Obedience refusal advances one queue action"),
+		State.CurrentLockedActionIndex, Before.ActionIndex + 1);
+	TestTrue(TEXT("Obedience refusal starts and finishes the action"),
+		State.LockedActions.IsValidIndex(Before.ActionIndex)
+			&& State.LockedActions[Before.ActionIndex].bStarted
+			&& State.LockedActions[Before.ActionIndex].bFinished
+			&& !State.LockedActions[Before.ActionIndex].bMoveCommitted);
+	TestEqual(TEXT("Obedience refusal consumes one Trainer action"),
+		Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE,
+		Before.RemainingActions - 1);
+	TestFalse(TEXT("Obedience refusal clears Charging"),
+		HasActionStartVolatile(State, ActorId, FBattleVolatileRules::GetChargingId()));
+	TestFalse(TEXT("Obedience refusal clears Fly semi-invulnerability"),
+		HasActionStartVolatile(
+			State,
+			ActorId,
+			FBattleVolatileRules::GetFlySemiInvulnerableId()));
+	TestEqual(TEXT("Obedience refusal commits both charge-cleanup tokens"),
+		State.NextTriggerReentrancyToken, Before.NextTriggerToken + 2);
+	TestEqual(TEXT("Obedience refusal consumes no PP"),
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId).TotalMovePP,
+		Before.TotalMovePP);
+	TestEqual(TEXT("Obedience refusal consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartActorInvalidationTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Success.ActorInvalidationReplacementBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartActorInvalidationTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	const FActiveSlotId ActorSlot = MakeActiveSlotId(
+		EBattleSide::Player,
+		EBattlePosition::Left);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Actor-invalidation engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Actor-invalidation turn is locked"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight))
+		|| !TestTrue(TEXT("Player action is selected as the last queued start"),
+			TryPrepareLastLockedAction(*Engine, ActorId))
+		|| !TestTrue(TEXT("The last action actor is invalidated from its active slot"),
+			TryClearActionStartActiveSlot(*Engine, ActorSlot)))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Resolution = Engine->BeginNextLockedAction();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+
+	TestTrue(TEXT("Actor invalidation is an accepted cancellation"),
+		Resolution.WasAccepted());
+	TestTrue(TEXT("Actor invalidation and replacement keep exact event order"),
+		HasExactEventOrder(Resolution, {
+			EBattleEventType::ActionCanceled,
+			EBattleEventType::ActionCompleted,
+			EBattleEventType::ReplacementRequired}));
+	TestTrue(TEXT("Actor invalidation cancellation stays public and action-caused"),
+		Resolution.GetEvents().Num() == 3
+			&& Resolution.GetEvents()[0].GetCause()
+				== EBattleEventCause::Action
+			&& Resolution.GetEvents()[0].GetVisibility().Level
+				== EBattleVisibilityLevel::Public);
+	TestTrue(TEXT("Actor invalidation returns the exact single append"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Actor invalidation increments state version once"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Actor invalidation exhausts the queue"),
+		State.CurrentLockedActionIndex, State.LockedActions.Num());
+	TestTrue(TEXT("Actor invalidation finishes without starting the action"),
+		State.LockedActions.IsValidIndex(Before.ActionIndex)
+			&& !State.LockedActions[Before.ActionIndex].bStarted
+			&& State.LockedActions[Before.ActionIndex].bFinished
+			&& !State.LockedActions[Before.ActionIndex].bMoveCommitted);
+	TestEqual(TEXT("Actor invalidation consumes one Trainer action"),
+		Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE,
+		Before.RemainingActions - 1);
+	TestEqual(TEXT("Actor invalidation stages MandatoryReplacement"),
+		State.Phase, EBattlePhase::MandatoryReplacement);
+	TestTrue(TEXT("Actor invalidation stages one canonical replacement request"),
+		State.PendingReplacements.Num() == 1
+			&& State.PendingReplacements[0].TrainerId == TrainerId
+			&& State.PendingReplacements[0].ActiveSlotId == ActorSlot
+			&& State.PendingDecision.IsSet()
+			&& State.PendingDecisionRequests.Num() == 1
+			&& State.PendingDecisionRequests[0].GetRequestKind()
+				== EBattleDecisionRequestKind::MandatoryReplacement
+			&& State.PendingDecisionRequests[0].GetStateVersion()
+				== State.StateVersion);
+	TestTrue(TEXT("ReplacementRequired targets the exact empty slot"),
+		Resolution.GetEvents().Num() == 3
+			&& Resolution.GetEvents()[2].GetTargets().Num() == 1
+			&& Resolution.GetEvents()[2].GetTargets()[0].TrainerId == TrainerId
+			&& Resolution.GetEvents()[2].GetTargets()[0].ActiveSlotId == ActorSlot);
+	TestEqual(TEXT("Actor invalidation consumes no PP"),
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId).TotalMovePP,
+		Before.TotalMovePP);
+	TestEqual(TEXT("Actor invalidation consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartCapturedTargetTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Success.CapturedTargetCancellation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartCapturedTargetTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario = MakeAtomicCaptureScenario();
+	Scenario.Format = EBattleFormat::Double;
+	Scenario.PlayerLeftSpeed = 160;
+	Scenario.PlayerRightSpeed = 150;
+	Scenario.OpponentLeftSpeed = 100;
+	Scenario.OpponentRightSpeed = 4;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerRightValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentLeftValue);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Captured-target engine is created"),
+		TryMakeSequenceEngine(Scenario, {0, 0, 0, 0}, Engine))
+		|| !TestTrue(TEXT("Capture-before-selected-target turn is locked"),
+			LockCaptureThenTargetTurn(*Engine))
+		|| !TestTrue(TEXT("The faster Capture action starts first"),
+			BeginExpectedWildAction(
+				*Engine,
+				PlayerLeftValue,
+				EBattleActionKind::Bag)))
+	{
+		return false;
+	}
+	const FBattleResolution Capture = Engine->ExecuteCurrentBagItem();
+	const FBattleEngineState& CapturedState =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* CapturedBeforeStart = CapturedState.FindBattler(TargetId);
+	if (!TestTrue(TEXT("The first action successfully captures its target"),
+		Capture.WasAccepted()
+			&& HasEvent(Capture, EBattleEventType::Captured)
+			&& CapturedBeforeStart != nullptr
+			&& CapturedBeforeStart->bCaptured
+			&& CapturedBeforeStart->bRemoved
+			&& !FBattleC09BWildFlowEngineFixture::IsActive(*Engine, TargetId))
+		|| !TestTrue(TEXT("The next locked action retains the captured selected target"),
+			CapturedState.LockedActions.IsValidIndex(
+				CapturedState.CurrentLockedActionIndex)
+				&& CapturedState.LockedActions[CapturedState.CurrentLockedActionIndex]
+					.Decision.GetActingBattlerId() == ActorId
+				&& CapturedState.LockedActions[CapturedState.CurrentLockedActionIndex]
+					.SelectedTargetBattlerId == TargetId))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Resolution = Engine->BeginNextLockedAction();
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleTrainerState* Trainer = State.FindTrainer(TrainerId);
+	const FBattleBattlerState* CapturedTarget = State.FindBattler(TargetId);
+
+	TestTrue(TEXT("Captured target produces an accepted cancellation"),
+		Resolution.WasAccepted());
+	TestTrue(TEXT("Captured-target cancellation keeps exact event order"),
+		HasExactEventOrder(Resolution, {
+			EBattleEventType::ActionCanceled,
+			EBattleEventType::ActionCompleted}));
+	TestTrue(TEXT("Captured-target cancellation returns the exact single append"),
+		IsReturnedResolutionAppendedExactlyOnce(*Engine, Resolution));
+	TestEqual(TEXT("Captured-target cancellation increments state version once"),
+		State.StateVersion, Before.StateVersion + 1);
+	TestEqual(TEXT("Captured-target cancellation advances one queue action"),
+		State.CurrentLockedActionIndex, Before.ActionIndex + 1);
+	TestEqual(TEXT("Captured-target cancellation remains Resolving"),
+		State.Phase, EBattlePhase::Resolving);
+	TestTrue(TEXT("Captured-target cancellation finishes without starting"),
+		State.LockedActions.IsValidIndex(Before.ActionIndex)
+			&& !State.LockedActions[Before.ActionIndex].bStarted
+			&& State.LockedActions[Before.ActionIndex].bFinished
+			&& !State.LockedActions[Before.ActionIndex].bMoveCommitted);
+	TestEqual(TEXT("Captured-target cancellation consumes one Trainer action"),
+		Trainer != nullptr ? Trainer->ActionAllowance.RemainingActions : INDEX_NONE,
+		Before.RemainingActions - 1);
+	TestTrue(TEXT("Captured-target facts remain captured, removed, and inactive"),
+		CapturedTarget != nullptr
+			&& CapturedTarget->bCaptured
+			&& CapturedTarget->bRemoved
+			&& !FBattleC09BWildFlowEngineFixture::IsActive(*Engine, TargetId));
+	TestEqual(TEXT("Captured-target cancellation consumes no PP"),
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId).TotalMovePP,
+		Before.TotalMovePP);
+	TestEqual(TEXT("Captured-target cancellation consumes no RNG"),
+		State.Random->GetTrace().Num(), Before.RandomTraceCount);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartPreparationFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Failure.PreparationBeforePublication",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartPreparationFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	Scenario.bPlayerHasCanonicalHeldItem = true;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Preparation-failure engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Preparation-failure action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight))
+		|| !TestTrue(TEXT("Preparation-failure Magic Room is seeded"),
+			TrySeedActionStartMagicRoom(*Engine, ActorId)))
+	{
+		return false;
+	}
+	FBattleEngineState& MutableState =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*Engine);
+	MutableState.NextTriggerReentrancyToken = TNumericLimits<uint64>::Max() - 1;
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Rejected = Engine->BeginNextLockedAction();
+	const bool bRejectedWithoutDelta = VerifyRejectedActionStartCheckpoint(
+		*this,
+		*Engine,
+		ActorId,
+		TrainerId,
+		Before,
+		Before.StateVersion,
+		EBattleRejectionReason::CheckpointPreparationFailed,
+		Rejected);
+	const FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Actor = State.FindBattler(ActorId);
+	TestTrue(TEXT("Preparation failure occurs after staged Magic Room dispatch"),
+		Before.NextTriggerToken == TNumericLimits<uint64>::Max() - 1
+			&& CountActionStartTriggerRegistrations(
+				State,
+				FBattleFieldSideConditionRules::GetMagicRoomId().GetDefinitionId()) > 0);
+	TestTrue(TEXT("Preparation failure publishes no held-item suppression"),
+		Actor != nullptr
+			&& Actor->HeldItem.CurrentItemId == FBattleItemRules::GetLeftoversId()
+			&& !Actor->HeldItem.bSuppressed
+			&& !Actor->HeldItem.bConsumed);
+	return bRejectedWithoutDelta;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartStaleIdentityTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Failure.StaleIdentityAfterPreparation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartStaleIdentityTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	TUniquePtr<FBattleEngine> Engine;
+	FActionStartStaleRandom* Random = nullptr;
+	if (!TestTrue(TEXT("Stale-identity engine is created"),
+		TryMakeActionStartStaleEngine(Scenario, Engine, Random))
+		|| !TestNotNull(TEXT("Stale-identity random seam is retained"), Random)
+		|| !TestTrue(TEXT("Stale-identity action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight)))
+	{
+		return false;
+	}
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	Random->ArmAfterTraceRead(
+		7,
+		[EnginePtr = Engine.Get()]()
+		{
+			FBattleC09BWildFlowEngineFixture::AdvanceStateVersion(*EnginePtr);
+		});
+	const FBattleResolution Rejected = Engine->BeginNextLockedAction();
+	const int32 TraceReads = Random->GetReadsSinceArm();
+	const bool bInjected = Random->WasInjected();
+	Random->Disarm();
+	TestTrue(TEXT("Stale identity is injected at the final post-plan recheck"),
+		bInjected && TraceReads == 7);
+	return VerifyRejectedActionStartCheckpoint(
+		*this,
+		*Engine,
+		ActorId,
+		TrainerId,
+		Before,
+		Before.StateVersion + 1,
+		EBattleRejectionReason::StaleCheckpointIdentity,
+		Rejected);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E1ActionStartPlanFailureTest,
+	"PokemonSolarus.Battle.ADR0002.3E1.ActionStart.Failure.ResolutionPlanStaging",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E1ActionStartPlanFailureTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario;
+	Scenario.PlayerLeftSpeed = 150;
+	Scenario.bPlayerSubjectToObedience = true;
+	Scenario.PlayerReferenceLevel = 21;
+	Scenario.PlayerBadgeCount = 0;
+	const FBattlerId ActorId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	const FTrainerId TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+	TUniquePtr<FBattleEngine> Engine;
+	if (!TestTrue(TEXT("Plan-failure engine is created"),
+		TryMakeSequenceEngine(Scenario, {}, Engine))
+		|| !TestTrue(TEXT("Plan-failure refusal action is locked first"),
+			LockTurn(*Engine, PlayerLeftValue, EBattleActionKind::Fight)))
+	{
+		return false;
+	}
+	FBattleEngineState& MutableState =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*Engine);
+	MutableState.NextEventOrdinal = TNumericLimits<uint64>::Max() - 2;
+	const FActionStartCheckpointObservation Before =
+		ObserveActionStartCheckpoint(*Engine, ActorId, TrainerId);
+	const FBattleResolution Rejected = Engine->BeginNextLockedAction();
+	TestEqual(TEXT("Plan failure starts at the bounded near-overflow ordinal"),
+		Before.NextEventOrdinal, TNumericLimits<uint64>::Max() - 2);
+	return VerifyRejectedActionStartCheckpoint(
+		*this,
+		*Engine,
+		ActorId,
+		TrainerId,
+		Before,
+		Before.StateVersion,
+		EBattleRejectionReason::CheckpointPreparationFailed,
+		Rejected);
 }
 
 #endif

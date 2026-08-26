@@ -977,7 +977,10 @@ bool FBattleC04AReplayTest::RunTest(const FString& Parameters)
 
 	const FBattleReplayRecord FirstRecord = First->ExportReplayRecord();
 	const FBattleReplayRecord SecondRecord = Second->ExportReplayRecord();
-	TestEqual(TEXT("Replay schema remains 6 with C09B capture state"), FirstRecord.GetSchemaVersion(), static_cast<uint32>(6));
+	TestEqual(
+		TEXT("Replay schema remains at the canonical current version"),
+		FirstRecord.GetSchemaVersion(),
+		FBattleReplayRecord::CurrentSchemaVersion);
 	TArray<uint8> FirstBytes;
 	TArray<uint8> SecondBytes;
 	FBattleRejection Rejection;
