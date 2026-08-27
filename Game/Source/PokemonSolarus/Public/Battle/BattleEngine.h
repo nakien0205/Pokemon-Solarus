@@ -21,7 +21,12 @@ class FBattleC09BWildFlowEngineFixture;
 #endif
 class FBattleEngineState;
 
-/** The only mutable-state owner in the plain-C++ battle core. */
+/**
+ * The only mutable-state owner in the plain-C++ battle core.
+ * Each engine instance is caller-serialized, and production access occurs on
+ * Unreal's game thread. Concurrent access is unsupported; FBattleEngine
+ * provides no internal locking.
+ */
 class POKEMONSOLARUS_API FBattleEngine
 {
 public:

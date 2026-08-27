@@ -23,18 +23,28 @@ bool FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
 	const FBattleEngineState& State,
 	FBattlePartnerTeamVictoryRecoveryPlan& OutPlan)
 {
+	return TryApplyTeamVictoryRecovery(
+		State.Battlers,
+		State.CompiledEncounterPolicies,
+		OutPlan);
+}
+
+bool FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
+	const TConstArrayView<FBattleBattlerState> Battlers,
+	const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
+	FBattlePartnerTeamVictoryRecoveryPlan& OutPlan)
+{
 	OutPlan = FBattlePartnerTeamVictoryRecoveryPlan();
-	if (!State.CompiledEncounterPolicies.HasSeparatePartnerOwnership())
+	if (!CompiledEncounterPolicies.HasSeparatePartnerOwnership())
 	{
 		return false;
 	}
 
-	int32 FirstPlayerBattlerIndex = INDEX_NONE;
-	for (int32 BattlerIndex = 0; BattlerIndex < State.Battlers.Num(); ++BattlerIndex)
+	const FBattleBattlerState* FirstPlayerBattler = nullptr;
+	for (const FBattleBattlerState& Battler : Battlers)
 	{
-		const FBattleBattlerState& Battler = State.Battlers[BattlerIndex];
 		const FBattleTrainerEncounterPolicy* TrainerPolicy =
-			State.CompiledEncounterPolicies.FindTrainerPolicy(Battler.TrainerId);
+			CompiledEncounterPolicies.FindTrainerPolicy(Battler.TrainerId);
 		if (TrainerPolicy == nullptr
 			|| TrainerPolicy->Role != EBattleTrainerRole::Player
 			|| Battler.bEgg
@@ -42,30 +52,25 @@ bool FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
 		{
 			continue;
 		}
-		if (FirstPlayerBattlerIndex == INDEX_NONE
-			|| Battler.PartySlotId
-				< State.Battlers[FirstPlayerBattlerIndex].PartySlotId)
+		if (FirstPlayerBattler == nullptr
+			|| Battler.PartySlotId < FirstPlayerBattler->PartySlotId)
 		{
-			FirstPlayerBattlerIndex = BattlerIndex;
+			FirstPlayerBattler = &Battler;
 		}
 	}
 
-	if (!State.Battlers.IsValidIndex(FirstPlayerBattlerIndex))
-	{
-		return false;
-	}
-	const FBattleBattlerState& FirstPlayerBattler = State.Battlers[FirstPlayerBattlerIndex];
-	if (FirstPlayerBattler.CurrentHP != 0 || !FirstPlayerBattler.bFainted)
+	if (FirstPlayerBattler == nullptr
+		|| FirstPlayerBattler->CurrentHP != 0
+		|| !FirstPlayerBattler->bFainted)
 	{
 		return false;
 	}
 
-	OutPlan.Recovery.Target.TrainerId = FirstPlayerBattler.TrainerId;
-	OutPlan.Recovery.Target.BattlerId = FirstPlayerBattler.BattlerId;
-	OutPlan.Recovery.PreviousHP = FirstPlayerBattler.CurrentHP;
+	OutPlan.Recovery.Target.TrainerId = FirstPlayerBattler->TrainerId;
+	OutPlan.Recovery.Target.BattlerId = FirstPlayerBattler->BattlerId;
+	OutPlan.Recovery.PreviousHP = FirstPlayerBattler->CurrentHP;
 	OutPlan.Recovery.NewHP = 1;
 	OutPlan.Recovery.bMajorStatusCured = true;
-	OutPlan.BattlerIndex = FirstPlayerBattlerIndex;
 	return true;
 }
 
@@ -73,11 +78,18 @@ bool FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(
 	FBattleEngineState& State,
 	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
 {
-	if (!IsTeamVictoryRecoveryPlanApplicable(State, Plan))
+	return TryApplyTeamVictoryRecoveryPlan(State.Battlers, Plan);
+}
+
+bool FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(
+	TArray<FBattleBattlerState>& Battlers,
+	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
+{
+	if (!IsTeamVictoryRecoveryPlanApplicable(Battlers, Plan))
 	{
 		return false;
 	}
-	ApplyPreparedTeamVictoryRecoveryPlan(State, Plan);
+	ApplyPreparedTeamVictoryRecoveryPlan(Battlers, Plan);
 	return true;
 }
 
@@ -85,10 +97,19 @@ bool FBattlePartnerFlow::IsTeamVictoryRecoveryPlanApplicable(
 	const FBattleEngineState& State,
 	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
 {
+	return IsTeamVictoryRecoveryPlanApplicable(State.Battlers, Plan);
+}
+
+bool FBattlePartnerFlow::IsTeamVictoryRecoveryPlanApplicable(
+	const TConstArrayView<FBattleBattlerState> Battlers,
+	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
+{
 	const FBattlePartnerTeamVictoryRecovery& Recovery = Plan.Recovery;
-	const FBattleBattlerState* Battler = State.Battlers.IsValidIndex(Plan.BattlerIndex)
-		? &State.Battlers[Plan.BattlerIndex]
-		: nullptr;
+	const FBattleBattlerState* Battler = Battlers.FindByPredicate(
+		[&Recovery](const FBattleBattlerState& Candidate)
+		{
+			return Candidate.BattlerId == Recovery.Target.BattlerId;
+		});
 	if (!Recovery.Target.TrainerId.IsValid()
 		|| !Recovery.Target.BattlerId.IsValid()
 		|| Recovery.PreviousHP != 0
@@ -111,11 +132,23 @@ void FBattlePartnerFlow::ApplyPreparedTeamVictoryRecoveryPlan(
 	FBattleEngineState& State,
 	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
 {
-	FBattleBattlerState& Battler = State.Battlers[Plan.BattlerIndex];
+	ApplyPreparedTeamVictoryRecoveryPlan(State.Battlers, Plan);
+}
+
+void FBattlePartnerFlow::ApplyPreparedTeamVictoryRecoveryPlan(
+	TArray<FBattleBattlerState>& Battlers,
+	const FBattlePartnerTeamVictoryRecoveryPlan& Plan)
+{
 	const FBattlePartnerTeamVictoryRecovery& Recovery = Plan.Recovery;
-	Battler.CurrentHP = Recovery.NewHP;
-	Battler.bFainted = false;
-	Battler.bRemoved = false;
-	Battler.bFaintTransitionPending = false;
-	Battler.MajorStatusId = FConditionId();
+	FBattleBattlerState* Battler = Battlers.FindByPredicate(
+		[&Recovery](const FBattleBattlerState& Candidate)
+		{
+			return Candidate.BattlerId == Recovery.Target.BattlerId;
+		});
+	check(Battler != nullptr);
+	Battler->CurrentHP = Recovery.NewHP;
+	Battler->bFainted = false;
+	Battler->bRemoved = false;
+	Battler->bFaintTransitionPending = false;
+	Battler->MajorStatusId = FConditionId();
 }

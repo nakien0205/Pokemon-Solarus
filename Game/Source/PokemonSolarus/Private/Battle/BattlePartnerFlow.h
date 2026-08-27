@@ -4,6 +4,8 @@
 #include "Battle/BattleEvent.h"
 
 class FBattleEngineState;
+class FBattleCompiledEncounterPolicies;
+struct FBattleBattlerState;
 
 /** One deterministic post-battle recovery required by Partner Team Victory. */
 struct FBattlePartnerTeamVictoryRecovery
@@ -18,7 +20,6 @@ struct FBattlePartnerTeamVictoryRecovery
 struct FBattlePartnerTeamVictoryRecoveryPlan
 {
 	FBattlePartnerTeamVictoryRecovery Recovery;
-	int32 BattlerIndex = INDEX_NONE;
 };
 
 /** Private C09C partner-only outcome mutations. */
@@ -35,9 +36,20 @@ public:
 		const FBattleEngineState& State,
 		FBattlePartnerTeamVictoryRecoveryPlan& OutPlan);
 
+	/** Produces exact recovery facts from the bounded records used by an atomic checkpoint. */
+	[[nodiscard]] static bool TryApplyTeamVictoryRecovery(
+		TConstArrayView<FBattleBattlerState> Battlers,
+		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
+		FBattlePartnerTeamVictoryRecoveryPlan& OutPlan);
+
 	/** Applies an already prepared recovery plan to caller-owned staged state. */
 	[[nodiscard]] static bool TryApplyTeamVictoryRecoveryPlan(
 		FBattleEngineState& State,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
+
+	/** Applies a prepared recovery to caller-owned battler records. */
+	[[nodiscard]] static bool TryApplyTeamVictoryRecoveryPlan(
+		TArray<FBattleBattlerState>& Battlers,
 		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
 
 	/** Validates a prepared plan without changing the supplied state. */
@@ -45,8 +57,18 @@ public:
 		const FBattleEngineState& State,
 		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
 
+	/** Validates a prepared recovery against caller-owned battler records. */
+	[[nodiscard]] static bool IsTeamVictoryRecoveryPlanApplicable(
+		TConstArrayView<FBattleBattlerState> Battlers,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
+
 	/** Applies a plan that has already passed IsTeamVictoryRecoveryPlanApplicable. */
 	static void ApplyPreparedTeamVictoryRecoveryPlan(
 		FBattleEngineState& State,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
+
+	/** Applies a validated recovery by stable BattlerId rather than array position. */
+	static void ApplyPreparedTeamVictoryRecoveryPlan(
+		TArray<FBattleBattlerState>& Battlers,
 		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
 };

@@ -39,8 +39,6 @@ struct FBattleFaintOutcomePlan
 {
 	FBattleFaintOutcomeResolution Resolution;
 	TOptional<FBattlePartnerTeamVictoryRecoveryPlan> PartnerRecoveryPlan;
-	TArray<int32> RemovalBattlerIndices;
-	TArray<int32> RemovalPositionIndices;
 };
 
 /** Owned projection plan for the queue-exhaustion replacement boundary. */
@@ -70,9 +68,30 @@ public:
 		const FBattleEngineState& State,
 		FBattleFaintOutcomePlan& OutPlan);
 
+	/** Resolves faint and outcome facts from only the mutable record families owned by a checkpoint. */
+	[[nodiscard]] static bool TryResolveAction(
+		const FBattleEffectExecutionResult& EffectResult,
+		EBattleTargetClass TargetClass,
+		FResolutionId ResolutionId,
+		TConstArrayView<FBattleBattlerState> Battlers,
+		TConstArrayView<FBattleActivePositionState> ActivePositions,
+		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
+		FBattleFaintOutcomePlan& OutPlan);
+
 	/** Applies an already validated action plan to caller-owned staged state. */
 	[[nodiscard]] static bool TryApplyActionPlan(
 		FBattleEngineState& State,
+		const FBattleFaintOutcomePlan& Plan);
+
+	/** Applies one action plan to caller-owned checkpoint records and outcome fields. */
+	[[nodiscard]] static bool TryApplyActionPlan(
+		TArray<FBattleBattlerState>& Battlers,
+		TArray<FBattleActivePositionState>& ActivePositions,
+		EBattlePhase& Phase,
+		EBattleOutcome& Outcome,
+		EBattleOutcomeCause& OutcomeCause,
+		TOptional<FBattleDecisionRequest>& PendingDecision,
+		TArray<FBattleDecisionRequest>& PendingDecisionRequests,
 		const FBattleFaintOutcomePlan& Plan);
 
 	/** Validates all owned indexes and terminal facts without changing state. */
@@ -80,9 +99,26 @@ public:
 		const FBattleEngineState& State,
 		const FBattleFaintOutcomePlan& Plan);
 
+	/** Validates all stable record identities without depending on array positions. */
+	[[nodiscard]] static bool IsActionPlanApplicable(
+		TConstArrayView<FBattleBattlerState> Battlers,
+		TConstArrayView<FBattleActivePositionState> ActivePositions,
+		const FBattleFaintOutcomePlan& Plan);
+
 	/** Applies a plan that has already passed IsActionPlanApplicable. */
 	static void ApplyPreparedActionPlan(
 		FBattleEngineState& State,
+		const FBattleFaintOutcomePlan& Plan);
+
+	/** Applies a validated action plan by BattlerId and ActiveSlotId. */
+	static void ApplyPreparedActionPlan(
+		TArray<FBattleBattlerState>& Battlers,
+		TArray<FBattleActivePositionState>& ActivePositions,
+		EBattlePhase& Phase,
+		EBattleOutcome& Outcome,
+		EBattleOutcomeCause& OutcomeCause,
+		TOptional<FBattleDecisionRequest>& PendingDecision,
+		TArray<FBattleDecisionRequest>& PendingDecisionRequests,
 		const FBattleFaintOutcomePlan& Plan);
 
 	/** Enters MandatoryReplacement or EndOfTurn after the locked queue is exhausted. */
@@ -95,8 +131,24 @@ public:
 		const FBattleEngineState& State,
 		FBattleQueueBoundaryPlan& OutPlan);
 
+	/** Resolves a queue boundary from bounded immutable facts without an engine-state shadow. */
+	[[nodiscard]] static bool ResolveQueueBoundary(
+		EBattlePhase Phase,
+		EBattleOutcome Outcome,
+		int32 CurrentLockedActionIndex,
+		int32 LockedActionCount,
+		TConstArrayView<FBattleActiveAssignment> StartingActive,
+		TConstArrayView<FBattleBattlerState> Battlers,
+		TConstArrayView<FBattleActivePositionState> ActivePositions,
+		FBattleQueueBoundaryPlan& OutPlan);
+
 	/** Applies one validated queue-boundary plan to caller-owned staged state. */
 	[[nodiscard]] static bool TryApplyQueueBoundaryPlan(
 		FBattleEngineState& State,
+		const FBattleQueueBoundaryPlan& Plan);
+
+	/** Applies a validated queue-boundary phase to a caller-owned checkpoint field. */
+	[[nodiscard]] static bool TryApplyQueueBoundaryPlan(
+		EBattlePhase& Phase,
 		const FBattleQueueBoundaryPlan& Plan);
 };
