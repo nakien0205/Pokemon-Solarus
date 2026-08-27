@@ -2,12 +2,19 @@
 
 ## Status
 
-**Deferred until the remaining ADR-0002 stale accepted Bag-cancellation remediation is implemented and validated.**
+**Guide Wave G1B and atomic-test Wave T1 were completed on 2026-08-27. The
+post-ADR structural delta review is complete. Production Waves P0, P1, and P2
+remain unapproved.**
 
-This document records a read-only structural review. It is not approval to
-change production code, tests, guides, Git state, or generated Unreal output.
-The future split still requires an exact write set, exclusions, validation
-scope, draft, and user approval.
+This document records the completed read-only delta review and the live
+approval boundaries. G1B authorized only this file,
+`production/session-state/active.md`, and a dated prerequisite amendment in
+ADR-0004. T1 was separately approved and was limited to the documented atomic
+test split, this handoff, and its approved generated validation output. T1 did
+not itself approve production C++, P0, C10A, or Git actions. The user later
+authorized one task-specific T1 documentation sync, commit, and push; that does
+not authorize any production wave. Each later wave still requires separate
+user approval.
 
 The review was intentionally limited to file size, responsibility boundaries,
 and safe translation-unit decomposition. It was not an in-depth mechanics or
@@ -15,15 +22,18 @@ bug review.
 
 ## Source of truth and continuation rule
 
-The measurements below describe commit `c514c86` on 2026-08-26. They are a
-snapshot, not a permanent contract. Live source, the current ADR-0002 gate,
-the worktree, the current roadmap package, and exported Unreal Automation
-reports override this document.
+The original measurements below describe commit `c514c86` on 2026-08-26. The
+completed delta review compared them with accepted production source/test
+checkout `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`. The pre-T1 baseline HEAD and
+`origin/main` were `3259405d73be5a634ce855a7d382f838eeb36ae6`; that later baseline
+commit changes only ADR-0002 closeout documents. Live production source still
+matches the accepted checkout. Live tests now differ only by the validated,
+behavior-preserving T1 translation-unit split recorded below.
 
-Do not begin the split directly from this snapshot. First perform the bounded
-delta review described below. A new full structural review is unnecessary
-unless the remaining ADR-0002 work changes the ownership or transaction
-boundaries materially.
+Live source, the accepted ADR-0002 gate, the worktree, the current roadmap
+package, and exported Unreal Automation reports override all historical
+measurements. A new full structural review is unnecessary unless those live
+ownership or transaction boundaries change materially before implementation.
 
 ## Verified review snapshot
 
@@ -55,47 +65,59 @@ families, with clean focused exported reports inspected during the review:
 - pre-move gates and PP commit.
 
 That evidence proves the implementations and focused reports existed at the
-reviewed snapshot. It is not a fresh logic-correctness verdict and does not
-prove the later final ADR-0002 gate.
-
-At current HEAD `f48146f4f439930ed06f5f7feaf957514bcc4408`, target resolution
-and move-effect checkpoint remediation are present, and the final 22-report
-matrix is green. The implementation gate still fails because accepted stale
-Bag cancellation mutates live action state before fallible post-action boundary
-and resolution preparation completes. The current gate report, not the older
-snapshot list above, controls continuation.
+reviewed snapshot. The later accepted gate below supersedes it.
 
 ## ADR-0002 completion gate
 
-Do not start structural changes until all of the following are true:
+The ADR-0002 prerequisite is satisfied at accepted production source/test
+checkout `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`:
 
-1. Target-resolution and move-effect checkpoint remediation remains complete in
-   live source.
-2. Accepted stale Bag cancellation is staged through fallible boundary,
-   invariant, and resolution preparation and has explicit failure proof.
-3. Required affected package filters pass.
-4. The full `PokemonSolarus.Battle` filter passes when required by the live
-   ADR and approved validation scope.
-5. Acceptance is judged from exported `index.json` counters, not process exit
-   code alone.
-6. The final accepted commit or checkout and all dirty paths are recorded.
+1. Target-resolution and move-effect checkpoint remediation is present.
+2. Accepted stale Bag and Capture cancellation is staged through fallible
+   boundary, request, event, and resolution preparation with explicit failure
+   proof.
+3. The forced-Unity editor build passed with `-ForceUnity`,
+   `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`.
+4. The accepted evidence root
+   `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`
+   contains 22 readable exported `index.json` files and 606 successes.
+5. The full `PokemonSolarus.Battle` filter has 320 successes. Every warning,
+   failure, not-run, in-process, per-test warning, and per-test error counter is
+   zero.
+6. The final gate report is
+   `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md`.
 
 ## Required delta review after ADR-0002
 
-Run one narrow, read-only structural delta review before drafting edits. It
-must:
+The required narrow review is complete. Its verdict is **small revision**; the
+handoff remains usable and no new structural review is needed.
 
-1. Compare the accepted ADR-0002 checkout with `c514c86` for the files and
-   symbols named in this document.
-2. Recount the main production and atomic-test file sizes.
-3. Remap helper ownership added by target resolution, move effects, faint
-   continuation, or final action completion.
-4. Check whether any proposed file would create a circular private dependency
-   or split one atomic transaction across independent state copies.
-5. Inspect the final exported ADR-0002 reports and record their counters.
-6. Recheck the worktree and preserve all unrelated changes.
-7. Report whether this handoff is still usable, needs a small revision, or
-   requires a new structural review.
+| Hotspot | `c514c86` | Pre-T1 accepted checkout | Delta |
+|---|---:|---:|---:|
+| `BattleEngine.cpp` | 17,296 physical lines | 20,043 | +2,747 |
+| `BattleEffectExecutor.cpp` | 7,534 physical lines | 7,642 | +108 |
+| `BattleAtomicCheckpointTests.cpp` | 7,090 lines / 57 tests | 10,987 / 84 | +3,897 / +27 tests |
+
+Additional verified facts:
+
+- `BattleEngine.cpp` plus `BattleEffectExecutor.cpp` now contain 27,685 of
+  46,336 production Battle `.cpp` lines, or 59.7 percent.
+- Before T1, `BattleAtomicCheckpointTests.cpp` contained 20.1 percent of Battle
+  test `.cpp` lines. T1 replaced it with eight focused test sources totaling
+  8,172 physical lines and eight support files totaling 3,370 physical lines;
+  the largest focused source is the 2,133-line Capture family.
+- `BattleState.*` and `BattleResolutionCommit.*` are unchanged between
+  `c514c86` and the accepted checkout. The public `BattleEngine.h` remains a
+  compact 168-line facade and `FBattleEngine` still owns one authoritative
+  `FBattleEngineState`.
+- Target-resolution 3E5 and move-effect 3E6 add checkpoint-local identities,
+  owned preparations, and deltas around the existing state/commit boundary.
+  They do not create another state owner or commit seam.
+- `BattleEffectExecutor` still uses one staged `FStateExecutionContext` and one
+  owned `FBattleEffectExecutionPlan`; its split remains a later task.
+- The worktree paths to preserve are modified
+  `docs/registry/architecture.yaml`, untracked ADR-0003, and the pre-existing
+  untracked ADR-0004 except for its explicitly approved G1B amendment.
 
 Do not repeat the completed logic review or rerun old exploratory suites merely
 to rediscover this plan.
@@ -133,29 +155,45 @@ Search by both file names and responsibilities. At minimum, include:
 - `SubmitDecision`; and
 - `FStateExecutionContext`.
 
-Before any C++ edit, produce an old-to-new reference table containing:
+The G1B discovery pass searched the required root instructions, skills, `docs/`,
+`production/`, roadmap files, and other text by both filename and
+responsibility. Its old-to-new classification is:
 
 | Guide file | Old reference or assumption | Proposed new reference | Action |
 |---|---|---|---|
-| `<path>` | `<old file, line, or responsibility>` | `<new file or path-neutral wording>` | Update, preserve, or add an amendment |
+| `docs/battle-engine-structural-split-handoff.md` | ADR-0002 still blocked; preliminary source and test partitions | Completed delta evidence and corrected partition below | Update in G1B |
+| `production/session-state/active.md` | C10A immediately next; prior accepted checkout described as current HEAD | Bounded structural work is current; C10A remains next afterward; distinguish live HEAD from accepted source checkout | Update in G1B |
+| `docs/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md` | Historical authoring context says stale Bag cancellation remains open | Preserve the paragraph and add a dated accepted-gate amendment | Amend in G1B |
+| `docs/architecture/adr-0002-battle-encounter-runtime-authority-and-atomic-resolution-commit.md` | Method-name responsibility and commit contracts | Method names and contracts remain unchanged | Preserve accepted decision |
+| `plan/battle_mechanics/00-roadmap-index.md`, `02-core-contracts-events-and-rng.md`, `04-battle-state-snapshots-and-decisions.md`, `05-actions-order-and-targeting.md`, `06-hit-damage-effects-and-outcomes.md`, `07-parties-switching-and-replacements.md`, and `10-encounters-capture-escape-and-partner.md` | Historical paths, hashes, and package ownership | Historical accepted checkouts | Preserve completion records |
+| `production/gate-checks/2026-08-27-adr-0002-implementation-fail.md` and `2026-08-27-adr-0002-implementation-pass.md` | Historical paths, line locations, and report evidence | Historical reviewed checkouts | Preserve evidence |
+| ADR-0003, `docs/battle-system-interview-handoff.md`, the reusable-damage quick spec, `design/ux/battle-hud.md`, roadmap `03-stats-types-moves-and-data-adapters.md`, and `plan/battle_mechanics/reference/modern-rules-snapshot.md` | Responsibility-only or gameplay references without current file-location assumptions | Existing path-neutral wording | Preserve; no migration needed |
+| `Game/Saved/AutomationReports/**`, logs, and generated Unreal output | Generated evidence | Generated evidence only | Never hand-edit |
 
-Classify every match:
+No stale structural path assumption was found in `AGENTS.md`, `CLAUDE.md`,
+`UE.md`, or `.codex/skills/`.
 
-- **Active or normative guide:** update it to the new split paths or use
-  path-neutral responsibility wording.
-- **Historical decision, accepted report, or evidence record:** do not rewrite
-  history as though the new files existed at that time. Preserve it, or add a
-  clearly dated amendment only when readers could otherwise treat it as
-  current guidance.
-- **Generated output, log, or Unreal report:** do not hand-edit it.
-- **Unrelated mention:** record why no update is required.
+The post-T1 discovery pass repeated the filename and responsibility search.
+References to the removed monolith now remain only in this handoff's historical
+measurements and completed-T1 record, plus the two historical ADR-0002 gate
+reports. Those gate reports remain unchanged as historical evidence. No other
+active guide assumes that the monolith still exists, and all method-name
+references outside this handoff remain path-neutral. After a separate explicit
+documentation approval, `production/session-state/active.md` was refreshed to
+record T1's completed layout and validation while keeping P0, P1, and P2
+unapproved. The historical gate reports remain unchanged.
 
-The exact guide write set and exceptions must be shown to the user and approved
-with the source write set. Draft the guide rewrites before production edits.
-Apply approved active-guide updates in the same bounded structural change as
-the corresponding file moves, so the final worktree never leaves current
-guides pointing at removed code. Do not commit an intermediate state in which
-guides describe files that do not yet exist.
+The exact approved G1B guide write set is:
+
+- `docs/battle-engine-structural-split-handoff.md`;
+- `production/session-state/active.md`; and
+- only the dated prerequisite amendment in the pre-existing untracked
+  `docs/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
+
+All other matched guides and dirty paths are excluded. Later production waves
+must update this handoff in the same bounded change as the corresponding file
+moves so it never claims a proposed file already exists. Do not commit an
+intermediate state in which active guides point at removed code.
 
 After every split wave, repeat the reference search and prove that no stale
 reference remains in an active guide. The structural change is not complete
@@ -188,23 +226,28 @@ proposed boundaries are:
 
 | Proposed file | Responsibility |
 |---|---|
-| `BattleEngine.cpp` | Constructor, destructor, and `TryCreate` only |
+| `BattleEngine.cpp` | Constructor, destructor, `TryCreate`, and test-fixture creation only |
 | `BattleEngineSnapshots.cpp` | Snapshot projection, filtering, and read-only getters |
-| `BattleEngineDecisionFlow.cpp` | Decision requests, batches, and ordinary submission flow |
+| `BattleEngineDecisionFlow.cpp` | Decision startup, requests, batches, and all of `SubmitDecision`, including the embedded Pivot continuation |
 | `BattleEngineActionStart.cpp` | Atomic action-start staging and `BeginNextLockedAction` |
 | `BattleEngineWildActions.cpp` | Atomic Run and WildFlee execution |
-| `BattleEngineBagActions.cpp` | Shared Bag preflight and non-Capture Bag checkpoint |
-| `BattleEngineCaptureCheckpoint.cpp` | Capture staging, delta, and Capture branch |
+| `BattleEngineBagActions.cpp` | The complete `ExecuteCurrentBagItem` method, including ordinary Bag, stale cancellation, and Capture helpers/branches |
 | `BattleEngineVoluntarySwitch.cpp` | Voluntary-switch identity, staging, and execution |
-| `BattleEnginePivotSwitch.cpp` | Pivot identity and continuation currently embedded in decision submission |
 | `BattleEnginePreMove.cpp` | Pre-move identity, gates, PP staging, and commit |
 | `BattleEngineMoveTargets.cpp` | Atomic target resolution |
 | `BattleEngineMoveEffects.cpp` | Atomic move-effect resolution coordinator |
 | `BattleEngineEndTurn.cpp` | End-turn resolution |
+| `BattleEngineBetweenActions.cpp` | `ApplyBetweenActionsStatRefresh` |
 | `BattleEngineReplay.cpp` | Replay export methods |
 
-The final names and exact boundaries must be confirmed by the post-ADR delta
-review. A class method can be defined in any of these `.cpp` files by including
+Do not create `BattleEngineCaptureCheckpoint.cpp` in the first mechanical pass:
+Bag and Capture are branches of the same public method, and Capture currently
+reuses the Wild cleanup staging family. Do not create
+`BattleEnginePivotSwitch.cpp` in that pass either: Pivot continuation is inside
+`SubmitDecision` and moves with that complete method. Separating either branch
+requires a later approved internal seam, not relocation disguised as a split.
+
+A class method can be defined in any of these `.cpp` files by including
 `BattleEngine.h`; `BattleEngine.cpp` does not import implementations from them.
 
 ## Proposed private shared support
@@ -212,8 +255,10 @@ review. A class method can be defined in any of these `.cpp` files by including
 Only promote a helper when at least two focused translation units need it.
 Otherwise keep it local to its checkpoint file.
 
-Likely shared seams after the delta review are:
+The completed delta review confirms these shared seams:
 
+- `BattleEngineCommon.*` for no-draw random, stable identifiers, common state
+  lookups, sources, and rejection facts used across checkpoint families;
 - `BattleEngineCheckpointState.*` for shared exact identities and staged
   projection/delta support;
 - `BattleEngineQueueBoundary.*` for pure queue-boundary and replacement
@@ -223,35 +268,57 @@ Likely shared seams after the delta review are:
 - `BattleEngineSwitchPipeline.*` for switch application, entry hazards,
   immediate held items, and entry abilities.
 
+Each name above means one private `.h`/`.cpp` pair. Headers contain only the
+declarations and template definitions that callers require; non-template
+definitions remain in the corresponding `.cpp`. Each file uses self-contained
+includes and a unique named private namespace. A helper stays local when only
+one focused translation unit needs it.
+
 Do not replace all checkpoints with one generic base class. Their stale
 identities and owned deltas differ, and the explicit code is part of their
 auditability.
 
 ## Atomic test split
 
-Split `BattleAtomicCheckpointTests.cpp` as a separate approved task, not mixed
-with production relocation:
+T1 is complete. It was executed separately from production relocation and
+preserved all 84 exact Automation paths:
 
-- `BattleAtomicWildActionTests.cpp`;
-- `BattleAtomicBagActionTests.cpp`;
-- `BattleAtomicCaptureTests.cpp`;
-- `BattleAtomicActionStartTests.cpp`;
-- `BattleAtomicVoluntarySwitchTests.cpp`;
-- `BattleAtomicPivotSwitchTests.cpp`; and
-- `BattleAtomicPreMoveTests.cpp`.
+- `BattleAtomicWildActionTests.cpp`: 7 tests;
+- `BattleAtomicCaptureTests.cpp`: 9 tests;
+- `BattleAtomicActionStartTests.cpp`: 8 tests;
+- `BattleAtomicVoluntarySwitchTests.cpp`: 8 tests;
+- `BattleAtomicPivotSwitchTests.cpp`: 10 tests;
+- `BattleAtomicPreMoveTests.cpp`: 19 tests;
+- `BattleAtomicMoveTargetTests.cpp`: 12 tests; and
+- `BattleAtomicMoveEffectTests.cpp`: 11 tests.
 
-Partition the now-existing target-resolution and move-effect checkpoint tests
-according to the accepted ADR-0002 implementation. Include the stale accepted
-Bag-cancellation failure proof in the Bag or checkpoint partition. Keep generic
-setup, catalog, event observation, and fault-injection support in a small
-private test support seam. Do not replace one large test source with one large
-support header.
+The four 3D2 Bag checkpoint tests remain in `BattleBagItemTests.cpp`.
+`BattleAtomicBagActionTests.cpp` was not created, and neither
+`BattleBagItemTests.cpp` nor `BattleAtomicCheckpointTestHarness.h` was modified.
+
+The completed split uses these focused private support pairs:
+
+- `BattleAtomicCheckpointTestCommon.h/.cpp` for generic scenario, catalog,
+  setup, decision, event, and replay helpers;
+- `BattleAtomicCheckpointTestFaults.h/.cpp` for reusable random and transaction
+  failure seams;
+- `BattleAtomicSwitchTestSupport.h/.cpp` for helpers shared by voluntary and
+  Pivot switch tests; and
+- `BattleAtomicMoveCheckpointTestSupport.h/.cpp` for helpers shared by
+  pre-move, target, and effect checkpoints.
+
+Family-specific helpers remain in their family test `.cpp`. Support code is
+wrapped in `WITH_DEV_AUTOMATION_TESTS`, every test source has a unique named
+namespace, and no `.cpp` includes another `.cpp`. The exact pre-delete path-set
+comparison proved 84 unique old paths and 84 identical unique new paths before
+`BattleAtomicCheckpointTests.cpp` was removed.
 
 ## `BattleEffectExecutor` follow-up
 
-`BattleEffectExecutor.cpp` is the second production priority. Its atomic
-move-effect and outcome staging must remain stable through the final ADR-0002
-gate before it is split.
+`BattleEffectExecutor.cpp` is the second production priority. The accepted
+ADR-0002 gate confirms that its atomic move-effect and outcome staging is
+stable, but it is excluded from the `BattleEngine` split and still requires a
+later read-only delta review, exact write set, and separate approval.
 
 Keep:
 
@@ -272,29 +339,159 @@ its methods across focused files for:
 These files must operate on the same staged context. They must not create
 independent state copies or commits.
 
-## Implementation sequence
+## Approval-bounded write sets and sequence
 
-Use separate, approval-bounded changes rather than one broad refactor:
+Use separate changes rather than one broad refactor. G1B and T1 have been
+approved and completed. No production wave has been approved.
 
-1. Complete the remaining ADR-0002 implementation remediation and pass its
-   final gate; the ADR design is already Accepted.
-2. Run the narrow structural delta review.
-3. Complete the mandatory guide-reference inventory and old-to-new mapping.
-4. Present exact production, test, guide, and support-file write sets, plus
-   exclusions and validation, and wait for approval.
-5. Split the atomic test source as its own mechanical task if the user chooses
-   that first.
-6. Relocate `BattleEngine` code without behavioral cleanup, deduplication, or
-   contract changes.
-7. Validate the relocation and all active guide references.
-8. In a later task, reduce proven duplication such as repeated queue-boundary
-   planning, rejection publication, trigger cleanup, and shared switch
-   projection.
-9. Split `BattleEffectExecutor` only after its atomic boundary is stable.
+### G1B - active guide migration (approved)
+
+Write only the three guide paths listed in the migration section. Run no build
+or Automation and write no generated Unreal output.
+
+### T1 - atomic tests (approved and completed 2026-08-27)
+
+Under `Game/Source/PokemonSolarus/Private/Tests/`, the eight focused test
+sources and four support `.h`/`.cpp` pairs listed above now replace
+`BattleAtomicCheckpointTests.cpp`. All 84 paths moved before deletion. This
+handoff was the only hand-edited guide in the original T1 wave. A later
+explicit documentation approval refreshed `production/session-state/active.md`
+before the T1 commit. The harness and Bag tests remain outside the write set.
+
+### P0 - private production seams (proposed, not approved)
+
+Modify:
+
+- `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp`; and
+- this handoff.
+
+Create the exact six private support `.h`/`.cpp` pairs:
+
+- `BattleEngineCommon.h/.cpp`;
+- `BattleEngineCheckpointState.h/.cpp`;
+- `BattleEngineQueueBoundary.h/.cpp`;
+- `BattleEngineEvents.h/.cpp`;
+- `BattleEngineTriggerRuntime.h/.cpp`; and
+- `BattleEngineSwitchPipeline.h/.cpp`.
+
+P0 moves only shared helper families. Every `FBattleEngine` member definition
+remains in `BattleEngine.cpp` so helper linkage and include boundaries can be
+validated independently.
+
+### P1 - non-checkpoint member relocation (proposed, not approved)
+
+Modify `BattleEngine.cpp` and this handoff. Create:
+
+- `BattleEngineSnapshots.cpp`;
+- `BattleEngineDecisionFlow.cpp`;
+- `BattleEngineEndTurn.cpp`;
+- `BattleEngineBetweenActions.cpp`; and
+- `BattleEngineReplay.cpp`.
+
+Construction, destruction, `TryCreate`, and test-fixture creation remain in
+`BattleEngine.cpp`. `SubmitDecision` moves whole, including Pivot continuation.
+
+### P2 - checkpoint member relocation (proposed, not approved)
+
+Modify `BattleEngine.cpp` and this handoff. Create:
+
+- `BattleEngineActionStart.cpp`;
+- `BattleEngineWildActions.cpp`;
+- `BattleEngineBagActions.cpp`;
+- `BattleEngineVoluntarySwitch.cpp`;
+- `BattleEnginePreMove.cpp`;
+- `BattleEngineMoveTargets.cpp`; and
+- `BattleEngineMoveEffects.cpp`.
+
+`ExecuteCurrentBagItem` moves whole, including ordinary Bag, stale
+cancellation, and Capture. Do not create separate Capture or Pivot source files
+in this wave.
+
+### G2 - structural closeout (proposed, not approved)
+
+Update this handoff and `production/session-state/active.md` with the final live
+worktree, generated report roots, exported counters, and current guide search.
+Then stop for user diff review. Do not commit.
+
+After G2, separately review any behavior cleanup or duplication reduction. A
+later `BattleEffectExecutor` split is another independent task.
 
 The first production relocation reduces individual file size, not total code
 size. Actual line-count reduction belongs to a later, separately reviewed
 cleanup.
+
+## Validation scope and evidence
+
+G1B requires only a read-only reference and diff verification.
+
+T1 requires:
+
+1. The forced-Unity editor build with `-ForceUnity`,
+   `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`.
+2. `PokemonSolarus.Battle.ADR0002` with exactly 110 successes.
+3. Full `PokemonSolarus.Battle` with exactly 320 successes.
+4. An exact full-test-path set comparison with the accepted reports so equal
+   counts cannot hide a missing or duplicate registration.
+
+T1 passes all four requirements. The first compile exposed one support
+dependency: the generic held-item comparator was needed by switch support. It
+was moved from move-checkpoint support to common support, and no Automation was
+run until the corrected final build passed. Final evidence is:
+
+- the forced-Unity editor build passed with all four required flags;
+- `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852/01-ADR0002/report/index.json`
+  reports exactly 110 successes and zero succeeded-with-warnings, failures,
+  not-run, or in-process tests;
+- `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852/02-Battle/report/index.json`
+  reports exactly 320 successes and the same zero counters;
+- every entry in both reports has zero warnings and errors, every path uses the
+  exact intended prefix, and neither report contains a duplicate path; and
+- the full sorted path-set SHA-256 is
+  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`,
+  identical to the accepted 320-test report. Direct set comparison also found
+  zero missing and zero extra paths.
+
+P0, P1, and P2 each move shared `BattleEngine` code and therefore each require
+the forced-Unity build plus this exact serial 22-filter matrix:
+
+`ADR0002`, `C03A`, `C03B`, `C04A`, `C04B`, `C05A`, `C05B`, `C05C`,
+`C06A`, `C06B`, `C07A`, `C07B`, `C07C`, `C07D`, `C08A`, `C08B`,
+`C08C`, `C09A`, `C09B`, `C09C`, `Runtime`, and full `Battle`, all under
+the `PokemonSolarus.Battle` prefix.
+
+The accepted per-filter counts must remain unchanged, including 606 successes
+in aggregate and 320 for full Battle. Every exported `index.json` must have
+zero succeeded-with-warnings, failed, not-run, and in-process counters; every
+test entry must have zero warnings and errors. Use a fresh unique generated
+root under `Game/Saved/AutomationReports/BattleStructural-<wave>-<timestamp>`.
+Process exit code alone is not acceptance evidence.
+
+After T1, P0, P1, P2, and G2, rerun the guide-reference search and verify that
+active guidance reflects current versus proposed files accurately. No
+Blueprint lifecycle or actual-size PIE claim is part of this plain-C++
+structural task.
+
+## Exact exclusions
+
+Unless a later approval explicitly changes this list, exclude:
+
+- C10A and every later roadmap implementation package;
+- `BattleEffectExecutor.*`, `BattleState.*`, `BattleResolutionCommit.*`,
+  `BattleFaintOutcomeResolver.*`, and `BattlePartnerFlow.*` from the first
+  `BattleEngine` relocation;
+- public `BattleEngine.h` or external-call contract changes;
+- behavior cleanup, deduplication, generic checkpoint base classes, and new
+  gameplay seams created only to make a file boundary easier;
+- event order, rejection behavior, replay schema `6`, enum ordinals, RNG draws
+  or commit timing, action cursor/progress ownership, and exact-once
+  publication changes;
+- Cry for Help, reinforcement, `CallReinforcement`, UI, Blueprint appearance,
+  assets, maps, configuration, `.uproject`, module rules, and new modules;
+- hand edits under `Game/Saved`, `Game/Intermediate`, or `Game/Binaries`;
+  approved build/Automation tools may write their ordinary generated output;
+- `docs/registry/architecture.yaml`, ADR-0003, and every part of the untracked
+  ADR-0004 other than the dated G1B amendment; and
+- staging, committing, pushing, branching, or rewriting Git history.
 
 ## Mechanical and validation constraints
 
