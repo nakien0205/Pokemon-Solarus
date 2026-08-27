@@ -11454,22 +11454,6 @@ namespace
 		return true;
 	}
 
-	bool AreMoveEffectsActivePositionsIdentical(
-		const TConstArrayView<FBattleActivePositionState> Left,
-		const TConstArrayView<FBattleActivePositionState> Right)
-	{
-		return AreOrderedPivotIdentityValuesEqual(
-			Left,
-			Right,
-			[](const FBattleActivePositionState& L, const FBattleActivePositionState& R)
-			{
-				return L.ActiveSlotId == R.ActiveSlotId
-					&& L.bAvailable == R.bAvailable
-					&& L.TrainerId == R.TrainerId
-					&& L.BattlerId == R.BattlerId;
-			});
-	}
-
 	bool AreMoveEffectsFieldsIdentical(
 		const FBattleFieldState& Left,
 		const FBattleFieldState& Right)
@@ -11501,49 +11485,6 @@ namespace
 				return L.Side == R.Side
 					&& ArePreMoveConditionsIdentical(L.Conditions, R.Conditions)
 					&& ArePreMoveConditionsIdentical(L.Hazards, R.Hazards);
-			});
-	}
-
-	bool AreMoveEffectsTrainersIdentical(
-		const TConstArrayView<FBattleTrainerState> Left,
-		const TConstArrayView<FBattleTrainerState> Right)
-	{
-		return AreOrderedPivotIdentityValuesEqual(
-			Left,
-			Right,
-			[](const FBattleTrainerState& L, const FBattleTrainerState& R)
-			{
-				if (L.TrainerId != R.TrainerId
-					|| L.Side != R.Side
-					|| L.Role != R.Role
-					|| L.Controller != R.Controller
-					|| L.SelectorProfileId != R.SelectorProfileId
-					|| L.ActionAllowance.MaximumActions != R.ActionAllowance.MaximumActions
-					|| L.ActionAllowance.RemainingActions != R.ActionAllowance.RemainingActions
-					|| L.ActionAllowance.bBagActionAvailable
-						!= R.ActionAllowance.bBagActionAvailable
-					|| L.Bag.Num() != R.Bag.Num()
-					|| L.PartySlots.Num() != R.PartySlots.Num())
-				{
-					return false;
-				}
-				for (int32 Index = 0; Index < L.Bag.Num(); ++Index)
-				{
-					if (L.Bag[Index].ItemId != R.Bag[Index].ItemId
-						|| L.Bag[Index].Count != R.Bag[Index].Count)
-					{
-						return false;
-					}
-				}
-				for (int32 Index = 0; Index < L.PartySlots.Num(); ++Index)
-				{
-					if (L.PartySlots[Index].PartySlotId != R.PartySlots[Index].PartySlotId
-						|| L.PartySlots[Index].BattlerId != R.PartySlots[Index].BattlerId)
-					{
-						return false;
-					}
-				}
-				return true;
 			});
 	}
 
@@ -11596,96 +11537,30 @@ namespace
 		return true;
 	}
 
-	bool AreMoveEffectsCatalogsIdentical(
-		const FBattleDefinitionCatalog& Left,
-		const FBattleDefinitionCatalog& Right)
+	/** Bounded Trainer facts read by Pivot and replacement legality preparation. */
+	struct FMoveEffectsTrainerIdentity
 	{
-		if (Left.IsValid() != Right.IsValid()
-			|| Left.GetSpeciesForms().Num() != Right.GetSpeciesForms().Num()
-			|| Left.GetNatures().Num() != Right.GetNatures().Num()
-			|| Left.GetMoves().Num() != Right.GetMoves().Num()
-			|| Left.GetAbilities().Num() != Right.GetAbilities().Num()
-			|| Left.GetItems().Num() != Right.GetItems().Num()
-			|| Left.GetConditions().Num() != Right.GetConditions().Num())
+		FTrainerId TrainerId;
+		EBattleSide Side = EBattleSide::Player;
+		TArray<FBattlePartySlotState> PartySlots;
+	};
+
+	bool MatchesMoveEffectsTrainerIdentity(
+		const FBattleTrainerState& Trainer,
+		const FMoveEffectsTrainerIdentity& Identity)
+	{
+		if (Trainer.TrainerId != Identity.TrainerId
+			|| Trainer.Side != Identity.Side
+			|| Trainer.PartySlots.Num() != Identity.PartySlots.Num())
 		{
 			return false;
 		}
-		for (int32 Attack = 0; Attack < FBattleTypeChart::TypeCount; ++Attack)
+		for (int32 Index = 0; Index < Trainer.PartySlots.Num(); ++Index)
 		{
-			for (int32 Defense = 0; Defense < FBattleTypeChart::TypeCount; ++Defense)
-			{
-				FBattleTypeEffectiveness L;
-				FBattleTypeEffectiveness R;
-				const bool bLeft = Left.GetTypeChart().TryGetEffectiveness(
-					static_cast<EPokemonType>(Attack),
-					static_cast<EPokemonType>(Defense),
-					L);
-				const bool bRight = Right.GetTypeChart().TryGetEffectiveness(
-					static_cast<EPokemonType>(Attack),
-					static_cast<EPokemonType>(Defense),
-					R);
-				if (bLeft != bRight
-					|| (bLeft && (L.Numerator != R.Numerator || L.Denominator != R.Denominator)))
-				{
-					return false;
-				}
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetSpeciesForms().Num(); ++Index)
-		{
-			const FBattleSpeciesFormDefinition& L = Left.GetSpeciesForms()[Index];
-			const FBattleSpeciesFormDefinition& R = Right.GetSpeciesForms()[Index];
-			if (L.Id != R.Id
-				|| L.PrimaryType != R.PrimaryType
-				|| L.SecondaryType != R.SecondaryType
-				|| L.BaseStats.HP != R.BaseStats.HP
-				|| L.BaseStats.Attack != R.BaseStats.Attack
-				|| L.BaseStats.Defense != R.BaseStats.Defense
-				|| L.BaseStats.SpecialAttack != R.BaseStats.SpecialAttack
-				|| L.BaseStats.SpecialDefense != R.BaseStats.SpecialDefense
-				|| L.BaseStats.Speed != R.BaseStats.Speed
-				|| L.CatchRate != R.CatchRate
-				|| L.AbilityChoices != R.AbilityChoices)
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetNatures().Num(); ++Index)
-		{
-			if (Left.GetNatures()[Index].Id != Right.GetNatures()[Index].Id
-				|| Left.GetNatures()[Index].Modifier != Right.GetNatures()[Index].Modifier)
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetMoves().Num(); ++Index)
-		{
-			if (!AreMoveEffectsDefinitionsIdentical(
-					Left.GetMoves()[Index],
-					Right.GetMoves()[Index]))
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetAbilities().Num(); ++Index)
-		{
-			if (Left.GetAbilities()[Index].Id != Right.GetAbilities()[Index].Id)
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetItems().Num(); ++Index)
-		{
-			if (Left.GetItems()[Index].Id != Right.GetItems()[Index].Id
-				|| Left.GetItems()[Index].Kind != Right.GetItems()[Index].Kind)
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < Left.GetConditions().Num(); ++Index)
-		{
-			if (Left.GetConditions()[Index].Id != Right.GetConditions()[Index].Id
-				|| Left.GetConditions()[Index].Kind != Right.GetConditions()[Index].Kind)
+			if (Trainer.PartySlots[Index].PartySlotId
+					!= Identity.PartySlots[Index].PartySlotId
+				|| Trainer.PartySlots[Index].BattlerId
+					!= Identity.PartySlots[Index].BattlerId)
 			{
 				return false;
 			}
@@ -11693,153 +11568,42 @@ namespace
 		return true;
 	}
 
-	bool AreMoveEffectsEventsIdentical(const FBattleEvent& Left, const FBattleEvent& Right)
+	/** Bounded locked-action facts read by the executor's acted-this-turn query. */
+	struct FMoveEffectsLockedActionIdentity
 	{
-		if (Left.IsValid() != Right.IsValid()
-			|| Left.GetEventOrdinal() != Right.GetEventOrdinal()
-			|| Left.GetBattleId() != Right.GetBattleId()
-			|| Left.GetTurnId() != Right.GetTurnId()
-			|| Left.GetActionId() != Right.GetActionId()
-			|| Left.GetResolutionId() != Right.GetResolutionId()
-			|| Left.GetType() != Right.GetType()
-			|| Left.GetCause() != Right.GetCause()
-			|| Left.GetCauseActionKind() != Right.GetCauseActionKind()
-			|| Left.GetOutcomeCause() != Right.GetOutcomeCause()
-			|| Left.GetSource().TrainerId != Right.GetSource().TrainerId
-			|| Left.GetSource().BattlerId != Right.GetSource().BattlerId
-			|| Left.GetSource().ActiveSlotId != Right.GetSource().ActiveSlotId
-			|| Left.GetSource().DefinitionId != Right.GetSource().DefinitionId
-			|| Left.GetNumericBefore() != Right.GetNumericBefore()
-			|| Left.GetNumericAfter() != Right.GetNumericAfter()
-			|| Left.GetNumericDelta() != Right.GetNumericDelta()
-			|| Left.GetSimultaneousGroupId() != Right.GetSimultaneousGroupId()
-			|| Left.GetHitIndex() != Right.GetHitIndex()
-			|| Left.GetHitCount() != Right.GetHitCount()
-			|| Left.GetCapture() != Right.GetCapture()
-			|| Left.GetVisibility().Level != Right.GetVisibility().Level
-			|| Left.GetVisibility().OwningTrainerId != Right.GetVisibility().OwningTrainerId
-			|| Left.GetVisibility().OwningSide != Right.GetVisibility().OwningSide
-			|| Left.GetVisibility().bHasOwningSide != Right.GetVisibility().bHasOwningSide
-			|| Left.GetVisibility().bRevealSourceDefinition
-				!= Right.GetVisibility().bRevealSourceDefinition
-			|| Left.GetTargets().Num() != Right.GetTargets().Num()
-			|| Left.GetActionOrder().IsSet() != Right.GetActionOrder().IsSet()
-			|| Left.GetTargetResolution().IsSet() != Right.GetTargetResolution().IsSet())
-		{
-			return false;
-		}
-		for (int32 Index = 0; Index < Left.GetTargets().Num(); ++Index)
-		{
-			const FBattleEventTarget& L = Left.GetTargets()[Index];
-			const FBattleEventTarget& R = Right.GetTargets()[Index];
-			if (L.TrainerId != R.TrainerId
-				|| L.BattlerId != R.BattlerId
-				|| L.ActiveSlotId != R.ActiveSlotId
-				|| L.Side != R.Side
-				|| L.bHasSide != R.bHasSide
-				|| L.bField != R.bField)
-			{
-				return false;
-			}
-		}
-		if (Left.GetActionOrder().IsSet())
-		{
-			const FBattleActionOrderMetadata& L = Left.GetActionOrder().GetValue();
-			const FBattleActionOrderMetadata& R = Right.GetActionOrder().GetValue();
-			if (L.QueueOrdinal != R.QueueOrdinal
-				|| L.bReverseSpeed != R.bReverseSpeed
-				|| L.OrderKey.CommandBand != R.OrderKey.CommandBand
-				|| L.OrderKey.MovePriority != R.OrderKey.MovePriority
-				|| L.OrderKey.FractionalPriorityTenths
-					!= R.OrderKey.FractionalPriorityTenths
-				|| L.OrderKey.EffectiveSpeed != R.OrderKey.EffectiveSpeed
-				|| L.OrderKey.ActingSlotId != R.OrderKey.ActingSlotId)
-			{
-				return false;
-			}
-		}
-		if (Left.GetTargetResolution().IsSet())
-		{
-			const FBattleTargetResolutionMetadata& L =
-				Left.GetTargetResolution().GetValue();
-			const FBattleTargetResolutionMetadata& R =
-				Right.GetTargetResolution().GetValue();
-			if (L.TargetClass != R.TargetClass
-				|| L.bWasRedirected != R.bWasRedirected
-				|| L.bUsedFaintedTargetFallback != R.bUsedFaintedTargetFallback)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
+		FBattlerId ActingBattlerId;
+		bool bStarted = false;
+		bool bFinished = false;
+	};
 
-	bool AreMoveEffectsResolutionsIdentical(
-		const FBattleResolution& Left,
-		const FBattleResolution& Right)
-	{
-		const FBattleRejection& LRejection = Left.GetRejection();
-		const FBattleRejection& RRejection = Right.GetRejection();
-		if (Left.IsValid() != Right.IsValid()
-			|| Left.WasAccepted() != Right.WasAccepted()
-			|| Left.GetResolutionId() != Right.GetResolutionId()
-			|| Left.GetBeforeStateVersion() != Right.GetBeforeStateVersion()
-			|| Left.GetAfterStateVersion() != Right.GetAfterStateVersion()
-			|| LRejection.Reason != RRejection.Reason
-			|| LRejection.TrainerId != RRejection.TrainerId
-			|| LRejection.BattlerId != RRejection.BattlerId
-			|| LRejection.ActionId != RRejection.ActionId
-			|| LRejection.MoveId != RRejection.MoveId
-			|| LRejection.ItemId != RRejection.ItemId
-			|| LRejection.PartySlotId != RRejection.PartySlotId
-			|| LRejection.ActiveSlotId != RRejection.ActiveSlotId
-			|| Left.GetEvents().Num() != Right.GetEvents().Num())
-		{
-			return false;
-		}
-		for (int32 Index = 0; Index < Left.GetEvents().Num(); ++Index)
-		{
-			if (!AreMoveEffectsEventsIdentical(Left.GetEvents()[Index], Right.GetEvents()[Index]))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
+	/** One action plus bounded preparation facts; append-only histories are scalar identities. */
 	struct FMoveEffectsCheckpointIdentity
 	{
 		FBattleResolutionCommitIdentity CommitIdentity;
+		int32 ExpectedLockedActionCount = 0;
+		int32 ExpectedEventCount = 0;
 		FBattleId ExpectedBattleId;
 		FTurnId ExpectedTurnId;
 		EBattleEncounterKind ExpectedEncounterKind = EBattleEncounterKind::Wild;
 		EBattleFormat ExpectedFormat = EBattleFormat::Single;
 		bool bExpectedHasCatalog = false;
 		FBattleLockedActionState ExpectedAction;
+		TArray<FMoveEffectsLockedActionIdentity> LockedActionIdentities;
 		FBattleMoveDefinition ExpectedMove;
 		FTrainerId ExpectedOwnerId;
 		FBattlerId ExpectedActorId;
 		FActiveSlotId ExpectedActingSlotId;
-		TArray<FBattleTrainerState> ExpectedTrainers;
+		TArray<FMoveEffectsTrainerIdentity> TrainerIdentities;
 		TArray<FBattleBattlerState> ExpectedBattlers;
-		TArray<FBattleActivePositionState> ExpectedActivePositions;
 		FBattleFieldState ExpectedField;
 		TArray<FBattleSideState> ExpectedSides;
-		FBattleDefinitionCatalog ExpectedCatalog;
 		FBattleCompiledEncounterPolicies ExpectedPolicies;
 		TArray<FBattleActiveAssignment> ExpectedStartingActive;
-		TArray<FBattleLockedActionState> ExpectedLockedActions;
-		bool bExpectedLockedOrderReversesSpeed = false;
 		EBattleOutcome ExpectedOutcome = EBattleOutcome::InProgress;
 		EBattleOutcomeCause ExpectedOutcomeCause = EBattleOutcomeCause::None;
 		TOptional<FBattleDecisionRequest> ExpectedPendingDecision;
 		TArray<FBattleDecisionRequest> ExpectedPendingDecisionRequests;
 		TArray<FBattlePendingReplacementState> ExpectedPendingReplacements;
-		TArray<FBattleDecisionOwnerState> ExpectedDecisionOwnerSequence;
-		int32 ExpectedCurrentDecisionOwnerIndex = INDEX_NONE;
-		int32 ExpectedCurrentDecisionActorOffset = 0;
-		TArray<FBattleDecision> ExpectedAcceptedSelections;
-		TArray<FBattleDecision> ExpectedSubmittedDecisions;
 		TArray<FBattleHeldItemInstanceState> ExpectedHeldItemStates;
 		TArray<FBattleTriggerRegistrationState> ExpectedTriggerRegistrations;
 		TArray<uint8> ExpectedAbilityRevealFacts;
@@ -11849,12 +11613,7 @@ namespace
 		int32 ExpectedPendingTriggerLifecycleCount = 0;
 		uint64 ExpectedNextConditionCreationOrdinal = 0;
 		uint64 ExpectedNextTriggerReentrancyToken = 0;
-		uint64 ExpectedNextActionId = 0;
-		bool bExpectedEndTurnTriggerPassComplete = false;
 		TArray<uint64> ExpectedOpponentRemovalCheckpoints;
-		TArray<FBattleRandomDraw> ExpectedRandomTrace;
-		TArray<FBattleResolution> ExpectedResolutions;
-		TArray<FBattleEvent> ExpectedOrderedEvents;
 		TArray<FVoluntarySwitchBattlerIdentity> BattlerIdentities;
 		TArray<FVoluntarySwitchActiveIdentity> ActiveIdentities;
 	};
@@ -11904,7 +11663,33 @@ namespace
 			return false;
 		}
 
+		// Preserve the final stale-test seam without retaining the trace itself. This
+		// probe and TryCaptureIdentity must be the only parent trace reads before staging.
+		const int32 RandomTraceCount = State.Random->GetTrace().Num();
+		FBattleResolutionCommitIdentity CommitIdentity;
+		if (!FBattleResolutionCommit::TryCaptureIdentity(
+				State,
+				ResolutionId,
+				Action.ActionId,
+				CommitIdentity)
+			|| RandomTraceCount != CommitIdentity.ExpectedRandomTraceCount)
+		{
+			return false;
+		}
+
+		OutIdentity.CommitIdentity = CommitIdentity;
+		OutIdentity.ExpectedLockedActionCount = State.LockedActions.Num();
+		OutIdentity.ExpectedEventCount = State.OrderedEvents.Num();
 		OutIdentity.ExpectedAction = Action;
+		OutIdentity.LockedActionIdentities.Reserve(State.LockedActions.Num());
+		for (const FBattleLockedActionState& LockedAction : State.LockedActions)
+		{
+			FMoveEffectsLockedActionIdentity& Identity =
+				OutIdentity.LockedActionIdentities.AddDefaulted_GetRef();
+			Identity.ActingBattlerId = LockedAction.Decision.GetActingBattlerId();
+			Identity.bStarted = LockedAction.bStarted;
+			Identity.bFinished = LockedAction.bFinished;
+		}
 		OutIdentity.ExpectedBattleId = State.Setup.GetBattleId();
 		OutIdentity.ExpectedTurnId = State.TurnId;
 		OutIdentity.ExpectedEncounterKind = State.EncounterKind;
@@ -11914,29 +11699,28 @@ namespace
 		OutIdentity.ExpectedOwnerId = Action.Decision.GetDecisionOwnerTrainerId();
 		OutIdentity.ExpectedActorId = Action.Decision.GetActingBattlerId();
 		OutIdentity.ExpectedActingSlotId = Action.OrderKey.ActingSlotId;
-		OutIdentity.ExpectedTrainers = State.Trainers;
+		OutIdentity.TrainerIdentities.Reserve(State.Trainers.Num());
+		for (const FBattleTrainerState& Trainer : State.Trainers)
+		{
+			FMoveEffectsTrainerIdentity& Identity =
+				OutIdentity.TrainerIdentities.AddDefaulted_GetRef();
+			Identity.TrainerId = Trainer.TrainerId;
+			Identity.Side = Trainer.Side;
+			Identity.PartySlots = Trainer.PartySlots;
+		}
 		OutIdentity.ExpectedBattlers = State.Battlers;
-		OutIdentity.ExpectedActivePositions = State.ActivePositions;
 		OutIdentity.ExpectedField = State.Field;
 		OutIdentity.ExpectedSides = State.Sides;
-		OutIdentity.ExpectedCatalog = State.Catalog;
 		OutIdentity.ExpectedPolicies = State.CompiledEncounterPolicies;
 		for (const FBattleActiveAssignment& Assignment : State.Setup.GetStartingActive())
 		{
 			OutIdentity.ExpectedStartingActive.Add(Assignment);
 		}
-		OutIdentity.ExpectedLockedActions = State.LockedActions;
-		OutIdentity.bExpectedLockedOrderReversesSpeed = State.bLockedOrderReversesSpeed;
 		OutIdentity.ExpectedOutcome = State.Outcome;
 		OutIdentity.ExpectedOutcomeCause = State.OutcomeCause;
 		OutIdentity.ExpectedPendingDecision = State.PendingDecision;
 		OutIdentity.ExpectedPendingDecisionRequests = State.PendingDecisionRequests;
 		OutIdentity.ExpectedPendingReplacements = State.PendingReplacements;
-		OutIdentity.ExpectedDecisionOwnerSequence = State.DecisionOwnerSequence;
-		OutIdentity.ExpectedCurrentDecisionOwnerIndex = State.CurrentDecisionOwnerIndex;
-		OutIdentity.ExpectedCurrentDecisionActorOffset = State.CurrentDecisionActorOffset;
-		OutIdentity.ExpectedAcceptedSelections = State.AcceptedSelections;
-		OutIdentity.ExpectedSubmittedDecisions = State.SubmittedDecisions;
 		OutIdentity.ExpectedPendingTriggerDispatchCount =
 			State.TriggerFramework.GetPendingDispatchCount();
 		OutIdentity.ExpectedPendingTriggerEffectCount =
@@ -11947,13 +11731,8 @@ namespace
 			State.NextConditionCreationOrdinal;
 		OutIdentity.ExpectedNextTriggerReentrancyToken =
 			State.NextTriggerReentrancyToken;
-		OutIdentity.ExpectedNextActionId = State.NextActionId;
-		OutIdentity.bExpectedEndTurnTriggerPassComplete =
-			State.bEndTurnTriggerPassComplete;
 		OutIdentity.ExpectedOpponentRemovalCheckpoints =
 			State.AvailableOpponentRemovalCheckpoints;
-		OutIdentity.ExpectedResolutions = State.Resolutions;
-		OutIdentity.ExpectedOrderedEvents = State.OrderedEvents;
 		for (const FBattleHeldItemInstanceState& Item : State.HeldItemLedger.GetStates())
 		{
 			OutIdentity.ExpectedHeldItemStates.Add(Item);
@@ -11995,16 +11774,7 @@ namespace
 			Identity.BattlerId = Position.BattlerId;
 			Identity.bAvailable = Position.bAvailable;
 		}
-		const TConstArrayView<FBattleRandomDraw> Trace = State.Random->GetTrace();
-		for (const FBattleRandomDraw& Draw : Trace)
-		{
-			OutIdentity.ExpectedRandomTrace.Add(Draw);
-		}
-		return FBattleResolutionCommit::TryCaptureIdentity(
-			State,
-			ResolutionId,
-			Action.ActionId,
-			OutIdentity.CommitIdentity);
+		return true;
 	}
 
 	bool IsMoveEffectsCheckpointIdentityCurrent(
@@ -12012,37 +11782,35 @@ namespace
 		const FMoveEffectsCheckpointIdentity& Identity)
 	{
 		const FBattleResolutionCommitIdentity& Commit = Identity.CommitIdentity;
+		// Keep the commit identity check first: it is the only parent trace read after
+		// staging and closes the stale-checkpoint seam before exact fact comparison.
 		if (!FBattleResolutionCommit::IsIdentityCurrent(State, Commit)
 			|| !State.LockedActions.IsValidIndex(Commit.ExpectedLockedActionIndex)
+			|| State.LockedActions.Num() != Identity.ExpectedLockedActionCount
+			|| State.LockedActions.Num() != Identity.LockedActionIdentities.Num()
+			|| State.OrderedEvents.Num() != Identity.ExpectedEventCount
 			|| State.Setup.GetBattleId() != Identity.ExpectedBattleId
 			|| State.TurnId != Identity.ExpectedTurnId
 			|| State.EncounterKind != Identity.ExpectedEncounterKind
 			|| State.Format != Identity.ExpectedFormat
 			|| State.bHasCatalog != Identity.bExpectedHasCatalog
-			|| State.bLockedOrderReversesSpeed != Identity.bExpectedLockedOrderReversesSpeed
 			|| State.Outcome != Identity.ExpectedOutcome
 			|| State.OutcomeCause != Identity.ExpectedOutcomeCause
-			|| State.CurrentDecisionOwnerIndex != Identity.ExpectedCurrentDecisionOwnerIndex
-			|| State.CurrentDecisionActorOffset != Identity.ExpectedCurrentDecisionActorOffset
 			|| State.NextConditionCreationOrdinal
 				!= Identity.ExpectedNextConditionCreationOrdinal
 			|| State.NextTriggerReentrancyToken
 				!= Identity.ExpectedNextTriggerReentrancyToken
-			|| State.NextActionId != Identity.ExpectedNextActionId
-			|| State.bEndTurnTriggerPassComplete
-				!= Identity.bExpectedEndTurnTriggerPassComplete
 			|| !ArePivotLockedActionsIdentical(
 				State.LockedActions[Commit.ExpectedLockedActionIndex],
 				Identity.ExpectedAction)
-			|| State.LockedActions.Num() != Identity.ExpectedLockedActions.Num()
-			|| !AreMoveEffectsTrainersIdentical(State.Trainers, Identity.ExpectedTrainers)
+			|| State.Trainers.Num() != Identity.TrainerIdentities.Num()
 			|| State.Battlers.Num() != Identity.ExpectedBattlers.Num()
-			|| !AreMoveEffectsActivePositionsIdentical(
-				State.ActivePositions,
-				Identity.ExpectedActivePositions)
+			|| State.Battlers.Num() != Identity.BattlerIdentities.Num()
+			|| State.Battlers.Num() != Identity.ExpectedAbilityRevealFacts.Num()
+			|| State.Battlers.Num() != Identity.ExpectedItemRevealFacts.Num()
+			|| State.ActivePositions.Num() != Identity.ActiveIdentities.Num()
 			|| !AreMoveEffectsFieldsIdentical(State.Field, Identity.ExpectedField)
 			|| !AreMoveEffectsSidesIdentical(State.Sides, Identity.ExpectedSides)
-			|| !AreMoveEffectsCatalogsIdentical(State.Catalog, Identity.ExpectedCatalog)
 			|| !AreMoveEffectsPoliciesIdentical(
 				State.CompiledEncounterPolicies,
 				Identity.ExpectedPolicies)
@@ -12067,17 +11835,28 @@ namespace
 				!= Identity.ExpectedTriggerRegistrations.Num()
 			|| State.HeldItemLedger.GetStates().Num()
 				!= Identity.ExpectedHeldItemStates.Num()
-			|| State.Resolutions.Num() != Identity.ExpectedResolutions.Num()
-			|| State.OrderedEvents.Num() != Identity.ExpectedOrderedEvents.Num())
+			|| State.Setup.GetStartingActive().Num()
+				!= Identity.ExpectedStartingActive.Num())
 		{
 			return false;
 		}
 
 		for (int32 Index = 0; Index < State.LockedActions.Num(); ++Index)
 		{
-			if (!ArePivotLockedActionsIdentical(
-					State.LockedActions[Index],
-					Identity.ExpectedLockedActions[Index]))
+			const FBattleLockedActionState& Current = State.LockedActions[Index];
+			const FMoveEffectsLockedActionIdentity& Expected =
+				Identity.LockedActionIdentities[Index];
+			if (Current.Decision.GetActingBattlerId() != Expected.ActingBattlerId
+				|| Current.bStarted != Expected.bStarted
+				|| Current.bFinished != Expected.bFinished)
+			{
+				return false;
+			}
+		}
+		for (const FMoveEffectsTrainerIdentity& Expected : Identity.TrainerIdentities)
+		{
+			const FBattleTrainerState* Trainer = State.FindTrainer(Expected.TrainerId);
+			if (Trainer == nullptr || !MatchesMoveEffectsTrainerIdentity(*Trainer, Expected))
 			{
 				return false;
 			}
@@ -12114,6 +11893,18 @@ namespace
 				return false;
 			}
 		}
+		for (const FVoluntarySwitchActiveIdentity& Expected : Identity.ActiveIdentities)
+		{
+			const FBattleActivePositionState* Position =
+				State.FindActivePosition(Expected.ActiveSlotId);
+			if (Position == nullptr
+				|| Position->bAvailable != Expected.bAvailable
+				|| Position->TrainerId != Expected.TrainerId
+				|| Position->BattlerId != Expected.BattlerId)
+			{
+				return false;
+			}
+		}
 		for (int32 Index = 0; Index < State.TriggerFramework.GetActiveRegistrations().Num(); ++Index)
 		{
 			if (!ArePreMoveTriggerRegistrationsIdentical(
@@ -12131,10 +11922,6 @@ namespace
 				return false;
 			}
 		}
-		if (State.Setup.GetStartingActive().Num() != Identity.ExpectedStartingActive.Num())
-		{
-			return false;
-		}
 		for (int32 Index = 0; Index < State.Setup.GetStartingActive().Num(); ++Index)
 		{
 			const FBattleActiveAssignment& L = State.Setup.GetStartingActive()[Index];
@@ -12146,83 +11933,9 @@ namespace
 				return false;
 			}
 		}
-		if (State.DecisionOwnerSequence.Num() != Identity.ExpectedDecisionOwnerSequence.Num())
-		{
-			return false;
-		}
-		for (int32 Index = 0; Index < State.DecisionOwnerSequence.Num(); ++Index)
-		{
-			const FBattleDecisionOwnerState& L = State.DecisionOwnerSequence[Index];
-			const FBattleDecisionOwnerState& R = Identity.ExpectedDecisionOwnerSequence[Index];
-			if (L.TrainerId != R.TrainerId
-				|| L.Controller != R.Controller
-				|| L.Actors.Num() != R.Actors.Num())
-			{
-				return false;
-			}
-			for (int32 ActorIndex = 0; ActorIndex < L.Actors.Num(); ++ActorIndex)
-			{
-				if (L.Actors[ActorIndex].BattlerId != R.Actors[ActorIndex].BattlerId
-					|| L.Actors[ActorIndex].ActiveSlotId
-						!= R.Actors[ActorIndex].ActiveSlotId)
-				{
-					return false;
-				}
-			}
-		}
-		if (State.AcceptedSelections.Num() != Identity.ExpectedAcceptedSelections.Num()
-			|| State.SubmittedDecisions.Num() != Identity.ExpectedSubmittedDecisions.Num())
-		{
-			return false;
-		}
-		for (int32 Index = 0; Index < State.AcceptedSelections.Num(); ++Index)
-		{
-			if (!ArePivotDecisionsIdentical(
-					State.AcceptedSelections[Index],
-					Identity.ExpectedAcceptedSelections[Index]))
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < State.SubmittedDecisions.Num(); ++Index)
-		{
-			if (!ArePivotDecisionsIdentical(
-					State.SubmittedDecisions[Index],
-					Identity.ExpectedSubmittedDecisions[Index]))
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < State.Resolutions.Num(); ++Index)
-		{
-			if (!AreMoveEffectsResolutionsIdentical(
-					State.Resolutions[Index],
-					Identity.ExpectedResolutions[Index]))
-			{
-				return false;
-			}
-		}
-		for (int32 Index = 0; Index < State.OrderedEvents.Num(); ++Index)
-		{
-			if (!AreMoveEffectsEventsIdentical(
-					State.OrderedEvents[Index],
-					Identity.ExpectedOrderedEvents[Index]))
-			{
-				return false;
-			}
-		}
-		const TConstArrayView<FBattleRandomDraw> CurrentTrace = State.Random->GetTrace();
-		if (CurrentTrace.Num() != Identity.ExpectedRandomTrace.Num())
-		{
-			return false;
-		}
-		for (int32 Index = 0; Index < Identity.ExpectedRandomTrace.Num(); ++Index)
-		{
-			if (CurrentTrace[Index] != Identity.ExpectedRandomTrace[Index])
-			{
-				return false;
-			}
-		}
+
+		// Re-find the selected move by stable ID immediately before commit; no catalog
+		// snapshot or catalog-wide comparison is retained.
 		const FBattleMoveDefinition* CurrentMove =
 			Identity.ExpectedMove.Id == FBattleBuiltInMoveDefinitions::GetStruggleMoveId()
 				? &FBattleBuiltInMoveDefinitions::GetStruggle()
@@ -12234,9 +11947,6 @@ namespace
 		return CurrentMove != nullptr
 			&& CurrentActor != nullptr
 			&& AreMoveEffectsDefinitionsIdentical(*CurrentMove, Identity.ExpectedMove)
-			&& ArePivotLockedActionsIdentical(
-				State.LockedActions[Commit.ExpectedLockedActionIndex],
-				Identity.ExpectedAction)
 			&& CurrentActor->TrainerId == Identity.ExpectedOwnerId
 			&& CurrentActive != nullptr
 			&& CurrentActive->bAvailable
