@@ -4051,55 +4051,6 @@ namespace
 		return true;
 	}
 
-	void AppendPostActionBoundaryEvents(
-		FBattleEngineState& State,
-		const FResolutionId ResolutionId,
-		const FBattleLockedActionState& Action,
-		TArray<FBattleEvent>& Events)
-	{
-		TArray<FBattleReplacementRequirement> Requirements;
-		FBattleFaintOutcomeResolver::ResolveQueueBoundary(State, Requirements);
-		if (State.Phase == EBattlePhase::MandatoryReplacement)
-		{
-			State.PendingReplacements.Reset();
-			for (const FBattleReplacementRequirement& Requirement : Requirements)
-			{
-				FBattlePendingReplacementState& Pending =
-					State.PendingReplacements.AddDefaulted_GetRef();
-				Pending.TrainerId = Requirement.Target.TrainerId;
-				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
-			}
-
-			TArray<FBattleDecisionRequest> Requests;
-			const uint64 RequestStateVersion = State.StateVersion + 1;
-			const bool bRequestsBuilt = RequestStateVersion != 0
-				&& TryBuildReplacementCheckpointRequests(
-					State,
-					RequestStateVersion,
-					true,
-					Requests);
-			check(bRequestsBuilt && !Requests.IsEmpty());
-			State.PendingDecisionRequests = MoveTemp(Requests);
-			State.PendingDecision = State.PendingDecisionRequests[0];
-		}
-		else if (State.Phase == EBattlePhase::EndOfTurn)
-		{
-			State.PendingReplacements.Reset();
-			State.PendingDecisionRequests.Reset();
-			State.PendingDecision.Reset();
-		}
-		for (const FBattleReplacementRequirement& Requirement : Requirements)
-		{
-			Events.Add(MakeTargetedActionEvent(
-				State,
-				ResolutionId,
-				Action,
-				EBattleEventType::ReplacementRequired,
-				EBattleEventCause::Rule,
-				Requirement.Target));
-		}
-	}
-
 	FBattleResolution MakeRejectedResolution(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
@@ -7192,6 +7143,76 @@ namespace
 		TArray<FBattlePendingReplacementState> PendingReplacements;
 	};
 
+	/** Complete private transaction for one accepted stale Bag cancellation. */
+	struct FAcceptedBagCancellationDelta
+	{
+		FBattleResolutionCommitIdentity ActionIdentity;
+		int32 NextLockedActionIndex = INDEX_NONE;
+		EBattlePhase Phase = EBattlePhase::Resolving;
+		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TOptional<FBattleDecisionRequest> PendingDecision;
+		TArray<FBattleDecisionRequest> PendingDecisionRequests;
+		FBattleResolutionCommitPlan ResolutionPlan;
+	};
+
+	/**
+	 * Call-scoped read-only adapter over unchanged Battle authority and the
+	 * accepted-cancellation fields that have already been staged.
+	 */
+	struct FAcceptedBagCancellationStateView
+	{
+		const FBattleDefinitionCatalog& Catalog;
+		const TArray<FBattleTrainerState>& Trainers;
+		const TArray<FBattleBattlerState>& Battlers;
+		const TArray<FBattleActivePositionState>& ActivePositions;
+		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies;
+		const EBattlePhase& Phase;
+		const TArray<FBattlePendingReplacementState>& PendingReplacements;
+
+		FAcceptedBagCancellationStateView(
+			const FBattleEngineState& State,
+			const FAcceptedBagCancellationDelta& Delta)
+			: Catalog(State.Catalog)
+			, Trainers(State.Trainers)
+			, Battlers(State.Battlers)
+			, ActivePositions(State.ActivePositions)
+			, CompiledEncounterPolicies(State.CompiledEncounterPolicies)
+			, Phase(Delta.Phase)
+			, PendingReplacements(Delta.PendingReplacements)
+		{
+		}
+
+		[[nodiscard]] const FBattleTrainerState* FindTrainer(
+			const FTrainerId TrainerId) const
+		{
+			return Trainers.FindByPredicate(
+				[TrainerId](const FBattleTrainerState& Candidate)
+				{
+					return Candidate.TrainerId == TrainerId;
+				});
+		}
+
+		[[nodiscard]] const FBattleBattlerState* FindBattler(
+			const FBattlerId BattlerId) const
+		{
+			return Battlers.FindByPredicate(
+				[BattlerId](const FBattleBattlerState& Candidate)
+				{
+					return Candidate.BattlerId == BattlerId;
+				});
+		}
+
+		[[nodiscard]] const FBattleActivePositionState* FindActivePosition(
+			const FActiveSlotId ActiveSlotId) const
+		{
+			return ActivePositions.FindByPredicate(
+				[ActiveSlotId](const FBattleActivePositionState& Candidate)
+				{
+					return Candidate.ActiveSlotId == ActiveSlotId;
+				});
+		}
+	};
+
 	bool TryPrepareBagItemBoundary(
 		const FBattleEngineState& State,
 		const uint64 RequestStateVersion,
@@ -9060,6 +9081,148 @@ namespace
 						&& L.ItemId == R.ItemId
 						&& L.ActiveSlotId == R.ActiveSlotId;
 				});
+	}
+
+	bool IsAcceptedBagCancellationDeltaValid(
+		const FBattleEngineState& State,
+		const FAcceptedBagCancellationDelta& Delta,
+		const FBattleQueueBoundaryPlan& BoundaryPlan)
+	{
+		const FBattleResolutionCommitIdentity& Identity = Delta.ActionIdentity;
+		const FBattleResolutionCommitPlan& Plan = Delta.ResolutionPlan;
+		const int32 ReplacementCount = BoundaryPlan.Requirements.Num();
+		if (!Identity.ResolutionId.IsValid()
+			|| !Identity.OwningActionId.IsValid()
+			|| Identity.ExpectedStateVersion == 0
+			|| Identity.ExpectedStateVersion == TNumericLimits<uint64>::Max()
+			|| Identity.ExpectedLockedActionIndex < 0
+			|| Identity.ExpectedLockedActionIndex == TNumericLimits<int32>::Max()
+			|| Delta.NextLockedActionIndex
+				!= Identity.ExpectedLockedActionIndex + 1
+			|| Delta.NextLockedActionIndex > State.LockedActions.Num()
+			|| Delta.Phase != BoundaryPlan.PhaseAfter
+			|| Plan.Identity.ResolutionId != Identity.ResolutionId
+			|| Plan.Identity.OwningActionId != Identity.OwningActionId
+			|| Plan.Identity.ExpectedStateVersion != Identity.ExpectedStateVersion
+			|| Plan.Identity.ExpectedLockedActionIndex
+				!= Identity.ExpectedLockedActionIndex
+			|| Plan.StartingEventOrdinal != Identity.ExpectedEventOrdinal
+			|| Plan.Events.Num() != 2 + ReplacementCount
+			|| Plan.NextEventOrdinal
+				!= Identity.ExpectedEventOrdinal
+					+ static_cast<uint64>(Plan.Events.Num())
+			|| !Plan.Resolution.IsValid()
+			|| !Plan.Resolution.WasAccepted()
+			|| Plan.Resolution.GetResolutionId() != Identity.ResolutionId
+			|| Plan.Resolution.GetBeforeStateVersion()
+				!= Identity.ExpectedStateVersion
+			|| Plan.Resolution.GetAfterStateVersion()
+				!= Identity.ExpectedStateVersion + 1
+			|| Plan.Resolution.GetEvents().Num() != Plan.Events.Num())
+		{
+			return false;
+		}
+
+		auto IsExpectedActionEvent =
+			[&Identity](
+				const FBattleEvent& Event,
+				const EBattleEventType Type,
+				const EBattleEventCause Cause)
+			{
+				return Event.GetActionId() == Identity.OwningActionId
+					&& Event.GetResolutionId() == Identity.ResolutionId
+					&& Event.GetType() == Type
+					&& Event.GetCause() == Cause
+					&& Event.GetCauseActionKind() == EBattleActionKind::Bag
+					&& Event.GetTargets().IsEmpty()
+					&& Event.GetVisibility().Level
+						== EBattleVisibilityLevel::Public;
+			};
+		if (!IsExpectedActionEvent(
+				Plan.Events[0],
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Item)
+			|| !IsExpectedActionEvent(
+				Plan.Events[1],
+				EBattleEventType::ActionCompleted,
+				EBattleEventCause::Action))
+		{
+			return false;
+		}
+
+		if (Delta.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			if (ReplacementCount <= 0
+				|| Delta.PendingReplacements.Num() != ReplacementCount
+				|| !Delta.PendingDecision.IsSet()
+				|| Delta.PendingDecisionRequests.IsEmpty()
+				|| !ArePivotDecisionRequestsIdentical(
+					Delta.PendingDecision.GetValue(),
+					Delta.PendingDecisionRequests[0]))
+			{
+				return false;
+			}
+
+			const EBattleDecisionRequestKind RequestKind =
+				Delta.PendingDecisionRequests[0].GetRequestKind();
+			if ((RequestKind == EBattleDecisionRequestKind::ShiftResponse
+					&& Delta.PendingDecisionRequests.Num() != 1)
+				|| (RequestKind != EBattleDecisionRequestKind::ShiftResponse
+					&& RequestKind
+						!= EBattleDecisionRequestKind::MandatoryReplacement))
+			{
+				return false;
+			}
+			for (const FBattleDecisionRequest& Request :
+				Delta.PendingDecisionRequests)
+			{
+				if (!Request.IsValid()
+					|| Request.GetStateVersion()
+						!= Identity.ExpectedStateVersion + 1
+					|| (RequestKind
+							== EBattleDecisionRequestKind::MandatoryReplacement
+						&& Request.GetRequestKind() != RequestKind))
+				{
+					return false;
+				}
+			}
+		}
+		else if ((Delta.Phase != EBattlePhase::Resolving
+				&& Delta.Phase != EBattlePhase::EndOfTurn)
+			|| ReplacementCount != 0
+			|| !Delta.PendingReplacements.IsEmpty()
+			|| Delta.PendingDecision.IsSet()
+			|| !Delta.PendingDecisionRequests.IsEmpty())
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < ReplacementCount; ++Index)
+		{
+			const FBattleReplacementRequirement& Requirement =
+				BoundaryPlan.Requirements[Index];
+			const FBattlePendingReplacementState& Pending =
+				Delta.PendingReplacements[Index];
+			const FBattleEvent& Event = Plan.Events[Index + 2];
+			if (Pending.TrainerId != Requirement.Target.TrainerId
+				|| Pending.ActiveSlotId != Requirement.Target.ActiveSlotId
+				|| Event.GetActionId() != Identity.OwningActionId
+				|| Event.GetResolutionId() != Identity.ResolutionId
+				|| Event.GetType() != EBattleEventType::ReplacementRequired
+				|| Event.GetCause() != EBattleEventCause::Rule
+				|| Event.GetCauseActionKind() != EBattleActionKind::Bag
+				|| Event.GetTargets().Num() != 1
+				|| Event.GetTargets()[0].TrainerId
+					!= Requirement.Target.TrainerId
+				|| Event.GetTargets()[0].BattlerId
+					!= Requirement.Target.BattlerId
+				|| Event.GetTargets()[0].ActiveSlotId
+					!= Requirement.Target.ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	bool ArePivotTargetResolutionsIdentical(
@@ -14278,51 +14441,6 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 	}
 
 	check(Action != nullptr && ItemDefinition != nullptr);
-	const uint64 BeforeStateVersion = State->StateVersion;
-	auto FinishAcceptedAction = [this, Action, ResolutionId, BeforeStateVersion](
-		TArray<FBattleEvent>& Events,
-		const TOptional<EBattleOutcomeCause>& TerminalOutcomeCause)
-	{
-		Action->bFinished = true;
-		Events.Add(MakeActionDetailEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::ActionCompleted,
-			EBattleEventCause::Action));
-		++State->CurrentLockedActionIndex;
-		if (TerminalOutcomeCause.IsSet())
-		{
-			Events.Add(MakeBattleEndedEvent(
-				*State,
-				ResolutionId,
-				*Action,
-				TerminalOutcomeCause.GetValue()));
-		}
-		else
-		{
-			AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
-		}
-		++State->StateVersion;
-
-		EBattleStateValidationError StateError = EBattleStateValidationError::None;
-		const bool bStateValid = State->ValidateInvariants(StateError);
-		check(bStateValid);
-
-		FBattleResolutionSpec ResolutionSpec;
-		ResolutionSpec.ResolutionId = ResolutionId;
-		ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
-		ResolutionSpec.AfterStateVersion = State->StateVersion;
-		ResolutionSpec.bAccepted = true;
-		ResolutionSpec.Events = MoveTemp(Events);
-		FBattleResolution Resolution;
-		const bool bResolutionCreated = FBattleResolution::TryCreate(
-			ResolutionSpec,
-			Resolution);
-		check(bResolutionCreated);
-		State->AppendResolution(Resolution);
-		return Resolution;
-	};
 
 	FBattleTrainerState* ActingTrainer = State->FindMutableTrainer(
 		Action->Decision.GetDecisionOwnerTrainerId());
@@ -14381,16 +14499,231 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 			FallbackSource);
 	}
 
-	TArray<FBattleEvent> Events;
-	auto CancelStaleUse = [&]()
+	const FActionId AcceptedCancellationActionId = Action->ActionId;
+	const FTrainerId AcceptedCancellationTrainerId =
+		Action->Decision.GetDecisionOwnerTrainerId();
+	const FBattlerId AcceptedCancellationBattlerId =
+		Action->Decision.GetActingBattlerId();
+	const FBattleEventSource AcceptedCancellationSource =
+		SourceFromLockedAction(*State, *Action);
+	auto CancelStaleUse =
+		[this,
+		 ResolutionId,
+		 AcceptedCancellationActionId,
+		 AcceptedCancellationTrainerId,
+		 AcceptedCancellationBattlerId,
+		 AcceptedCancellationSource]()
 	{
-		Events.Add(MakeActionDetailEvent(
+		FAcceptedBagCancellationDelta Delta;
+		if (!FBattleResolutionCommit::TryCaptureIdentity(
+				*State,
+				ResolutionId,
+				AcceptedCancellationActionId,
+				Delta.ActionIdentity))
+		{
+			return PublishBagItemCheckpointRejection(
+				*State,
+				ResolutionId,
+				AcceptedCancellationActionId,
+				EBattleRejectionReason::CheckpointPreparationFailed,
+				AcceptedCancellationTrainerId,
+				AcceptedCancellationBattlerId,
+				AcceptedCancellationSource);
+		}
+
+		auto RejectPreparation =
+			[this,
+			 ResolutionId,
+			 AcceptedCancellationActionId,
+			 AcceptedCancellationTrainerId,
+			 AcceptedCancellationBattlerId,
+			 AcceptedCancellationSource](
+				const EBattleRejectionReason Reason)
+			{
+				return PublishBagItemCheckpointRejection(
+					*State,
+					ResolutionId,
+					AcceptedCancellationActionId,
+					Reason,
+					AcceptedCancellationTrainerId,
+					AcceptedCancellationBattlerId,
+					AcceptedCancellationSource);
+			};
+		if (!FBattleResolutionCommit::TryBeginAcceptedPlan(
+				Delta.ActionIdentity,
+				Delta.ResolutionPlan))
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		auto StageEvent =
+			[this,
+			 ResolutionId,
+			 AcceptedCancellationActionId,
+			 AcceptedCancellationSource,
+			 &Delta](
+				const EBattleEventType Type,
+				const EBattleEventCause Cause,
+				const FBattleEventTarget* Target = nullptr)
+			{
+				return FBattleResolutionCommit::TryStageEvent(
+					Delta.ResolutionPlan,
+					MakeStagedBagItemEventSpec(
+						*State,
+						ResolutionId,
+						AcceptedCancellationActionId,
+						AcceptedCancellationSource,
+						Type,
+						Cause,
+						Target));
+			};
+		if (!StageEvent(
+				EBattleEventType::ActionCanceled,
+				EBattleEventCause::Item)
+			|| !StageEvent(
+				EBattleEventType::ActionCompleted,
+				EBattleEventCause::Action))
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (Delta.ActionIdentity.ExpectedStateVersion
+				== TNumericLimits<uint64>::Max()
+			|| Delta.ActionIdentity.ExpectedLockedActionIndex
+				== TNumericLimits<int32>::Max())
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		Delta.NextLockedActionIndex =
+			Delta.ActionIdentity.ExpectedLockedActionIndex + 1;
+		if (Delta.NextLockedActionIndex > State->LockedActions.Num())
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		Delta.Phase = State->Phase;
+		Delta.PendingReplacements = State->PendingReplacements;
+		Delta.PendingDecision = State->PendingDecision;
+		Delta.PendingDecisionRequests = State->PendingDecisionRequests;
+
+		FBattleQueueBoundaryPlan BoundaryPlan;
+		if (!FBattleFaintOutcomeResolver::ResolveQueueBoundary(
+				Delta.Phase,
+				State->Outcome,
+				Delta.NextLockedActionIndex,
+				State->LockedActions.Num(),
+				State->Setup.GetStartingActive(),
+				State->Battlers,
+				State->ActivePositions,
+				BoundaryPlan)
+			|| !FBattleFaintOutcomeResolver::TryApplyQueueBoundaryPlan(
+				Delta.Phase,
+				BoundaryPlan))
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (Delta.Phase == EBattlePhase::MandatoryReplacement)
+		{
+			if (BoundaryPlan.Requirements.IsEmpty())
+			{
+				return RejectPreparation(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			Delta.PendingReplacements.Reset();
+			Delta.PendingDecision.Reset();
+			Delta.PendingDecisionRequests.Reset();
+			for (const FBattleReplacementRequirement& Requirement :
+				BoundaryPlan.Requirements)
+			{
+				FBattlePendingReplacementState& Pending =
+					Delta.PendingReplacements.AddDefaulted_GetRef();
+				Pending.TrainerId = Requirement.Target.TrainerId;
+				Pending.ActiveSlotId = Requirement.Target.ActiveSlotId;
+			}
+
+			const FAcceptedBagCancellationStateView StagedState(*State, Delta);
+			if (!TryBuildReplacementCheckpointRequests(
+					StagedState,
+					Delta.ActionIdentity.ExpectedStateVersion + 1,
+					true,
+					Delta.PendingDecisionRequests)
+				|| Delta.PendingDecisionRequests.IsEmpty())
+			{
+				return RejectPreparation(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			Delta.PendingDecision = Delta.PendingDecisionRequests[0];
+		}
+		else if (Delta.Phase == EBattlePhase::EndOfTurn)
+		{
+			Delta.PendingReplacements.Reset();
+			Delta.PendingDecision.Reset();
+			Delta.PendingDecisionRequests.Reset();
+		}
+		else if (Delta.Phase != EBattlePhase::Resolving)
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		for (const FBattleReplacementRequirement& Requirement :
+			BoundaryPlan.Requirements)
+		{
+			if (!StageEvent(
+					EBattleEventType::ReplacementRequired,
+					EBattleEventCause::Rule,
+					&Requirement.Target))
+			{
+				return RejectPreparation(
+					EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+		}
+		if (!FBattleResolutionCommit::TryFinishAcceptedPlan(
+				Delta.ResolutionPlan)
+			|| !IsAcceptedBagCancellationDeltaValid(
+				*State,
+				Delta,
+				BoundaryPlan))
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (!FBattleResolutionCommit::IsIdentityCurrent(
+				*State,
+				Delta.ActionIdentity))
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::StaleCheckpointIdentity);
+		}
+		if (!State->LockedActions.IsValidIndex(
+				Delta.ActionIdentity.ExpectedLockedActionIndex)
+			|| State->LockedActions[
+					Delta.ActionIdentity.ExpectedLockedActionIndex].ActionId
+				!= Delta.ActionIdentity.OwningActionId)
+		{
+			return RejectPreparation(
+				EBattleRejectionReason::StaleCheckpointIdentity);
+		}
+
+		FBattleLockedActionState& CommittedAction =
+			State->LockedActions[
+				Delta.ActionIdentity.ExpectedLockedActionIndex];
+		CommittedAction.bFinished = true;
+		State->CurrentLockedActionIndex = Delta.NextLockedActionIndex;
+		State->Phase = Delta.Phase;
+		State->PendingReplacements = Delta.PendingReplacements;
+		State->PendingDecision = Delta.PendingDecision;
+		State->PendingDecisionRequests = Delta.PendingDecisionRequests;
+		return FBattleResolutionCommit::PublishPrepared(
 			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::ActionCanceled,
-			EBattleEventCause::Item));
-		return FinishAcceptedAction(Events, TOptional<EBattleOutcomeCause>());
+			Delta.ResolutionPlan);
 	};
 	const FBattleTrainerEncounterPolicy* ActingTrainerPolicy = ActingTrainer != nullptr
 		? FindTrainerEncounterPolicy(*State, ActingTrainer->TrainerId)
