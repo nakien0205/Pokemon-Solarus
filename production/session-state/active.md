@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: Behavior-preserving Battle Engine structural split before C10A
-Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await approval
+Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approval
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-27
@@ -28,9 +28,11 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
 - Private-production-seam Wave P0 is approved and complete. Its exact six
   private support pairs now own the shared helper families while all 28
   `FBattleEngine` member definitions remain in `BattleEngine.cpp`.
-- Non-checkpoint member-relocation Wave P1 is approved for a later fresh,
-  bounded implementation session but is explicitly not started in the current
-  task. P2 and G2 remain unapproved.
+- Non-checkpoint member-relocation Wave P1 is approved and complete. The five
+  focused production sources now own snapshots, decision flow, end turn,
+  between-actions stat refresh, and replay export. P2 is separately approved for
+  a later fresh bounded implementation session but has not started. G2 remains
+  unapproved.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -44,7 +46,7 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
 
 - The pre-P0 baseline HEAD and `origin/main` were
   `89663923ef0d101868aa3e016847901c69db4924`. That checkout contains the
-  validated T1 test split. P0 changes production only by relocating shared
+  validated T1 test split. P0 changed production only by relocating shared
   private helpers out of `BattleEngine.cpp`; it does not change the public
   facade, member-method locations, or behavior contracts.
 - The final evidence root is
@@ -82,6 +84,20 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
 - `BattleEngine.cpp` is 13,035 lines after P0. The 12 exact private support
   files exist, no `.cpp` includes another `.cpp`, and no P1 or P2 production
   source has been created.
+- P1's corrected forced-Unity editor build passed with `-ForceUnity`,
+  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
+  `Game/Saved/Logs/BattleStructural-P1-20260827-212714-ForcedUnityBuild.log`.
+- P1's exact serial 22-filter evidence root is
+  `Game/Saved/AutomationReports/BattleStructural-P1-20260827-212839`. The 22
+  readable exported reports contain 606 successes in aggregate, including 320
+  for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
+  are zero. Every report contains exact-prefix unique paths, and every path set
+  exactly matches P0's accepted matrix.
+- `BattleEngine.cpp` is 8,990 lines after P1 and retains 12 member definitions:
+  construction, creation, test-fixture creation, and the seven P2 checkpoint
+  methods. The five P1 sources contain the other 16 definitions. All 28 P0
+  definitions were reconstructed exactly once without changing their logical
+  source lines. No `.cpp` includes another `.cpp`, and no P2 source exists.
 
 ## Working-tree scope to preserve
 
@@ -107,9 +123,16 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
   `docs/battle-engine-structural-split-handoff.md`. The user separately approved
   one commit and push for only that set. It excludes the architecture registry,
   ADR-0003, and ADR-0004.
-- P1 approval covers the later exact non-checkpoint member relocation and its
-  two active-guide updates. The current task explicitly stops before P1; do not
-  create or modify any P1 source under this approval sync and commit.
+- P1's exact hand-edited write set is `BattleEngine.cpp`,
+  `BattleEngineSnapshots.cpp`, `BattleEngineDecisionFlow.cpp`,
+  `BattleEngineEndTurn.cpp`, `BattleEngineBetweenActions.cpp`,
+  `BattleEngineReplay.cpp`, this file, and
+  `docs/battle-engine-structural-split-handoff.md`. Its only other writes are
+  ordinary generated build and Automation output under `Game/Saved`.
+- P2 is approved only for a later fresh bounded implementation session using
+  the exact seven-file map, exclusions, forced-Unity build, and serial
+  22-filter matrix in `docs/battle-engine-structural-split-handoff.md`. This
+  approval-sync and commit task must not create or modify P2 production source.
 - Do not change any other production source, tests, visual assets, Blueprints,
   maps, configuration, `.uproject` data, module rules, or C10 content data
   without a new task-specific approval.
@@ -118,18 +141,18 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
   still use a fresh unique `Game/Saved/AutomationReports/**` root.
 - Preserve replay schema `6`, existing enum ordinals, and frozen
   Cry/reinforcement behavior.
-- This task has explicit permission to stage, commit, and push only the current
-  P0 source plus the two active guides. Do not stage unrelated dirty work,
-  create branches, or rewrite Git history.
+- The current task authorizes one commit and push containing only P1's exact
+  source files plus this file and
+  `docs/battle-engine-structural-split-handoff.md`. It excludes the architecture
+  registry, ADR-0003, ADR-0004, P2 source, generated output, branches, and Git
+  history rewrites.
 
 ## Next
 
-1. Treat P0 as complete; do not continue helper cleanup or behavior changes
+1. Treat P1 as complete; do not continue relocation cleanup or behavior changes
    under its approval.
-2. P1 is approved but not started. Execute it only in a fresh bounded session
-   using its exact write set, guide sync, forced-Unity build, and serial
-   22-filter matrix. Stop before P2.
-3. P2 and G2 still require separate approval. Preserve the remaining order
-   `P1 -> P2 -> G2`.
-4. After the approved structural work closes, resume roadmap order at
+2. P2 is approved but not started. Do not implement it in this task; begin it
+   only in a fresh bounded implementation session. G2 remains separately
+   unapproved. Preserve the remaining order `P2 -> G2`.
+3. After the approved structural work closes, resume roadmap order at
    `C10A -> C10B -> C11A -> C11B`.

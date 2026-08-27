@@ -2,10 +2,10 @@
 
 ## Status
 
-**Guide Wave G1B, atomic-test Wave T1, and private-production-seam Wave P0 were
-completed on 2026-08-27. The post-ADR structural delta review is complete.
-Production Wave P1 is approved but explicitly not started. P2 and G2 remain
-unapproved.**
+**Guide Wave G1B, atomic-test Wave T1, private-production-seam Wave P0, and
+non-checkpoint member-relocation Wave P1 were completed on 2026-08-27. The
+post-ADR structural delta review is complete. P2 is approved for a later fresh
+bounded implementation session but has not started. G2 remains unapproved.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,
@@ -16,12 +16,19 @@ not itself approve production C++, P0, C10A, or Git actions. The user later
 authorized one task-specific T1 documentation sync, commit, and push. P0 was
 later approved separately and was limited to the exact six private support
 pairs, `BattleEngine.cpp`, this handoff, and ordinary generated validation
-output. Every `FBattleEngine` member definition remains in `BattleEngine.cpp`.
+output. At P0 completion, every `FBattleEngine` member definition remained in
+`BattleEngine.cpp`.
 P0 did not itself approve P1, P2, G2, C10A, or Git actions. The user later
 approved one task-specific commit and push for the exact P0 source plus this
 handoff and `production/session-state/active.md`. The user also approved P1 for
-a later fresh bounded implementation session while explicitly directing this
-task not to start it. P2, G2, and C10A remain unapproved.
+a later fresh bounded implementation session. P1 is now complete under its
+exact source, guide, generated-output, build, and Automation boundaries. It did
+not itself authorize P2, G2, C10A, behavior changes, public-contract changes, or
+Git actions. The user has now separately approved P2 but instructed this
+approval-sync and P1 commit task not to implement it. The current Git approval
+is one commit and push for P1's exact source files plus this handoff and
+`production/session-state/active.md`; it excludes P2 source, G2, C10A, and the
+unrelated dirty architecture paths. G2 and C10A remain unapproved.
 
 The review was intentionally limited to file size, responsibility boundaries,
 and safe translation-unit decomposition. It was not an in-depth mechanics or
@@ -36,8 +43,9 @@ checkout `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`. The pre-T1 baseline HEAD an
 commit changes only ADR-0002 closeout documents. The pre-P0 baseline HEAD and
 `origin/main` were `89663923ef0d101868aa3e016847901c69db4924`, including the
 validated T1 split. Live production source now differs from the accepted
-production checkout only by P0's behavior-preserving private-helper relocation.
-Live tests differ only by T1's validated translation-unit split.
+production checkout only by P0's behavior-preserving private-helper relocation
+and P1's behavior-preserving non-checkpoint member relocation. Live tests differ
+only by T1's validated translation-unit split.
 
 Live source, the accepted ADR-0002 gate, the worktree, the current roadmap
 package, and exported Unreal Automation reports override all historical
@@ -214,6 +222,22 @@ reports remain accurate historical or path-neutral evidence and must not be
 rewritten. No new P1 planning document should be created: this handoff already
 owns the exact file map, exclusions, validation matrix, and continuation rule.
 
+The post-P1 discovery pass repeated the required filename and responsibility
+search across the root instructions, `.codex/skills/`, `docs/`, `production/`,
+`plan/`, `design/`, and the other repository text files. It found the same 13
+classified guide/evidence files. The five P1 source names occur only in this
+handoff and the active session-state guide. The accepted ADRs remain
+path-neutral, while roadmap completion records and gate reports remain truthful
+historical evidence. No stale live file-location assumption was found, so only
+this handoff and `production/session-state/active.md` received P1 status updates.
+
+The P2 approval-sync pass repeated that search before the P1 commit. It still
+finds the same 13 classified guide/evidence files. Accepted ADR method contracts
+remain path-neutral, and roadmap hashes plus gate-report paths remain historical
+evidence. Only this handoff and `production/session-state/active.md` require the
+live P2 approval status. No P2 source exists, so no guide may describe a P2 file
+as live.
+
 The exact approved G1B guide write set is:
 
 - `docs/battle-engine-structural-split-handoff.md`;
@@ -250,12 +274,12 @@ Keep these contracts and ownership rules:
 Do not introduce a new Unreal module merely to reduce file length. Do not
 include `.cpp` files from other `.cpp` files.
 
-## Proposed `BattleEngine` translation units
+## Staged `BattleEngine` translation units
 
-The first production pass should be a behavior-preserving relocation. The
-proposed boundaries are:
+The approved structural plan uses behavior-preserving relocation. Each boundary
+becomes live only in its separately approved wave:
 
-| Proposed file | Responsibility |
+| File | Responsibility |
 |---|---|
 | `BattleEngine.cpp` | Constructor, destructor, `TryCreate`, and test-fixture creation only |
 | `BattleEngineSnapshots.cpp` | Snapshot projection, filtering, and read-only getters |
@@ -270,6 +294,13 @@ proposed boundaries are:
 | `BattleEngineEndTurn.cpp` | End-turn resolution |
 | `BattleEngineBetweenActions.cpp` | `ApplyBetweenActionsStatRefresh` |
 | `BattleEngineReplay.cpp` | Replay export methods |
+
+P1 makes `BattleEngineSnapshots.cpp`, `BattleEngineDecisionFlow.cpp`,
+`BattleEngineEndTurn.cpp`, `BattleEngineBetweenActions.cpp`, and
+`BattleEngineReplay.cpp` live. `BattleEngine.cpp` still owns construction,
+creation, test-fixture creation, and all seven checkpoint methods reserved for
+P2. The seven P2 source files listed above are approved future files but do not
+exist yet.
 
 Do not create `BattleEngineCaptureCheckpoint.cpp` in the first mechanical pass:
 Bag and Capture are branches of the same public method, and Capture currently
@@ -387,8 +418,8 @@ independent state copies or commits.
 
 ## Approval-bounded write sets and sequence
 
-Use separate changes rather than one broad refactor. G1B, T1, and P0 have been
-approved and completed. P1 is approved but not started. P2 and G2 remain
+Use separate changes rather than one broad refactor. G1B, T1, P0, and P1 have
+been approved and completed. P2 is approved but not started. G2 remains
 unapproved.
 
 ### G1B - active guide migration (approved)
@@ -432,10 +463,10 @@ state. Its only additional writes are ordinary generated build and Automation
 outputs under `Game/Saved`; the later approval sync adds
 `production/session-state/active.md` to the exact commit set.
 
-### P1 - non-checkpoint member relocation (approved, not started)
+### P1 - non-checkpoint member relocation (approved and completed 2026-08-27)
 
-In a later fresh bounded implementation session, modify `BattleEngine.cpp`,
-this handoff, and `production/session-state/active.md`. Create:
+P1 modified `BattleEngine.cpp`, this handoff, and
+`production/session-state/active.md`. It created:
 
 - `BattleEngineSnapshots.cpp`;
 - `BattleEngineDecisionFlow.cpp`;
@@ -445,13 +476,21 @@ this handoff, and `production/session-state/active.md`. Create:
 
 Construction, destruction, `TryCreate`, and test-fixture creation remain in
 `BattleEngine.cpp`. `SubmitDecision` moves whole, including Pivot continuation.
-P1 approval is limited to this exact mechanical relocation, the two active-guide
-updates, ordinary generated validation output, and the required build/matrix.
-It does not authorize P2, behavior cleanup, public-contract changes, C10A, or
-Git actions. The current task must stop before creating or modifying any P1
-source.
+The seven checkpoint members reserved for P2 also remain there. The final
+physical line counts are `BattleEngine.cpp=8,990`,
+`BattleEngineSnapshots.cpp=600`, `BattleEngineDecisionFlow.cpp=1,743`,
+`BattleEngineEndTurn.cpp=1,642`, `BattleEngineBetweenActions.cpp=157`, and
+`BattleEngineReplay.cpp=79`. The main file owns 12 member definitions and the
+five P1 files own 16, preserving all 28 P0 definitions exactly once.
 
-### P2 - checkpoint member relocation (proposed, not approved)
+P1 completed this exact mechanical relocation, the two active-guide updates,
+ordinary generated validation output, and the required build/matrix. It changed
+no public header, test source, behavior contract, module boundary, or visual
+asset. P1 did not itself authorize P2, behavior cleanup, public-contract changes,
+C10A, or Git actions. P2 was later approved separately, remains not started, and
+is excluded from this P1 commit. Stop before P2.
+
+### P2 - checkpoint member relocation (approved, not started)
 
 Modify `BattleEngine.cpp` and this handoff. Create:
 
@@ -462,6 +501,12 @@ Modify `BattleEngine.cpp` and this handoff. Create:
 - `BattleEnginePreMove.cpp`;
 - `BattleEngineMoveTargets.cpp`; and
 - `BattleEngineMoveEffects.cpp`.
+
+This approval authorizes P2 only in a later fresh bounded implementation
+session. That session may modify `BattleEngine.cpp` and this handoff, create the
+seven files above, and write ordinary generated build and Automation output for
+the required validation. This approval-sync and P1 commit task must not create,
+modify, stage, or commit P2 production source.
 
 `ExecuteCurrentBagItem` moves whole, including ordinary Bag, stale
 cancellation, and Capture. Do not create separate Capture or Pivot source files
@@ -546,6 +591,27 @@ behavior, and no Automation ran before the corrected build passed. Evidence is:
   zero, every test entry has zero warnings and errors, and every test state is
   `Success`.
 
+P1 passes the required build and matrix. The initial forced-Unity build exposed
+one mechanical ownership defect: `FWildActionStateDelta` had moved with the
+decision helpers while its Wild-action helpers remained in `BattleEngine.cpp`.
+The declaration was restored beside those helpers. The 88 compiler diagnostics
+were one cascade from that missing type, and no P1 source reported a separate
+error. No Automation ran before the corrected build passed. Evidence is:
+
+- the corrected forced-Unity editor build passed with all four required flags;
+- its build log is
+  `Game/Saved/Logs/BattleStructural-P1-20260827-212714-ForcedUnityBuild.log`;
+- the 22 filters ran one at a time in the required order under
+  `Game/Saved/AutomationReports/BattleStructural-P1-20260827-212839`;
+- the exact per-filter successes were `ADR0002=110`, `C03A=6`, `C03B=6`,
+  `C04A=7`, `C04B=9`, `C05A=8`, `C05B=9`, `C05C=7`, `C06A=7`, `C06B=8`,
+  `C07A=7`, `C07B=9`, `C07C=8`, `C07D=9`, `C08A=7`, `C08B=20`, `C08C=27`,
+  `C09A=6`, `C09B=7`, `C09C=6`, `Runtime=3`, and full `Battle=320`;
+- the 22 reports contain 606 successes in aggregate; and
+- every exported aggregate issue counter is zero, every test entry has zero
+  warnings and errors and state `Success`, every report contains exact-prefix
+  unique paths, and every report path set exactly matches P0's accepted matrix.
+
 After T1, P0, P1, P2, and G2, rerun the guide-reference search and verify that
 active guidance reflects current versus proposed files accurately. No
 Blueprint lifecycle or actual-size PIE claim is part of this plain-C++
@@ -571,7 +637,9 @@ Unless a later approval explicitly changes this list, exclude:
   approved build/Automation tools may write their ordinary generated output;
 - `docs/registry/architecture.yaml`, ADR-0003, and every part of the untracked
   ADR-0004 other than the dated G1B amendment; and
-- staging, committing, pushing, branching, or rewriting Git history.
+- staging, committing, pushing, branching, or rewriting Git history, except for
+  the one task-specific P1 commit and push now authorized. P2 approval does not
+  authorize Git actions for its later implementation.
 
 ## Mechanical and validation constraints
 
