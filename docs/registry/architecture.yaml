@@ -30,7 +30,7 @@
 #   Superseded entries:     Grep pattern="status: superseded"
 
 version: 1
-last_updated: "2026-08-24"
+last_updated: "2026-08-27"
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -47,11 +47,13 @@ state_ownership:
   - state: battle_runtime_state
     status: active
     owner_system: battle-core
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     interface: "Observer-safe FBattleSnapshot plus typed pending FBattleDecisionRequest; presentation receives immutable projections only"
     write_access: battle-core-only
     referenced_by:
-      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+      - docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+      - docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md
+      - docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
     added: 2026-08-24
     revised: ""
 
@@ -61,13 +63,13 @@ state_ownership:
 #   - state: player_health
 #     status: active           # active | superseded_by: ADR-NNNN
 #     owner_system: health-system
-#     adr: docs/architecture/adr-0001-health-system.md
+#     adr: docs/registry/architecture/adr-0001-health-system.md
 #     interface: "HealthComponent.current_health (read-only float, range 0–max_health)"
 #     write_access: health-system-only   # only owner can write; others read
 #     referenced_by:
-#       - docs/architecture/adr-0001-health-system.md
-#       - docs/architecture/adr-0003-combat-system.md   # reads to apply damage
-#       - docs/architecture/adr-0007-ui-system.md       # reads to display HUD
+#       - docs/registry/architecture/adr-0001-health-system.md
+#       - docs/registry/architecture/adr-0003-combat-system.md   # reads to apply damage
+#       - docs/registry/architecture/adr-0007-ui-system.md       # reads to display HUD
 #     added: 2026-03-26
 #     revised: ""
 
@@ -88,10 +90,10 @@ interfaces:
     producer: battle-runtime-source
     consumers:
       - battle-game-mode
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     method_contract: "IBattleRuntimeSource::TryCreateInitialBattle returns an engine, local Trainer identity, and immutable display-name resolver atomically"
     referenced_by:
-      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+      - docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
     revised: ""
 
@@ -101,10 +103,10 @@ interfaces:
     producer: battle-presentation-adapter
     consumers:
       - battle-hud
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     method_contract: "GameMode supplies one fully validated FBattleHUDDisplayState; initial visibility and command input remain disabled until atomic application succeeds"
     referenced_by:
-      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+      - docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
     revised: ""
 
@@ -119,11 +121,11 @@ interfaces:
 #       - health-system        # receives damage_dealt signal, applies to health
 #       - ui-system            # receives damage_dealt signal, shows damage number
 #       - audio-system         # receives damage_dealt signal, plays SFX
-#     adr: docs/architecture/adr-0003-combat-system.md
+#     adr: docs/registry/architecture/adr-0003-combat-system.md
 #     signal_signature: "damage_dealt(amount: float, target: Node, is_crit: bool)"
 #     referenced_by:
-#       - docs/architecture/adr-0003-combat-system.md
-#       - docs/architecture/adr-0001-health-system.md
+#       - docs/registry/architecture/adr-0003-combat-system.md
+#       - docs/registry/architecture/adr-0001-health-system.md
 #     added: 2026-03-26
 #     revised: ""
 
@@ -143,17 +145,17 @@ performance_budgets: []
 #   - target_fps: 60
 #     total_frame_budget_ms: 16.6
 #     platform: PC             # PC | Console | Mobile | All
-#     adr: docs/architecture/adr-0000-performance-targets.md
+#     adr: docs/registry/architecture/adr-0000-performance-targets.md
 #     added: 2026-03-26
 #     revised: ""
 #
 #   - system: combat
 #     status: active
 #     budget_ms: 2.0
-#     adr: docs/architecture/adr-0003-combat-system.md
+#     adr: docs/registry/architecture/adr-0003-combat-system.md
 #     notes: "Includes physics queries, hitbox evaluation, and damage calculation"
 #     referenced_by:
-#       - docs/architecture/adr-0003-combat-system.md
+#       - docs/registry/architecture/adr-0003-combat-system.md
 #     added: 2026-03-26
 #     revised: ""
 
@@ -171,11 +173,22 @@ api_decisions:
     status: active
     api: "Cooked Unreal UDataTable assets imported from version-controlled JSON source"
     not: "Loose JSON file I/O in packaged runtime code"
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     reason: "Uses Unreal asset references and cooking while retaining reviewable data source and the existing Battle DataTable adapter"
     referenced_by:
-      - docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+      - docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
+    revised: ""
+
+  - purpose: battle_move_presentation_assets
+    status: active
+    api: "Cooked Unreal UMovePresentationDefinition and USoundWave assets created by an Editor-only exact-source import pipeline with versioned audio profiles"
+    not: "Runtime source-manifest/file loading, directory-wide imports, filename-derived destination identity, implicit source precedence, or automatic cross-source fallback"
+    adr: docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
+    reason: "Keeps third-party conversion and import outside packaged runtime while preserving deterministic per-file provenance, cooking, destination identity, and audio loading behavior"
+    referenced_by:
+      - docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
+    added: 2026-08-26
     revised: ""
 
 # Example:
@@ -185,11 +198,11 @@ api_decisions:
 #     status: active
 #     api: PhysicsServer3D.space_get_direct_state()
 #     not: RayCast3D node     # explicitly banned for this purpose
-#     adr: docs/architecture/adr-0002-physics-architecture.md
+#     adr: docs/registry/architecture/adr-0002-physics-architecture.md
 #     reason: "Direct server calls avoid per-frame node overhead; 3× faster in profiling"
 #     referenced_by:
-#       - docs/architecture/adr-0002-physics-architecture.md
-#       - docs/architecture/adr-0003-combat-system.md
+#       - docs/registry/architecture/adr-0002-physics-architecture.md
+#       - docs/registry/architecture/adr-0003-combat-system.md
 #     added: 2026-03-26
 #     revised: ""
 
@@ -207,22 +220,29 @@ forbidden_patterns:
     status: active
     description: "Production UI code must not author or duplicate Battle definitions, setup identities, policies, or deterministic seeds."
     why: "UI-owned gameplay data can drift from canonical content and reverses the dependency from presentation into gameplay composition."
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
 
   - pattern: loose_runtime_battle_json_loading
     status: active
     description: "Packaged runtime code must not read Battle gameplay definitions or setup from loose JSON files."
     why: "Loose files bypass Unreal cooking, asset dependency discovery, and stable packaged-path guarantees."
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
 
   - pattern: partial_initial_battle_hud_presentation
     status: active
     description: "The root Battle HUD must not become visible before all required initial presentation data and structural bindings validate and apply atomically."
     why: "Partial presentation can expose missing or misleading names, HP, command state, and input readiness."
-    adr: docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
+    adr: docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
     added: 2026-08-24
+
+  - pattern: bulk_or_implicit_external_audio_resolution
+    status: active
+    description: "Battle move audio must not be bulk-imported or resolved from acquired source directories by filename matching, implicit source precedence, automatic cross-package fallback, machine-specific absolute paths, or runtime loose manifests."
+    why: "Implicit resolution can silently select or overwrite the wrong copyrighted source, break deterministic provenance and cooking, and make rights review unverifiable."
+    adr: docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
+    added: 2026-08-26
 
 # Example:
 #
@@ -233,7 +253,7 @@ forbidden_patterns:
 #       Use dependency injection or signals instead."
 #     why: "Tight coupling to Autoloads makes systems untestable in isolation and
 #       creates hidden dependencies that break when Autoload load order changes."
-#     adr: docs/architecture/adr-0001-health-system.md
+#     adr: docs/registry/architecture/adr-0001-health-system.md
 #     added: 2026-03-26
 #
 #   - pattern: direct_cross_system_state_write
@@ -242,5 +262,5 @@ forbidden_patterns:
 #       Use signals or method calls on the owner instead."
 #     why: "Direct state writes create race conditions and break the state
 #       ownership model. The owning system must be the sole writer."
-#     adr: docs/architecture/adr-0000-architecture-principles.md
+#     adr: docs/registry/architecture/adr-0000-architecture-principles.md
 #     added: 2026-03-26

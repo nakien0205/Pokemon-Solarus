@@ -85,6 +85,10 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
 
 ## Working-tree scope to preserve
 
+- The canonical ADR and traceability-registry directory is now
+  `docs/registry/architecture/`. References under current guides, registries,
+  examples, and package documents use that path. The old `docs/architecture/`
+  path remains only in dated historical gate reports.
 - Preserve the pre-existing modification to
   `docs/registry/architecture.yaml`.
 - Preserve the pre-existing untracked ADR-0003 document and the architecture
@@ -93,7 +97,7 @@ Task: Production Wave P0 complete; P1 approved but not started; P2/G2 await appr
   its other content.
 - The exact G1B write set is this file,
   `docs/battle-engine-structural-split-handoff.md`, and
-  `docs/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
+  `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
 - T1's exact code layout and validation evidence are recorded in
   `docs/battle-engine-structural-split-handoff.md`. The later documentation and
   Git approval covers only the T1 source changes, this file, and that handoff;

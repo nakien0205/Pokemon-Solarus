@@ -32,10 +32,10 @@ PHASE 2: SYSTEMS DESIGN
         │
         ▼
 PHASE 3: TECHNICAL SETUP
-  /create-architecture ────────────────────────────────────────► docs/architecture/master.md
-  /architecture-decision (×N) ─────────────────────────────────► docs/architecture/[adr-nnn].md
-  /architecture-review ────────────────────────────────────────► review report + docs/architecture/tr-registry.yaml
-  /create-control-manifest ────────────────────────────────────► docs/architecture/control-manifest.md
+  /create-architecture ────────────────────────────────────────► docs/registry/architecture/master.md
+  /architecture-decision (×N) ─────────────────────────────────► docs/registry/architecture/[adr-nnn].md
+  /architecture-review ────────────────────────────────────────► review report + docs/registry/architecture/tr-registry.yaml
+  /create-control-manifest ────────────────────────────────────► docs/registry/architecture/control-manifest.md
   /gate-check ─────────────────────────────────────────────────► PASS → advance to pre-production
         │
         ▼

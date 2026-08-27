@@ -4,7 +4,7 @@
 
 **Starting State:**
 - `design/gdd/movement-system.md` — complete, all 8 sections
-- `docs/architecture/movement-adr-001.md` — Status: Accepted
+- `docs/registry/architecture/movement-adr-001.md` — Status: Accepted
 - `production/sprints/sprint-03.md` — lists STORY-MOV-001 in backlog
 - `production/stories/STORY-MOV-001.md` — exists but not yet validated
 - No implementation code yet
@@ -37,7 +37,7 @@
 > - TR-IDs embedded: TR-MOV-001 through TR-MOV-008 ✅
 >
 > **2. Architecture Completeness**
-> - ADR referenced: `docs/architecture/movement-adr-001.md` ✅
+> - ADR referenced: `docs/registry/architecture/movement-adr-001.md` ✅
 > - ADR status: **Accepted** ✅ *(Would be BLOCKED if Proposed)*
 > - Control manifest version in story: `2026-03-10` — current manifest is `2026-03-10` ✅
 >
@@ -90,7 +90,7 @@
 ### Turn 6: Agent Reads Story and ADR
 
 **Agent (gameplay-programmer):**
-> Reading `production/stories/STORY-MOV-001.md`, `design/gdd/movement-system.md`, and `docs/architecture/movement-adr-001.md`...
+> Reading `production/stories/STORY-MOV-001.md`, `design/gdd/movement-system.md`, and `docs/registry/architecture/movement-adr-001.md`...
 >
 > **Architecture (from ADR-001):**
 > - `MovementComponent.gd` — attached to player scene, not a singleton

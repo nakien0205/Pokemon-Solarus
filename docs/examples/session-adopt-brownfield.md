@@ -6,7 +6,7 @@
 - `src/gameplay/` — ~4000 lines of Godot 4.6 GDScript
 - `design/` — 3 markdown files with rough design notes (not in GDD template format)
 - No `design/gdd/` directory
-- No `docs/architecture/` directory
+- No `docs/registry/architecture/` directory
 - No `production/` directory
 - No `design/gdd/systems-index.md`
 - CLAUDE.md exists (engine configured: Godot 4.6)
@@ -34,7 +34,7 @@
 > | Engine configuration | ✅ | Godot 4.6 in CLAUDE.md |
 > | Source code | ✅ | ~4000 lines in `src/gameplay/` |
 > | Design docs | ⚠️ | 3 files in `design/`, not in GDD format |
-> | Architecture docs | ❌ | `docs/architecture/` missing |
+> | Architecture docs | ❌ | `docs/registry/architecture/` missing |
 > | Systems index | ❌ | `design/gdd/systems-index.md` missing |
 > | Production tracking | ❌ | `production/` directory missing |
 > | Sprint/story files | ❌ | None |

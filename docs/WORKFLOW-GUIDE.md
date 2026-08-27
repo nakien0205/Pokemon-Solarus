@@ -443,7 +443,7 @@ gives programmers flat, actionable rules. You also establish UX foundations.
         |                          |                                   |
         v                          v                                   v
   Master architecture       Per-decision ADRs              Validates completeness,
-  document covering         in docs/architecture/          dependency ordering,
+  document covering         in docs/registry/architecture/          dependency ordering,
   all systems               adr-*.md                       engine compatibility
                                                                       |
                                                                       v
@@ -451,7 +451,7 @@ gives programmers flat, actionable rules. You also establish UX foundations.
                                                                       |
                                                                       v
                                                          Flat programmer rules
-                                                         docs/architecture/
+                                                         docs/registry/architecture/
                                                          control-manifest.md
         Also in this phase:
         -------------------
@@ -466,7 +466,7 @@ gives programmers flat, actionable rules. You also establish UX foundations.
 /create-architecture
 ```
 
-Creates the overarching architecture document in `docs/architecture/architecture.md`
+Creates the overarching architecture document in `docs/registry/architecture/architecture.md`
 covering system boundaries, data flow, and integration points.
 
 ### Step 3.2: Architecture Decision Records (ADRs)
@@ -493,7 +493,7 @@ ADRs go through a lifecycle: Proposed > Accepted > Superseded/Deprecated.
 project:
 
 ```
-/architecture-decision retrofit docs/architecture/adr-005.md
+/architecture-decision retrofit docs/registry/architecture/adr-005.md
 ```
 
 This detects which template sections are missing and adds only those, never
@@ -509,7 +509,7 @@ Validates all ADRs together:
 - Topological sort of ADR dependencies (detects cycles)
 - Engine compatibility verification
 - GDD Revision Flags (flags GDD sections that need updates based on ADR choices)
-- TR-ID registry maintenance (`docs/architecture/tr-registry.yaml`)
+- TR-ID registry maintenance (`docs/registry/architecture/tr-registry.yaml`)
 
 ### Step 3.4: Control Manifest
 
@@ -520,7 +520,7 @@ Validates all ADRs together:
 Takes all Accepted ADRs and produces a flat programmer rules sheet:
 
 ```
-docs/architecture/control-manifest.md
+docs/registry/architecture/control-manifest.md
 ```
 
 This contains Required patterns, Forbidden patterns, and Guardrails organized
@@ -544,10 +544,10 @@ reference this tier — it is a design prerequisite, not a UX deliverable.
 
 **Requirements to pass:**
 
-- `docs/architecture/architecture.md` exists
+- `docs/registry/architecture/architecture.md` exists
 - At least 3 ADRs exist and are Accepted
 - Architecture review report exists
-- `docs/architecture/control-manifest.md` exists
+- `docs/registry/architecture/control-manifest.md` exists
 - `design/accessibility-requirements.md` exists
 
 ---
@@ -1304,7 +1304,7 @@ Individual skills also support retrofit mode:
 
 ```
 /design-system retrofit design/gdd/combat-system.md
-/architecture-decision retrofit docs/architecture/adr-005.md
+/architecture-decision retrofit docs/registry/architecture/adr-005.md
 ```
 
 These detect which sections are present vs. missing and fill only the gaps.

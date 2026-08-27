@@ -15,7 +15,7 @@
 **Approved Quick Spec**:
 `design/quick-specs/reusable-stats-based-damage-addition-2026-08-20.md`
 
-**Requirement Tracking**: N/A — `docs/architecture/tr-registry.yaml`
+**Requirement Tracking**: N/A — `docs/registry/architecture/tr-registry.yaml`
 contains no registered requirements. This story directly quotes the approved
 GDD rule and embeds the complete behavior below.
 

@@ -13,7 +13,7 @@ Do not guess at post-cutoff API signatures — look them up first.
 - All public APIs require doc comments
 - Gameplay values must be **data-driven** (external config files), never hardcoded
 - Prefer dependency injection over singletons for testability
-- Every new system needs a corresponding ADR in `docs/architecture/`
+- Every new system needs a corresponding ADR in `docs/registry/architecture/`
 - Commits must reference the relevant story ID or design document
 
 ## File Routing

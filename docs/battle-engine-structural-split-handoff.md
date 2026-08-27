@@ -133,6 +133,11 @@ to rediscover this plan.
 
 ## Mandatory guide-reference migration
 
+As of 2026-08-27, the canonical ADR and traceability-registry directory is
+`docs/registry/architecture/`. Current guidance uses that path. The two dated
+ADR-0002 gate reports retain `docs/architecture/` only as historical evidence
+of their reviewed checkout.
+
 Guide discovery is a prerequisite, not cleanup work to be remembered later.
 Before modifying production C++ or tests, the split task must find every
 repository guide that refers to the old monolithic files, old line locations,
@@ -172,8 +177,8 @@ responsibility. Its old-to-new classification is:
 |---|---|---|---|
 | `docs/battle-engine-structural-split-handoff.md` | ADR-0002 still blocked; preliminary source and test partitions | Completed delta evidence and corrected partition below | Update in G1B |
 | `production/session-state/active.md` | C10A immediately next; prior accepted checkout described as current HEAD | Bounded structural work is current; C10A remains next afterward; distinguish live HEAD from accepted source checkout | Update in G1B |
-| `docs/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md` | Historical authoring context says stale Bag cancellation remains open | Preserve the paragraph and add a dated accepted-gate amendment | Amend in G1B |
-| `docs/architecture/adr-0002-battle-encounter-runtime-authority-and-atomic-resolution-commit.md` | Method-name responsibility and commit contracts | Method names and contracts remain unchanged | Preserve accepted decision |
+| `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md` | Historical authoring context says stale Bag cancellation remains open | Preserve the paragraph and add a dated accepted-gate amendment | Amend in G1B |
+| `docs/registry/architecture/adr-0002-battle-encounter-runtime-authority-and-atomic-resolution-commit.md` | Method-name responsibility and commit contracts | Method names and contracts remain unchanged | Preserve accepted decision |
 | `plan/battle_mechanics/00-roadmap-index.md`, `02-core-contracts-events-and-rng.md`, `04-battle-state-snapshots-and-decisions.md`, `05-actions-order-and-targeting.md`, `06-hit-damage-effects-and-outcomes.md`, `07-parties-switching-and-replacements.md`, and `10-encounters-capture-escape-and-partner.md` | Historical paths, hashes, and package ownership | Historical accepted checkouts | Preserve completion records |
 | `production/gate-checks/2026-08-27-adr-0002-implementation-fail.md` and `2026-08-27-adr-0002-implementation-pass.md` | Historical paths, line locations, and report evidence | Historical reviewed checkouts | Preserve evidence |
 | ADR-0003, `docs/battle-system-interview-handoff.md`, the reusable-damage quick spec, `design/ux/battle-hud.md`, roadmap `03-stats-types-moves-and-data-adapters.md`, and `plan/battle_mechanics/reference/modern-rules-snapshot.md` | Responsibility-only or gameplay references without current file-location assumptions | Existing path-neutral wording | Preserve; no migration needed |
@@ -214,7 +219,7 @@ The exact approved G1B guide write set is:
 - `docs/battle-engine-structural-split-handoff.md`;
 - `production/session-state/active.md`; and
 - only the dated prerequisite amendment in the pre-existing untracked
-  `docs/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
+  `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
 
 All other matched guides and dirty paths are excluded. Later production waves
 must update this handoff in the same bounded change as the corresponding file

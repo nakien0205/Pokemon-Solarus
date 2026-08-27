@@ -293,7 +293,7 @@
 
 **Agent:**
 > ✅ Complete! Created/Updated:
-> - `docs/architecture/adr-007-alpha-crafting-scope.md`
+> - `docs/registry/architecture/adr-007-alpha-crafting-scope.md`
 > - `design/gdd/crafting-system.md` (added Alpha/Beta scope markers)
 > - `production/milestones/alpha.md` (updated success criteria)
 > - `production/demo-script-investor-alpha.md` (new file with presentation guide)

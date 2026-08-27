@@ -45,7 +45,7 @@ assets:
     use_scope: "Exact allowlisted battle move cues under ADR-0003 only."
     authorization: "No import or use until ADR-0003 is independently reviewed and Accepted; each file and cue placement also requires explicit project-owner approval."
     decision_refs:
-      - "docs/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md"
+      - "docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md"
     local_folder_label: "Gen 7 Moves SFX"
     local_inventory:
       audio_file_count: 993

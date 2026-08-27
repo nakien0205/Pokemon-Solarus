@@ -656,7 +656,7 @@ transaction.
 
 ## Related Decisions
 
-- `docs/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md`
+- `docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md`
 - `docs/registry/architecture.yaml`
 - `design/gdd/game-concept.md`
 - `docs/battle-system-interview-handoff.md`
