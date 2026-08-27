@@ -2,9 +2,10 @@
 
 ## Status
 
-**Guide Wave G1B and atomic-test Wave T1 were completed on 2026-08-27. The
-post-ADR structural delta review is complete. Production Waves P0, P1, and P2
-remain unapproved.**
+**Guide Wave G1B, atomic-test Wave T1, and private-production-seam Wave P0 were
+completed on 2026-08-27. The post-ADR structural delta review is complete.
+Production Wave P1 is approved but explicitly not started. P2 and G2 remain
+unapproved.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,
@@ -12,9 +13,15 @@ approval boundaries. G1B authorized only this file,
 ADR-0004. T1 was separately approved and was limited to the documented atomic
 test split, this handoff, and its approved generated validation output. T1 did
 not itself approve production C++, P0, C10A, or Git actions. The user later
-authorized one task-specific T1 documentation sync, commit, and push; that does
-not authorize any production wave. Each later wave still requires separate
-user approval.
+authorized one task-specific T1 documentation sync, commit, and push. P0 was
+later approved separately and was limited to the exact six private support
+pairs, `BattleEngine.cpp`, this handoff, and ordinary generated validation
+output. Every `FBattleEngine` member definition remains in `BattleEngine.cpp`.
+P0 did not itself approve P1, P2, G2, C10A, or Git actions. The user later
+approved one task-specific commit and push for the exact P0 source plus this
+handoff and `production/session-state/active.md`. The user also approved P1 for
+a later fresh bounded implementation session while explicitly directing this
+task not to start it. P2, G2, and C10A remain unapproved.
 
 The review was intentionally limited to file size, responsibility boundaries,
 and safe translation-unit decomposition. It was not an in-depth mechanics or
@@ -26,9 +33,11 @@ The original measurements below describe commit `c514c86` on 2026-08-26. The
 completed delta review compared them with accepted production source/test
 checkout `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`. The pre-T1 baseline HEAD and
 `origin/main` were `3259405d73be5a634ce855a7d382f838eeb36ae6`; that later baseline
-commit changes only ADR-0002 closeout documents. Live production source still
-matches the accepted checkout. Live tests now differ only by the validated,
-behavior-preserving T1 translation-unit split recorded below.
+commit changes only ADR-0002 closeout documents. The pre-P0 baseline HEAD and
+`origin/main` were `89663923ef0d101868aa3e016847901c69db4924`, including the
+validated T1 split. Live production source now differs from the accepted
+production checkout only by P0's behavior-preserving private-helper relocation.
+Live tests differ only by T1's validated translation-unit split.
 
 Live source, the accepted ADR-0002 gate, the worktree, the current roadmap
 package, and exported Unreal Automation reports override all historical
@@ -183,6 +192,23 @@ documentation approval, `production/session-state/active.md` was refreshed to
 record T1's completed layout and validation while keeping P0, P1, and P2
 unapproved. The historical gate reports remain unchanged.
 
+The post-P0 discovery pass repeated the required filename and responsibility
+search across the root instructions, `.codex/skills/`, `docs/`, `production/`,
+`plan/`, `design/`, and the other repository text files. It found the same 13
+guide/evidence files classified above. The six new private support names occur
+only in this handoff. Existing member-method references remain path-neutral or
+historical and remain accurate because P0 moved no member definition out of
+`BattleEngine.cpp`. No stale file-location assumption was found.
+
+The later approval-sync pass updates `production/session-state/active.md` to
+record P0 as complete and P1 as approved but not started. The repeated search
+still finds only the same 13 classified guide/evidence files. This handoff and
+the active session-state guide are the only live structural authorities that
+need status changes. The accepted ADR, roadmap completion records, and gate
+reports remain accurate historical or path-neutral evidence and must not be
+rewritten. No new P1 planning document should be created: this handoff already
+owns the exact file map, exclusions, validation matrix, and continuation rule.
+
 The exact approved G1B guide write set is:
 
 - `docs/battle-engine-structural-split-handoff.md`;
@@ -250,12 +276,12 @@ requires a later approved internal seam, not relocation disguised as a split.
 A class method can be defined in any of these `.cpp` files by including
 `BattleEngine.h`; `BattleEngine.cpp` does not import implementations from them.
 
-## Proposed private shared support
+## P0 private shared support (completed 2026-08-27)
 
 Only promote a helper when at least two focused translation units need it.
 Otherwise keep it local to its checkpoint file.
 
-The completed delta review confirms these shared seams:
+The completed P0 relocation uses exactly these shared seams:
 
 - `BattleEngineCommon.*` for no-draw random, stable identifiers, common state
   lookups, sources, and rejection facts used across checkpoint families;
@@ -273,6 +299,21 @@ declarations and template definitions that callers require; non-template
 definitions remain in the corresponding `.cpp`. Each file uses self-contained
 includes and a unique named private namespace. A helper stays local when only
 one focused translation unit needs it.
+
+The completed line counts are:
+
+| Private support pair | Header | Source |
+|---|---:|---:|
+| `BattleEngineCommon` | 392 | 429 |
+| `BattleEngineCheckpointState` | 379 | 418 |
+| `BattleEngineQueueBoundary` | 465 | 1,252 |
+| `BattleEngineEvents` | 721 | 338 |
+| `BattleEngineTriggerRuntime` | 1,404 | 312 |
+| `BattleEngineSwitchPipeline` | 1,348 | 61 |
+
+`BattleEngine.cpp` is 13,035 lines after P0. All 28 `FBattleEngine` member
+definitions remain there. No P1 member-relocation source exists, and no `.cpp`
+file includes another `.cpp` file.
 
 Do not replace all checkpoints with one generic base class. Their stale
 identities and owned deltas differ, and the explicit code is part of their
@@ -341,8 +382,9 @@ independent state copies or commits.
 
 ## Approval-bounded write sets and sequence
 
-Use separate changes rather than one broad refactor. G1B and T1 have been
-approved and completed. No production wave has been approved.
+Use separate changes rather than one broad refactor. G1B, T1, and P0 have been
+approved and completed. P1 is approved but not started. P2 and G2 remain
+unapproved.
 
 ### G1B - active guide migration (approved)
 
@@ -358,7 +400,7 @@ handoff was the only hand-edited guide in the original T1 wave. A later
 explicit documentation approval refreshed `production/session-state/active.md`
 before the T1 commit. The harness and Bag tests remain outside the write set.
 
-### P0 - private production seams (proposed, not approved)
+### P0 - private production seams (approved and completed 2026-08-27)
 
 Modify:
 
@@ -378,9 +420,17 @@ P0 moves only shared helper families. Every `FBattleEngine` member definition
 remains in `BattleEngine.cpp` so helper linkage and include boundaries can be
 validated independently.
 
-### P1 - non-checkpoint member relocation (proposed, not approved)
+P0 completed exactly this implementation write set. It changed no public
+header, member-method location, test source, behavior contract, module boundary,
+or visual asset. Before the later task-specific approval, it changed no Git
+state. Its only additional writes are ordinary generated build and Automation
+outputs under `Game/Saved`; the later approval sync adds
+`production/session-state/active.md` to the exact commit set.
 
-Modify `BattleEngine.cpp` and this handoff. Create:
+### P1 - non-checkpoint member relocation (approved, not started)
+
+In a later fresh bounded implementation session, modify `BattleEngine.cpp`,
+this handoff, and `production/session-state/active.md`. Create:
 
 - `BattleEngineSnapshots.cpp`;
 - `BattleEngineDecisionFlow.cpp`;
@@ -390,6 +440,11 @@ Modify `BattleEngine.cpp` and this handoff. Create:
 
 Construction, destruction, `TryCreate`, and test-fixture creation remain in
 `BattleEngine.cpp`. `SubmitDecision` moves whole, including Pivot continuation.
+P1 approval is limited to this exact mechanical relocation, the two active-guide
+updates, ordinary generated validation output, and the required build/matrix.
+It does not authorize P2, behavior cleanup, public-contract changes, C10A, or
+Git actions. The current task must stop before creating or modifying any P1
+source.
 
 ### P2 - checkpoint member relocation (proposed, not approved)
 
@@ -465,6 +520,26 @@ zero succeeded-with-warnings, failed, not-run, and in-process counters; every
 test entry must have zero warnings and errors. Use a fresh unique generated
 root under `Game/Saved/AutomationReports/BattleStructural-<wave>-<timestamp>`.
 Process exit code alone is not acceptance evidence.
+
+P0 passes the required build and matrix. The initial forced-Unity build exposed
+only private seam compilation defects: two missing private type includes, one
+malformed extracted optional-parameter signature, and one missing private
+namespace import. They were corrected without moving a member method or changing
+behavior, and no Automation ran before the corrected build passed. Evidence is:
+
+- the corrected forced-Unity editor build passed with all four required flags;
+- its build log is
+  `Game/Saved/Logs/BattleStructural-P0-20260827-200221-ForcedUnityBuild.log`;
+- the 22 filters ran one at a time in the required order under
+  `Game/Saved/AutomationReports/BattleStructural-P0-20260827-200412`;
+- the exact per-filter successes were `ADR0002=110`, `C03A=6`, `C03B=6`,
+  `C04A=7`, `C04B=9`, `C05A=8`, `C05B=9`, `C05C=7`, `C06A=7`, `C06B=8`,
+  `C07A=7`, `C07B=9`, `C07C=8`, `C07D=9`, `C08A=7`, `C08B=20`, `C08C=27`,
+  `C09A=6`, `C09B=7`, `C09C=6`, `Runtime=3`, and full `Battle=320`;
+- the 22 reports contain 606 successes in aggregate; and
+- every exported aggregate warning, failure, not-run, and in-process counter is
+  zero, every test entry has zero warnings and errors, and every test state is
+  `Success`.
 
 After T1, P0, P1, P2, and G2, rerun the guide-reference search and verify that
 active guidance reflects current versus proposed files accurately. No
