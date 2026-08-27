@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: Behavior-preserving Battle Engine structural split before C10A
-Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approval
+Task: Production Wave P2 complete; G2 approved but not started
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-27
@@ -30,9 +30,11 @@ Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approv
   `FBattleEngine` member definitions remain in `BattleEngine.cpp`.
 - Non-checkpoint member-relocation Wave P1 is approved and complete. The five
   focused production sources now own snapshots, decision flow, end turn,
-  between-actions stat refresh, and replay export. P2 is separately approved for
-  a later fresh bounded implementation session but has not started. G2 remains
-  unapproved.
+  between-actions stat refresh, and replay export.
+- Checkpoint member-relocation Wave P2 is approved and complete. The seven
+  focused production sources now own action start, Wild actions, Bag and
+  Capture, voluntary Switch, pre-move, target resolution, and move effects.
+  G2 is approved for a later fresh bounded closeout session but has not started.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -98,6 +100,22 @@ Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approv
   methods. The five P1 sources contain the other 16 definitions. All 28 P0
   definitions were reconstructed exactly once without changing their logical
   source lines. No `.cpp` includes another `.cpp`, and no P2 source exists.
+- P2's forced-Unity editor build passed on its first run with `-ForceUnity`,
+  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
+  `Game/Saved/Logs/BattleStructural-P2-20260827-225012-ForcedUnityBuild.log`.
+- P2's exact serial 22-filter evidence root is
+  `Game/Saved/AutomationReports/BattleStructural-P2-20260827-225953`. The 22
+  readable exported reports contain 606 successes in aggregate, including 320
+  for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
+  are zero. Every report contains exact-prefix unique paths, and every path set
+  exactly matches P1's accepted matrix. The full sorted path-set SHA-256 remains
+  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
+- `BattleEngine.cpp` is 129 lines after P2 and retains only five construction
+  and creation definitions. The seven P2 sources own one checkpoint definition
+  each, while the five P1 sources retain their 16 definitions. All 28 P0
+  definitions still exist exactly once. Every P2 source has self-contained
+  includes and a unique named private namespace, and no `.cpp` includes another
+  `.cpp`.
 
 ## Working-tree scope to preserve
 
@@ -105,12 +123,9 @@ Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approv
   `docs/registry/architecture/`. References under current guides, registries,
   examples, and package documents use that path. The old `docs/architecture/`
   path remains only in dated historical gate reports.
-- Preserve the pre-existing modification to
-  `docs/registry/architecture.yaml`.
-- Preserve the pre-existing untracked ADR-0003 document and the architecture
-  registry. ADR-0004 is also pre-existing untracked work; G1B authorizes only
-  the dated prerequisite amendment recorded in that document. Preserve all of
-  its other content.
+- Do not modify `docs/registry/architecture.yaml`; it is outside this task.
+- Preserve the pre-existing untracked ADR-0003 and ADR-0004 documents. Do not
+  add either document to the P2 commit.
 - The exact G1B write set is this file,
   `docs/battle-engine-structural-split-handoff.md`, and
   `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
@@ -129,10 +144,13 @@ Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approv
   `BattleEngineReplay.cpp`, this file, and
   `docs/battle-engine-structural-split-handoff.md`. Its only other writes are
   ordinary generated build and Automation output under `Game/Saved`.
-- P2 is approved only for a later fresh bounded implementation session using
-  the exact seven-file map, exclusions, forced-Unity build, and serial
-  22-filter matrix in `docs/battle-engine-structural-split-handoff.md`. This
-  approval-sync and commit task must not create or modify P2 production source.
+- P2 completed the exact seven-file map, exclusions, forced-Unity build, and
+  serial 22-filter matrix in `docs/battle-engine-structural-split-handoff.md`.
+  Its hand-edited implementation set is `BattleEngine.cpp`, the seven named P2
+  sources, and that handoff. Its only other writes are ordinary generated build
+  and Automation output under `Game/Saved`.
+- G2 is approved only for a later fresh bounded closeout session. This
+  approval-sync and P2 commit task must not implement G2 or mark it complete.
 - Do not change any other production source, tests, visual assets, Blueprints,
   maps, configuration, `.uproject` data, module rules, or C10 content data
   without a new task-specific approval.
@@ -141,18 +159,18 @@ Task: Production Wave P1 complete; P2 approved but not started; G2 awaits approv
   still use a fresh unique `Game/Saved/AutomationReports/**` root.
 - Preserve replay schema `6`, existing enum ordinals, and frozen
   Cry/reinforcement behavior.
-- The current task authorizes one commit and push containing only P1's exact
-  source files plus this file and
+- The current task authorizes one commit and push containing only
+  `BattleEngine.cpp`, the seven named P2 sources, this file, and
   `docs/battle-engine-structural-split-handoff.md`. It excludes the architecture
-  registry, ADR-0003, ADR-0004, P2 source, generated output, branches, and Git
-  history rewrites.
+  registry, ADR-0003, ADR-0004, generated output, G2 implementation, C10A,
+  branches, and Git history rewrites.
 
 ## Next
 
-1. Treat P1 as complete; do not continue relocation cleanup or behavior changes
+1. Treat P2 as complete; do not continue relocation cleanup or behavior changes
    under its approval.
-2. P2 is approved but not started. Do not implement it in this task; begin it
-   only in a fresh bounded implementation session. G2 remains separately
-   unapproved. Preserve the remaining order `P2 -> G2`.
+2. G2 is approved but not started. Begin it only in a later fresh bounded
+   closeout session. This task only synchronizes approval status and commits and
+   pushes the exact P2 set.
 3. After the approved structural work closes, resume roadmap order at
    `C10A -> C10B -> C11A -> C11B`.
