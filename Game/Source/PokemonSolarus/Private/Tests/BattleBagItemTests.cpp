@@ -723,6 +723,82 @@ namespace BattleBagItemTests
 		return Engine;
 	}
 
+	class FObservedBagRandom final : public IBattleRandom
+	{
+	public:
+		explicit FObservedBagRandom(const uint64 Seed)
+			: Inner(Seed)
+		{
+		}
+
+		virtual bool TryDrawUniform(
+			const uint32 InclusiveMinimum,
+			const uint32 InclusiveMaximum,
+			const FBattleRandomContext& Context,
+			FBattleRandomDraw& OutDraw) override
+		{
+			++DrawAttemptCount;
+			return Inner.TryDrawUniform(
+				InclusiveMinimum,
+				InclusiveMaximum,
+				Context,
+				OutDraw);
+		}
+
+		virtual TConstArrayView<FBattleRandomDraw> GetTrace() const override
+		{
+			return Inner.GetTrace();
+		}
+
+		virtual bool TryCreateTransaction(
+			const FResolutionId ResolutionId,
+			const FActionId OwningActionId,
+			TUniquePtr<IBattleRandomTransaction>& OutTransaction) override
+		{
+			++TransactionAttemptCount;
+			return Inner.TryCreateTransaction(
+				ResolutionId,
+				OwningActionId,
+				OutTransaction);
+		}
+
+		[[nodiscard]] int32 GetDrawAttemptCount() const
+		{
+			return DrawAttemptCount;
+		}
+
+		[[nodiscard]] int32 GetTransactionAttemptCount() const
+		{
+			return TransactionAttemptCount;
+		}
+
+	private:
+		FSeededBattleRandom Inner;
+		int32 DrawAttemptCount = 0;
+		int32 TransactionAttemptCount = 0;
+	};
+
+	TUniquePtr<FBattleEngine> MakeObservedEngine(
+		const FBagScenario& Scenario,
+		const uint64 Seed,
+		FObservedBagRandom*& OutRandom)
+	{
+		TUniquePtr<FObservedBagRandom> Random =
+			MakeUnique<FObservedBagRandom>(Seed);
+		OutRandom = Random.Get();
+		TUniquePtr<IBattleRandom> RandomOwner = MoveTemp(Random);
+		TUniquePtr<FBattleEngine> Engine;
+		FBattleRejection Rejection;
+		const bool bCreated = FBattleEngine::TryCreate(
+			MakeSetup(Scenario),
+			MakeCatalog(),
+			MoveTemp(RandomOwner),
+			Engine,
+			Rejection);
+		check(bCreated);
+		return Engine;
+	}
+
 	bool BeginRuntime(FBattleEngine& Engine)
 	{
 		FBattleRejection Rejection;
@@ -1019,6 +1095,1084 @@ namespace BattleBagItemTests
 				return false;
 			}
 		}
+		return true;
+	}
+
+	bool AreStaleBagEventSourcesIdentical(
+		const FBattleEventSource& Left,
+		const FBattleEventSource& Right)
+	{
+		return Left.TrainerId == Right.TrainerId
+			&& Left.BattlerId == Right.BattlerId
+			&& Left.ActiveSlotId == Right.ActiveSlotId
+			&& Left.DefinitionId == Right.DefinitionId;
+	}
+
+	bool AreStaleBagEventTargetsIdentical(
+		const TConstArrayView<FBattleEventTarget> Left,
+		const TConstArrayView<FBattleEventTarget> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].TrainerId != Right[Index].TrainerId
+				|| Left[Index].BattlerId != Right[Index].BattlerId
+				|| Left[Index].ActiveSlotId != Right[Index].ActiveSlotId
+				|| Left[Index].Side != Right[Index].Side
+				|| Left[Index].bHasSide != Right[Index].bHasSide
+				|| Left[Index].bField != Right[Index].bField)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagEventsIdentical(
+		const FBattleEvent& Left,
+		const FBattleEvent& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetEventOrdinal() != Right.GetEventOrdinal()
+			|| Left.GetBattleId() != Right.GetBattleId()
+			|| Left.GetTurnId() != Right.GetTurnId()
+			|| Left.GetActionId() != Right.GetActionId()
+			|| Left.GetResolutionId() != Right.GetResolutionId()
+			|| Left.GetType() != Right.GetType()
+			|| Left.GetCause() != Right.GetCause()
+			|| Left.GetCauseActionKind() != Right.GetCauseActionKind()
+			|| Left.GetOutcomeCause() != Right.GetOutcomeCause()
+			|| !AreStaleBagEventSourcesIdentical(
+				Left.GetSource(),
+				Right.GetSource())
+			|| !AreStaleBagEventTargetsIdentical(
+				Left.GetTargets(),
+				Right.GetTargets())
+			|| Left.GetNumericBefore() != Right.GetNumericBefore()
+			|| Left.GetNumericAfter() != Right.GetNumericAfter()
+			|| Left.GetNumericDelta() != Right.GetNumericDelta()
+			|| Left.GetSimultaneousGroupId() != Right.GetSimultaneousGroupId()
+			|| Left.GetHitIndex() != Right.GetHitIndex()
+			|| Left.GetHitCount() != Right.GetHitCount()
+			|| Left.GetActionOrder().IsSet() != Right.GetActionOrder().IsSet()
+			|| Left.GetTargetResolution().IsSet()
+				!= Right.GetTargetResolution().IsSet()
+			|| Left.GetCapture().IsSet() != Right.GetCapture().IsSet())
+		{
+			return false;
+		}
+
+		if (Left.GetActionOrder().IsSet())
+		{
+			const FBattleActionOrderMetadata& L =
+				Left.GetActionOrder().GetValue();
+			const FBattleActionOrderMetadata& R =
+				Right.GetActionOrder().GetValue();
+			if (L.QueueOrdinal != R.QueueOrdinal
+				|| L.OrderKey.CommandBand != R.OrderKey.CommandBand
+				|| L.OrderKey.MovePriority != R.OrderKey.MovePriority
+				|| L.OrderKey.FractionalPriorityTenths
+					!= R.OrderKey.FractionalPriorityTenths
+				|| L.OrderKey.EffectiveSpeed != R.OrderKey.EffectiveSpeed
+				|| L.OrderKey.ActingSlotId != R.OrderKey.ActingSlotId
+				|| L.bReverseSpeed != R.bReverseSpeed)
+			{
+				return false;
+			}
+		}
+		if (Left.GetTargetResolution().IsSet())
+		{
+			const FBattleTargetResolutionMetadata& L =
+				Left.GetTargetResolution().GetValue();
+			const FBattleTargetResolutionMetadata& R =
+				Right.GetTargetResolution().GetValue();
+			if (L.TargetClass != R.TargetClass
+				|| L.bWasRedirected != R.bWasRedirected
+				|| L.bUsedFaintedTargetFallback
+					!= R.bUsedFaintedTargetFallback)
+			{
+				return false;
+			}
+		}
+		if (Left.GetCapture().IsSet()
+			&& !(Left.GetCapture().GetValue()
+				== Right.GetCapture().GetValue()))
+		{
+			return false;
+		}
+
+		const FBattleEventVisibility& LVisibility = Left.GetVisibility();
+		const FBattleEventVisibility& RVisibility = Right.GetVisibility();
+		return LVisibility.Level == RVisibility.Level
+			&& LVisibility.OwningTrainerId == RVisibility.OwningTrainerId
+			&& LVisibility.OwningSide == RVisibility.OwningSide
+			&& LVisibility.bHasOwningSide == RVisibility.bHasOwningSide
+			&& LVisibility.bRevealSourceDefinition
+				== RVisibility.bRevealSourceDefinition;
+	}
+
+	bool AreStaleBagRejectionsIdentical(
+		const FBattleRejection& Left,
+		const FBattleRejection& Right)
+	{
+		return Left.Reason == Right.Reason
+			&& Left.TrainerId == Right.TrainerId
+			&& Left.BattlerId == Right.BattlerId
+			&& Left.ActionId == Right.ActionId
+			&& Left.MoveId == Right.MoveId
+			&& Left.ItemId == Right.ItemId
+			&& Left.PartySlotId == Right.PartySlotId
+			&& Left.ActiveSlotId == Right.ActiveSlotId;
+	}
+
+	bool AreStaleBagResolutionsIdentical(
+		const FBattleResolution& Left,
+		const FBattleResolution& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.WasAccepted() != Right.WasAccepted()
+			|| Left.GetResolutionId() != Right.GetResolutionId()
+			|| Left.GetBeforeStateVersion() != Right.GetBeforeStateVersion()
+			|| Left.GetAfterStateVersion() != Right.GetAfterStateVersion()
+			|| !AreStaleBagRejectionsIdentical(
+				Left.GetRejection(),
+				Right.GetRejection())
+			|| Left.GetEvents().Num() != Right.GetEvents().Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.GetEvents().Num(); ++Index)
+		{
+			if (!AreStaleBagEventsIdentical(
+					Left.GetEvents()[Index],
+					Right.GetEvents()[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool IsStaleBagEventHistoryPrefix(
+		const TConstArrayView<FBattleEvent> Prefix,
+		const TConstArrayView<FBattleEvent> Complete)
+	{
+		if (Prefix.Num() > Complete.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Prefix.Num(); ++Index)
+		{
+			if (!AreStaleBagEventsIdentical(Prefix[Index], Complete[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool IsStaleBagResolutionHistoryPrefix(
+		const TConstArrayView<FBattleResolution> Prefix,
+		const TConstArrayView<FBattleResolution> Complete)
+	{
+		if (Prefix.Num() > Complete.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Prefix.Num(); ++Index)
+		{
+			if (!AreStaleBagResolutionsIdentical(Prefix[Index], Complete[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	template <typename T>
+	bool AreStaleBagSimpleViewsIdentical(
+		const TConstArrayView<T> Left,
+		const TConstArrayView<T> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index] != Right[Index])
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagRequestsIdentical(
+		const FBattleDecisionRequest& Left,
+		const FBattleDecisionRequest& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetStateVersion() != Right.GetStateVersion()
+			|| Left.GetRequestKind() != Right.GetRequestKind()
+			|| Left.GetDecisionOwnerTrainerId()
+				!= Right.GetDecisionOwnerTrainerId()
+			|| Left.GetActingBattlerId() != Right.GetActingBattlerId()
+			|| Left.GetActingSlotId() != Right.GetActingSlotId()
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalActionKinds(),
+				Right.GetLegalActionKinds())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalMoveIds(),
+				Right.GetLegalMoveIds())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetAutomaticallyTargetedMoveIds(),
+				Right.GetAutomaticallyTargetedMoveIds())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalSwitchPartySlots(),
+				Right.GetLegalSwitchPartySlots())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalItemIds(),
+				Right.GetLegalItemIds())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalActiveTargets(),
+				Right.GetLegalActiveTargets())
+			|| !AreStaleBagSimpleViewsIdentical(
+				Left.GetLegalPartyTargets(),
+				Right.GetLegalPartyTargets()))
+		{
+			return false;
+		}
+
+		const TConstArrayView<FBattleMoveTargetOption> LMove =
+			Left.GetLegalMoveTargets();
+		const TConstArrayView<FBattleMoveTargetOption> RMove =
+			Right.GetLegalMoveTargets();
+		const TConstArrayView<FBattleItemPartyTargetOption> LParty =
+			Left.GetLegalItemPartyTargets();
+		const TConstArrayView<FBattleItemPartyTargetOption> RParty =
+			Right.GetLegalItemPartyTargets();
+		const TConstArrayView<FBattleItemActiveTargetOption> LActive =
+			Left.GetLegalItemActiveTargets();
+		const TConstArrayView<FBattleItemActiveTargetOption> RActive =
+			Right.GetLegalItemActiveTargets();
+		const TConstArrayView<FBattleUnavailableDecisionOption> LUnavailable =
+			Left.GetUnavailableOptions();
+		const TConstArrayView<FBattleUnavailableDecisionOption> RUnavailable =
+			Right.GetUnavailableOptions();
+		if (LMove.Num() != RMove.Num()
+			|| LParty.Num() != RParty.Num()
+			|| LActive.Num() != RActive.Num()
+			|| LUnavailable.Num() != RUnavailable.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < LMove.Num(); ++Index)
+		{
+			if (LMove[Index].MoveId != RMove[Index].MoveId
+				|| LMove[Index].ActiveSlotId != RMove[Index].ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < LParty.Num(); ++Index)
+		{
+			if (LParty[Index].ItemId != RParty[Index].ItemId
+				|| LParty[Index].PartySlotId != RParty[Index].PartySlotId)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < LActive.Num(); ++Index)
+		{
+			if (LActive[Index].ItemId != RActive[Index].ItemId
+				|| LActive[Index].ActiveSlotId != RActive[Index].ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < LUnavailable.Num(); ++Index)
+		{
+			const FBattleUnavailableDecisionOption& L = LUnavailable[Index];
+			const FBattleUnavailableDecisionOption& R = RUnavailable[Index];
+			if (L.Kind != R.Kind
+				|| L.Reason != R.Reason
+				|| L.ActionKind != R.ActionKind
+				|| L.MoveId != R.MoveId
+				|| L.PartySlotId != R.PartySlotId
+				|| L.ItemId != R.ItemId
+				|| L.ActiveSlotId != R.ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagPendingRequestsIdentical(
+		const TOptional<FBattleDecisionRequest>& LeftPending,
+		const TOptional<FBattleDecisionRequest>& RightPending,
+		const TConstArrayView<FBattleDecisionRequest> LeftRequests,
+		const TConstArrayView<FBattleDecisionRequest> RightRequests)
+	{
+		if (LeftPending.IsSet() != RightPending.IsSet()
+			|| LeftRequests.Num() != RightRequests.Num())
+		{
+			return false;
+		}
+		if (LeftPending.IsSet()
+			&& !AreStaleBagRequestsIdentical(
+				LeftPending.GetValue(),
+				RightPending.GetValue()))
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < LeftRequests.Num(); ++Index)
+		{
+			if (!AreStaleBagRequestsIdentical(
+					LeftRequests[Index],
+					RightRequests[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagPendingReplacementsIdentical(
+		const TConstArrayView<FBattlePendingReplacementState> Left,
+		const TConstArrayView<FBattlePendingReplacementState> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].TrainerId != Right[Index].TrainerId
+				|| Left[Index].ActiveSlotId != Right[Index].ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagTrainersIdentical(
+		const TConstArrayView<FBattleTrainerState> Left,
+		const TConstArrayView<FBattleTrainerState> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			const FBattleTrainerState& L = Left[Index];
+			const FBattleTrainerState& R = Right[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.Side != R.Side
+				|| L.Role != R.Role
+				|| L.Controller != R.Controller
+				|| L.SelectorProfileId != R.SelectorProfileId
+				|| L.ActionAllowance.MaximumActions
+					!= R.ActionAllowance.MaximumActions
+				|| L.ActionAllowance.RemainingActions
+					!= R.ActionAllowance.RemainingActions
+				|| L.ActionAllowance.bBagActionAvailable
+					!= R.ActionAllowance.bBagActionAvailable
+				|| L.Bag.Num() != R.Bag.Num()
+				|| L.PartySlots.Num() != R.PartySlots.Num())
+			{
+				return false;
+			}
+			for (int32 BagIndex = 0; BagIndex < L.Bag.Num(); ++BagIndex)
+			{
+				if (L.Bag[BagIndex].ItemId != R.Bag[BagIndex].ItemId
+					|| L.Bag[BagIndex].Count != R.Bag[BagIndex].Count)
+				{
+					return false;
+				}
+			}
+			for (int32 PartyIndex = 0;
+				PartyIndex < L.PartySlots.Num();
+				++PartyIndex)
+			{
+				if (L.PartySlots[PartyIndex].PartySlotId
+						!= R.PartySlots[PartyIndex].PartySlotId
+					|| L.PartySlots[PartyIndex].BattlerId
+						!= R.PartySlots[PartyIndex].BattlerId)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagStatStagesIdentical(
+		const FBattleStatStages& Left,
+		const FBattleStatStages& Right)
+	{
+		for (uint8 Index = static_cast<uint8>(EBattleStat::Attack);
+			Index <= static_cast<uint8>(EBattleStat::Evasion);
+			++Index)
+		{
+			int32 LeftStage = 0;
+			int32 RightStage = 0;
+			const EBattleStat Stat = static_cast<EBattleStat>(Index);
+			if (!Left.TryGetStage(Stat, LeftStage)
+				|| !Right.TryGetStage(Stat, RightStage)
+				|| LeftStage != RightStage)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagConditionsIdentical(
+		const TConstArrayView<FBattleConditionState> Left,
+		const TConstArrayView<FBattleConditionState> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].ConditionId != Right[Index].ConditionId
+				|| Left[Index].RemainingTurns != Right[Index].RemainingTurns
+				|| Left[Index].LayerCount != Right[Index].LayerCount
+				|| Left[Index].CreationOrdinal != Right[Index].CreationOrdinal
+				|| Left[Index].SourceBattlerId != Right[Index].SourceBattlerId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagBattlersIdentical(
+		const TConstArrayView<FBattleBattlerState> Left,
+		const TConstArrayView<FBattleBattlerState> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			const FBattleBattlerState& L = Left[Index];
+			const FBattleBattlerState& R = Right[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.BattlerId != R.BattlerId
+				|| L.SourcePokemonId != R.SourcePokemonId
+				|| L.PartySlotId != R.PartySlotId
+				|| L.SpeciesFormId != R.SpeciesFormId
+				|| L.CaptureClassification != R.CaptureClassification
+				|| L.Level != R.Level
+				|| L.PermanentStats.MaxHP != R.PermanentStats.MaxHP
+				|| L.PermanentStats.Attack != R.PermanentStats.Attack
+				|| L.PermanentStats.Defense != R.PermanentStats.Defense
+				|| L.PermanentStats.SpecialAttack
+					!= R.PermanentStats.SpecialAttack
+				|| L.PermanentStats.SpecialDefense
+					!= R.PermanentStats.SpecialDefense
+				|| L.PermanentStats.Speed != R.PermanentStats.Speed
+				|| L.CurrentHP != R.CurrentHP
+				|| L.bFainted != R.bFainted
+				|| L.bCaptured != R.bCaptured
+				|| L.bRemoved != R.bRemoved
+				|| L.bFaintTransitionPending != R.bFaintTransitionPending
+				|| L.bEgg != R.bEgg
+				|| L.MajorStatusId != R.MajorStatusId
+				|| !AreStaleBagStatStagesIdentical(L.Stages, R.Stages)
+				|| !AreStaleBagConditionsIdentical(L.Volatiles, R.Volatiles)
+				|| L.AbilityId != R.AbilityId
+				|| L.bAbilitySuppressed != R.bAbilitySuppressed
+				|| L.EnteredActiveOnTurnId != R.EnteredActiveOnTurnId
+				|| L.HeldItem.InstanceId != R.HeldItem.InstanceId
+				|| L.HeldItem.OriginalItemId != R.HeldItem.OriginalItemId
+				|| L.HeldItem.CurrentItemId != R.HeldItem.CurrentItemId
+				|| L.HeldItem.bConsumed != R.HeldItem.bConsumed
+				|| L.HeldItem.bSuppressed != R.HeldItem.bSuppressed
+				|| L.HeldItem.bRevealed != R.HeldItem.bRevealed
+				|| L.HeldItem.bTemporarilyRemoved
+					!= R.HeldItem.bTemporarilyRemoved
+				|| L.HeldItem.ChoiceLockedMoveId
+					!= R.HeldItem.ChoiceLockedMoveId
+				|| L.LastMoveId != R.LastMoveId
+				|| L.Obedience.bHasSnapshot != R.Obedience.bHasSnapshot
+				|| L.Obedience.bSubjectToPlayerCap
+					!= R.Obedience.bSubjectToPlayerCap
+				|| L.Obedience.ReferenceLevel != R.Obedience.ReferenceLevel
+				|| L.Obedience.BadgeCount != R.Obedience.BadgeCount
+				|| L.Moves.Num() != R.Moves.Num())
+			{
+				return false;
+			}
+			for (int32 MoveIndex = 0; MoveIndex < L.Moves.Num(); ++MoveIndex)
+			{
+				if (L.Moves[MoveIndex].SlotIndex != R.Moves[MoveIndex].SlotIndex
+					|| L.Moves[MoveIndex].MoveId != R.Moves[MoveIndex].MoveId
+					|| L.Moves[MoveIndex].CurrentPP
+						!= R.Moves[MoveIndex].CurrentPP
+					|| L.Moves[MoveIndex].MaxPP != R.Moves[MoveIndex].MaxPP)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagActivePositionsIdentical(
+		const TConstArrayView<FBattleActivePositionState> Left,
+		const TConstArrayView<FBattleActivePositionState> Right)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].ActiveSlotId != Right[Index].ActiveSlotId
+				|| Left[Index].bAvailable != Right[Index].bAvailable
+				|| Left[Index].TrainerId != Right[Index].TrainerId
+				|| Left[Index].BattlerId != Right[Index].BattlerId)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreStaleBagDecisionsIdentical(
+		const FBattleDecision& Left,
+		const FBattleDecision& Right)
+	{
+		return Left.IsValid() == Right.IsValid()
+			&& Left.GetStateVersion() == Right.GetStateVersion()
+			&& Left.GetRequestKind() == Right.GetRequestKind()
+			&& Left.GetDecisionOwnerTrainerId()
+				== Right.GetDecisionOwnerTrainerId()
+			&& Left.GetActingBattlerId() == Right.GetActingBattlerId()
+			&& Left.GetActionKind() == Right.GetActionKind()
+			&& Left.GetMoveId() == Right.GetMoveId()
+			&& Left.GetSwitchPartySlotId() == Right.GetSwitchPartySlotId()
+			&& Left.GetItemId() == Right.GetItemId()
+			&& Left.GetItemPartyTargetId() == Right.GetItemPartyTargetId()
+			&& Left.GetActiveTargetId() == Right.GetActiveTargetId();
+	}
+
+	bool AreStaleBagLockedActionsIdentical(
+		const FBattleLockedActionState& Left,
+		const FBattleLockedActionState& Right,
+		const bool bIgnoreFinished = false)
+	{
+		if (Left.ActionId != Right.ActionId
+			|| Left.QueueOrdinal != Right.QueueOrdinal
+			|| !AreStaleBagDecisionsIdentical(Left.Decision, Right.Decision)
+			|| Left.OrderKey.CommandBand != Right.OrderKey.CommandBand
+			|| Left.OrderKey.MovePriority != Right.OrderKey.MovePriority
+			|| Left.OrderKey.FractionalPriorityTenths
+				!= Right.OrderKey.FractionalPriorityTenths
+			|| Left.OrderKey.EffectiveSpeed != Right.OrderKey.EffectiveSpeed
+			|| Left.OrderKey.ActingSlotId != Right.OrderKey.ActingSlotId
+			|| Left.TargetClass != Right.TargetClass
+			|| Left.SelectedTargetBattlerId != Right.SelectedTargetBattlerId
+			|| Left.bStarted != Right.bStarted
+			|| Left.bMoveCommitted != Right.bMoveCommitted
+			|| Left.TargetResolution.IsSet() != Right.TargetResolution.IsSet()
+			|| Left.EffectExecutionState != Right.EffectExecutionState
+			|| (!bIgnoreFinished && Left.bFinished != Right.bFinished))
+		{
+			return false;
+		}
+		if (Left.TargetResolution.IsSet())
+		{
+			const FBattleTargetResolutionResult& L =
+				Left.TargetResolution.GetValue();
+			const FBattleTargetResolutionResult& R =
+				Right.TargetResolution.GetValue();
+			return L.TargetClass == R.TargetClass
+				&& L.Outcome == R.Outcome
+				&& L.Targets == R.Targets
+				&& L.bWasRedirected == R.bWasRedirected
+				&& L.bUsedFaintedTargetFallback
+					== R.bUsedFaintedTargetFallback;
+		}
+		return true;
+	}
+
+	bool AreStaleBagLockedActionArraysIdentical(
+		const TConstArrayView<FBattleLockedActionState> Left,
+		const TConstArrayView<FBattleLockedActionState> Right,
+		const int32 FinishedDifferenceIndex = INDEX_NONE)
+	{
+		if (Left.Num() != Right.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (!AreStaleBagLockedActionsIdentical(
+					Left[Index],
+					Right[Index],
+					Index == FinishedDifferenceIndex))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	struct FStaleBagObservation
+	{
+		uint64 StateVersion = 0;
+		uint64 NextResolutionId = 0;
+		uint64 NextEventOrdinal = 0;
+		uint64 NextActionId = 0;
+		uint64 NextConditionCreationOrdinal = 0;
+		uint64 NextTriggerReentrancyToken = 0;
+		int32 CurrentLockedActionIndex = INDEX_NONE;
+		EBattlePhase Phase = EBattlePhase::Setup;
+		EBattleOutcome Outcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
+		uint32 EscapeAttemptCount = 0;
+		bool bEndTurnTriggerPassComplete = false;
+		bool bReinforcementSucceeded = false;
+		FBattleCaptureCapacitySnapshot CaptureCapacity;
+		TArray<FBattleTrainerState> Trainers;
+		TArray<FBattleBattlerState> Battlers;
+		TArray<FBattleActivePositionState> ActivePositions;
+		TArray<FBattlePendingCaptureState> PendingCaptures;
+		TArray<FBattleLockedActionState> LockedActions;
+		TOptional<FBattleDecisionRequest> PendingDecision;
+		TArray<FBattleDecisionRequest> PendingDecisionRequests;
+		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TArray<FBattleRandomDraw> RandomTrace;
+		int32 RandomDrawAttemptCount = INDEX_NONE;
+		int32 RandomTransactionAttemptCount = INDEX_NONE;
+		bool bHasActingTrainerPolicy = false;
+		bool bActingTrainerMayUseBag = false;
+		TArray<FBattleResolution> Resolutions;
+		TArray<FBattleEvent> Events;
+	};
+
+	FStaleBagObservation ObserveStaleBag(
+		const FBattleEngine& Engine,
+		const FObservedBagRandom& Random,
+		const FTrainerId ActingTrainerId)
+	{
+		const FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetState(Engine);
+		FStaleBagObservation Observation;
+		Observation.StateVersion = State.StateVersion;
+		Observation.NextResolutionId = State.NextResolutionId;
+		Observation.NextEventOrdinal = State.NextEventOrdinal;
+		Observation.NextActionId = State.NextActionId;
+		Observation.NextConditionCreationOrdinal =
+			State.NextConditionCreationOrdinal;
+		Observation.NextTriggerReentrancyToken =
+			State.NextTriggerReentrancyToken;
+		Observation.CurrentLockedActionIndex = State.CurrentLockedActionIndex;
+		Observation.Phase = State.Phase;
+		Observation.Outcome = State.Outcome;
+		Observation.OutcomeCause = State.OutcomeCause;
+		Observation.EscapeAttemptCount = State.EscapeAttemptCount;
+		Observation.bEndTurnTriggerPassComplete =
+			State.bEndTurnTriggerPassComplete;
+		Observation.bReinforcementSucceeded = State.bReinforcementSucceeded;
+		Observation.CaptureCapacity = State.CaptureCapacity;
+		Observation.Trainers = State.Trainers;
+		Observation.Battlers = State.Battlers;
+		Observation.ActivePositions = State.ActivePositions;
+		Observation.PendingCaptures = State.PendingCaptures;
+		Observation.LockedActions = State.LockedActions;
+		Observation.PendingDecision = State.PendingDecision;
+		Observation.PendingDecisionRequests = State.PendingDecisionRequests;
+		Observation.PendingReplacements = State.PendingReplacements;
+		Observation.RandomTrace.Append(State.Random->GetTrace());
+		Observation.RandomDrawAttemptCount = Random.GetDrawAttemptCount();
+		Observation.RandomTransactionAttemptCount =
+			Random.GetTransactionAttemptCount();
+		const FBattleTrainerEncounterPolicy* Policy =
+			State.CompiledEncounterPolicies.FindTrainerPolicy(ActingTrainerId);
+		Observation.bHasActingTrainerPolicy = Policy != nullptr;
+		Observation.bActingTrainerMayUseBag =
+			Policy != nullptr && Policy->bMayUseBag;
+		Observation.Resolutions = State.Resolutions;
+		Observation.Events = State.OrderedEvents;
+		return Observation;
+	}
+
+	bool AreStaleBagResourceFactsIdentical(
+		const FStaleBagObservation& Left,
+		const FStaleBagObservation& Right)
+	{
+		return AreStaleBagTrainersIdentical(Left.Trainers, Right.Trainers)
+			&& AreStaleBagBattlersIdentical(Left.Battlers, Right.Battlers)
+			&& AreStaleBagActivePositionsIdentical(
+				Left.ActivePositions,
+				Right.ActivePositions)
+			&& Left.PendingCaptures == Right.PendingCaptures
+			&& Left.RandomTrace == Right.RandomTrace
+			&& Left.RandomDrawAttemptCount == Right.RandomDrawAttemptCount
+			&& Left.RandomTransactionAttemptCount
+				== Right.RandomTransactionAttemptCount
+			&& Left.bHasActingTrainerPolicy == Right.bHasActingTrainerPolicy
+			&& Left.bActingTrainerMayUseBag == Right.bActingTrainerMayUseBag;
+	}
+
+	bool AreRejectedStaleBagFactsIdentical(
+		const FStaleBagObservation& Left,
+		const FStaleBagObservation& Right)
+	{
+		return Left.StateVersion == Right.StateVersion
+			&& Left.NextActionId == Right.NextActionId
+			&& Left.NextConditionCreationOrdinal
+				== Right.NextConditionCreationOrdinal
+			&& Left.NextTriggerReentrancyToken
+				== Right.NextTriggerReentrancyToken
+			&& Left.CurrentLockedActionIndex
+				== Right.CurrentLockedActionIndex
+			&& Left.Phase == Right.Phase
+			&& Left.Outcome == Right.Outcome
+			&& Left.OutcomeCause == Right.OutcomeCause
+			&& Left.EscapeAttemptCount == Right.EscapeAttemptCount
+			&& Left.bEndTurnTriggerPassComplete
+				== Right.bEndTurnTriggerPassComplete
+			&& Left.bReinforcementSucceeded == Right.bReinforcementSucceeded
+			&& Left.CaptureCapacity.PartySlotsRemaining
+				== Right.CaptureCapacity.PartySlotsRemaining
+			&& Left.CaptureCapacity.StorageSlotsRemaining
+				== Right.CaptureCapacity.StorageSlotsRemaining
+			&& AreStaleBagResourceFactsIdentical(Left, Right)
+			&& AreStaleBagLockedActionArraysIdentical(
+				Left.LockedActions,
+				Right.LockedActions)
+			&& AreStaleBagPendingRequestsIdentical(
+				Left.PendingDecision,
+				Right.PendingDecision,
+				Left.PendingDecisionRequests,
+				Right.PendingDecisionRequests)
+			&& AreStaleBagPendingReplacementsIdentical(
+				Left.PendingReplacements,
+				Right.PendingReplacements);
+	}
+
+	bool IsStaleBagResolutionAppendedExactlyOnce(
+		const FBattleEngine& Engine,
+		const FBattleResolution& Returned)
+	{
+		const FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetState(Engine);
+		int32 MatchingCount = 0;
+		const FBattleResolution* Match = nullptr;
+		for (const FBattleResolution& Candidate : State.Resolutions)
+		{
+			if (Candidate.GetResolutionId() == Returned.GetResolutionId())
+			{
+				++MatchingCount;
+				Match = &Candidate;
+			}
+		}
+		return MatchingCount == 1
+			&& Match != nullptr
+			&& AreStaleBagResolutionsIdentical(*Match, Returned);
+	}
+
+	bool DoesStaleBagReplayContainResolutionExactlyOnce(
+		const FBattleEngine& Engine,
+		const FStaleBagObservation& Before,
+		const FBattleResolution& Returned)
+	{
+		const FBattleReplayRecord Replay = Engine.ExportReplayRecord();
+		if (!Replay.IsValid()
+			|| Replay.GetSchemaVersion()
+				!= FBattleReplayRecord::CurrentSchemaVersion
+			|| Replay.GetResolutions().Num() != Before.Resolutions.Num() + 1
+			|| !IsStaleBagResolutionHistoryPrefix(
+				Before.Resolutions,
+				Replay.GetResolutions()))
+		{
+			return false;
+		}
+		int32 MatchingCount = 0;
+		const FBattleResolution* Match = nullptr;
+		for (const FBattleResolution& Candidate : Replay.GetResolutions())
+		{
+			if (Candidate.GetResolutionId() == Returned.GetResolutionId())
+			{
+				++MatchingCount;
+				Match = &Candidate;
+			}
+		}
+		return MatchingCount == 1
+			&& Match != nullptr
+			&& AreStaleBagResolutionsIdentical(*Match, Returned);
+	}
+
+	bool VerifyRejectedStaleBagFailure(
+		FAutomationTestBase& Test,
+		const FString& Label,
+		const FBattleEngine& Engine,
+		const FObservedBagRandom& Random,
+		const FTrainerId ActingTrainerId,
+		const FStaleBagObservation& Before,
+		const FBattleResolution& Returned)
+	{
+		const FStaleBagObservation After = ObserveStaleBag(
+			Engine,
+			Random,
+			ActingTrainerId);
+		bool bValid = true;
+		bValid &= Test.TestFalse(
+			Label + TEXT(" rejects the fallible cancellation"),
+			Returned.WasAccepted());
+		bValid &= Test.TestEqual(
+			Label + TEXT(" reports the typed checkpoint failure"),
+			Returned.GetRejection().Reason,
+			EBattleRejectionReason::CheckpointPreparationFailed);
+		bValid &= Test.TestTrue(
+			Label + TEXT(" appends the exact rejection resolution once"),
+			IsStaleBagResolutionAppendedExactlyOnce(Engine, Returned));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" publishes exactly one rule rejection event"),
+			Returned.GetEvents().Num() == 1
+				&& Returned.GetEvents()[0].GetType()
+					== EBattleEventType::ActionCanceled
+				&& Returned.GetEvents()[0].GetCause()
+					== EBattleEventCause::Rule
+				&& Returned.GetEvents()[0].GetCauseActionKind()
+					== EBattleActionKind::Bag
+				&& Returned.GetEvents()[0].GetEventOrdinal()
+					== Before.NextEventOrdinal
+				&& Returned.GetEvents()[0].GetVisibility().Level
+					== EBattleVisibilityLevel::Public);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" appends one resolution"),
+			After.Resolutions.Num(),
+			Before.Resolutions.Num() + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" appends one event"),
+			After.Events.Num(),
+			Before.Events.Num() + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances only the rejection resolution identity"),
+			After.NextResolutionId,
+			Before.NextResolutionId + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances only the rejection event identity"),
+			After.NextEventOrdinal,
+			Before.NextEventOrdinal + 1);
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves every non-history checkpoint fact"),
+			AreRejectedStaleBagFactsIdentical(After, Before));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves the existing resolution history prefix"),
+			IsStaleBagResolutionHistoryPrefix(
+				Before.Resolutions,
+				After.Resolutions));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves the existing event history prefix"),
+			IsStaleBagEventHistoryPrefix(Before.Events, After.Events));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" replays the same rejection exactly once"),
+			DoesStaleBagReplayContainResolutionExactlyOnce(
+				Engine,
+				Before,
+				Returned));
+		return bValid;
+	}
+
+	bool VerifyAcceptedStaleBagCancellation(
+		FAutomationTestBase& Test,
+		const FString& Label,
+		const FBattleEngine& Engine,
+		const FObservedBagRandom& Random,
+		const FTrainerId ActingTrainerId,
+		const EBattlePhase ExpectedPhase,
+		const FStaleBagObservation& Before,
+		const FBattleResolution& Returned)
+	{
+		const FStaleBagObservation After = ObserveStaleBag(
+			Engine,
+			Random,
+			ActingTrainerId);
+		const FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetState(Engine);
+		const int32 CanceledIndex = Before.CurrentLockedActionIndex;
+		bool bValid = true;
+		bValid &= Test.TestTrue(
+			Label + TEXT(" accepts the stale cancellation"),
+			Returned.WasAccepted());
+		bValid &= Test.TestTrue(
+			Label + TEXT(" appends the exact accepted resolution once"),
+			IsStaleBagResolutionAppendedExactlyOnce(Engine, Returned));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" publishes exact cancellation event order"),
+			HasExactEventOrder(Returned, {
+				EBattleEventType::ActionCanceled,
+				EBattleEventType::ActionCompleted})
+				&& Returned.GetEvents()[0].GetCause() == EBattleEventCause::Item
+				&& Returned.GetEvents()[1].GetCause() == EBattleEventCause::Action
+				&& Returned.GetEvents()[0].GetEventOrdinal()
+					== Before.NextEventOrdinal
+				&& Returned.GetEvents()[1].GetEventOrdinal()
+					== Before.NextEventOrdinal + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances state version once"),
+			After.StateVersion,
+			Before.StateVersion + 1);
+		bValid &= Test.TestTrue(
+			Label + TEXT(" reports the exact accepted version pair"),
+			Returned.GetBeforeStateVersion() == Before.StateVersion
+				&& Returned.GetAfterStateVersion() == Before.StateVersion + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances the action cursor once"),
+			After.CurrentLockedActionIndex,
+			Before.CurrentLockedActionIndex + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" reaches the exact boundary phase"),
+			After.Phase,
+			ExpectedPhase);
+		bValid &= Test.TestTrue(
+			Label + TEXT(" finishes only the canceled action"),
+			State.LockedActions.IsValidIndex(CanceledIndex)
+				&& Before.LockedActions.IsValidIndex(CanceledIndex)
+				&& !Before.LockedActions[CanceledIndex].bFinished
+				&& State.LockedActions[CanceledIndex].bFinished
+				&& AreStaleBagLockedActionArraysIdentical(
+					Before.LockedActions,
+					State.LockedActions,
+					CanceledIndex));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" consumes no item, quota, RNG, battler, slot, or capture fact"),
+			AreStaleBagResourceFactsIdentical(After, Before));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves outcome and pending-request facts"),
+			After.Outcome == Before.Outcome
+				&& After.OutcomeCause == Before.OutcomeCause
+				&& AreStaleBagPendingRequestsIdentical(
+					After.PendingDecision,
+					Before.PendingDecision,
+					After.PendingDecisionRequests,
+					Before.PendingDecisionRequests)
+				&& AreStaleBagPendingReplacementsIdentical(
+					After.PendingReplacements,
+					Before.PendingReplacements));
+		bValid &= Test.TestEqual(
+			Label + TEXT(" appends one resolution"),
+			After.Resolutions.Num(),
+			Before.Resolutions.Num() + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" appends exactly two events"),
+			After.Events.Num(),
+			Before.Events.Num() + 2);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances one resolution identity"),
+			After.NextResolutionId,
+			Before.NextResolutionId + 1);
+		bValid &= Test.TestEqual(
+			Label + TEXT(" advances two event identities"),
+			After.NextEventOrdinal,
+			Before.NextEventOrdinal + 2);
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves prior resolution history as a prefix"),
+			IsStaleBagResolutionHistoryPrefix(
+				Before.Resolutions,
+				After.Resolutions));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" preserves prior event history as a prefix"),
+			IsStaleBagEventHistoryPrefix(Before.Events, After.Events));
+		bValid &= Test.TestTrue(
+			Label + TEXT(" replays the accepted cancellation exactly once"),
+			DoesStaleBagReplayContainResolutionExactlyOnce(
+				Engine,
+				Before,
+				Returned));
+		return bValid;
+	}
+
+	bool TryMakeCurrentBagTargetStale(
+		FBattleEngine& Engine,
+		const FBattlerId ReplacementTargetId)
+	{
+		FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetMutableState(Engine);
+		if (!State.LockedActions.IsValidIndex(State.CurrentLockedActionIndex)
+			|| State.LockedActions[State.CurrentLockedActionIndex]
+				.Decision.GetActionKind() != EBattleActionKind::Bag)
+		{
+			return false;
+		}
+		State.LockedActions[State.CurrentLockedActionIndex]
+			.SelectedTargetBattlerId = ReplacementTargetId;
+		return true;
+	}
+
+	bool TrySetCompiledBagPermission(
+		FBattleEngine& Engine,
+		const FTrainerId TrainerId,
+		const bool bMayUseBag)
+	{
+		FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetMutableState(Engine);
+		for (const FBattleTrainerEncounterPolicy& ConstPolicy :
+			State.CompiledEncounterPolicies.GetTrainerPolicies())
+		{
+			if (ConstPolicy.TrainerId == TrainerId)
+			{
+				FBattleTrainerEncounterPolicy& Policy =
+					const_cast<FBattleTrainerEncounterPolicy&>(ConstPolicy);
+				Policy.bMayUseBag = bMayUseBag;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool TrySetBagItemCount(
+		FBattleEngine& Engine,
+		const FTrainerId TrainerId,
+		const FItemId& ItemId,
+		const int32 Count)
+	{
+		FBattleTrainerState* Trainer =
+			FBattleC08CBagEngineFixture::GetMutableState(Engine)
+				.FindMutableTrainer(TrainerId);
+		FBattleBagItemCount* Item = Trainer != nullptr
+			? Trainer->Bag.FindByPredicate(
+				[&ItemId](const FBattleBagItemCount& Candidate)
+				{
+					return Candidate.ItemId == ItemId;
+				})
+			: nullptr;
+		if (Item == nullptr || Count < 0)
+		{
+			return false;
+		}
+		Item->Count = Count;
+		return true;
+	}
+
+	bool TryKeepOnlyCurrentBagAction(FBattleEngine& Engine)
+	{
+		FBattleEngineState& State =
+			FBattleC08CBagEngineFixture::GetMutableState(Engine);
+		if (!State.LockedActions.IsValidIndex(State.CurrentLockedActionIndex)
+			|| State.LockedActions[State.CurrentLockedActionIndex]
+				.Decision.GetActionKind() != EBattleActionKind::Bag)
+		{
+			return false;
+		}
+		State.LockedActions.SetNum(State.CurrentLockedActionIndex + 1);
 		return true;
 	}
 
@@ -1935,6 +3089,395 @@ namespace BattleBagItemTests
 					&& !Trainer->ActionAllowance.bBagActionAvailable);
 		}
 		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023D2StaleBagCancellationRoutesTest,
+		"PokemonSolarus.Battle.ADR0002.3D2.Bag.StaleCancellation.RoutesAndEndOfTurnSuccess",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023D2StaleBagCancellationRoutesTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		const FTrainerId PlayerTrainerId =
+			MakeNumericId<FTrainerId>(PlayerTrainerValue);
+		const FBattlerId PlayerId =
+			MakeNumericId<FBattlerId>(PlayerBattlerValue);
+		const FBattlerId PlayerReserveId =
+			MakeNumericId<FBattlerId>(PlayerReserveValue);
+		const FActiveSlotId PlayerSlot = MakeActiveSlotId(
+			EBattleSide::Player,
+			EBattlePosition::Left);
+		const FItemId HyperPotionId = FBattleBagItemRules::GetHyperPotionId();
+		const FItemId XAttackId = FBattleBagItemRules::GetXAttackId();
+		bool bValid = true;
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8110,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& TryMakeCurrentBagTargetStale(*Engine, PlayerReserveId);
+			bValid &= TestTrue(
+				TEXT("The stale-target Bag route is reachable"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("Stale target"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::Resolving,
+				Before,
+				Canceled);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8111,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& TrySetCompiledBagPermission(
+					*Engine,
+					PlayerTrainerId,
+					false);
+			bValid &= TestTrue(
+				TEXT("The stale compiled Bag-policy route is reachable"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			bValid &= TestFalse(
+				TEXT("The execution-time Bag policy is now denied"),
+				Before.bActingTrainerMayUseBag);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("Stale Bag policy"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::Resolving,
+				Before,
+				Canceled);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8112,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& FBattleC08CBagEngineFixture::SetCurrentHP(
+					*Engine,
+					PlayerId,
+					200);
+			bValid &= TestTrue(
+				TEXT("The newly illegal Hyper Potion route is reachable"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("Illegal Hyper Potion"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::Resolving,
+				Before,
+				Canceled);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerBag = {{XAttackId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8113,
+				Random);
+			const bool bPrepared =
+				FBattleC08CBagEngineFixture::ApplyAttackStageChange(
+					*Engine,
+					PlayerId,
+					5)
+				&& LockPlayerBagAndOpponentFight(
+					*Engine,
+					XAttackId,
+					FPartySlotId(),
+					PlayerSlot)
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& FBattleC08CBagEngineFixture::ApplyAttackStageChange(
+					*Engine,
+					PlayerId,
+					1);
+			bValid &= TestTrue(
+				TEXT("The newly illegal X Attack route is reachable"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("Illegal X Attack"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::Resolving,
+				Before,
+				Canceled);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8114,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& TrySetBagItemCount(
+					*Engine,
+					PlayerTrainerId,
+					HyperPotionId,
+					0);
+			bValid &= TestTrue(
+				TEXT("The Bag-contract pre-use rejection route is reachable"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("Bag-contract pre-use rejection"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::Resolving,
+				Before,
+				Canceled);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8115,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& FBattleC08CBagEngineFixture::SetCurrentHP(
+					*Engine,
+					PlayerId,
+					200)
+				&& TryKeepOnlyCurrentBagAction(*Engine);
+			bValid &= TestTrue(
+				TEXT("A stale final Bag action reaches the EndOfTurn boundary"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			const FBattleResolution Canceled = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyAcceptedStaleBagCancellation(
+				*this,
+				TEXT("End-of-turn stale Bag"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				EBattlePhase::EndOfTurn,
+				Before,
+				Canceled);
+		}
+
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023D2StaleBagCancellationFailureTest,
+		"PokemonSolarus.Battle.ADR0002.3D2.Bag.StaleCancellation.EventPlanAndResolutionFailure",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023D2StaleBagCancellationFailureTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		const FTrainerId PlayerTrainerId =
+			MakeNumericId<FTrainerId>(PlayerTrainerValue);
+		const FBattlerId PlayerId =
+			MakeNumericId<FBattlerId>(PlayerBattlerValue);
+		const FItemId HyperPotionId = FBattleBagItemRules::GetHyperPotionId();
+		bool bValid = true;
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8116,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& FBattleC08CBagEngineFixture::SetCurrentHP(
+					*Engine,
+					PlayerId,
+					200);
+			bValid &= TestTrue(
+				TEXT("The event-plan failure starts from a stale Bag action"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			FBattleC08CBagEngineFixture::GetMutableState(*Engine).NextEventOrdinal =
+				TNumericLimits<uint64>::Max() - 1;
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			bValid &= TestEqual(
+				TEXT("Two accepted events cannot fit the remaining event identity space"),
+				Before.NextEventOrdinal,
+				TNumericLimits<uint64>::Max() - 1);
+			const FBattleResolution Rejected = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyRejectedStaleBagFailure(
+				*this,
+				TEXT("Event-plan exhaustion"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				Before,
+				Rejected);
+		}
+
+		{
+			FBagScenario Scenario;
+			Scenario.PlayerHP = 50;
+			Scenario.PlayerBag = {{HyperPotionId, 2}};
+			FObservedBagRandom* Random = nullptr;
+			TUniquePtr<FBattleEngine> Engine = MakeObservedEngine(
+				Scenario,
+				8117,
+				Random);
+			const bool bPrepared = LockPlayerBagAndOpponentFight(
+					*Engine,
+					HyperPotionId,
+					MakePartySlotId(0))
+				&& Engine->BeginNextLockedAction().WasAccepted()
+				&& FBattleC08CBagEngineFixture::SetCurrentHP(
+					*Engine,
+					PlayerId,
+					200);
+			bValid &= TestTrue(
+				TEXT("The resolution-construction failure starts from a stale Bag action"),
+				bPrepared);
+			if (!bPrepared || Random == nullptr)
+			{
+				return false;
+			}
+			FBattleC08CBagEngineFixture::GetMutableState(*Engine).StateVersion =
+				TNumericLimits<uint64>::Max();
+			const FStaleBagObservation Before = ObserveStaleBag(
+				*Engine,
+				*Random,
+				PlayerTrainerId);
+			bValid &= TestEqual(
+				TEXT("An accepted resolution cannot construct a next state version"),
+				Before.StateVersion,
+				TNumericLimits<uint64>::Max());
+			const FBattleResolution Rejected = Engine->ExecuteCurrentBagItem();
+			bValid &= VerifyRejectedStaleBagFailure(
+				*this,
+				TEXT("Accepted-resolution construction"),
+				*Engine,
+				*Random,
+				PlayerTrainerId,
+				Before,
+				Rejected);
+		}
+
+		return bValid;
 	}
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
