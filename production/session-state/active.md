@@ -1,75 +1,78 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: Encounters, Capture, Escape, and Partner Battles
-Task: C09 complete; C10A Required Canonical Rows is dependency-clear and next
+Feature: ADR-0002 atomic resolution closeout before canonical proof content
+Task: B00-C09 complete; remediate stale Bag cancellation before C10A
 <!-- /STATUS -->
 
-# Active Project State — 2026-08-24
+# Active Project State — 2026-08-27
 
 ## Current work
 
-- The user explicitly verified and accepted the production runtime/HUD slice on
-  2026-08-24. That supersedes the prior manual HUD gate for battle-mechanics
-  sequencing.
-- C09A, C09B, and C09C are complete under their focused filters. C09C began
-  from clean committed baseline
-  `8d52dfca58c879cf4d015a3f4cf35b0296232ee5` and required one session with no
-  subagents because its changes shared one engine/state/event/replay boundary.
-- C09C freezes separate player and partner Trainer ownership, parties, Bags,
-  switches, action allowances, selector assignments, and resolved Human or
-  PartnerAI control. Partner observations may see the player's command; enemy
-  observations may not. Allied support remains legal without weakening
-  owner-party item and switch restrictions.
-- Partner capture is unavailable, an exhausted partner slot stays empty, and a
-  full player-party wipe continues while the partner can battle.
-- `PartnerTeamVictory` restores the first valid player party entry to 1 HP,
-  guarantees its major status is clear, and emits typed
-  `PartnerTeamVictoryRecovery` event ordinal `52` before `BattleEnded`.
-- Core-authority final snapshots expose typed NPC-partner facts marking
-  persistent EXP and EV eligibility false. The core performs no reward
-  calculation or persistent write. Canonical replay schema is now `6`.
+- B00 through C09 package delivery is complete under focused validation. C10
+  and C11 are the only remaining roadmap packages.
+- ADR-0002 remains an Accepted design, but its implementation gate is **FAIL**
+  at `f48146f4f439930ed06f5f7feaf957514bcc4408`.
+- The blocker is the accepted stale Bag-cancellation path in
+  `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp`. Its
+  `FinishAcceptedAction` helper finishes the action, advances the locked-action
+  cursor, runs the still-fallible post-action boundary path, and increments the
+  state version before invariant validation and resolution creation complete.
+  This is live-first behavior, not ADR-0002's prepare/stage/commit rule.
+- C10A Required Canonical Rows is the next roadmap package only after that
+  implementation defect is repaired and the ADR-0002 gate passes. Preserve the
+  order `C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
-- The Battle HUD visuals and Blueprint assets remain user-owned. C09C modified
-  no presentation, assets, configuration, module rules, or `.uproject` data.
+- Battle HUD visuals and Blueprint assets remain user-owned. Do not change
+  layout, styling, art, materials, textures, composition, or motion appearance.
 
 ## Verified evidence
 
-- The final C09C `PokemonSolarusEditor Win64 Development` build succeeded with
-  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`:
-  `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/build.log`.
-- `Game/Saved/Automation/C09C-Partner-Final-20260824T143500Z/report/index.json`:
-  the exact `PokemonSolarus.Battle.C09C` filter passed 6/6, with 0 succeeded
-  with warnings, 0 failed, 0 not run, and 0 in process. Every reported path is
-  under C09C and has 0 warnings/errors; process exit code is `0`, and report
-  SHA-256 is
-  `46eda7e469474a8078b43e5b2172aa0ee3bd3d1ba8c23d9de227c12eb8728fa7`.
-- The first C09C-only diagnostic run passed 5/6 and exposed only test-fixture
-  assumptions. A later completion audit added explicit starting-status cure
-  proof; its first build exposed a test-only projection-type compile error.
-  Both were corrected, and the final replay proof excludes the test-only status
-  mutation. Neither earlier diagnostic is acceptance evidence.
-- No older package filter, full Battle suite, project-wide suite, Cry test,
-  C10 test, or other Automation filter was run during C09C.
+- Current HEAD is `f48146f4f439930ed06f5f7feaf957514bcc4408`.
+- The final evidence root is
+  `Game/Saved/AutomationReports/ADR0002-Task5-Final-20260827-111636`.
+  Its 22 exported `index.json` files report 594 successes in total, with zero
+  succeeded-with-warnings, failures, not-run, or in-process tests.
+- The 21 ADR/affected-filter reports before the full suite total 280 successes:
+  104 ADR-0002 tests and 176 affected package/runtime tests. The full
+  `PokemonSolarus.Battle` report passed 314 tests.
+- These reports are a strong baseline, but they do not prove the omitted
+  failure branch. The stale Capture cancellation test in
+  `BattleAtomicCheckpointTests.cpp` and the stale Bag tests in
+  `BattleBagItemTests.cpp` prove nominal cancellation only; they do not inject
+  post-action boundary, invariant, or resolution-preparation failure after the
+  action has begun.
+- The gate report is
+  `production/gate-checks/2026-08-27-adr-0002-implementation-fail.md`.
 
 ## Working-tree scope to preserve
 
-- Preserve all accepted C09A encounter-policy/selector work, C09B Capture and
-  WildFlow behavior, and C09C PartnerDouble ownership/outcome/progression work.
-- Preserve replay schema `6`, all pre-existing enum ordinals, and appended
-  `PartnerTeamVictoryRecovery` ordinal `52`.
-- Preserve all Cry/reinforcement-related code unchanged while the mechanic is
-  frozen.
-- Preserve all user-owned visual work and every unrelated change. Do not
-  commit, stage, push, branch, or rewrite Git history unless the user explicitly
-  asks.
+- Preserve the pre-existing modification to
+  `docs/registry/architecture.yaml`.
+- Preserve the pre-existing untracked ADR-0003, ADR-0004, and structural-split
+  documents. The approved documentation cleanup may make only the recorded
+  surgical corrections to ADR-0004 and the structural-split handoff; ADR-0003
+  and the architecture registry remain excluded.
+- Do not change production source, tests, visual assets, Blueprints, maps,
+  configuration, `.uproject` data, module rules, C10 content data, or generated
+  Unreal output as part of the documentation cleanup.
+- Preserve replay schema `6`, existing enum ordinals, and frozen
+  Cry/reinforcement behavior.
+- Do not commit, stage, push, create branches, or rewrite Git history unless the
+  user explicitly asks.
 
 ## Next
 
-1. Start C10A Required Canonical Rows in a fresh session, reading the live
-   authorities and this handoff.
-2. Treat Cry for Help and wild reinforcement as **Freeze until call by user**;
-   do not alter their existing code or proof content unless explicitly reopened.
-3. Keep C10A separate from C09C and do not expand into UI/assets, persistence,
-   rewards, deployment, or Git writes without explicit approval.
+1. Start a fresh, bounded implementation session for the stale accepted Bag
+   cancellation. Limit the proposed code write set to `BattleEngine.cpp`,
+   `BattleBagItemTests.cpp`, and `BattleAtomicCheckpointTests.cpp`; obtain
+   approval before editing.
+2. Stage every fallible boundary/request/resolution fact before changing live
+   action state, then commit once. Add fault-injection proof that every failure
+   preserves resources, Bag quota, RNG, state, cursor, events, action progress,
+   and resolution history.
+3. Run the forced-Unity build and the exact 22-report ADR/affected/full-Battle
+   matrix. Judge every exported `index.json`, then rerun the implementation
+   gate.
+4. After a PASS, proceed in order: `C10A -> C10B -> C11A -> C11B`.

@@ -1,8 +1,10 @@
 # C10 — Canonical Proof Content
 
 Priority: P3  
-Status: Blocked by C07D, C08, and C09  
+Status: Not started; roadmap dependencies C07D, C08, and C09 are complete; start held by ADR-0002 implementation closeout
+
 Required order: C10A, then C10B
+Entry gate: ADR-0002 implementation PASS with fresh affected-filter and full-Battle evidence
 
 ## Objective
 

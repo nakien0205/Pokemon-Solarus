@@ -1,7 +1,7 @@
 # C04 — Action Legality, Order, and Targeting
 
 Priority: P1  
-Status: C04 complete under focused validation; C05A is the next sequential package
+Status: C04 complete under focused validation
 Required order: C04A, then C04B
 
 ## Objective

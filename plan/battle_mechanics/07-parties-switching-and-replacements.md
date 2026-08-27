@@ -1,7 +1,7 @@
 # C06 — Parties, Switching, and Replacements
 
 Priority: P1  
-Status: C06 complete under focused validation; C07A next
+Status: C06 complete under focused validation
 Required order: C06A, then C06B
 
 ## Objective

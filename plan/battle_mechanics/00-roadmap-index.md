@@ -1,9 +1,11 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-24
-Roadmap status: Approved and materialized; B00 through C09 complete under
-focused validation
-Next package: C10A Required Canonical Rows; C10 is dependency-clear
+Status date: 2026-08-27
+Roadmap status: Approved and materialized; B00 through C09 package delivery is
+complete under focused validation; C10 and C11 remain
+Current implementation gate: ADR-0002 stale Bag cancellation remediation and
+fresh validation are required before C10A
+Next package after that gate passes: C10A Required Canonical Rows
 
 ## Current Truth
 
@@ -152,8 +154,9 @@ already existed, so it cannot explain or restore those missing files.
 - `Q-B00B-01` is resolved. The user authorized the narrow supplementary Gen IX
   source set, then approved explicit Solarus closures for the rules the sources
   still did not establish.
-- The B00 through C09 gates are clear. C10A is dependency-clear and not
-  started; C11 remains dependency-blocked.
+- B00 through C09 package delivery is complete. C10A is not started and is held
+  behind the ADR-0002 implementation closeout; C11 remains dependency-blocked
+  behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4

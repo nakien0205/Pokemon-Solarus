@@ -1,7 +1,8 @@
 # B00 — Live Baseline and Rules Snapshot
 
 Priority: P0  
-Status: B00A and B00B complete; B00 accepted; C01 not started  
+Status: B00A and B00B complete; B00 accepted; downstream B00-C09 package delivery complete
+
 Hard dependencies: None  
 Required order: B00A, then B00B
 
