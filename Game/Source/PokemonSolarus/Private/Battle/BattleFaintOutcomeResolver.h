@@ -39,6 +39,8 @@ struct FBattleFaintOutcomePlan
 {
 	FBattleFaintOutcomeResolution Resolution;
 	TOptional<FBattlePartnerTeamVictoryRecoveryPlan> PartnerRecoveryPlan;
+	TArray<int32> RemovalBattlerIndices;
+	TArray<int32> RemovalPositionIndices;
 };
 
 /** Owned projection plan for the queue-exhaustion replacement boundary. */
@@ -70,6 +72,16 @@ public:
 
 	/** Applies an already validated action plan to caller-owned staged state. */
 	[[nodiscard]] static bool TryApplyActionPlan(
+		FBattleEngineState& State,
+		const FBattleFaintOutcomePlan& Plan);
+
+	/** Validates all owned indexes and terminal facts without changing state. */
+	[[nodiscard]] static bool IsActionPlanApplicable(
+		const FBattleEngineState& State,
+		const FBattleFaintOutcomePlan& Plan);
+
+	/** Applies a plan that has already passed IsActionPlanApplicable. */
+	static void ApplyPreparedActionPlan(
 		FBattleEngineState& State,
 		const FBattleFaintOutcomePlan& Plan);
 

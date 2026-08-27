@@ -18,6 +18,7 @@ struct FBattlePartnerTeamVictoryRecovery
 struct FBattlePartnerTeamVictoryRecoveryPlan
 {
 	FBattlePartnerTeamVictoryRecovery Recovery;
+	int32 BattlerIndex = INDEX_NONE;
 };
 
 /** Private C09C partner-only outcome mutations. */
@@ -36,6 +37,16 @@ public:
 
 	/** Applies an already prepared recovery plan to caller-owned staged state. */
 	[[nodiscard]] static bool TryApplyTeamVictoryRecoveryPlan(
+		FBattleEngineState& State,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
+
+	/** Validates a prepared plan without changing the supplied state. */
+	[[nodiscard]] static bool IsTeamVictoryRecoveryPlanApplicable(
+		const FBattleEngineState& State,
+		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
+
+	/** Applies a plan that has already passed IsTeamVictoryRecoveryPlanApplicable. */
+	static void ApplyPreparedTeamVictoryRecoveryPlan(
 		FBattleEngineState& State,
 		const FBattlePartnerTeamVictoryRecoveryPlan& Plan);
 };

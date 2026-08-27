@@ -2,10 +2,61 @@
 
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleEffectExecutor.h"
+#include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleReplay.h"
+#include "Battle/BattleState.h"
 #include "BattleTestFactories.h"
 #include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
+
+class FBattleC09CPartnerEngineFixture
+{
+public:
+	static const FBattleEngineState& GetState(const FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
+	static FBattleEngineState& GetMutableState(FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
+	static bool ApplyMajorStatus(
+		FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const FConditionId StatusId)
+	{
+		if (!Engine.State.IsValid())
+		{
+			return false;
+		}
+		FBattleBattlerState* Battler = Engine.State->FindMutableBattler(BattlerId);
+		FBattleTriggerSubject Owner;
+		EBattleTriggerError Error = EBattleTriggerError::None;
+		if (Battler == nullptr
+			|| Battler->MajorStatusId.IsValid()
+			|| !FBattleMajorStatusRules::IsCanonical(StatusId)
+			|| !FBattleTriggerSubject::TryCreateBattler(BattlerId, Owner)
+			|| !FBattleMajorStatusRules::TryRegisterTriggers(
+				Engine.State->TriggerFramework,
+				StatusId,
+				Owner,
+				TOptional<int32>(),
+				Error))
+		{
+			return false;
+		}
+		Battler->MajorStatusId = StatusId;
+		TArray<FBattleTriggerEffectRequest> Requests;
+		TArray<FBattleTriggerLifecycleFact> Lifecycle;
+		Engine.State->TriggerFramework.DrainEffectRequests(Requests);
+		Engine.State->TriggerFramework.DrainLifecycleFacts(Lifecycle);
+		return true;
+	}
+};
 
 namespace BattleFaintOutcomeTests
 {
@@ -59,6 +110,7 @@ namespace BattleFaintOutcomeTests
 		EBattleFormat Format = EBattleFormat::Single;
 		EBattleTargetClass TargetClass = EBattleTargetClass::SelectedOpponent;
 		bool bFixedRecoil = false;
+		bool bSeedPlayerMajorStatus = false;
 		uint64 ExpectedFirstActor = 0;
 		int32 ExpectedDamageDraws = 0;
 		EC05CPostAction PostAction = EC05CPostAction::None;
@@ -82,6 +134,7 @@ namespace BattleFaintOutcomeTests
 		EBattleOutcome Outcome = EBattleOutcome::InProgress;
 		EBattleOutcomeCause OutcomeCause = EBattleOutcomeCause::None;
 		FBattleSnapshot Snapshot;
+		FBattleSnapshot PlayerFilteredSnapshot;
 		TArray<FBattleEvent> Events;
 		TArray<FString> EventOrder;
 		TArray<FBattleRandomDraw> RandomTrace;
@@ -449,6 +502,8 @@ namespace BattleFaintOutcomeTests
 	void GatherEvidence(FBattleEngine& Engine, FC05CEvidence& Evidence)
 	{
 		Evidence.Snapshot = Engine.GetSnapshot();
+		Evidence.PlayerFilteredSnapshot = Engine.GetSnapshotForObserver(
+			MakeNumericId<FTrainerId>(PlayerTrainerValue));
 		Evidence.Phase = Evidence.Snapshot.GetPhase();
 		Evidence.Outcome = Evidence.Snapshot.GetOutcome();
 		Evidence.OutcomeCause = Evidence.Snapshot.GetOutcomeCause();
@@ -492,6 +547,13 @@ namespace BattleFaintOutcomeTests
 		if (!Evidence.bSucceeded || !Engine.IsValid())
 		{
 			return Evidence;
+		}
+		if (Scenario.bSeedPlayerMajorStatus)
+		{
+			Evidence.bSucceeded &= FBattleC09CPartnerEngineFixture::ApplyMajorStatus(
+				*Engine,
+				MakeNumericId<FBattlerId>(PlayerLeftBattlerValue),
+				FBattleMajorStatusRules::GetBurnId());
 		}
 
 		Evidence.bSucceeded &= LockAllFights(*Engine);
@@ -1235,6 +1297,280 @@ namespace BattleFaintOutcomeTests
 			First.RandomTrace.Num(), 3);
 		TestTerminalFacts(*this, First, EBattleOutcomeCause::PartnerTeamVictory);
 		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023E6SimultaneousFaintOrderTest,
+		"PokemonSolarus.Battle.ADR0002.3E6.Effects.FaintOutcome.SimultaneousFaintRemovalOutcomeOrderExact",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023E6SimultaneousFaintOrderTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		FC05CScenario Scenario;
+		Scenario.bFixedRecoil = true;
+		Scenario.ExpectedFirstActor = PlayerLeftBattlerValue;
+		Scenario.ExpectedDamageDraws = 1;
+		Scenario.Battlers =
+		{
+			{PlayerTrainerValue, PlayerLeftBattlerValue, 0, 1, 300, 3, true,
+				EBattleSide::Player, EBattlePosition::Left},
+			{OpponentTrainerValue, OpponentLeftBattlerValue, 0, 1, 100, 3, true,
+				EBattleSide::Opponent, EBattlePosition::Left}
+		};
+		const FC05CEvidence Evidence = RunScenario(Scenario);
+		const int32 OpponentFaint = FindTargetEventIndex(
+			Evidence,
+			EBattleEventType::Fainted,
+			OpponentLeftBattlerValue);
+		const int32 PlayerFaint = FindTargetEventIndex(
+			Evidence,
+			EBattleEventType::Fainted,
+			PlayerLeftBattlerValue);
+		const int32 PlayerRemoval = FindTargetEventIndex(
+			Evidence,
+			EBattleEventType::Removed,
+			PlayerLeftBattlerValue);
+		const int32 OpponentRemoval = FindTargetEventIndex(
+			Evidence,
+			EBattleEventType::Removed,
+			OpponentLeftBattlerValue);
+		const int32 Completed = FindLastEventIndex(
+			Evidence,
+			EBattleEventType::ActionCompleted);
+		const int32 Ended = FindLastEventIndex(
+			Evidence,
+			EBattleEventType::BattleEnded);
+		bool bValid = TestTrue(TEXT("The simultaneous-faint checkpoint succeeds"),
+			Evidence.bSucceeded && Evidence.bRandomExact);
+		bValid &= TestTrue(TEXT("Target faint precedes recoil faint"),
+			OpponentFaint != INDEX_NONE && PlayerFaint > OpponentFaint);
+		bValid &= TestTrue(TEXT("Canonical removals wait for both faint facts"),
+			PlayerRemoval > PlayerFaint && OpponentRemoval > PlayerRemoval);
+		bValid &= TestTrue(TEXT("Outcome follows completion and every removal"),
+			Completed > OpponentRemoval && Ended > Completed);
+		bValid &= TestTrue(TEXT("Simultaneous faint resolves as a typed defeat"),
+			Evidence.Outcome == EBattleOutcome::Defeat
+				&& Evidence.OutcomeCause == EBattleOutcomeCause::SimultaneousFaint
+				&& Evidence.Phase == EBattlePhase::Terminal);
+		bValid &= TestEqual(TEXT("Exactly one damage draw is committed"),
+			Evidence.RandomTrace.Num(), 1);
+		if (Evidence.RandomTrace.Num() == 1)
+		{
+			bValid &= TestTrue(TEXT("The committed damage range and purpose are exact"),
+				Evidence.RandomTrace[0].InclusiveMinimum == 0
+					&& Evidence.RandomTrace[0].InclusiveMaximum == 15
+					&& Evidence.RandomTrace[0].RulePurpose
+						== FBattleEffectExecutor::GetDamageRandomRulePurpose());
+		}
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023E6PartnerTeamVictoryAtomicTest,
+		"PokemonSolarus.Battle.ADR0002.3E6.Effects.FaintOutcome.PartnerRecoveryBeforeBattleEndedCoreOnlyProgression",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023E6PartnerTeamVictoryAtomicTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		FC05CScenario Scenario;
+		Scenario.Format = EBattleFormat::PartnerDouble;
+		Scenario.TargetClass = EBattleTargetClass::FixedSpreadSet;
+		Scenario.bSeedPlayerMajorStatus = true;
+		Scenario.ExpectedFirstActor = PartnerBattlerValue;
+		Scenario.ExpectedDamageDraws = 3;
+		Scenario.Battlers =
+		{
+			{PlayerTrainerValue, PlayerLeftBattlerValue, 0, 1, 300, 3, true,
+				EBattleSide::Player, EBattlePosition::Left},
+			{PartnerTrainerValue, PartnerBattlerValue, 0, 200, 400, 3, true,
+				EBattleSide::Player, EBattlePosition::Right},
+			{OpponentTrainerValue, OpponentLeftBattlerValue, 0, 1, 200, 3, true,
+				EBattleSide::Opponent, EBattlePosition::Left},
+			{OpponentTrainerValue, OpponentRightBattlerValue, 1, 1, 100, 3, true,
+				EBattleSide::Opponent, EBattlePosition::Right}
+		};
+		const FC05CEvidence Evidence = RunScenario(Scenario);
+		const int32 Recovery = FindLastEventIndex(
+			Evidence,
+			EBattleEventType::PartnerTeamVictoryRecovery);
+		const int32 Ended = FindLastEventIndex(
+			Evidence,
+			EBattleEventType::BattleEnded);
+		const FBattleObservedBattler* Player = Evidence.Snapshot.FindObservedBattler(
+			MakeNumericId<FBattlerId>(PlayerLeftBattlerValue));
+		bool bValid = TestTrue(TEXT("Partner Team Victory resolves atomically"),
+			Evidence.bSucceeded && Evidence.bRandomExact);
+		bValid &= TestTrue(TEXT("Recovery precedes the terminal fact"),
+			Recovery != INDEX_NONE && Ended > Recovery);
+		bValid &= TestTrue(TEXT("Recovery restores exactly one HP and cures status"),
+			Player != nullptr
+				&& Player->CurrentHP == 1
+				&& !Player->bFainted
+				&& !Player->MajorStatusId.IsValid());
+		bValid &= TestTrue(TEXT("Terminal queue facts publish together"),
+			Evidence.Phase == EBattlePhase::Terminal
+				&& Evidence.Outcome == EBattleOutcome::Victory
+				&& Evidence.OutcomeCause
+					== EBattleOutcomeCause::PartnerTeamVictory
+				&& !Evidence.Snapshot.GetPendingDecision().IsSet()
+				&& Evidence.Snapshot.GetPendingDecisionRequests().IsEmpty()
+				&& CountEvents(Evidence, EBattleEventType::ReplacementRequired) == 0);
+		bValid &= TestTrue(TEXT("Persistent partner progression facts stay core-only"),
+			!Evidence.Snapshot.GetPersistentProgressionEligibilityFacts().IsEmpty()
+				&& Evidence.PlayerFilteredSnapshot
+					.GetPersistentProgressionEligibilityFacts().IsEmpty());
+
+		FC05CScenario FailureScenario = Scenario;
+		FailureScenario.Battlers[0].PartyIndex = 1;
+		const FC05CBattlerFixture InvalidRecoveryCandidate =
+		{
+			PlayerTrainerValue,
+			PlayerRightBattlerValue,
+			0,
+			200,
+			250,
+			3,
+			false,
+			EBattleSide::Player,
+			EBattlePosition::Left
+		};
+		FailureScenario.Battlers.Insert(InvalidRecoveryCandidate, 0);
+		TUniquePtr<FC05CStrictRandom> FailureRandom = MakeUnique<FC05CStrictRandom>(
+			BattleTest::MakeRepeatedExpectedRandomDraws(
+				FailureScenario.ExpectedDamageDraws,
+				0,
+				15,
+				0,
+				FBattleEffectExecutor::GetDamageRandomRulePurpose()));
+		FC05CStrictRandom* FailureRandomView = FailureRandom.Get();
+		TUniquePtr<IBattleRandom> FailureRandomOwner = MoveTemp(FailureRandom);
+		TUniquePtr<FBattleEngine> FailureEngine;
+		FBattleRejection FailureSetupRejection;
+		if (!TestTrue(TEXT("Partner-recovery failure engine is created"),
+				FBattleEngine::TryCreate(
+					MakeSetup(FailureScenario),
+					MakeCatalog(FailureScenario),
+					MoveTemp(FailureRandomOwner),
+					FailureEngine,
+					FailureSetupRejection))
+			|| !TestTrue(TEXT("Partner-recovery failure status is seeded"),
+				FBattleC09CPartnerEngineFixture::ApplyMajorStatus(
+					*FailureEngine,
+					MakeNumericId<FBattlerId>(PlayerLeftBattlerValue),
+					FBattleMajorStatusRules::GetBurnId())))
+		{
+			return false;
+		}
+		FBattleEngineState& FailureMutable =
+			FBattleC09CPartnerEngineFixture::GetMutableState(*FailureEngine);
+		FBattleBattlerState* InvalidCandidate = FailureMutable.FindMutableBattler(
+			MakeNumericId<FBattlerId>(PlayerRightBattlerValue));
+		if (!TestNotNull(TEXT("The invalid recovery candidate exists"), InvalidCandidate))
+		{
+			return false;
+		}
+		InvalidCandidate->bRemoved = true;
+		if (!TestTrue(TEXT("Partner-recovery failure turn locks"),
+				LockAllFights(*FailureEngine)))
+		{
+			return false;
+		}
+		const TArray<FBattleLockedAction> FailureLocked = FailureEngine->GetLockedActions();
+		if (!TestTrue(TEXT("The partner owns the failure checkpoint action"),
+				!FailureLocked.IsEmpty()
+					&& FailureLocked[0].Decision.GetActingBattlerId()
+						== MakeNumericId<FBattlerId>(PartnerBattlerValue))
+			|| !TestTrue(TEXT("Partner-recovery failure action starts"),
+				FailureEngine->BeginNextLockedAction().WasAccepted())
+			|| !TestTrue(TEXT("Partner-recovery failure PP commits"),
+				FailureEngine->CommitCurrentMoveAfterPreMoveGates().WasAccepted())
+			|| !TestTrue(TEXT("Partner-recovery failure targets commit"),
+				FailureEngine->ResolveCurrentMoveTargets().WasAccepted()))
+		{
+			return false;
+		}
+
+		const FBattleEngineState& FailureBefore =
+			FBattleC09CPartnerEngineFixture::GetState(*FailureEngine);
+		const int32 FailureActionIndex = FailureBefore.CurrentLockedActionIndex;
+		const FBattleLockedActionState& FailureActionBefore =
+			FailureBefore.LockedActions[FailureActionIndex];
+		const FBattleBattlerState* FailurePartnerBefore = FailureBefore.FindBattler(
+			MakeNumericId<FBattlerId>(PartnerBattlerValue));
+		const int32 FailurePPBefore = FailurePartnerBefore != nullptr
+			&& !FailurePartnerBefore->Moves.IsEmpty()
+				? FailurePartnerBefore->Moves[0].CurrentPP
+				: INDEX_NONE;
+		const int32 FailureTargetCount = FailureActionBefore.TargetResolution.IsSet()
+			? FailureActionBefore.TargetResolution.GetValue().Targets.Num()
+			: INDEX_NONE;
+		const uint64 FailureVersionBefore = FailureBefore.StateVersion;
+		const int32 FailureResolutionCountBefore = FailureBefore.Resolutions.Num();
+		const int32 FailureEventCountBefore = FailureBefore.OrderedEvents.Num();
+		const FBattleResolution RecoveryRejected =
+			FailureEngine->ExecuteCurrentMoveEffects();
+		const FBattleEngineState& FailureAfter =
+			FBattleC09CPartnerEngineFixture::GetState(*FailureEngine);
+		const FBattleLockedActionState& FailureActionAfter =
+			FailureAfter.LockedActions[FailureActionIndex];
+		const FBattleBattlerState* FailurePlayer = FailureAfter.FindBattler(
+			MakeNumericId<FBattlerId>(PlayerLeftBattlerValue));
+		const FBattleBattlerState* FailurePartner = FailureAfter.FindBattler(
+			MakeNumericId<FBattlerId>(PartnerBattlerValue));
+		const FBattleBattlerState* FailureOpponentLeft = FailureAfter.FindBattler(
+			MakeNumericId<FBattlerId>(OpponentLeftBattlerValue));
+		const FBattleBattlerState* FailureOpponentRight = FailureAfter.FindBattler(
+			MakeNumericId<FBattlerId>(OpponentRightBattlerValue));
+		const FBattleBattlerState* FailureCandidate = FailureAfter.FindBattler(
+			MakeNumericId<FBattlerId>(PlayerRightBattlerValue));
+		bValid &= TestTrue(TEXT("Partner-recovery preparation failure rejects once"),
+			!RecoveryRejected.WasAccepted()
+				&& RecoveryRejected.GetRejection().Reason
+					== EBattleRejectionReason::CheckpointPreparationFailed
+				&& RecoveryRejected.GetEvents().Num() == 1
+				&& RecoveryRejected.GetEvents()[0].GetType()
+					== EBattleEventType::ActionCanceled
+				&& FailureAfter.Resolutions.Num() == FailureResolutionCountBefore + 1
+				&& FailureAfter.OrderedEvents.Num() == FailureEventCountBefore + 1
+				&& FailureAfter.Resolutions.Last().GetResolutionId()
+					== RecoveryRejected.GetResolutionId());
+		bValid &= TestTrue(TEXT("Partner-recovery failure preserves earlier PP and targets"),
+			FailurePartner != nullptr
+				&& !FailurePartner->Moves.IsEmpty()
+				&& FailurePartner->Moves[0].CurrentPP == FailurePPBefore
+				&& FailureActionAfter.TargetResolution.IsSet()
+				&& FailureActionAfter.TargetResolution.GetValue().Targets.Num()
+					== FailureTargetCount);
+		bValid &= TestTrue(TEXT("Partner-recovery failure publishes no effect or outcome state"),
+			FailureAfter.StateVersion == FailureVersionBefore
+				&& FailureAfter.CurrentLockedActionIndex == FailureActionIndex
+				&& FailureActionAfter.EffectExecutionState
+					== EBattleLockedEffectExecutionState::Pending
+				&& !FailureActionAfter.bFinished
+				&& FailureAfter.Phase == EBattlePhase::Resolving
+				&& FailureAfter.Outcome == EBattleOutcome::InProgress
+				&& FailureAfter.OutcomeCause == EBattleOutcomeCause::None
+				&& FailurePlayer != nullptr
+				&& FailurePlayer->CurrentHP == 1
+				&& !FailurePlayer->bFainted
+				&& FailurePlayer->MajorStatusId == FBattleMajorStatusRules::GetBurnId()
+				&& FailureOpponentLeft != nullptr
+				&& FailureOpponentLeft->CurrentHP == 1
+				&& FailureOpponentRight != nullptr
+				&& FailureOpponentRight->CurrentHP == 1
+				&& FailureCandidate != nullptr
+				&& FailureCandidate->CurrentHP == 200
+				&& FailureCandidate->bRemoved);
+		bValid &= TestTrue(TEXT("Partner-recovery failure rolls back all staged draws"),
+			FailureRandomView != nullptr && FailureRandomView->GetTrace().IsEmpty());
+		bValid &= TestEqual(TEXT("Partner-recovery rejection replay remains schema 6"),
+			FailureEngine->ExportReplayRecord().GetSchemaVersion(),
+			static_cast<uint32>(6));
+		return bValid;
 	}
 }
 

@@ -4,6 +4,7 @@
 #include "Battle/BattleEngine.h"
 #include "Battle/BattleEncounterPolicy.h"
 #include "Battle/BattleMajorStatus.h"
+#include "Battle/BattlePartnerFlow.h"
 #include "Battle/BattleState.h"
 #include "BattleTestFactories.h"
 #include "Misc/AutomationTest.h"
@@ -11,6 +12,18 @@
 class FBattleC09CPartnerEngineFixture
 {
 public:
+	static const FBattleEngineState& GetState(const FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
+	static FBattleEngineState& GetMutableState(FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
 	static bool ApplyMajorStatus(
 		FBattleEngine& Engine,
 		const FBattlerId BattlerId,
@@ -756,6 +769,67 @@ bool FBattleC09CReplayTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The deterministic twins finish with the same outcome cause"),
 		First.Snapshot.GetOutcomeCause(), Second.Snapshot.GetOutcomeCause());
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E6PartnerRecoveryOwnedPlanTest,
+	"PokemonSolarus.Battle.ADR0002.3E6.Effects.PartnerRecovery.OwnedPlanValidationAndApply",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E6PartnerRecoveryOwnedPlanTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine = MakeEngine(FC09CScenario());
+	const FBattlerId PlayerId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+	if (!TestNotNull(TEXT("The partner recovery engine is created"), Engine.Get())
+		|| !TestTrue(TEXT("The player status is seeded through the canonical hook"),
+			FBattleC09CPartnerEngineFixture::ApplyMajorStatus(
+				*Engine,
+				PlayerId,
+				FBattleMajorStatusRules::GetBurnId())))
+	{
+		return false;
+	}
+	FBattleEngineState& State =
+		FBattleC09CPartnerEngineFixture::GetMutableState(*Engine);
+	FBattleBattlerState* Player = State.FindMutableBattler(PlayerId);
+	if (!TestNotNull(TEXT("The player-owned battler exists"), Player))
+	{
+		return false;
+	}
+	Player->CurrentHP = 0;
+	Player->bFainted = true;
+	Player->bRemoved = true;
+	Player->bFaintTransitionPending = false;
+
+	FBattlePartnerTeamVictoryRecoveryPlan Plan;
+	bool bValid = TestTrue(TEXT("Recovery preparation succeeds without mutation"),
+		FBattlePartnerFlow::TryApplyTeamVictoryRecovery(
+			static_cast<const FBattleEngineState&>(State),
+			Plan));
+	bValid &= TestTrue(TEXT("Preparation retains zero HP and status"),
+		Player->CurrentHP == 0
+			&& Player->bFainted
+			&& Player->MajorStatusId == FBattleMajorStatusRules::GetBurnId());
+
+	FBattlePartnerTeamVictoryRecoveryPlan Corrupted = Plan;
+	Corrupted.Recovery.Target.BattlerId =
+		MakeNumericId<FBattlerId>(PartnerBattlerValue);
+	bValid &= TestFalse(TEXT("A corrupted owned target is rejected before mutation"),
+		FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(State, Corrupted));
+	bValid &= TestTrue(TEXT("Rejected recovery publishes no partial state"),
+		Player->CurrentHP == 0
+			&& Player->bFainted
+			&& Player->MajorStatusId == FBattleMajorStatusRules::GetBurnId());
+	bValid &= TestTrue(TEXT("The exact prepared recovery applies once"),
+		FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(State, Plan));
+	bValid &= TestTrue(TEXT("Prepared recovery restores one HP and cures status"),
+		Player->CurrentHP == 1
+			&& !Player->bFainted
+			&& !Player->bRemoved
+			&& !Player->MajorStatusId.IsValid());
+	return bValid;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

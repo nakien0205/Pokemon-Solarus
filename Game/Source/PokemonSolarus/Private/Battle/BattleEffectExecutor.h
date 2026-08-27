@@ -5,10 +5,9 @@
 #include "Battle/BattleEvent.h"
 #include "Battle/BattleFinalDamageCalculator.h"
 #include "Battle/BattleHitResolver.h"
+#include "Battle/BattleState.h"
 #include "Battle/BattleSwitching.h"
 #include "Battle/BattleTargeting.h"
-
-class FBattleEngineState;
 
 /** Typed outcome from one reached C05B gate or effect application. */
 enum class EBattleEffectExecutionOutcome : uint8
@@ -110,6 +109,25 @@ struct FBattleEffectExecutionResult
 };
 
 /**
+ * Complete owned mutation plan produced by one effect execution. It contains no
+ * request pointers, references, or array views and is safe to retain until the
+ * enclosing action checkpoint has finished preparing.
+ */
+struct FBattleEffectExecutionPlan
+{
+	FBattleEffectExecutionResult Result;
+	TArray<FBattleBattlerState> Battlers;
+	TArray<FBattleActivePositionState> ActivePositions;
+	FBattleFieldState Field;
+	TArray<FBattleSideState> Sides;
+	FBattleTriggerFramework TriggerFramework;
+	FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
+	FBattleHeldItemLedger HeldItemLedger;
+	uint64 NextConditionCreationOrdinal = 1;
+	uint64 NextTriggerReentrancyToken = 1;
+};
+
+/**
  * Narrow future-rule seam used by the pure executor. The production adapter stages
  * mutable state and commits it only after the complete execution succeeds.
  */
@@ -189,6 +207,11 @@ public:
 	{
 		return true;
 	}
+	/** Returns the typed failure retained by a staged context. */
+	virtual EBattleEffectExecutorError GetRuntimeError() const
+	{
+		return EBattleEffectExecutorError::InvalidHookResult;
+	}
 	virtual bool TryBuildEventTarget(
 		const FBattleResolvedTarget& Target,
 		FBattleEventTarget& OutTarget) const = 0;
@@ -211,6 +234,19 @@ public:
 		FBattleEngineState& State,
 		FBattleEffectExecutionResult& OutResult,
 		EBattleEffectExecutorError& OutError);
+
+	/** Prepares all executor-owned mutation against a caller-owned random source. */
+	[[nodiscard]] static bool TryPrepareAgainstState(
+		const FBattleEffectExecutionRequest& Request,
+		const FBattleEngineState& State,
+		IBattleRandom& Random,
+		FBattleEffectExecutionPlan& OutPlan,
+		EBattleEffectExecutorError& OutError);
+
+	/** Applies one successfully prepared plan using assignment-only mutation. */
+	static void ApplyPreparedPlan(
+		FBattleEngineState& State,
+		FBattleEffectExecutionPlan&& Plan);
 
 	[[nodiscard]] static FDefinitionId GetAccuracyRulePurpose();
 	[[nodiscard]] static FDefinitionId GetCriticalRulePurpose();

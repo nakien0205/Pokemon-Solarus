@@ -68,6 +68,57 @@ namespace BattleEffectExecutorPrivate
 			|| Category == EBattleMoveCategory::Status;
 	}
 
+	bool AreEffectDescriptorsIdentical(
+		const FBattleMoveEffectDescriptor& Left,
+		const FBattleMoveEffectDescriptor& Right)
+	{
+		return Left.Order == Right.Order
+			&& Left.Kind == Right.Kind
+			&& Left.Target == Right.Target
+			&& Left.ConditionId == Right.ConditionId
+			&& Left.ItemId == Right.ItemId
+			&& Left.Stat == Right.Stat
+			&& Left.ChanceNumerator == Right.ChanceNumerator
+			&& Left.ChanceDenominator == Right.ChanceDenominator
+			&& Left.MagnitudeNumerator == Right.MagnitudeNumerator
+			&& Left.MagnitudeDenominator == Right.MagnitudeDenominator
+			&& Left.MinimumCount == Right.MinimumCount
+			&& Left.MaximumCount == Right.MaximumCount
+			&& Left.DurationTurns == Right.DurationTurns
+			&& Left.LayerCount == Right.LayerCount
+			&& Left.Flags == Right.Flags;
+	}
+
+	bool AreMoveDefinitionsIdentical(
+		const FBattleMoveDefinition& Left,
+		const FBattleMoveDefinition& Right)
+	{
+		if (Left.Id != Right.Id
+			|| Left.Type != Right.Type
+			|| Left.Category != Right.Category
+			|| Left.Power != Right.Power
+			|| Left.bAlwaysHits != Right.bAlwaysHits
+			|| Left.Accuracy != Right.Accuracy
+			|| Left.bUsesPP != Right.bUsesPP
+			|| Left.BasePP != Right.BasePP
+			|| Left.bAllowsPPBoosts != Right.bAllowsPPBoosts
+			|| Left.Priority != Right.Priority
+			|| Left.TargetClass != Right.TargetClass
+			|| Left.Flags != Right.Flags
+			|| Left.Effects.Num() != Right.Effects.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Effects.Num(); ++Index)
+		{
+			if (!AreEffectDescriptorsIdentical(Left.Effects[Index], Right.Effects[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Kind)
 	{
 		return static_cast<uint8>(Kind)
@@ -770,9 +821,11 @@ namespace BattleEffectExecutorPrivate
 	public:
 		FStateExecutionContext(
 			const FBattleEffectExecutionRequest& InRequest,
-			FBattleEngineState& InState)
+			const FBattleEngineState& InState,
+			IBattleRandom& InRandom)
 			: Request(InRequest)
 			, State(InState)
+			, Random(InRandom)
 			, Battlers(InState.Battlers)
 			, ActivePositions(InState.ActivePositions)
 			, Field(InState.Field)
@@ -785,17 +838,17 @@ namespace BattleEffectExecutorPrivate
 		{
 		}
 
-		void Commit()
+		void MovePreparedState(FBattleEffectExecutionPlan& OutPlan)
 		{
-			State.Battlers = MoveTemp(Battlers);
-			State.ActivePositions = MoveTemp(ActivePositions);
-			State.Field = MoveTemp(Field);
-			State.Sides = MoveTemp(Sides);
-			State.TriggerFramework = MoveTemp(TriggerFramework);
-			State.AbilityItemRevealTracker = MoveTemp(AbilityItemRevealTracker);
-			State.HeldItemLedger = MoveTemp(HeldItemLedger);
-			State.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
-			State.NextTriggerReentrancyToken = NextTriggerReentrancyToken;
+			OutPlan.Battlers = MoveTemp(Battlers);
+			OutPlan.ActivePositions = MoveTemp(ActivePositions);
+			OutPlan.Field = MoveTemp(Field);
+			OutPlan.Sides = MoveTemp(Sides);
+			OutPlan.TriggerFramework = MoveTemp(TriggerFramework);
+			OutPlan.AbilityItemRevealTracker = MoveTemp(AbilityItemRevealTracker);
+			OutPlan.HeldItemLedger = MoveTemp(HeldItemLedger);
+			OutPlan.NextConditionCreationOrdinal = NextConditionCreationOrdinal;
+			OutPlan.NextTriggerReentrancyToken = NextTriggerReentrancyToken;
 		}
 
 		void BindExecutionResult(FBattleEffectExecutionResult& InResult)
@@ -890,7 +943,7 @@ namespace BattleEffectExecutorPrivate
 				if (!FBattleSwitchResolver::TryResolve(
 					Legality,
 					SelectionSpec,
-					*State.Random,
+					Random,
 					Resolution))
 				{
 					OutError = EBattleEffectExecutorError::RandomFailure;
@@ -1100,8 +1153,13 @@ namespace BattleEffectExecutorPrivate
 			const bool bStruggle = Request.Move->Id
 				== FBattleBuiltInMoveDefinitions::GetStruggleMoveId();
 			const FBattleMoveDefinition* CatalogMove = State.Catalog.FindMove(Request.Move->Id);
-			if ((bStruggle && Request.Move != &FBattleBuiltInMoveDefinitions::GetStruggle())
-				|| (!bStruggle && CatalogMove != Request.Move))
+			if ((bStruggle
+					&& !AreMoveDefinitionsIdentical(
+						*Request.Move,
+						FBattleBuiltInMoveDefinitions::GetStruggle()))
+				|| (!bStruggle
+					&& (CatalogMove == nullptr
+						|| !AreMoveDefinitionsIdentical(*Request.Move, *CatalogMove))))
 			{
 				return false;
 			}
@@ -2025,6 +2083,11 @@ namespace BattleEffectExecutorPrivate
 		virtual bool IsRuntimeValid() const override
 		{
 			return bRuntimeValid;
+		}
+
+		virtual EBattleEffectExecutorError GetRuntimeError() const override
+		{
+			return RuntimeError;
 		}
 
 		virtual bool IsSourceAbleToContinue() const override
@@ -5123,12 +5186,12 @@ namespace BattleEffectExecutorPrivate
 			if (Kind == EBattleVolatileKind::Confusion)
 			{
 				FBattleVolatileDurationResult Duration;
-				if (!State.Random.IsValid()
-					|| !FBattleVolatileRules::TryRollConfusionDuration(
+				if (!FBattleVolatileRules::TryRollConfusionDuration(
 						RandomContext,
-						*State.Random,
+						Random,
 						Duration))
 				{
+					SetRuntimeFailure(EBattleEffectExecutorError::RandomFailure);
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
 				RemainingTurns = Duration.Turns;
@@ -5137,12 +5200,12 @@ namespace BattleEffectExecutorPrivate
 			else if (Kind == EBattleVolatileKind::PartialTrap)
 			{
 				FBattleVolatileDurationResult Duration;
-				if (!State.Random.IsValid()
-					|| !FBattleVolatileRules::TryRollPartialTrapDuration(
+				if (!FBattleVolatileRules::TryRollPartialTrapDuration(
 						RandomContext,
-						*State.Random,
+						Random,
 						Duration))
 				{
+					SetRuntimeFailure(EBattleEffectExecutorError::RandomFailure);
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
 				RemainingTurns = Duration.Turns;
@@ -5197,6 +5260,7 @@ namespace BattleEffectExecutorPrivate
 
 			if (DurationDraw.IsSet() && !TryAppendRandomDraw(Target, DurationDraw.GetValue()))
 			{
+				SetRuntimeFailure(EBattleEffectExecutorError::InvalidHookResult);
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
 			if (Kind == EBattleVolatileKind::Substitute)
@@ -5406,14 +5470,18 @@ namespace BattleEffectExecutorPrivate
 			RandomContext.ResolutionId = Request.ResolutionId;
 			RandomContext.RulePurpose = FBattleVolatileRules::GetProtectConsecutiveUsePurpose();
 			FBattleProtectAttemptResult Attempt;
-			if (!State.Random.IsValid()
-				|| !FBattleVolatileRules::TryResolveProtectAttempt(
+			if (!FBattleVolatileRules::TryResolveProtectAttempt(
 					Facts,
 					RandomContext,
-					*State.Random,
-					Attempt)
-				|| (Attempt.bDrawConsumed && !TryAppendRandomDraw(Target, Attempt.Draw)))
+					Random,
+					Attempt))
 			{
+				SetRuntimeFailure(EBattleEffectExecutorError::RandomFailure);
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Attempt.bDrawConsumed && !TryAppendRandomDraw(Target, Attempt.Draw))
+			{
+				SetRuntimeFailure(EBattleEffectExecutorError::InvalidHookResult);
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
 
@@ -5514,12 +5582,12 @@ namespace BattleEffectExecutorPrivate
 						BaseContext.ResolutionId = Request.ResolutionId;
 						BaseContext.RulePurpose = FBattleMajorStatusRules::GetSleepDurationPurpose();
 						FBattleSleepDurationResult Duration;
-						if (!State.Random.IsValid()
-							|| !FBattleMajorStatusRules::TryRollSleepDuration(
+						if (!FBattleMajorStatusRules::TryRollSleepDuration(
 								BaseContext,
-								*State.Random,
+								Random,
 								Duration))
 						{
+							SetRuntimeFailure(EBattleEffectExecutorError::RandomFailure);
 							return Outcome(EBattleEffectExecutionOutcome::Failed);
 						}
 						SleepTurns = Duration.Turns;
@@ -6184,8 +6252,15 @@ namespace BattleEffectExecutorPrivate
 			return true;
 		}
 
+		void SetRuntimeFailure(const EBattleEffectExecutorError Error)
+		{
+			bRuntimeValid = false;
+			RuntimeError = Error;
+		}
+
 		const FBattleEffectExecutionRequest& Request;
-		FBattleEngineState& State;
+		const FBattleEngineState& State;
+		IBattleRandom& Random;
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
 		FBattleFieldState Field;
@@ -6201,6 +6276,7 @@ namespace BattleEffectExecutorPrivate
 		bool bApplyingDirectMoveDamageHit = false;
 		bool bMoveAffectedDifferentBattler = false;
 		bool bRuntimeValid = true;
+		EBattleEffectExecutorError RuntimeError = EBattleEffectExecutorError::InvalidHookResult;
 		uint64 NextConditionCreationOrdinal = 1;
 		uint64 NextTriggerReentrancyToken = 1;
 	};
@@ -6412,7 +6488,7 @@ namespace BattleEffectExecutorPrivate
 					Context.RunImmediateUpdate(Target);
 					if (!Context.IsRuntimeValid())
 					{
-						OutError = EBattleEffectExecutorError::InvalidHookResult;
+						OutError = Context.GetRuntimeError();
 						return false;
 					}
 				}
@@ -6435,6 +6511,11 @@ namespace BattleEffectExecutorPrivate
 			}
 
 			const FBattleEffectHookResult Applied = Context.ApplyNonHpEffect(Effect, Target);
+			if (!Context.IsRuntimeValid())
+			{
+				OutError = Context.GetRuntimeError();
+				return false;
+			}
 			if (!IsKnownOutcome(Applied.Outcome)
 				|| (Applied.Outcome != EBattleEffectExecutionOutcome::Applied
 					&& Applied.bStateMutated))
@@ -6504,7 +6585,7 @@ namespace BattleEffectExecutorPrivate
 			Context.RunImmediateUpdate(Target);
 			if (!Context.IsRuntimeValid())
 			{
-				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				OutError = Context.GetRuntimeError();
 				return false;
 			}
 		}
@@ -6653,7 +6734,7 @@ namespace BattleEffectExecutorPrivate
 			Context.RunImmediateUpdate(Target);
 			if (!Context.IsRuntimeValid())
 			{
-				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				OutError = Context.GetRuntimeError();
 				return false;
 			}
 		}
@@ -7050,7 +7131,7 @@ bool FBattleEffectExecutor::TryExecute(
 				Context.RunImmediateUpdate(Target);
 				if (!Context.IsRuntimeValid())
 				{
-					OutError = EBattleEffectExecutorError::InvalidHookResult;
+					OutError = Context.GetRuntimeError();
 					return false;
 				}
 			}
@@ -7364,7 +7445,7 @@ bool FBattleEffectExecutor::TryExecute(
 			Context.RunImmediateUpdate(Target);
 			if (!Context.IsRuntimeValid())
 			{
-				OutError = EBattleEffectExecutorError::InvalidHookResult;
+				OutError = Context.GetRuntimeError();
 				return false;
 			}
 
@@ -7513,22 +7594,49 @@ bool FBattleEffectExecutor::TryExecuteAgainstState(
 		OutError = EBattleEffectExecutorError::InvalidRequest;
 		return false;
 	}
-	BattleEffectExecutorPrivate::FStateExecutionContext Context(Request, State);
-	Context.BindExecutionResult(OutResult);
-	if (!TryExecute(Request, Context, *State.Random, OutResult, OutError))
+	FBattleEffectExecutionPlan Plan;
+	if (!TryPrepareAgainstState(Request, State, *State.Random, Plan, OutError))
 	{
 		return false;
 	}
-	if (!Context.TryResolveForcedSwitches(OutResult, OutError))
-	{
-		OutResult = FBattleEffectExecutionResult();
-		return false;
-	}
-	if (!Context.TryApplyPostMoveLifeOrbRecoil(OutResult, OutError))
-	{
-		OutResult = FBattleEffectExecutionResult();
-		return false;
-	}
-	Context.Commit();
+	OutResult = MoveTemp(Plan.Result);
+	ApplyPreparedPlan(State, MoveTemp(Plan));
 	return true;
+}
+
+bool FBattleEffectExecutor::TryPrepareAgainstState(
+	const FBattleEffectExecutionRequest& Request,
+	const FBattleEngineState& State,
+	IBattleRandom& Random,
+	FBattleEffectExecutionPlan& OutPlan,
+	EBattleEffectExecutorError& OutError)
+{
+	OutPlan = FBattleEffectExecutionPlan();
+	OutError = EBattleEffectExecutorError::None;
+	BattleEffectExecutorPrivate::FStateExecutionContext Context(Request, State, Random);
+	Context.BindExecutionResult(OutPlan.Result);
+	if (!TryExecute(Request, Context, Random, OutPlan.Result, OutError)
+		|| !Context.TryResolveForcedSwitches(OutPlan.Result, OutError)
+		|| !Context.TryApplyPostMoveLifeOrbRecoil(OutPlan.Result, OutError))
+	{
+		OutPlan = FBattleEffectExecutionPlan();
+		return false;
+	}
+	Context.MovePreparedState(OutPlan);
+	return true;
+}
+
+void FBattleEffectExecutor::ApplyPreparedPlan(
+	FBattleEngineState& State,
+	FBattleEffectExecutionPlan&& Plan)
+{
+	State.Battlers = MoveTemp(Plan.Battlers);
+	State.ActivePositions = MoveTemp(Plan.ActivePositions);
+	State.Field = MoveTemp(Plan.Field);
+	State.Sides = MoveTemp(Plan.Sides);
+	State.TriggerFramework = MoveTemp(Plan.TriggerFramework);
+	State.AbilityItemRevealTracker = MoveTemp(Plan.AbilityItemRevealTracker);
+	State.HeldItemLedger = MoveTemp(Plan.HeldItemLedger);
+	State.NextConditionCreationOrdinal = Plan.NextConditionCreationOrdinal;
+	State.NextTriggerReentrancyToken = Plan.NextTriggerReentrancyToken;
 }

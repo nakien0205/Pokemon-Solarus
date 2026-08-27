@@ -5,6 +5,7 @@
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleSwitching.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
 #include "BattleTestRandom.h"
@@ -147,6 +148,24 @@ namespace BattleAbilityTests
 		return Move;
 	}
 
+	FBattleMoveDefinition MakeIntegrationForcedSwitchMove()
+	{
+		FBattleMoveDefinition Move;
+		Move.Id = MakeDefinitionId<FMoveId>(TEXT("Move.C08B.ForcedSwitch"));
+		Move.Type = EPokemonType::Normal;
+		Move.Category = EBattleMoveCategory::Status;
+		Move.bAlwaysHits = true;
+		Move.bUsesPP = true;
+		Move.BasePP = 20;
+		Move.bAllowsPPBoosts = true;
+		Move.TargetClass = EBattleTargetClass::SelectedOpponent;
+		FBattleMoveEffectDescriptor Effect;
+		Effect.Kind = EBattleMoveEffectKind::Switch;
+		Effect.Target = EBattleEffectTarget::ResolvedTarget;
+		Move.Effects.Add(Effect);
+		return Move;
+	}
+
 	FBattleSpeciesFormDefinition MakeIntegrationSpecies(const TCHAR* Name)
 	{
 		FBattleSpeciesFormDefinition Species;
@@ -165,6 +184,7 @@ namespace BattleAbilityTests
 		Input.TypeChartEntries = MakeCompleteNeutralChart();
 		Input.Moves.Add(MakeIntegrationMove(MoveType));
 		Input.Moves.Add(MakeIntegrationSubstituteMove());
+		Input.Moves.Add(MakeIntegrationForcedSwitchMove());
 		for (const FAbilityId& AbilityId : FBattleAbilityRules::GetCanonicalIds())
 		{
 			Input.Abilities.Add({AbilityId});
@@ -252,6 +272,13 @@ namespace BattleAbilityTests
 		Substitute.CurrentPP = 20;
 		Substitute.MaxPP = 20;
 		Entry.Moves.Add(Substitute);
+		FBattleMoveSlotSetup ForcedSwitch;
+		ForcedSwitch.SlotIndex = 2;
+		ForcedSwitch.MoveId =
+			MakeDefinitionId<FMoveId>(TEXT("Move.C08B.ForcedSwitch"));
+		ForcedSwitch.CurrentPP = 20;
+		ForcedSwitch.MaxPP = 20;
+		Entry.Moves.Add(ForcedSwitch);
 		return Entry;
 	}
 
@@ -416,6 +443,51 @@ namespace BattleAbilityTests
 			}
 			const FBattleResolution Submitted = Engine.SubmitDecision(Decision);
 			if (!Submitted.WasAccepted())
+			{
+				return false;
+			}
+		}
+		return Guard < 4
+			&& Engine.GetSnapshot().GetPhase() == EBattlePhase::Locked;
+	}
+
+	bool LockIntegrationFightsWithPlayerMove(
+		FBattleEngine& Engine,
+		const FMoveId PlayerMoveId)
+	{
+		FBattleRejection Rejection;
+		if (Engine.GetSnapshot().GetPhase() == EBattlePhase::Setup
+			&& !Engine.TryBeginActionDecisionSequence(Rejection))
+		{
+			return false;
+		}
+		const FMoveId DamageMoveId =
+			MakeDefinitionId<FMoveId>(TEXT("Move.C08B.Integration"));
+		int32 Guard = 0;
+		while (Engine.GetPendingDecision().IsSet() && Guard++ < 4)
+		{
+			const FBattleDecisionRequest Request =
+				Engine.GetPendingDecision().GetValue();
+			const FMoveId MoveId = Request.GetActingBattlerId()
+				== MakeNumericId<FBattlerId>(11)
+					? PlayerMoveId
+					: DamageMoveId;
+			const FBattleMoveTargetOption* Target =
+				Request.GetLegalMoveTargets().FindByPredicate(
+					[MoveId](const FBattleMoveTargetOption& Option)
+					{
+						return Option.MoveId == MoveId;
+					});
+			FBattleDecision Decision;
+			if (Target == nullptr
+				|| !FBattleDecision::TryCreateFight(
+					Request.GetStateVersion(),
+					Request.GetDecisionOwnerTrainerId(),
+					Request.GetActingBattlerId(),
+					MoveId,
+					Target->ActiveSlotId,
+					Decision)
+				|| !Engine.SubmitDecision(Decision).WasAccepted())
 			{
 				return false;
 			}
@@ -2497,6 +2569,99 @@ bool FBattleC08BEngineFaintCleanupTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Faint cleanup leaves the living owner's Ability hooks intact"),
 		FBattleC08BEngineFixture::HasAbilityRegistration(*Engine, PlayerId));
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleADR00023E6ForcedEntryAbilityTest,
+	"PokemonSolarus.Battle.ADR0002.3E6.Effects.Ability.ForcedEntryAtomicOrderAndExactRng",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleADR00023E6ForcedEntryAbilityTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TArray<FExpectedIntegrationDraw> Draws = {{
+		0,
+		0,
+		0,
+		FBattleSwitchResolver::GetForcedSelectionRulePurpose()}};
+	TUniquePtr<FScriptedIntegrationRandom> Random =
+		MakeUnique<FScriptedIntegrationRandom>(MoveTemp(Draws));
+	FScriptedIntegrationRandom* RandomView = Random.Get();
+	TUniquePtr<IBattleRandom> RandomOwner = MoveTemp(Random);
+	TUniquePtr<FBattleEngine> Engine;
+	FBattleRejection Rejection;
+	if (!TestTrue(TEXT("The forced-entry Ability engine is created"),
+			FBattleEngine::TryCreate(
+				MakeIntegrationSetup(
+					FBattleAbilityRules::GetBlazeId(),
+					FBattleAbilityRules::GetBlazeId(),
+					200,
+					FBattleAbilityRules::GetLevitateId(),
+					FBattleAbilityRules::GetIntimidateId()),
+				MakeIntegrationCatalog(),
+				MoveTemp(RandomOwner),
+				Engine,
+				Rejection))
+		|| !TestTrue(TEXT("The forced-switch action locks"),
+			LockIntegrationFightsWithPlayerMove(
+				*Engine,
+				MakeDefinitionId<FMoveId>(TEXT("Move.C08B.ForcedSwitch"))))
+		|| !TestTrue(TEXT("The forced-switch action starts"),
+			Engine->BeginNextLockedAction().WasAccepted())
+		|| !TestTrue(TEXT("The forced-switch PP commits"),
+			Engine->CommitCurrentMoveAfterPreMoveGates().WasAccepted())
+		|| !TestTrue(TEXT("The forced-switch target commits"),
+			Engine->ResolveCurrentMoveTargets().WasAccepted()))
+	{
+		return false;
+	}
+
+	const FBattleResolution Resolution = Engine->ExecuteCurrentMoveEffects();
+	const FBattleEngineState& State = FBattleC08BEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Player = State.FindBattler(
+		MakeNumericId<FBattlerId>(11));
+	int32 AttackStage = INDEX_NONE;
+	const bool bHasAttackStage = Player != nullptr
+		&& Player->Stages.TryGetStage(EBattleStat::Attack, AttackStage);
+	const int32 SwitchInIndex = Resolution.GetEvents().IndexOfByPredicate(
+		[](const FBattleEvent& Event)
+		{
+			return Event.GetType() == EBattleEventType::EnteredActiveSlot;
+		});
+	const int32 AbilityIndex = Resolution.GetEvents().IndexOfByPredicate(
+		[](const FBattleEvent& Event)
+		{
+			return Event.GetType() == EBattleEventType::AbilityActivated
+				&& Event.GetSource().DefinitionId
+					== FBattleAbilityRules::GetIntimidateId().GetDefinitionId();
+		});
+	const int32 CompletionIndex = Resolution.GetEvents().IndexOfByPredicate(
+		[](const FBattleEvent& Event)
+		{
+			return Event.GetType() == EBattleEventType::ActionCompleted;
+		});
+	bool bValid = TestTrue(TEXT("The forced-entry Ability checkpoint is accepted"),
+		Resolution.WasAccepted());
+	bValid &= TestTrue(TEXT("The reserve becomes the exact active opponent"),
+		State.FindActivePosition(
+			MakeActiveSlotId(EBattleSide::Opponent, EBattlePosition::Left))
+				->BattlerId == MakeNumericId<FBattlerId>(22));
+	bValid &= TestTrue(TEXT("Intimidate state and event publish together"),
+		bHasAttackStage && AttackStage == -1 && AbilityIndex != INDEX_NONE);
+	bValid &= TestTrue(TEXT("Switch-in precedes Ability and action completion"),
+		SwitchInIndex != INDEX_NONE
+			&& AbilityIndex > SwitchInIndex
+			&& CompletionIndex > AbilityIndex);
+	bValid &= TestTrue(TEXT("The forced-selection transaction is exact"),
+		RandomView != nullptr && RandomView->IsExact());
+	const TArray<FBattleRandomDraw> Trace = Engine->ExportRandomTrace();
+	bValid &= TestTrue(TEXT("The exact forced-selection draw commits once"),
+		Trace.Num() == 1
+			&& Trace[0].InclusiveMinimum == 0
+			&& Trace[0].InclusiveMaximum == 0
+			&& Trace[0].RulePurpose
+				== FBattleSwitchResolver::GetForcedSelectionRulePurpose());
+	return bValid;
 }
 
 }

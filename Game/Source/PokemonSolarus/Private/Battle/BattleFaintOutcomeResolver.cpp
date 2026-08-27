@@ -248,6 +248,26 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 		{
 			return FaintActiveSlotLess(Left.Target.ActiveSlotId, Right.Target.ActiveSlotId);
 		});
+	for (const FBattleFaintTransitionRecord& Transition : OutResolution.Removals)
+	{
+		const int32 BattlerIndex = State.Battlers.IndexOfByPredicate(
+			[&Transition](const FBattleBattlerState& Battler)
+			{
+				return Battler.BattlerId == Transition.Target.BattlerId;
+			});
+		const int32 PositionIndex = State.ActivePositions.IndexOfByPredicate(
+			[&Transition](const FBattleActivePositionState& Position)
+			{
+				return Position.ActiveSlotId == Transition.Target.ActiveSlotId;
+			});
+		if (BattlerIndex == INDEX_NONE || PositionIndex == INDEX_NONE)
+		{
+			OutPlan = FBattleFaintOutcomePlan();
+			return false;
+		}
+		OutPlan.RemovalBattlerIndices.Add(BattlerIndex);
+		OutPlan.RemovalPositionIndices.Add(PositionIndex);
+	}
 
 	bool bPlayerFaintedThisAction = false;
 	bool bOpponentFaintedThisAction = false;
@@ -308,15 +328,53 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 	FBattleEngineState& State,
 	const FBattleFaintOutcomePlan& Plan)
 {
-	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
-	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
+	if (!IsActionPlanApplicable(State, Plan))
 	{
-		const FBattleBattlerState* Battler = State.FindBattler(
-			Transition.Target.BattlerId);
-		const FBattleActivePositionState* Position = State.FindActivePosition(
-			Transition.Target.ActiveSlotId);
-		if (Battler == nullptr
+		return false;
+	}
+	ApplyPreparedActionPlan(State, Plan);
+	return true;
+}
+
+bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
+	const FBattleEngineState& State,
+	const FBattleFaintOutcomePlan& Plan)
+{
+	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
+	if (Plan.RemovalBattlerIndices.Num() != Resolution.Removals.Num()
+		|| Plan.RemovalPositionIndices.Num() != Resolution.Removals.Num()
+		|| Plan.PartnerRecoveryPlan.IsSet()
+			!= Resolution.PartnerTeamVictoryRecovery.IsSet()
+		|| (Resolution.bBattleEnded
+			&& (Resolution.Outcome == EBattleOutcome::InProgress
+				|| Resolution.OutcomeCause == EBattleOutcomeCause::None))
+		|| (!Resolution.bBattleEnded
+			&& (Resolution.Outcome != EBattleOutcome::InProgress
+				|| Resolution.OutcomeCause != EBattleOutcomeCause::None)))
+	{
+		return false;
+	}
+
+	TSet<int32> SeenBattlerIndices;
+	TSet<int32> SeenPositionIndices;
+	for (int32 RemovalIndex = 0; RemovalIndex < Resolution.Removals.Num(); ++RemovalIndex)
+	{
+		const FBattleFaintTransitionRecord& Transition = Resolution.Removals[RemovalIndex];
+		const int32 BattlerIndex = Plan.RemovalBattlerIndices[RemovalIndex];
+		const int32 PositionIndex = Plan.RemovalPositionIndices[RemovalIndex];
+		const FBattleBattlerState* Battler = State.Battlers.IsValidIndex(BattlerIndex)
+			? &State.Battlers[BattlerIndex]
+			: nullptr;
+		const FBattleActivePositionState* Position =
+			State.ActivePositions.IsValidIndex(PositionIndex)
+				? &State.ActivePositions[PositionIndex]
+				: nullptr;
+		if (SeenBattlerIndices.Contains(BattlerIndex)
+			|| SeenPositionIndices.Contains(PositionIndex)
+			|| Battler == nullptr
 			|| Position == nullptr
+			|| Battler->BattlerId != Transition.Target.BattlerId
+			|| Position->ActiveSlotId != Transition.Target.ActiveSlotId
 			|| Position->TrainerId != Transition.Target.TrainerId
 			|| Position->BattlerId != Transition.Target.BattlerId
 			|| Battler->CurrentHP != 0
@@ -325,54 +383,54 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 		{
 			return false;
 		}
-	}
-
-	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
-	{
-		FBattleBattlerState* Battler = State.FindMutableBattler(
-			Transition.Target.BattlerId);
-		FBattleActivePositionState* Position = State.FindMutableActivePosition(
-			Transition.Target.ActiveSlotId);
-		if (Battler == nullptr || Position == nullptr)
-		{
-			return false;
-		}
-		Battler->MajorStatusId = FConditionId();
-		Battler->Stages = FBattleStatStages();
-		Battler->Volatiles.Reset();
-		Battler->bRemoved = true;
-		Battler->bFaintTransitionPending = false;
-		Position->TrainerId = FTrainerId();
-		Position->BattlerId = FBattlerId();
+		SeenBattlerIndices.Add(BattlerIndex);
+		SeenPositionIndices.Add(PositionIndex);
 	}
 
 	if (Plan.PartnerRecoveryPlan.IsSet()
-		&& !FBattlePartnerFlow::TryApplyTeamVictoryRecoveryPlan(
+		&& !FBattlePartnerFlow::IsTeamVictoryRecoveryPlanApplicable(
 			State,
 			Plan.PartnerRecoveryPlan.GetValue()))
 	{
 		return false;
 	}
-	if (Plan.PartnerRecoveryPlan.IsSet()
-		!= Resolution.PartnerTeamVictoryRecovery.IsSet())
+	return true;
+}
+
+void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
+	FBattleEngineState& State,
+	const FBattleFaintOutcomePlan& Plan)
+{
+	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
+	for (int32 RemovalIndex = 0; RemovalIndex < Resolution.Removals.Num(); ++RemovalIndex)
 	{
-		return false;
+		FBattleBattlerState& Battler = State.Battlers[Plan.RemovalBattlerIndices[RemovalIndex]];
+		FBattleActivePositionState& Position =
+			State.ActivePositions[Plan.RemovalPositionIndices[RemovalIndex]];
+		Battler.MajorStatusId = FConditionId();
+		Battler.Stages = FBattleStatStages();
+		Battler.Volatiles.Reset();
+		Battler.bRemoved = true;
+		Battler.bFaintTransitionPending = false;
+		Position.TrainerId = FTrainerId();
+		Position.BattlerId = FBattlerId();
+	}
+
+	if (Plan.PartnerRecoveryPlan.IsSet())
+	{
+		FBattlePartnerFlow::ApplyPreparedTeamVictoryRecoveryPlan(
+			State,
+			Plan.PartnerRecoveryPlan.GetValue());
 	}
 
 	if (Resolution.bBattleEnded)
 	{
-		if (Resolution.Outcome == EBattleOutcome::InProgress
-			|| Resolution.OutcomeCause == EBattleOutcomeCause::None)
-		{
-			return false;
-		}
 		State.Phase = EBattlePhase::Terminal;
 		State.Outcome = Resolution.Outcome;
 		State.OutcomeCause = Resolution.OutcomeCause;
 		State.PendingDecision.Reset();
 		State.PendingDecisionRequests.Reset();
 	}
-	return true;
 }
 
 void FBattleFaintOutcomeResolver::ResolveQueueBoundary(

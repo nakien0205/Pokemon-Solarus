@@ -9355,8 +9355,18 @@ namespace
 		const FBattleLockedActionState& Action,
 		TArray<FBattleEvent>& Events)
 	{
-		TArray<FBattleReplacementRequirement> Requirements;
-		FBattleFaintOutcomeResolver::ResolveQueueBoundary(Projection, Requirements);
+		FBattleQueueBoundaryPlan BoundaryPlan;
+		if (!FBattleFaintOutcomeResolver::ResolveQueueBoundary(
+				static_cast<const FBattleEngineState&>(Projection),
+				BoundaryPlan)
+			|| !FBattleFaintOutcomeResolver::TryApplyQueueBoundaryPlan(
+				Projection,
+				BoundaryPlan))
+		{
+			return false;
+		}
+		const TArray<FBattleReplacementRequirement>& Requirements =
+			BoundaryPlan.Requirements;
 		if (Projection.Phase == EBattlePhase::MandatoryReplacement)
 		{
 			if (Requirements.IsEmpty()
@@ -10837,6 +10847,1049 @@ namespace
 	}
 
 	bool TryPublishTargetResolutionCheckpointRejection(
+		FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleRejectionReason Reason,
+		const FTrainerId TrainerId,
+		const FBattlerId BattlerId,
+		const FBattleEventSource& Source,
+		FBattleResolution& OutResolution)
+	{
+		OutResolution = FBattleResolution();
+		FBattleResolutionCommitPlan RejectedPlan;
+		if (!FBattleResolutionCommit::TryBuildRejectedPlan(
+				State,
+				ResolutionId,
+				ActionId,
+				Reason,
+				TrainerId,
+				BattlerId,
+				EBattleActionKind::Fight,
+				Source,
+				RejectedPlan))
+		{
+			return false;
+		}
+		OutResolution = FBattleResolutionCommit::PublishPrepared(State, RejectedPlan);
+		return true;
+	}
+
+	bool AreMoveEffectsDescriptorsIdentical(
+		const FBattleMoveEffectDescriptor& Left,
+		const FBattleMoveEffectDescriptor& Right)
+	{
+		return Left.Order == Right.Order
+			&& Left.Kind == Right.Kind
+			&& Left.Target == Right.Target
+			&& Left.ConditionId == Right.ConditionId
+			&& Left.ItemId == Right.ItemId
+			&& Left.Stat == Right.Stat
+			&& Left.ChanceNumerator == Right.ChanceNumerator
+			&& Left.ChanceDenominator == Right.ChanceDenominator
+			&& Left.MagnitudeNumerator == Right.MagnitudeNumerator
+			&& Left.MagnitudeDenominator == Right.MagnitudeDenominator
+			&& Left.MinimumCount == Right.MinimumCount
+			&& Left.MaximumCount == Right.MaximumCount
+			&& Left.DurationTurns == Right.DurationTurns
+			&& Left.LayerCount == Right.LayerCount
+			&& Left.Flags == Right.Flags;
+	}
+
+	bool AreMoveEffectsDefinitionsIdentical(
+		const FBattleMoveDefinition& Left,
+		const FBattleMoveDefinition& Right)
+	{
+		if (Left.Id != Right.Id
+			|| Left.Type != Right.Type
+			|| Left.Category != Right.Category
+			|| Left.Power != Right.Power
+			|| Left.bAlwaysHits != Right.bAlwaysHits
+			|| Left.Accuracy != Right.Accuracy
+			|| Left.bUsesPP != Right.bUsesPP
+			|| Left.BasePP != Right.BasePP
+			|| Left.bAllowsPPBoosts != Right.bAllowsPPBoosts
+			|| Left.Priority != Right.Priority
+			|| Left.TargetClass != Right.TargetClass
+			|| Left.Flags != Right.Flags
+			|| Left.Effects.Num() != Right.Effects.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Effects.Num(); ++Index)
+		{
+			if (!AreMoveEffectsDescriptorsIdentical(Left.Effects[Index], Right.Effects[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreMoveEffectsActivePositionsIdentical(
+		const TConstArrayView<FBattleActivePositionState> Left,
+		const TConstArrayView<FBattleActivePositionState> Right)
+	{
+		return AreOrderedPivotIdentityValuesEqual(
+			Left,
+			Right,
+			[](const FBattleActivePositionState& L, const FBattleActivePositionState& R)
+			{
+				return L.ActiveSlotId == R.ActiveSlotId
+					&& L.bAvailable == R.bAvailable
+					&& L.TrainerId == R.TrainerId
+					&& L.BattlerId == R.BattlerId;
+			});
+	}
+
+	bool AreMoveEffectsFieldsIdentical(
+		const FBattleFieldState& Left,
+		const FBattleFieldState& Right)
+	{
+		const auto OptionalConditionEqual = [](const TOptional<FBattleConditionState>& L,
+			const TOptional<FBattleConditionState>& R)
+		{
+			return L.IsSet() == R.IsSet()
+				&& (!L.IsSet()
+					|| ArePreMoveConditionsIdentical(
+						TArray<FBattleConditionState>{L.GetValue()},
+						TArray<FBattleConditionState>{R.GetValue()}));
+		};
+		return OptionalConditionEqual(Left.Weather, Right.Weather)
+			&& OptionalConditionEqual(Left.Terrain, Right.Terrain)
+			&& ArePreMoveConditionsIdentical(Left.Rooms, Right.Rooms)
+			&& ArePreMoveConditionsIdentical(Left.Effects, Right.Effects);
+	}
+
+	bool AreMoveEffectsSidesIdentical(
+		const TConstArrayView<FBattleSideState> Left,
+		const TConstArrayView<FBattleSideState> Right)
+	{
+		return AreOrderedPivotIdentityValuesEqual(
+			Left,
+			Right,
+			[](const FBattleSideState& L, const FBattleSideState& R)
+			{
+				return L.Side == R.Side
+					&& ArePreMoveConditionsIdentical(L.Conditions, R.Conditions)
+					&& ArePreMoveConditionsIdentical(L.Hazards, R.Hazards);
+			});
+	}
+
+	bool AreMoveEffectsTrainersIdentical(
+		const TConstArrayView<FBattleTrainerState> Left,
+		const TConstArrayView<FBattleTrainerState> Right)
+	{
+		return AreOrderedPivotIdentityValuesEqual(
+			Left,
+			Right,
+			[](const FBattleTrainerState& L, const FBattleTrainerState& R)
+			{
+				if (L.TrainerId != R.TrainerId
+					|| L.Side != R.Side
+					|| L.Role != R.Role
+					|| L.Controller != R.Controller
+					|| L.SelectorProfileId != R.SelectorProfileId
+					|| L.ActionAllowance.MaximumActions != R.ActionAllowance.MaximumActions
+					|| L.ActionAllowance.RemainingActions != R.ActionAllowance.RemainingActions
+					|| L.ActionAllowance.bBagActionAvailable
+						!= R.ActionAllowance.bBagActionAvailable
+					|| L.Bag.Num() != R.Bag.Num()
+					|| L.PartySlots.Num() != R.PartySlots.Num())
+				{
+					return false;
+				}
+				for (int32 Index = 0; Index < L.Bag.Num(); ++Index)
+				{
+					if (L.Bag[Index].ItemId != R.Bag[Index].ItemId
+						|| L.Bag[Index].Count != R.Bag[Index].Count)
+					{
+						return false;
+					}
+				}
+				for (int32 Index = 0; Index < L.PartySlots.Num(); ++Index)
+				{
+					if (L.PartySlots[Index].PartySlotId != R.PartySlots[Index].PartySlotId
+						|| L.PartySlots[Index].BattlerId != R.PartySlots[Index].BattlerId)
+					{
+						return false;
+					}
+				}
+				return true;
+			});
+	}
+
+	bool AreMoveEffectsPoliciesIdentical(
+		const FBattleCompiledEncounterPolicies& Left,
+		const FBattleCompiledEncounterPolicies& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetEncounterKind() != Right.GetEncounterKind()
+			|| Left.GetFormat() != Right.GetFormat()
+			|| Left.GetMaximumActiveBattlersPerSide()
+				!= Right.GetMaximumActiveBattlersPerSide()
+			|| Left.GetMaximumPartySize() != Right.GetMaximumPartySize()
+			|| Left.IsRunAllowed() != Right.IsRunAllowed()
+			|| Left.IsCaptureAllowed() != Right.IsCaptureAllowed()
+			|| Left.IsBagAllowed() != Right.IsBagAllowed()
+			|| Left.GetBattleStyle() != Right.GetBattleStyle()
+			|| Left.GetReinforcementPolicy() != Right.GetReinforcementPolicy()
+			|| Left.IsWildFleeConfigured() != Right.IsWildFleeConfigured()
+			|| Left.GetWildFleeMode() != Right.GetWildFleeMode()
+			|| Left.GetWildFleeNumerator() != Right.GetWildFleeNumerator()
+			|| Left.GetWildFleeDenominator() != Right.GetWildFleeDenominator()
+			|| Left.IsScriptedEndingAllowed() != Right.IsScriptedEndingAllowed()
+			|| Left.HasSeparatePartnerOwnership() != Right.HasSeparatePartnerOwnership()
+			|| Left.GetTrainerPolicies().Num() != Right.GetTrainerPolicies().Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.GetTrainerPolicies().Num(); ++Index)
+		{
+			const FBattleTrainerEncounterPolicy& L = Left.GetTrainerPolicies()[Index];
+			const FBattleTrainerEncounterPolicy& R = Right.GetTrainerPolicies()[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.Side != R.Side
+				|| L.Role != R.Role
+				|| L.Controller != R.Controller
+				|| L.SelectorProfileId != R.SelectorProfileId
+				|| L.SelectorProfileTag != R.SelectorProfileTag
+				|| L.bMayUseBag != R.bMayUseBag
+				|| L.bMayUseRevive != R.bMayUseRevive
+				|| L.bMayRun != R.bMayRun
+				|| L.bMayCapture != R.bMayCapture
+				|| L.bMayVoluntarilySwitch != R.bMayVoluntarilySwitch
+				|| L.bPartnerOwnsSeparatePartyAndBag
+					!= R.bPartnerOwnsSeparatePartyAndBag)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreMoveEffectsCatalogsIdentical(
+		const FBattleDefinitionCatalog& Left,
+		const FBattleDefinitionCatalog& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetSpeciesForms().Num() != Right.GetSpeciesForms().Num()
+			|| Left.GetNatures().Num() != Right.GetNatures().Num()
+			|| Left.GetMoves().Num() != Right.GetMoves().Num()
+			|| Left.GetAbilities().Num() != Right.GetAbilities().Num()
+			|| Left.GetItems().Num() != Right.GetItems().Num()
+			|| Left.GetConditions().Num() != Right.GetConditions().Num())
+		{
+			return false;
+		}
+		for (int32 Attack = 0; Attack < FBattleTypeChart::TypeCount; ++Attack)
+		{
+			for (int32 Defense = 0; Defense < FBattleTypeChart::TypeCount; ++Defense)
+			{
+				FBattleTypeEffectiveness L;
+				FBattleTypeEffectiveness R;
+				const bool bLeft = Left.GetTypeChart().TryGetEffectiveness(
+					static_cast<EPokemonType>(Attack),
+					static_cast<EPokemonType>(Defense),
+					L);
+				const bool bRight = Right.GetTypeChart().TryGetEffectiveness(
+					static_cast<EPokemonType>(Attack),
+					static_cast<EPokemonType>(Defense),
+					R);
+				if (bLeft != bRight
+					|| (bLeft && (L.Numerator != R.Numerator || L.Denominator != R.Denominator)))
+				{
+					return false;
+				}
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetSpeciesForms().Num(); ++Index)
+		{
+			const FBattleSpeciesFormDefinition& L = Left.GetSpeciesForms()[Index];
+			const FBattleSpeciesFormDefinition& R = Right.GetSpeciesForms()[Index];
+			if (L.Id != R.Id
+				|| L.PrimaryType != R.PrimaryType
+				|| L.SecondaryType != R.SecondaryType
+				|| L.BaseStats.HP != R.BaseStats.HP
+				|| L.BaseStats.Attack != R.BaseStats.Attack
+				|| L.BaseStats.Defense != R.BaseStats.Defense
+				|| L.BaseStats.SpecialAttack != R.BaseStats.SpecialAttack
+				|| L.BaseStats.SpecialDefense != R.BaseStats.SpecialDefense
+				|| L.BaseStats.Speed != R.BaseStats.Speed
+				|| L.CatchRate != R.CatchRate
+				|| L.AbilityChoices != R.AbilityChoices)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetNatures().Num(); ++Index)
+		{
+			if (Left.GetNatures()[Index].Id != Right.GetNatures()[Index].Id
+				|| Left.GetNatures()[Index].Modifier != Right.GetNatures()[Index].Modifier)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetMoves().Num(); ++Index)
+		{
+			if (!AreMoveEffectsDefinitionsIdentical(
+					Left.GetMoves()[Index],
+					Right.GetMoves()[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetAbilities().Num(); ++Index)
+		{
+			if (Left.GetAbilities()[Index].Id != Right.GetAbilities()[Index].Id)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetItems().Num(); ++Index)
+		{
+			if (Left.GetItems()[Index].Id != Right.GetItems()[Index].Id
+				|| Left.GetItems()[Index].Kind != Right.GetItems()[Index].Kind)
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < Left.GetConditions().Num(); ++Index)
+		{
+			if (Left.GetConditions()[Index].Id != Right.GetConditions()[Index].Id
+				|| Left.GetConditions()[Index].Kind != Right.GetConditions()[Index].Kind)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreMoveEffectsEventsIdentical(const FBattleEvent& Left, const FBattleEvent& Right)
+	{
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.GetEventOrdinal() != Right.GetEventOrdinal()
+			|| Left.GetBattleId() != Right.GetBattleId()
+			|| Left.GetTurnId() != Right.GetTurnId()
+			|| Left.GetActionId() != Right.GetActionId()
+			|| Left.GetResolutionId() != Right.GetResolutionId()
+			|| Left.GetType() != Right.GetType()
+			|| Left.GetCause() != Right.GetCause()
+			|| Left.GetCauseActionKind() != Right.GetCauseActionKind()
+			|| Left.GetOutcomeCause() != Right.GetOutcomeCause()
+			|| Left.GetSource().TrainerId != Right.GetSource().TrainerId
+			|| Left.GetSource().BattlerId != Right.GetSource().BattlerId
+			|| Left.GetSource().ActiveSlotId != Right.GetSource().ActiveSlotId
+			|| Left.GetSource().DefinitionId != Right.GetSource().DefinitionId
+			|| Left.GetNumericBefore() != Right.GetNumericBefore()
+			|| Left.GetNumericAfter() != Right.GetNumericAfter()
+			|| Left.GetNumericDelta() != Right.GetNumericDelta()
+			|| Left.GetSimultaneousGroupId() != Right.GetSimultaneousGroupId()
+			|| Left.GetHitIndex() != Right.GetHitIndex()
+			|| Left.GetHitCount() != Right.GetHitCount()
+			|| Left.GetCapture() != Right.GetCapture()
+			|| Left.GetVisibility().Level != Right.GetVisibility().Level
+			|| Left.GetVisibility().OwningTrainerId != Right.GetVisibility().OwningTrainerId
+			|| Left.GetVisibility().OwningSide != Right.GetVisibility().OwningSide
+			|| Left.GetVisibility().bHasOwningSide != Right.GetVisibility().bHasOwningSide
+			|| Left.GetVisibility().bRevealSourceDefinition
+				!= Right.GetVisibility().bRevealSourceDefinition
+			|| Left.GetTargets().Num() != Right.GetTargets().Num()
+			|| Left.GetActionOrder().IsSet() != Right.GetActionOrder().IsSet()
+			|| Left.GetTargetResolution().IsSet() != Right.GetTargetResolution().IsSet())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.GetTargets().Num(); ++Index)
+		{
+			const FBattleEventTarget& L = Left.GetTargets()[Index];
+			const FBattleEventTarget& R = Right.GetTargets()[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.BattlerId != R.BattlerId
+				|| L.ActiveSlotId != R.ActiveSlotId
+				|| L.Side != R.Side
+				|| L.bHasSide != R.bHasSide
+				|| L.bField != R.bField)
+			{
+				return false;
+			}
+		}
+		if (Left.GetActionOrder().IsSet())
+		{
+			const FBattleActionOrderMetadata& L = Left.GetActionOrder().GetValue();
+			const FBattleActionOrderMetadata& R = Right.GetActionOrder().GetValue();
+			if (L.QueueOrdinal != R.QueueOrdinal
+				|| L.bReverseSpeed != R.bReverseSpeed
+				|| L.OrderKey.CommandBand != R.OrderKey.CommandBand
+				|| L.OrderKey.MovePriority != R.OrderKey.MovePriority
+				|| L.OrderKey.FractionalPriorityTenths
+					!= R.OrderKey.FractionalPriorityTenths
+				|| L.OrderKey.EffectiveSpeed != R.OrderKey.EffectiveSpeed
+				|| L.OrderKey.ActingSlotId != R.OrderKey.ActingSlotId)
+			{
+				return false;
+			}
+		}
+		if (Left.GetTargetResolution().IsSet())
+		{
+			const FBattleTargetResolutionMetadata& L =
+				Left.GetTargetResolution().GetValue();
+			const FBattleTargetResolutionMetadata& R =
+				Right.GetTargetResolution().GetValue();
+			if (L.TargetClass != R.TargetClass
+				|| L.bWasRedirected != R.bWasRedirected
+				|| L.bUsedFaintedTargetFallback != R.bUsedFaintedTargetFallback)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool AreMoveEffectsResolutionsIdentical(
+		const FBattleResolution& Left,
+		const FBattleResolution& Right)
+	{
+		const FBattleRejection& LRejection = Left.GetRejection();
+		const FBattleRejection& RRejection = Right.GetRejection();
+		if (Left.IsValid() != Right.IsValid()
+			|| Left.WasAccepted() != Right.WasAccepted()
+			|| Left.GetResolutionId() != Right.GetResolutionId()
+			|| Left.GetBeforeStateVersion() != Right.GetBeforeStateVersion()
+			|| Left.GetAfterStateVersion() != Right.GetAfterStateVersion()
+			|| LRejection.Reason != RRejection.Reason
+			|| LRejection.TrainerId != RRejection.TrainerId
+			|| LRejection.BattlerId != RRejection.BattlerId
+			|| LRejection.ActionId != RRejection.ActionId
+			|| LRejection.MoveId != RRejection.MoveId
+			|| LRejection.ItemId != RRejection.ItemId
+			|| LRejection.PartySlotId != RRejection.PartySlotId
+			|| LRejection.ActiveSlotId != RRejection.ActiveSlotId
+			|| Left.GetEvents().Num() != Right.GetEvents().Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.GetEvents().Num(); ++Index)
+		{
+			if (!AreMoveEffectsEventsIdentical(Left.GetEvents()[Index], Right.GetEvents()[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	struct FMoveEffectsCheckpointIdentity
+	{
+		FBattleResolutionCommitIdentity CommitIdentity;
+		FBattleId ExpectedBattleId;
+		FTurnId ExpectedTurnId;
+		EBattleEncounterKind ExpectedEncounterKind = EBattleEncounterKind::Wild;
+		EBattleFormat ExpectedFormat = EBattleFormat::Single;
+		bool bExpectedHasCatalog = false;
+		FBattleLockedActionState ExpectedAction;
+		FBattleMoveDefinition ExpectedMove;
+		int32 ExpectedActorIndex = INDEX_NONE;
+		FTrainerId ExpectedOwnerId;
+		FBattlerId ExpectedActorId;
+		FActiveSlotId ExpectedActingSlotId;
+		TArray<FBattleTrainerState> ExpectedTrainers;
+		TArray<FBattleBattlerState> ExpectedBattlers;
+		TArray<FBattleActivePositionState> ExpectedActivePositions;
+		FBattleFieldState ExpectedField;
+		TArray<FBattleSideState> ExpectedSides;
+		FBattleDefinitionCatalog ExpectedCatalog;
+		FBattleCompiledEncounterPolicies ExpectedPolicies;
+		TArray<FBattleActiveAssignment> ExpectedStartingActive;
+		TArray<FBattleLockedActionState> ExpectedLockedActions;
+		bool bExpectedLockedOrderReversesSpeed = false;
+		EBattleOutcome ExpectedOutcome = EBattleOutcome::InProgress;
+		EBattleOutcomeCause ExpectedOutcomeCause = EBattleOutcomeCause::None;
+		TOptional<FBattleDecisionRequest> ExpectedPendingDecision;
+		TArray<FBattleDecisionRequest> ExpectedPendingDecisionRequests;
+		TArray<FBattlePendingReplacementState> ExpectedPendingReplacements;
+		TArray<FBattleDecisionOwnerState> ExpectedDecisionOwnerSequence;
+		int32 ExpectedCurrentDecisionOwnerIndex = INDEX_NONE;
+		int32 ExpectedCurrentDecisionActorOffset = 0;
+		TArray<FBattleDecision> ExpectedAcceptedSelections;
+		TArray<FBattleDecision> ExpectedSubmittedDecisions;
+		TArray<FBattleHeldItemInstanceState> ExpectedHeldItemStates;
+		TArray<FBattleTriggerRegistrationState> ExpectedTriggerRegistrations;
+		TArray<uint8> ExpectedAbilityRevealFacts;
+		TArray<uint8> ExpectedItemRevealFacts;
+		int32 ExpectedPendingTriggerDispatchCount = 0;
+		int32 ExpectedPendingTriggerEffectCount = 0;
+		int32 ExpectedPendingTriggerLifecycleCount = 0;
+		uint64 ExpectedNextConditionCreationOrdinal = 0;
+		uint64 ExpectedNextTriggerReentrancyToken = 0;
+		uint64 ExpectedNextActionId = 0;
+		bool bExpectedEndTurnTriggerPassComplete = false;
+		TArray<uint64> ExpectedOpponentRemovalCheckpoints;
+		TArray<FBattleRandomDraw> ExpectedRandomTrace;
+		TArray<FBattleResolution> ExpectedResolutions;
+		TArray<FBattleEvent> ExpectedOrderedEvents;
+		TArray<FVoluntarySwitchBattlerIdentity> BattlerIdentities;
+		TArray<FVoluntarySwitchActiveIdentity> ActiveIdentities;
+	};
+
+	bool TryCaptureMoveEffectsCheckpointIdentity(
+		const FBattleEngineState& State,
+		const FResolutionId ResolutionId,
+		const FBattleLockedActionState& Action,
+		FMoveEffectsCheckpointIdentity& OutIdentity)
+	{
+		OutIdentity = FMoveEffectsCheckpointIdentity();
+		if (Action.Decision.GetActionKind() != EBattleActionKind::Fight
+			|| !Action.bStarted
+			|| !Action.bMoveCommitted
+			|| !Action.TargetResolution.IsSet()
+			|| Action.TargetResolution.GetValue().Outcome
+				!= EBattleTargetResolutionOutcome::Resolved
+			|| Action.EffectExecutionState != EBattleLockedEffectExecutionState::Pending
+			|| Action.bFinished
+			|| !State.Random.IsValid())
+		{
+			return false;
+		}
+
+		const int32 ActorIndex = State.Battlers.IndexOfByPredicate(
+			[&Action](const FBattleBattlerState& Candidate)
+			{
+				return Candidate.BattlerId == Action.Decision.GetActingBattlerId();
+			});
+		const FBattleActivePositionState* Active = State.FindActivePosition(
+			Action.OrderKey.ActingSlotId);
+		if (!State.Battlers.IsValidIndex(ActorIndex)
+			|| Active == nullptr
+			|| !Active->bAvailable
+			|| Active->TrainerId != Action.Decision.GetDecisionOwnerTrainerId()
+			|| Active->BattlerId != Action.Decision.GetActingBattlerId())
+		{
+			return false;
+		}
+
+		const FMoveId MoveId = Action.Decision.GetMoveId();
+		const FBattleMoveDefinition* Move =
+			MoveId == FBattleBuiltInMoveDefinitions::GetStruggleMoveId()
+				? &FBattleBuiltInMoveDefinitions::GetStruggle()
+				: State.Catalog.FindMove(MoveId);
+		if (Move == nullptr
+			|| Action.TargetClass != Move->TargetClass
+			|| Action.TargetResolution.GetValue().TargetClass != Action.TargetClass)
+		{
+			return false;
+		}
+
+		OutIdentity.ExpectedAction = Action;
+		OutIdentity.ExpectedBattleId = State.Setup.GetBattleId();
+		OutIdentity.ExpectedTurnId = State.TurnId;
+		OutIdentity.ExpectedEncounterKind = State.EncounterKind;
+		OutIdentity.ExpectedFormat = State.Format;
+		OutIdentity.bExpectedHasCatalog = State.bHasCatalog;
+		OutIdentity.ExpectedMove = *Move;
+		OutIdentity.ExpectedActorIndex = ActorIndex;
+		OutIdentity.ExpectedOwnerId = Action.Decision.GetDecisionOwnerTrainerId();
+		OutIdentity.ExpectedActorId = Action.Decision.GetActingBattlerId();
+		OutIdentity.ExpectedActingSlotId = Action.OrderKey.ActingSlotId;
+		OutIdentity.ExpectedTrainers = State.Trainers;
+		OutIdentity.ExpectedBattlers = State.Battlers;
+		OutIdentity.ExpectedActivePositions = State.ActivePositions;
+		OutIdentity.ExpectedField = State.Field;
+		OutIdentity.ExpectedSides = State.Sides;
+		OutIdentity.ExpectedCatalog = State.Catalog;
+		OutIdentity.ExpectedPolicies = State.CompiledEncounterPolicies;
+		for (const FBattleActiveAssignment& Assignment : State.Setup.GetStartingActive())
+		{
+			OutIdentity.ExpectedStartingActive.Add(Assignment);
+		}
+		OutIdentity.ExpectedLockedActions = State.LockedActions;
+		OutIdentity.bExpectedLockedOrderReversesSpeed = State.bLockedOrderReversesSpeed;
+		OutIdentity.ExpectedOutcome = State.Outcome;
+		OutIdentity.ExpectedOutcomeCause = State.OutcomeCause;
+		OutIdentity.ExpectedPendingDecision = State.PendingDecision;
+		OutIdentity.ExpectedPendingDecisionRequests = State.PendingDecisionRequests;
+		OutIdentity.ExpectedPendingReplacements = State.PendingReplacements;
+		OutIdentity.ExpectedDecisionOwnerSequence = State.DecisionOwnerSequence;
+		OutIdentity.ExpectedCurrentDecisionOwnerIndex = State.CurrentDecisionOwnerIndex;
+		OutIdentity.ExpectedCurrentDecisionActorOffset = State.CurrentDecisionActorOffset;
+		OutIdentity.ExpectedAcceptedSelections = State.AcceptedSelections;
+		OutIdentity.ExpectedSubmittedDecisions = State.SubmittedDecisions;
+		OutIdentity.ExpectedPendingTriggerDispatchCount =
+			State.TriggerFramework.GetPendingDispatchCount();
+		OutIdentity.ExpectedPendingTriggerEffectCount =
+			State.TriggerFramework.GetPendingEffectRequestCount();
+		OutIdentity.ExpectedPendingTriggerLifecycleCount =
+			State.TriggerFramework.GetPendingLifecycleFactCount();
+		OutIdentity.ExpectedNextConditionCreationOrdinal =
+			State.NextConditionCreationOrdinal;
+		OutIdentity.ExpectedNextTriggerReentrancyToken =
+			State.NextTriggerReentrancyToken;
+		OutIdentity.ExpectedNextActionId = State.NextActionId;
+		OutIdentity.bExpectedEndTurnTriggerPassComplete =
+			State.bEndTurnTriggerPassComplete;
+		OutIdentity.ExpectedOpponentRemovalCheckpoints =
+			State.AvailableOpponentRemovalCheckpoints;
+		OutIdentity.ExpectedResolutions = State.Resolutions;
+		OutIdentity.ExpectedOrderedEvents = State.OrderedEvents;
+		for (const FBattleHeldItemInstanceState& Item : State.HeldItemLedger.GetStates())
+		{
+			OutIdentity.ExpectedHeldItemStates.Add(Item);
+		}
+		for (const FBattleTriggerRegistrationState& Registration :
+			State.TriggerFramework.GetActiveRegistrations())
+		{
+			OutIdentity.ExpectedTriggerRegistrations.Add(Registration);
+		}
+		for (const FBattleBattlerState& Battler : State.Battlers)
+		{
+			OutIdentity.BattlerIdentities.Add(MakeVoluntarySwitchBattlerIdentity(Battler));
+			FBattleTriggerSubject Owner;
+			const bool bOwnerValid = FBattleTriggerSubject::TryCreateBattler(
+				Battler.BattlerId,
+				Owner);
+			FBattleTriggerSourceDefinition AbilitySource;
+			const bool bAbilityRevealed = bOwnerValid
+				&& FBattleTriggerSourceDefinition::TryCreateAbility(
+					Battler.AbilityId,
+					AbilitySource)
+				&& State.AbilityItemRevealTracker.HasBeenRevealed(AbilitySource, Owner);
+			FBattleTriggerSourceDefinition ItemSource;
+			const bool bItemRevealed = bOwnerValid
+				&& Battler.HeldItem.CurrentItemId.IsValid()
+				&& FBattleTriggerSourceDefinition::TryCreateItem(
+					Battler.HeldItem.CurrentItemId,
+					ItemSource)
+				&& State.AbilityItemRevealTracker.HasBeenRevealed(ItemSource, Owner);
+			OutIdentity.ExpectedAbilityRevealFacts.Add(bAbilityRevealed ? 1 : 0);
+			OutIdentity.ExpectedItemRevealFacts.Add(bItemRevealed ? 1 : 0);
+		}
+		for (const FBattleActivePositionState& Position : State.ActivePositions)
+		{
+			FVoluntarySwitchActiveIdentity& Identity =
+				OutIdentity.ActiveIdentities.AddDefaulted_GetRef();
+			Identity.ActiveSlotId = Position.ActiveSlotId;
+			Identity.TrainerId = Position.TrainerId;
+			Identity.BattlerId = Position.BattlerId;
+			Identity.bAvailable = Position.bAvailable;
+		}
+		const TConstArrayView<FBattleRandomDraw> Trace = State.Random->GetTrace();
+		for (const FBattleRandomDraw& Draw : Trace)
+		{
+			OutIdentity.ExpectedRandomTrace.Add(Draw);
+		}
+		return FBattleResolutionCommit::TryCaptureIdentity(
+			State,
+			ResolutionId,
+			Action.ActionId,
+			OutIdentity.CommitIdentity);
+	}
+
+	bool IsMoveEffectsCheckpointIdentityCurrent(
+		const FBattleEngineState& State,
+		const FMoveEffectsCheckpointIdentity& Identity)
+	{
+		const FBattleResolutionCommitIdentity& Commit = Identity.CommitIdentity;
+		if (!FBattleResolutionCommit::IsIdentityCurrent(State, Commit)
+			|| !State.LockedActions.IsValidIndex(Commit.ExpectedLockedActionIndex)
+			|| !State.Battlers.IsValidIndex(Identity.ExpectedActorIndex)
+			|| State.Setup.GetBattleId() != Identity.ExpectedBattleId
+			|| State.TurnId != Identity.ExpectedTurnId
+			|| State.EncounterKind != Identity.ExpectedEncounterKind
+			|| State.Format != Identity.ExpectedFormat
+			|| State.bHasCatalog != Identity.bExpectedHasCatalog
+			|| State.bLockedOrderReversesSpeed != Identity.bExpectedLockedOrderReversesSpeed
+			|| State.Outcome != Identity.ExpectedOutcome
+			|| State.OutcomeCause != Identity.ExpectedOutcomeCause
+			|| State.CurrentDecisionOwnerIndex != Identity.ExpectedCurrentDecisionOwnerIndex
+			|| State.CurrentDecisionActorOffset != Identity.ExpectedCurrentDecisionActorOffset
+			|| State.NextConditionCreationOrdinal
+				!= Identity.ExpectedNextConditionCreationOrdinal
+			|| State.NextTriggerReentrancyToken
+				!= Identity.ExpectedNextTriggerReentrancyToken
+			|| State.NextActionId != Identity.ExpectedNextActionId
+			|| State.bEndTurnTriggerPassComplete
+				!= Identity.bExpectedEndTurnTriggerPassComplete
+			|| !ArePivotLockedActionsIdentical(
+				State.LockedActions[Commit.ExpectedLockedActionIndex],
+				Identity.ExpectedAction)
+			|| State.LockedActions.Num() != Identity.ExpectedLockedActions.Num()
+			|| !AreMoveEffectsTrainersIdentical(State.Trainers, Identity.ExpectedTrainers)
+			|| State.Battlers.Num() != Identity.ExpectedBattlers.Num()
+			|| !AreMoveEffectsActivePositionsIdentical(
+				State.ActivePositions,
+				Identity.ExpectedActivePositions)
+			|| !AreMoveEffectsFieldsIdentical(State.Field, Identity.ExpectedField)
+			|| !AreMoveEffectsSidesIdentical(State.Sides, Identity.ExpectedSides)
+			|| !AreMoveEffectsCatalogsIdentical(State.Catalog, Identity.ExpectedCatalog)
+			|| !AreMoveEffectsPoliciesIdentical(
+				State.CompiledEncounterPolicies,
+				Identity.ExpectedPolicies)
+			|| !AreTargetResolutionPendingDecisionIdentical(
+				State.PendingDecision,
+				Identity.ExpectedPendingDecision)
+			|| !AreTargetResolutionRequestsIdentical(
+				State.PendingDecisionRequests,
+				Identity.ExpectedPendingDecisionRequests)
+			|| !AreTargetResolutionPendingReplacementsIdentical(
+				State.PendingReplacements,
+				Identity.ExpectedPendingReplacements)
+			|| State.AvailableOpponentRemovalCheckpoints
+				!= Identity.ExpectedOpponentRemovalCheckpoints
+			|| State.TriggerFramework.GetPendingDispatchCount()
+				!= Identity.ExpectedPendingTriggerDispatchCount
+			|| State.TriggerFramework.GetPendingEffectRequestCount()
+				!= Identity.ExpectedPendingTriggerEffectCount
+			|| State.TriggerFramework.GetPendingLifecycleFactCount()
+				!= Identity.ExpectedPendingTriggerLifecycleCount
+			|| State.TriggerFramework.GetActiveRegistrations().Num()
+				!= Identity.ExpectedTriggerRegistrations.Num()
+			|| State.HeldItemLedger.GetStates().Num()
+				!= Identity.ExpectedHeldItemStates.Num()
+			|| State.Resolutions.Num() != Identity.ExpectedResolutions.Num()
+			|| State.OrderedEvents.Num() != Identity.ExpectedOrderedEvents.Num())
+		{
+			return false;
+		}
+
+		for (int32 Index = 0; Index < State.LockedActions.Num(); ++Index)
+		{
+			if (!ArePivotLockedActionsIdentical(
+					State.LockedActions[Index],
+					Identity.ExpectedLockedActions[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.Battlers.Num(); ++Index)
+		{
+			if (!ArePreMoveBattlersIdentical(
+					State.Battlers[Index],
+					Identity.ExpectedBattlers[Index]))
+			{
+				return false;
+			}
+			const FBattleBattlerState& Battler = State.Battlers[Index];
+			FBattleTriggerSubject Owner;
+			if (!FBattleTriggerSubject::TryCreateBattler(Battler.BattlerId, Owner))
+			{
+				return false;
+			}
+			FBattleTriggerSourceDefinition AbilitySource;
+			const bool bAbilityRevealed =
+				FBattleTriggerSourceDefinition::TryCreateAbility(
+					Battler.AbilityId,
+					AbilitySource)
+				&& State.AbilityItemRevealTracker.HasBeenRevealed(AbilitySource, Owner);
+			FBattleTriggerSourceDefinition ItemSource;
+			const bool bItemRevealed = Battler.HeldItem.CurrentItemId.IsValid()
+				&& FBattleTriggerSourceDefinition::TryCreateItem(
+					Battler.HeldItem.CurrentItemId,
+					ItemSource)
+				&& State.AbilityItemRevealTracker.HasBeenRevealed(ItemSource, Owner);
+			if ((bAbilityRevealed ? 1 : 0) != Identity.ExpectedAbilityRevealFacts[Index]
+				|| (bItemRevealed ? 1 : 0) != Identity.ExpectedItemRevealFacts[Index])
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.TriggerFramework.GetActiveRegistrations().Num(); ++Index)
+		{
+			if (!ArePreMoveTriggerRegistrationsIdentical(
+					State.TriggerFramework.GetActiveRegistrations()[Index],
+					Identity.ExpectedTriggerRegistrations[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.HeldItemLedger.GetStates().Num(); ++Index)
+		{
+			if (!(State.HeldItemLedger.GetStates()[Index]
+				== Identity.ExpectedHeldItemStates[Index]))
+			{
+				return false;
+			}
+		}
+		if (State.Setup.GetStartingActive().Num() != Identity.ExpectedStartingActive.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < State.Setup.GetStartingActive().Num(); ++Index)
+		{
+			const FBattleActiveAssignment& L = State.Setup.GetStartingActive()[Index];
+			const FBattleActiveAssignment& R = Identity.ExpectedStartingActive[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.BattlerId != R.BattlerId
+				|| L.ActiveSlotId != R.ActiveSlotId)
+			{
+				return false;
+			}
+		}
+		if (State.DecisionOwnerSequence.Num() != Identity.ExpectedDecisionOwnerSequence.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < State.DecisionOwnerSequence.Num(); ++Index)
+		{
+			const FBattleDecisionOwnerState& L = State.DecisionOwnerSequence[Index];
+			const FBattleDecisionOwnerState& R = Identity.ExpectedDecisionOwnerSequence[Index];
+			if (L.TrainerId != R.TrainerId
+				|| L.Controller != R.Controller
+				|| L.Actors.Num() != R.Actors.Num())
+			{
+				return false;
+			}
+			for (int32 ActorIndex = 0; ActorIndex < L.Actors.Num(); ++ActorIndex)
+			{
+				if (L.Actors[ActorIndex].BattlerId != R.Actors[ActorIndex].BattlerId
+					|| L.Actors[ActorIndex].ActiveSlotId
+						!= R.Actors[ActorIndex].ActiveSlotId)
+				{
+					return false;
+				}
+			}
+		}
+		if (State.AcceptedSelections.Num() != Identity.ExpectedAcceptedSelections.Num()
+			|| State.SubmittedDecisions.Num() != Identity.ExpectedSubmittedDecisions.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < State.AcceptedSelections.Num(); ++Index)
+		{
+			if (!ArePivotDecisionsIdentical(
+					State.AcceptedSelections[Index],
+					Identity.ExpectedAcceptedSelections[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.SubmittedDecisions.Num(); ++Index)
+		{
+			if (!ArePivotDecisionsIdentical(
+					State.SubmittedDecisions[Index],
+					Identity.ExpectedSubmittedDecisions[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.Resolutions.Num(); ++Index)
+		{
+			if (!AreMoveEffectsResolutionsIdentical(
+					State.Resolutions[Index],
+					Identity.ExpectedResolutions[Index]))
+			{
+				return false;
+			}
+		}
+		for (int32 Index = 0; Index < State.OrderedEvents.Num(); ++Index)
+		{
+			if (!AreMoveEffectsEventsIdentical(
+					State.OrderedEvents[Index],
+					Identity.ExpectedOrderedEvents[Index]))
+			{
+				return false;
+			}
+		}
+		const TConstArrayView<FBattleRandomDraw> CurrentTrace = State.Random->GetTrace();
+		if (CurrentTrace.Num() != Identity.ExpectedRandomTrace.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Identity.ExpectedRandomTrace.Num(); ++Index)
+		{
+			if (CurrentTrace[Index] != Identity.ExpectedRandomTrace[Index])
+			{
+				return false;
+			}
+		}
+		const FBattleMoveDefinition* CurrentMove =
+			Identity.ExpectedMove.Id == FBattleBuiltInMoveDefinitions::GetStruggleMoveId()
+				? &FBattleBuiltInMoveDefinitions::GetStruggle()
+				: State.Catalog.FindMove(Identity.ExpectedMove.Id);
+		const FBattleActivePositionState* CurrentActive =
+			State.FindActivePosition(Identity.ExpectedActingSlotId);
+		return CurrentMove != nullptr
+			&& AreMoveEffectsDefinitionsIdentical(*CurrentMove, Identity.ExpectedMove)
+			&& ArePivotLockedActionsIdentical(
+				State.LockedActions[Commit.ExpectedLockedActionIndex],
+				Identity.ExpectedAction)
+			&& State.Battlers[Identity.ExpectedActorIndex].BattlerId
+				== Identity.ExpectedActorId
+			&& State.Battlers[Identity.ExpectedActorIndex].TrainerId
+				== Identity.ExpectedOwnerId
+			&& CurrentActive != nullptr
+			&& CurrentActive->bAvailable
+			&& CurrentActive->TrainerId == Identity.ExpectedOwnerId
+			&& CurrentActive->BattlerId == Identity.ExpectedActorId;
+	}
+
+	struct FMoveEffectsCheckpointDelta
+	{
+		FAtomicSwitchStateDelta State;
+		FBattleLockedActionState Action;
+	};
+
+	bool TryCaptureMoveEffectsCheckpointDelta(
+		const FBattleEngineState& Projection,
+		const FMoveEffectsCheckpointIdentity& Identity,
+		FMoveEffectsCheckpointDelta& OutDelta)
+	{
+		OutDelta = FMoveEffectsCheckpointDelta();
+		const int32 ActionIndex = Identity.CommitIdentity.ExpectedLockedActionIndex;
+		if (!Projection.LockedActions.IsValidIndex(ActionIndex)
+			|| Projection.LockedActions[ActionIndex].ActionId
+				!= Identity.CommitIdentity.OwningActionId)
+		{
+			return false;
+		}
+		const FBattleLockedActionState& Action = Projection.LockedActions[ActionIndex];
+		if ((Action.EffectExecutionState == EBattleLockedEffectExecutionState::Completed
+				&& (!Action.bFinished
+					|| Projection.CurrentLockedActionIndex != ActionIndex + 1))
+			|| (Action.EffectExecutionState
+					== EBattleLockedEffectExecutionState::AwaitingPivot
+				&& (Action.bFinished
+					|| Projection.CurrentLockedActionIndex != ActionIndex
+					|| !Projection.PendingDecision.IsSet()
+					|| Projection.PendingDecisionRequests.Num() != 1
+					|| Projection.PendingDecisionRequests[0].GetRequestKind()
+						!= EBattleDecisionRequestKind::PivotSwitch))
+			|| (Action.EffectExecutionState != EBattleLockedEffectExecutionState::Completed
+				&& Action.EffectExecutionState
+					!= EBattleLockedEffectExecutionState::AwaitingPivot))
+		{
+			return false;
+		}
+		CaptureAtomicSwitchDelta(Projection, OutDelta.State);
+		OutDelta.Action = Action;
+		return AreAtomicSwitchDeltaRecordsValid(
+			Identity.BattlerIdentities,
+			Identity.ActiveIdentities,
+			OutDelta.State);
+	}
+
+	void ApplyMoveEffectsCheckpointDelta(
+		FBattleEngineState& State,
+		const FMoveEffectsCheckpointIdentity& Identity,
+		FMoveEffectsCheckpointDelta&& Delta)
+	{
+		State.Battlers = MoveTemp(Delta.State.Battlers);
+		State.ActivePositions = MoveTemp(Delta.State.ActivePositions);
+		State.Field = MoveTemp(Delta.State.Field);
+		State.Sides = MoveTemp(Delta.State.Sides);
+		State.TriggerFramework = MoveTemp(Delta.State.TriggerFramework);
+		State.AbilityItemRevealTracker = MoveTemp(Delta.State.AbilityItemRevealTracker);
+		State.HeldItemLedger = MoveTemp(Delta.State.HeldItemLedger);
+		State.NextConditionCreationOrdinal = Delta.State.NextConditionCreationOrdinal;
+		State.NextTriggerReentrancyToken = Delta.State.NextTriggerReentrancyToken;
+		State.CurrentLockedActionIndex = Delta.State.NextLockedActionIndex;
+		State.Phase = Delta.State.Phase;
+		State.Outcome = Delta.State.Outcome;
+		State.OutcomeCause = Delta.State.OutcomeCause;
+		State.PendingDecision = MoveTemp(Delta.State.PendingDecision);
+		State.PendingDecisionRequests = MoveTemp(Delta.State.PendingDecisionRequests);
+		State.PendingReplacements = MoveTemp(Delta.State.PendingReplacements);
+		State.AvailableOpponentRemovalCheckpoints =
+			MoveTemp(Delta.State.AvailableOpponentRemovalCheckpoints);
+		State.LockedActions[Identity.CommitIdentity.ExpectedLockedActionIndex] =
+			MoveTemp(Delta.Action);
+	}
+
+	bool TryPrepareMoveEffectsPivotRequest(
+		const FBattleEngineState& State,
+		const FBattleLockedActionState& Action,
+		const uint64 StateVersion,
+		bool& OutHasLegalReserve,
+		TOptional<FBattleDecisionRequest>& OutRequest)
+	{
+		OutHasLegalReserve = false;
+		OutRequest.Reset();
+		FBattleSwitchLegalityResult Legality;
+		if (!TryBuildSwitchLegality(
+				State,
+				EBattleSwitchKind::Pivot,
+				Action.Decision.GetDecisionOwnerTrainerId(),
+				Action.Decision.GetActingBattlerId(),
+				Action.OrderKey.ActingSlotId,
+				TConstArrayView<FPartySlotId>(),
+				Legality))
+		{
+			return false;
+		}
+		if (Legality.GetLegalPartySlots().IsEmpty())
+		{
+			return true;
+		}
+		OutHasLegalReserve = true;
+		FBattleDecisionRequestSpec Spec;
+		Spec.StateVersion = StateVersion;
+		Spec.RequestKind = EBattleDecisionRequestKind::PivotSwitch;
+		Spec.DecisionOwnerTrainerId = Action.Decision.GetDecisionOwnerTrainerId();
+		Spec.ActingBattlerId = Action.Decision.GetActingBattlerId();
+		Spec.ActingSlotId = Action.OrderKey.ActingSlotId;
+		Spec.LegalActionKinds.Add(EBattleActionKind::Switch);
+		for (const FPartySlotId PartySlotId : Legality.GetLegalPartySlots())
+		{
+			Spec.LegalSwitchPartySlots.Add(PartySlotId);
+		}
+		Spec.LegalActiveTargets.Add(Action.OrderKey.ActingSlotId);
+		FBattleDecisionRequest Request;
+		FBattleRejection Rejection;
+		if (!FBattleDecisionRequest::TryCreate(Spec, Request, Rejection))
+		{
+			return false;
+		}
+		OutRequest = MoveTemp(Request);
+		return true;
+	}
+
+	bool TryAppendMoveEffectsPartnerRecoveryEvent(
+		FBattleEngineState& Projection,
+		const FResolutionId ResolutionId,
+		const FActionId ActionId,
+		const EBattleActionKind ActionKind,
+		const FBattleEventSource& Source,
+		const FBattleFaintOutcomeResolution& FaintResolution,
+		TArray<FBattleEvent>& Events)
+	{
+		if (!FaintResolution.PartnerTeamVictoryRecovery.IsSet())
+		{
+			return true;
+		}
+		const FBattlePartnerTeamVictoryRecovery& Recovery =
+			FaintResolution.PartnerTeamVictoryRecovery.GetValue();
+		if (!Recovery.bMajorStatusCured
+			|| Projection.NextEventOrdinal == 0
+			|| Projection.NextEventOrdinal == TNumericLimits<uint64>::Max())
+		{
+			return false;
+		}
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = Projection.NextEventOrdinal;
+		Spec.BattleId = Projection.Setup.GetBattleId();
+		Spec.TurnId = Projection.TurnId;
+		Spec.ActionId = ActionId;
+		Spec.ResolutionId = ResolutionId;
+		Spec.Type = EBattleEventType::PartnerTeamVictoryRecovery;
+		Spec.Cause = EBattleEventCause::Outcome;
+		Spec.CauseActionKind = ActionKind;
+		Spec.OutcomeCause = EBattleOutcomeCause::PartnerTeamVictory;
+		Spec.Source = Source;
+		Spec.Targets.Add(Recovery.Target);
+		Spec.NumericBefore = Recovery.PreviousHP;
+		Spec.NumericAfter = Recovery.NewHP;
+		Spec.NumericDelta = Recovery.NewHP - Recovery.PreviousHP;
+		Spec.Visibility.Level = EBattleVisibilityLevel::Public;
+		FBattleEvent Event;
+		if (!FBattleEvent::TryCreate(Spec, Event))
+		{
+			return false;
+		}
+		++Projection.NextEventOrdinal;
+		Events.Add(MoveTemp(Event));
+		return true;
+	}
+
+	bool TryPublishMoveEffectsCheckpointRejection(
 		FBattleEngineState& State,
 		const FResolutionId ResolutionId,
 		const FActionId ActionId,
@@ -15290,404 +16343,586 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 			FallbackSource);
 	}
 
-	check(Action != nullptr && User != nullptr && Move != nullptr);
-	FMoveId StoredChargeMoveId;
-	const bool bWasChargedRelease = HasVolatile(
-			*User,
-			FBattleVolatileRules::GetChargingId())
-		&& TryGetVolatilePayloadMoveId(
-			*State,
-			User->BattlerId,
-			FBattleVolatileRules::GetChargingId(),
-			StoredChargeMoveId)
-		&& StoredChargeMoveId == Move->Id;
-	Action->EffectExecutionState = EBattleLockedEffectExecutionState::Executing;
-
-	FBattleEffectExecutionRequest Request;
-	Request.BattleId = State->Setup.GetBattleId();
-	Request.TurnId = State->TurnId;
-	Request.ActionId = Action->ActionId;
-	Request.ResolutionId = ResolutionId;
-	Request.UserBattlerId = User->BattlerId;
-	Request.UserSlotId = Action->OrderKey.ActingSlotId;
-	Request.Move = Move;
-	Request.Targets = Action->TargetResolution.GetValue().Targets;
-
-	FBattleEffectExecutionResult EffectResult;
-	EBattleEffectExecutorError EffectError = EBattleEffectExecutorError::None;
-	if (!FBattleEffectExecutor::TryExecuteAgainstState(
-		Request,
-		*State,
-		EffectResult,
-		EffectError))
 	{
-		Action->EffectExecutionState = EBattleLockedEffectExecutionState::Pending;
-		Rejection.Reason = EffectError == EBattleEffectExecutorError::InvalidMoveDefinition
-			? EBattleRejectionReason::IllegalMove
-			: EBattleRejectionReason::InvalidDecision;
-		Rejection.ActionId = Action->ActionId;
-		return MakeRejectedResolution(
-			*State,
-			ResolutionId,
-			Rejection,
-			EBattleEventType::ActionCanceled,
-			EBattleEventCause::Move,
-			EBattleActionKind::Fight,
-			FallbackSource);
-	}
-	if (bWasChargedRelease)
-	{
-		const bool bChargeCleared = TryClearChargeState(
-			*State,
-			User->BattlerId,
-			EBattleTriggerCleanupReason::Removal);
-		check(bChargeCleared);
-	}
-
-	const uint64 BeforeStateVersion = State->StateVersion;
-	TMap<FBattlerId, FConditionId> PendingFaintStatuses;
-	TMap<FBattlerId, TArray<FConditionId>> PendingFaintVolatiles;
-	for (const FBattleBattlerState& Candidate : State->Battlers)
-	{
-		if (!Candidate.bFaintTransitionPending)
-		{
-			continue;
-		}
-		if (FBattleMajorStatusRules::IsCanonical(Candidate.MajorStatusId))
-		{
-			PendingFaintStatuses.Add(Candidate.BattlerId, Candidate.MajorStatusId);
-		}
-		TArray<FConditionId>& VolatileIds = PendingFaintVolatiles.FindOrAdd(
-			Candidate.BattlerId);
-		for (const FBattleConditionState& Condition : Candidate.Volatiles)
-		{
-			if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
-			{
-				VolatileIds.Add(Condition.ConditionId);
-			}
-		}
-	}
-	for (const TPair<FBattlerId, TArray<FConditionId>>& Pending : PendingFaintVolatiles)
-	{
-		FBattleBattlerState* PendingBattler = State->FindMutableBattler(Pending.Key);
-		if (PendingBattler != nullptr)
-		{
-			PendingBattler->LastMoveId = FMoveId();
-		}
-		const bool bSourceEffectsCleaned = TryCleanupSourceDependentVolatiles(
-			*State,
-			Pending.Key,
-			EBattleTriggerCleanupReason::Removal);
-		check(bSourceEffectsCleaned);
-	}
-	FBattleFaintOutcomeResolution FaintResolution;
-	const bool bFaintsResolved = FBattleFaintOutcomeResolver::TryResolveAction(
-		EffectResult,
-		Action->TargetClass,
-		ResolutionId,
-		*State,
-		FaintResolution);
-	if (!bFaintsResolved)
-	{
-		UE_LOG(
-			LogTemp,
-			Fatal,
-			TEXT("C05C faint resolution disagreed with already committed effect state."));
-	}
-	for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
-	{
-		FBattleBattlerState* RemovedBattler = State->FindMutableBattler(
-			Removal.Target.BattlerId);
-		if (RemovedBattler != nullptr)
-		{
-			const bool bAbilityCleaned = TryCleanupAbilityTriggers(
-				*State,
-				RemovedBattler->AbilityId,
-				RemovedBattler->BattlerId,
-				EBattleTriggerCleanupReason::Faint);
-			const bool bItemCleaned = TryCleanupItemTriggers(
-				*State,
-				RemovedBattler->HeldItem.CurrentItemId,
-				RemovedBattler->BattlerId,
-				EBattleTriggerCleanupReason::Faint);
-			check(bAbilityCleaned && bItemCleaned);
-			RemovedBattler->bAbilitySuppressed = false;
-			RemovedBattler->EnteredActiveOnTurnId = FTurnId();
-		}
-		const FConditionId* StatusId = PendingFaintStatuses.Find(Removal.Target.BattlerId);
-		if (StatusId != nullptr)
-		{
-			const bool bCleaned = TryCleanupMajorStatusTriggers(
-				*State,
-				*StatusId,
-				Removal.Target.BattlerId,
-				EBattleTriggerCleanupReason::Faint);
-			check(bCleaned);
-		}
-		if (const TArray<FConditionId>* VolatileIds = PendingFaintVolatiles.Find(
-			Removal.Target.BattlerId))
-		{
-			for (const FConditionId& VolatileId : *VolatileIds)
-			{
-				const bool bCleaned = TryCleanupVolatileTriggers(
-					*State,
-					VolatileId,
-					Removal.Target.BattlerId,
-					EBattleTriggerCleanupReason::Faint);
-				check(bCleaned);
-			}
-		}
-	}
-	if (FaintResolution.bBattleEnded)
-	{
-		const bool bBattleEndCleaned = TryCleanupBattleEndTriggers(*State);
-		check(bBattleEndCleaned);
-	}
-	const uint64 AfterStateVersion = State->StateVersion + 1;
-	check(AfterStateVersion != 0);
-	TOptional<FBattleDecisionRequest> PivotRequest;
-	if (!FaintResolution.bBattleEnded)
-	{
-		for (FBattleSwitchEffectIntent& Intent : EffectResult.SwitchIntents)
-		{
-			if (Intent.Kind != EBattleSwitchKind::Pivot)
-			{
-				continue;
-			}
-			FBattleDecisionRequest CandidateRequest;
-			if (!PivotRequest.IsSet()
-				&& TryBuildPivotDecisionRequest(
-					*State,
-					*Action,
-					AfterStateVersion,
-					CandidateRequest))
-			{
-				PivotRequest = MoveTemp(CandidateRequest);
-			}
-			else
-			{
-				Intent.BlockReason = EBattleSwitchBlockReason::NoLegalReserve;
-			}
-		}
-	}
-	else
-	{
-		for (FBattleSwitchEffectIntent& Intent : EffectResult.SwitchIntents)
-		{
-			if (Intent.Kind == EBattleSwitchKind::Pivot)
-			{
-				Intent.BlockReason = EBattleSwitchBlockReason::ActingBattlerUnavailable;
-			}
-		}
-	}
-
-	TArray<FBattleEvent> Events;
-	Events.Reserve(
-		EffectResult.Events.Num()
-		+ EffectResult.SwitchIntents.Num() * 3
-		+ FaintResolution.Faints.Num()
-		+ FaintResolution.Removals.Num() * 3
-		+ 3);
-	TArray<FBattlerId> ForcedAbilityEntrants;
-	for (int32 EventIndex = 0; EventIndex < EffectResult.Events.Num(); ++EventIndex)
-	{
-		FBattleEffectExecutionEvent Record = EffectResult.Events[EventIndex];
-		TOptional<uint64> SimultaneousGroupId;
-		if (const uint64* GroupId = FaintResolution.SimultaneousGroupsByEffectEvent.Find(EventIndex))
-		{
-			SimultaneousGroupId = *GroupId;
-		}
-		const FBattleSwitchEffectIntent* SwitchIntent =
-			EffectResult.SwitchIntents.FindByPredicate(
-				[EventIndex](const FBattleSwitchEffectIntent& Candidate)
-				{
-					return Candidate.EffectEventIndex == EventIndex;
-				});
-		if (SwitchIntent != nullptr && SwitchIntent->bApplied)
-		{
-			AppendSwitchTransitionEvents(
+		FMoveEffectsCheckpointIdentity CheckpointIdentity;
+		if (!TryCaptureMoveEffectsCheckpointIdentity(
 				*State,
 				ResolutionId,
 				*Action,
-				SwitchIntent->OutgoingTarget,
-				SwitchIntent->IncomingTarget,
-				Events);
-			if (SwitchIntent->Kind == EBattleSwitchKind::Forced)
+				CheckpointIdentity))
+		{
+			FBattleResolution Rejected;
+			TryPublishMoveEffectsCheckpointRejection(
+				*State,
+				ResolutionId,
+				Action->ActionId,
+				EBattleRejectionReason::CheckpointPreparationFailed,
+				Action->Decision.GetDecisionOwnerTrainerId(),
+				Action->Decision.GetActingBattlerId(),
+				FallbackSource,
+				Rejected);
+			return Rejected;
+		}
+
+		const FActionId ActionId = CheckpointIdentity.CommitIdentity.OwningActionId;
+		const FTrainerId OwnerId = CheckpointIdentity.ExpectedOwnerId;
+		const FBattlerId ActorId = CheckpointIdentity.ExpectedActorId;
+		const FBattleEventSource CheckpointSource = FallbackSource;
+		TUniquePtr<IBattleRandomTransaction> RandomTransaction;
+		auto RejectCheckpoint =
+			[&](const EBattleRejectionReason Reason)
 			{
-				ForcedAbilityEntrants.Add(SwitchIntent->IncomingTarget.BattlerId);
+				if (RandomTransaction.IsValid())
+				{
+					RandomTransaction->Rollback();
+				}
+				FBattleResolution Rejected;
+				TryPublishMoveEffectsCheckpointRejection(
+					*State,
+					ResolutionId,
+					ActionId,
+					Reason,
+					OwnerId,
+					ActorId,
+					CheckpointSource,
+					Rejected);
+				return Rejected;
+			};
+
+		if (!State->Random.IsValid()
+			|| !State->Random->TryCreateTransaction(
+				ResolutionId,
+				ActionId,
+				RandomTransaction)
+			|| !RandomTransaction.IsValid())
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointRandomStageFailed);
+		}
+
+		FBattleResolutionCommitPlan CommitPlan;
+		if (!FBattleResolutionCommit::TryBeginAcceptedPlan(
+				CheckpointIdentity.CommitIdentity,
+				CommitPlan))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		FBattleEngineState Projection;
+		PopulateAtomicSwitchProjection(*State, Projection);
+		const int32 ActionIndex = CheckpointIdentity.CommitIdentity.ExpectedLockedActionIndex;
+		if (!Projection.LockedActions.IsValidIndex(ActionIndex)
+			|| !Projection.Battlers.IsValidIndex(CheckpointIdentity.ExpectedActorIndex))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		FBattleLockedActionState& ProjectedAction = Projection.LockedActions[ActionIndex];
+		ProjectedAction.EffectExecutionState = EBattleLockedEffectExecutionState::Executing;
+
+		const FBattleBattlerState& ExpectedActor =
+			CheckpointIdentity.ExpectedBattlers[CheckpointIdentity.ExpectedActorIndex];
+		FMoveId StoredChargeMoveId;
+		const bool bWasChargedRelease = HasVolatile(
+				ExpectedActor,
+				FBattleVolatileRules::GetChargingId())
+			&& TryGetVolatilePayloadMoveId(
+				*State,
+				ExpectedActor.BattlerId,
+				FBattleVolatileRules::GetChargingId(),
+				StoredChargeMoveId)
+			&& StoredChargeMoveId == CheckpointIdentity.ExpectedMove.Id;
+
+		FBattleEffectExecutionRequest Request;
+		Request.BattleId = CheckpointIdentity.ExpectedBattleId;
+		Request.TurnId = CheckpointIdentity.ExpectedTurnId;
+		Request.ActionId = ActionId;
+		Request.ResolutionId = ResolutionId;
+		Request.UserBattlerId = ActorId;
+		Request.UserSlotId = CheckpointIdentity.ExpectedActingSlotId;
+		Request.Move = &CheckpointIdentity.ExpectedMove;
+		Request.Targets = CheckpointIdentity.ExpectedAction.TargetResolution.GetValue().Targets;
+
+		FBattleEffectExecutionPlan EffectPlan;
+		EBattleEffectExecutorError EffectError = EBattleEffectExecutorError::None;
+		if (!FBattleEffectExecutor::TryPrepareAgainstState(
+				Request,
+				Projection,
+				*RandomTransaction,
+				EffectPlan,
+				EffectError))
+		{
+			return RejectCheckpoint(
+				EffectError == EBattleEffectExecutorError::RandomFailure
+					? EBattleRejectionReason::CheckpointRandomStageFailed
+					: EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		FBattleEffectExecutionResult EffectResult = MoveTemp(EffectPlan.Result);
+		FBattleEffectExecutor::ApplyPreparedPlan(Projection, MoveTemp(EffectPlan));
+		if (bWasChargedRelease
+			&& !TryClearChargeState(
+				Projection,
+				ActorId,
+				EBattleTriggerCleanupReason::Removal))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		TMap<FBattlerId, FConditionId> PendingFaintStatuses;
+		TMap<FBattlerId, TArray<FConditionId>> PendingFaintVolatiles;
+		for (const FBattleBattlerState& Candidate : Projection.Battlers)
+		{
+			if (!Candidate.bFaintTransitionPending)
+			{
+				continue;
+			}
+			if (FBattleMajorStatusRules::IsCanonical(Candidate.MajorStatusId))
+			{
+				PendingFaintStatuses.Add(Candidate.BattlerId, Candidate.MajorStatusId);
+			}
+			TArray<FConditionId>& VolatileIds = PendingFaintVolatiles.FindOrAdd(
+				Candidate.BattlerId);
+			for (const FBattleConditionState& Condition : Candidate.Volatiles)
+			{
+				if (FBattleVolatileRules::IsCanonical(Condition.ConditionId))
+				{
+					VolatileIds.Add(Condition.ConditionId);
+				}
+			}
+		}
+		for (const TPair<FBattlerId, TArray<FConditionId>>& Pending :
+			PendingFaintVolatiles)
+		{
+			FBattleBattlerState* PendingBattler = Projection.FindMutableBattler(Pending.Key);
+			if (PendingBattler == nullptr)
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			PendingBattler->LastMoveId = FMoveId();
+			if (!TryCleanupSourceDependentVolatiles(
+					Projection,
+					Pending.Key,
+					EBattleTriggerCleanupReason::Removal))
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+		}
+
+		FBattleFaintOutcomePlan FaintPlan;
+		if (!FBattleFaintOutcomeResolver::TryResolveAction(
+				EffectResult,
+				ProjectedAction.TargetClass,
+				ResolutionId,
+				static_cast<const FBattleEngineState&>(Projection),
+				FaintPlan)
+			|| !FBattleFaintOutcomeResolver::IsActionPlanApplicable(Projection, FaintPlan))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(Projection, FaintPlan);
+		const FBattleFaintOutcomeResolution& FaintResolution = FaintPlan.Resolution;
+
+		for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
+		{
+			FBattleBattlerState* RemovedBattler = Projection.FindMutableBattler(
+				Removal.Target.BattlerId);
+			if (RemovedBattler == nullptr
+				|| !TryCleanupAbilityTriggers(
+					Projection,
+					RemovedBattler->AbilityId,
+					RemovedBattler->BattlerId,
+					EBattleTriggerCleanupReason::Faint)
+				|| !TryCleanupItemTriggers(
+					Projection,
+					RemovedBattler->HeldItem.CurrentItemId,
+					RemovedBattler->BattlerId,
+					EBattleTriggerCleanupReason::Faint))
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			RemovedBattler->bAbilitySuppressed = false;
+			RemovedBattler->EnteredActiveOnTurnId = FTurnId();
+
+			const FConditionId* StatusId = PendingFaintStatuses.Find(
+				Removal.Target.BattlerId);
+			if (StatusId != nullptr
+				&& !TryCleanupMajorStatusTriggers(
+					Projection,
+					*StatusId,
+					Removal.Target.BattlerId,
+					EBattleTriggerCleanupReason::Faint))
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			if (const TArray<FConditionId>* VolatileIds = PendingFaintVolatiles.Find(
+				Removal.Target.BattlerId))
+			{
+				for (const FConditionId& VolatileId : *VolatileIds)
+				{
+					if (!TryCleanupVolatileTriggers(
+							Projection,
+							VolatileId,
+							Removal.Target.BattlerId,
+							EBattleTriggerCleanupReason::Faint))
+					{
+						return RejectCheckpoint(
+							EBattleRejectionReason::CheckpointPreparationFailed);
+					}
+				}
+			}
+		}
+		if (FaintResolution.bBattleEnded && !TryCleanupBattleEndTriggers(Projection))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		if (CheckpointIdentity.CommitIdentity.ExpectedStateVersion
+			== TNumericLimits<uint64>::Max())
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		const uint64 AfterStateVersion =
+			CheckpointIdentity.CommitIdentity.ExpectedStateVersion + 1;
+		TOptional<FBattleDecisionRequest> PivotRequest;
+		if (!FaintResolution.bBattleEnded)
+		{
+			for (FBattleSwitchEffectIntent& Intent : EffectResult.SwitchIntents)
+			{
+				if (Intent.Kind != EBattleSwitchKind::Pivot)
+				{
+					continue;
+				}
+				if (PivotRequest.IsSet())
+				{
+					Intent.BlockReason = EBattleSwitchBlockReason::NoLegalReserve;
+					continue;
+				}
+				const bool bActingBattlerRemoved =
+					FaintResolution.Removals.ContainsByPredicate(
+						[ActorId](const FBattleFaintTransitionRecord& Removal)
+						{
+							return Removal.Target.BattlerId == ActorId;
+						});
+				if (bActingBattlerRemoved)
+				{
+					Intent.BlockReason =
+						EBattleSwitchBlockReason::ActingBattlerUnavailable;
+					continue;
+				}
+				bool bHasLegalReserve = false;
+				TOptional<FBattleDecisionRequest> CandidateRequest;
+				if (!TryPrepareMoveEffectsPivotRequest(
+						Projection,
+						ProjectedAction,
+						AfterStateVersion,
+						bHasLegalReserve,
+						CandidateRequest))
+				{
+					return RejectCheckpoint(
+						EBattleRejectionReason::CheckpointPreparationFailed);
+				}
+				if (bHasLegalReserve && CandidateRequest.IsSet())
+				{
+					PivotRequest = MoveTemp(CandidateRequest);
+				}
+				else
+				{
+					Intent.BlockReason = EBattleSwitchBlockReason::NoLegalReserve;
+				}
 			}
 		}
 		else
 		{
-			if (SwitchIntent != nullptr
-				&& SwitchIntent->BlockReason != EBattleSwitchBlockReason::None)
+			for (FBattleSwitchEffectIntent& Intent : EffectResult.SwitchIntents)
 			{
-				Record.Type = EBattleEventType::EffectFailed;
-				Record.Outcome = EBattleEffectExecutionOutcome::Failed;
+				if (Intent.Kind == EBattleSwitchKind::Pivot)
+				{
+					Intent.BlockReason = EBattleSwitchBlockReason::ActingBattlerUnavailable;
+				}
 			}
-			Events.Add(MakeBattleEffectEvent(
-				*State,
-				ResolutionId,
-				*Action,
-				Record,
-				SimultaneousGroupId));
 		}
 
-		const FBattleFaintTransitionRecord* Faint = FaintResolution.Faints.FindByPredicate(
-			[EventIndex](const FBattleFaintTransitionRecord& Candidate)
+		Projection.NextEventOrdinal = 1;
+		TArray<FBattleEvent> Events;
+		Events.Reserve(
+			EffectResult.Events.Num()
+			+ EffectResult.SwitchIntents.Num() * 4
+			+ FaintResolution.Faints.Num()
+			+ FaintResolution.Removals.Num() * 3
+			+ 4);
+		TArray<FBattlerId> ForcedAbilityEntrants;
+		for (int32 EventIndex = 0; EventIndex < EffectResult.Events.Num(); ++EventIndex)
+		{
+			FBattleEffectExecutionEvent Record = EffectResult.Events[EventIndex];
+			TOptional<uint64> SimultaneousGroupId;
+			if (const uint64* GroupId =
+				FaintResolution.SimultaneousGroupsByEffectEvent.Find(EventIndex))
 			{
-				return Candidate.EffectEventIndex == EventIndex;
-			});
-		if (Faint != nullptr)
-		{
-			const FBattleEventSource* FaintSource = Record.SourceOverride.IsSet()
-				? &Record.SourceOverride.GetValue()
-				: nullptr;
-			Events.Add(MakeTargetedActionEvent(
-				*State,
-				ResolutionId,
-				*Action,
-				EBattleEventType::Fainted,
-				Record.Cause,
-				Faint->Target,
-				EBattleOutcomeCause::None,
-				Faint->SimultaneousGroupId,
-				Faint->HitIndex,
-				Faint->HitCount,
-				FaintSource));
-		}
-	}
-	const bool bForcedAbilitiesResolved = TryResolveAbilityEntries(
-		*State,
-		ForcedAbilityEntrants,
-		ResolutionId,
-		EBattleActionKind::Fight,
-		Events);
-	check(bForcedAbilitiesResolved);
+				SimultaneousGroupId = *GroupId;
+			}
+			const FBattleSwitchEffectIntent* SwitchIntent =
+				EffectResult.SwitchIntents.FindByPredicate(
+					[EventIndex](const FBattleSwitchEffectIntent& Candidate)
+					{
+						return Candidate.EffectEventIndex == EventIndex;
+					});
+			if (SwitchIntent != nullptr && SwitchIntent->bApplied)
+			{
+				AppendSwitchTransitionEvents(
+					Projection,
+					ResolutionId,
+					ProjectedAction,
+					SwitchIntent->OutgoingTarget,
+					SwitchIntent->IncomingTarget,
+					Events);
+				if (SwitchIntent->Kind == EBattleSwitchKind::Forced)
+				{
+					ForcedAbilityEntrants.Add(SwitchIntent->IncomingTarget.BattlerId);
+				}
+			}
+			else
+			{
+				if (SwitchIntent != nullptr
+					&& SwitchIntent->BlockReason != EBattleSwitchBlockReason::None)
+				{
+					Record.Type = EBattleEventType::EffectFailed;
+					Record.Outcome = EBattleEffectExecutionOutcome::Failed;
+				}
+				Events.Add(MakeBattleEffectEvent(
+					Projection,
+					ResolutionId,
+					ProjectedAction,
+					Record,
+					SimultaneousGroupId));
+			}
 
-	for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
-	{
-		const FBattleEffectExecutionEvent* RemovalRecord =
-			EffectResult.Events.IsValidIndex(Removal.EffectEventIndex)
-				? &EffectResult.Events[Removal.EffectEventIndex]
-				: nullptr;
-		const FBattleEventSource* RemovalSource = RemovalRecord != nullptr
-			&& RemovalRecord->SourceOverride.IsSet()
-				? &RemovalRecord->SourceOverride.GetValue()
-				: nullptr;
-		Events.Add(MakeTargetedActionEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::LeftActiveSlot,
-			EBattleEventCause::Rule,
-			Removal.Target,
-			EBattleOutcomeCause::None,
-			Removal.SimultaneousGroupId,
-			TOptional<uint16>(),
-			TOptional<uint16>(),
-			RemovalSource));
-		Events.Add(MakeTargetedActionEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::Removed,
-			EBattleEventCause::Rule,
-			Removal.Target,
-			EBattleOutcomeCause::None,
-			Removal.SimultaneousGroupId,
-			TOptional<uint16>(),
-			TOptional<uint16>(),
-			RemovalSource));
-		if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
-		{
-			FBattleEvent Checkpoint = MakeTargetedActionEvent(
-				*State,
+			const FBattleFaintTransitionRecord* Faint =
+				FaintResolution.Faints.FindByPredicate(
+					[EventIndex](const FBattleFaintTransitionRecord& Candidate)
+					{
+						return Candidate.EffectEventIndex == EventIndex;
+					});
+			if (Faint != nullptr)
+			{
+				const FBattleEventSource* FaintSource = Record.SourceOverride.IsSet()
+					? &Record.SourceOverride.GetValue()
+					: nullptr;
+				Events.Add(MakeTargetedActionEvent(
+					Projection,
+					ResolutionId,
+					ProjectedAction,
+					EBattleEventType::Fainted,
+					Record.Cause,
+					Faint->Target,
+					EBattleOutcomeCause::None,
+					Faint->SimultaneousGroupId,
+					Faint->HitIndex,
+					Faint->HitCount,
+					FaintSource));
+			}
+		}
+		if (!TryResolveAbilityEntries(
+				Projection,
+				ForcedAbilityEntrants,
 				ResolutionId,
-				*Action,
-				EBattleEventType::OpponentRemovalCheckpoint,
+				EBattleActionKind::Fight,
+				Events))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		TArray<int32> OpponentCheckpointEventIndexes;
+		for (const FBattleFaintTransitionRecord& Removal : FaintResolution.Removals)
+		{
+			const FBattleEffectExecutionEvent* RemovalRecord =
+				EffectResult.Events.IsValidIndex(Removal.EffectEventIndex)
+					? &EffectResult.Events[Removal.EffectEventIndex]
+					: nullptr;
+			const FBattleEventSource* RemovalSource = RemovalRecord != nullptr
+				&& RemovalRecord->SourceOverride.IsSet()
+					? &RemovalRecord->SourceOverride.GetValue()
+					: nullptr;
+			Events.Add(MakeTargetedActionEvent(
+				Projection,
+				ResolutionId,
+				ProjectedAction,
+				EBattleEventType::LeftActiveSlot,
 				EBattleEventCause::Rule,
 				Removal.Target,
 				EBattleOutcomeCause::None,
 				Removal.SimultaneousGroupId,
 				TOptional<uint16>(),
 				TOptional<uint16>(),
-				RemovalSource);
-			State->AvailableOpponentRemovalCheckpoints.Add(Checkpoint.GetEventOrdinal());
-			Events.Add(MoveTemp(Checkpoint));
-		}
-	}
-
-	if (PivotRequest.IsSet())
-	{
-		Action->EffectExecutionState = EBattleLockedEffectExecutionState::AwaitingPivot;
-		State->PendingDecision = PivotRequest.GetValue();
-		State->PendingDecisionRequests.Reset();
-		State->PendingDecisionRequests.Add(PivotRequest.GetValue());
-	}
-	else
-	{
-		Action->EffectExecutionState = EBattleLockedEffectExecutionState::Completed;
-		Action->bFinished = true;
-		Events.Add(MakeActionDetailEvent(
-			*State,
-			ResolutionId,
-			*Action,
-			EBattleEventType::ActionCompleted,
-			EBattleEventCause::Action));
-		++State->CurrentLockedActionIndex;
-		if (FaintResolution.bBattleEnded)
-		{
-			const FBattleEventSource* BattleEndSource = nullptr;
-			for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
+				RemovalSource));
+			Events.Add(MakeTargetedActionEvent(
+				Projection,
+				ResolutionId,
+				ProjectedAction,
+				EBattleEventType::Removed,
+				EBattleEventCause::Rule,
+				Removal.Target,
+				EBattleOutcomeCause::None,
+				Removal.SimultaneousGroupId,
+				TOptional<uint16>(),
+				TOptional<uint16>(),
+				RemovalSource));
+			if (Removal.Target.ActiveSlotId.GetSide() == EBattleSide::Opponent)
 			{
-				if (EffectResult.Events.IsValidIndex(Faint.EffectEventIndex)
-					&& EffectResult.Events[Faint.EffectEventIndex].SourceOverride.IsSet())
-				{
-					BattleEndSource = &EffectResult.Events[Faint.EffectEventIndex]
-						.SourceOverride.GetValue();
-					break;
-				}
+				OpponentCheckpointEventIndexes.Add(Events.Num());
+				Events.Add(MakeTargetedActionEvent(
+					Projection,
+					ResolutionId,
+					ProjectedAction,
+					EBattleEventType::OpponentRemovalCheckpoint,
+					EBattleEventCause::Rule,
+					Removal.Target,
+					EBattleOutcomeCause::None,
+					Removal.SimultaneousGroupId,
+					TOptional<uint16>(),
+					TOptional<uint16>(),
+					RemovalSource));
 			}
-			AppendPartnerTeamVictoryRecoveryEvent(
-				*State,
-				ResolutionId,
-				Action->ActionId,
-				Action->Decision.GetActionKind(),
-				BattleEndSource != nullptr
-					? *BattleEndSource
-					: SourceFromLockedAction(*State, *Action),
-				FaintResolution,
-				Events);
-			Events.Add(MakeBattleEndedEvent(
-				*State,
-				ResolutionId,
-				*Action,
-				FaintResolution.OutcomeCause,
-				BattleEndSource));
+		}
+
+		if (PivotRequest.IsSet())
+		{
+			ProjectedAction.EffectExecutionState =
+				EBattleLockedEffectExecutionState::AwaitingPivot;
+			Projection.PendingDecision = PivotRequest.GetValue();
+			Projection.PendingDecisionRequests.Reset();
+			Projection.PendingDecisionRequests.Add(PivotRequest.GetValue());
 		}
 		else
 		{
-			AppendPostActionBoundaryEvents(*State, ResolutionId, *Action, Events);
+			ProjectedAction.EffectExecutionState =
+				EBattleLockedEffectExecutionState::Completed;
+			ProjectedAction.bFinished = true;
+			Events.Add(MakeActionDetailEvent(
+				Projection,
+				ResolutionId,
+				ProjectedAction,
+				EBattleEventType::ActionCompleted,
+				EBattleEventCause::Action));
+			++Projection.CurrentLockedActionIndex;
+			if (FaintResolution.bBattleEnded)
+			{
+				const FBattleEventSource* BattleEndSource = nullptr;
+				for (const FBattleFaintTransitionRecord& Faint : FaintResolution.Faints)
+				{
+					if (EffectResult.Events.IsValidIndex(Faint.EffectEventIndex)
+						&& EffectResult.Events[Faint.EffectEventIndex]
+							.SourceOverride.IsSet())
+					{
+						BattleEndSource = &EffectResult.Events[Faint.EffectEventIndex]
+							.SourceOverride.GetValue();
+						break;
+					}
+				}
+				const FBattleEventSource FinalSource = BattleEndSource != nullptr
+					? *BattleEndSource
+					: SourceFromLockedAction(Projection, ProjectedAction);
+				if (!TryAppendMoveEffectsPartnerRecoveryEvent(
+						Projection,
+						ResolutionId,
+						ProjectedAction.ActionId,
+						ProjectedAction.Decision.GetActionKind(),
+						FinalSource,
+						FaintResolution,
+						Events))
+				{
+					return RejectCheckpoint(
+						EBattleRejectionReason::CheckpointPreparationFailed);
+				}
+				Events.Add(MakeBattleEndedEvent(
+					Projection,
+					ResolutionId,
+					ProjectedAction,
+					FaintResolution.OutcomeCause,
+					BattleEndSource));
+			}
+			else if (!TryAppendAtomicSwitchBoundaryEvents(
+				Projection,
+				ResolutionId,
+				ProjectedAction,
+				Events))
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
 		}
+
+		int32 ActionCompletedCount = 0;
+		int32 BattleEndedIndex = INDEX_NONE;
+		int32 PartnerRecoveryIndex = INDEX_NONE;
+		for (int32 EventIndex = 0; EventIndex < Events.Num(); ++EventIndex)
+		{
+			const EBattleEventType Type = Events[EventIndex].GetType();
+			ActionCompletedCount += Type == EBattleEventType::ActionCompleted ? 1 : 0;
+			if (Type == EBattleEventType::BattleEnded)
+			{
+				BattleEndedIndex = EventIndex;
+			}
+			else if (Type == EBattleEventType::PartnerTeamVictoryRecovery)
+			{
+				PartnerRecoveryIndex = EventIndex;
+			}
+			if (!FBattleResolutionCommit::TryStageEvent(
+					CommitPlan,
+					MakeAtomicSwitchStagedEventSpec(Events[EventIndex])))
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+		}
+		if ((PivotRequest.IsSet() && ActionCompletedCount != 0)
+			|| (!PivotRequest.IsSet() && ActionCompletedCount != 1)
+			|| (PartnerRecoveryIndex != INDEX_NONE
+				&& (BattleEndedIndex == INDEX_NONE
+					|| PartnerRecoveryIndex >= BattleEndedIndex))
+			|| !FBattleResolutionCommit::TryFinishAcceptedPlan(CommitPlan))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+
+		for (const int32 EventIndex : OpponentCheckpointEventIndexes)
+		{
+			if (!CommitPlan.Events.IsValidIndex(EventIndex)
+				|| CommitPlan.Events[EventIndex].GetType()
+					!= EBattleEventType::OpponentRemovalCheckpoint)
+			{
+				return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+			}
+			Projection.AvailableOpponentRemovalCheckpoints.Add(
+				CommitPlan.Events[EventIndex].GetEventOrdinal());
+		}
+
+		FMoveEffectsCheckpointDelta Delta;
+		if (!TryCaptureMoveEffectsCheckpointDelta(
+				Projection,
+				CheckpointIdentity,
+				Delta))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::CheckpointPreparationFailed);
+		}
+		if (!IsMoveEffectsCheckpointIdentityCurrent(*State, CheckpointIdentity))
+		{
+			return RejectCheckpoint(EBattleRejectionReason::StaleCheckpointIdentity);
+		}
+
+		EBattleRandomTransactionCommitError RandomCommitError =
+			EBattleRandomTransactionCommitError::None;
+		if (!RandomTransaction->TryCommit(
+				*State->Random,
+				ResolutionId,
+				ActionId,
+				RandomCommitError))
+		{
+			return RejectCheckpoint(
+				EBattleRejectionReason::RandomTransactionCommitFailed);
+		}
+
+		ApplyMoveEffectsCheckpointDelta(
+			*State,
+			CheckpointIdentity,
+			MoveTemp(Delta));
+		return FBattleResolutionCommit::PublishPrepared(*State, CommitPlan);
 	}
-	State->StateVersion = AfterStateVersion;
-
-	EBattleStateValidationError StateError = EBattleStateValidationError::None;
-	const bool bStateValid = State->ValidateInvariants(StateError);
-	check(bStateValid);
-
-	FBattleResolutionSpec ResolutionSpec;
-	ResolutionSpec.ResolutionId = ResolutionId;
-	ResolutionSpec.BeforeStateVersion = BeforeStateVersion;
-	ResolutionSpec.AfterStateVersion = State->StateVersion;
-	ResolutionSpec.bAccepted = true;
-	ResolutionSpec.Events = MoveTemp(Events);
-	FBattleResolution Resolution;
-	const bool bResolutionCreated = FBattleResolution::TryCreate(ResolutionSpec, Resolution);
-	check(bResolutionCreated);
-	State->AppendResolution(Resolution);
-	return Resolution;
 }
 
 FBattleResolution FBattleEngine::ResolveEndTurn()

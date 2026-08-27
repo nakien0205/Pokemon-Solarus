@@ -7,6 +7,7 @@
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleSwitching.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
 #include "BattleTestRandom.h"
@@ -407,8 +408,10 @@ namespace BattleItemTests
 		int32 PlayerHP = 200;
 		int32 PlayerReserveHP = 200;
 		int32 OpponentHP = 200;
+		int32 OpponentReserveHP = 200;
 		int32 PlayerSpeed = 120;
 		int32 OpponentSpeed = 80;
+		bool bExposeForcedSwitchMove = false;
 	};
 
 	using FExpectedDraw = BattleTest::FBattleExpectedRandomDraw;
@@ -614,7 +617,8 @@ namespace BattleItemTests
 		const FAbilityId& AbilityId,
 		const FItemId& HeldItemId,
 		const int32 CurrentHP,
-		const int32 Speed)
+		const int32 Speed,
+		const bool bExposeForcedSwitchMove = false)
 	{
 		FBattlePartyEntrySetup Entry;
 		Entry.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
@@ -630,7 +634,9 @@ namespace BattleItemTests
 		Entry.CurrentHeldItemId = HeldItemId;
 		const TArray<FMoveId> MoveIds = {
 			MakeDefinitionId<FMoveId>(NormalMoveName),
-			MakeDefinitionId<FMoveId>(SecondMoveName),
+			MakeDefinitionId<FMoveId>(bExposeForcedSwitchMove
+				? ForcedSwitchMoveName
+				: SecondMoveName),
 			MakeDefinitionId<FMoveId>(NegativeMoveName),
 			MakeDefinitionId<FMoveId>(StatusMoveName)};
 		for (int32 Index = 0; Index < MoveIds.Num(); ++Index)
@@ -677,7 +683,8 @@ namespace BattleItemTests
 			Scenario.PlayerAbility,
 			Scenario.PlayerItem,
 			Scenario.PlayerHP,
-			Scenario.PlayerSpeed));
+			Scenario.PlayerSpeed,
+			Scenario.bExposeForcedSwitchMove));
 		Input.PartyEntries.Add(MakePartyEntry(
 			PlayerTrainerValue,
 			PlayerReserveValue,
@@ -703,7 +710,7 @@ namespace BattleItemTests
 			OpponentSpeciesName,
 			FBattleAbilityRules::GetBlazeId(),
 			Scenario.OpponentReserveItem,
-			200,
+			Scenario.OpponentReserveHP,
 			90));
 		Input.StartingActive.Add({
 			MakeActiveSlotId(EBattleSide::Player, EBattlePosition::Left),
@@ -1990,6 +1997,120 @@ namespace BattleItemTests
 				&& GrassyHealing < Activation
 				&& Activation < Healing);
 		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023E6ForcedEntryItemHazardTest,
+		"PokemonSolarus.Battle.ADR0002.3E6.Effects.Item.ForcedEntryHeldItemHazardOrderAndExactRng",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023E6ForcedEntryItemHazardTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		FC08CScenario Scenario;
+		Scenario.bExposeForcedSwitchMove = true;
+		Scenario.OpponentReserveItem = FBattleItemRules::GetSitrusBerryId();
+		Scenario.OpponentReserveHP = 110;
+		TUniquePtr<FScriptedRandom> Random = MakeUnique<FScriptedRandom>(
+			TArray<FExpectedDraw>{
+				{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()},
+				{0, 0, 0, FBattleSwitchResolver::GetForcedSelectionRulePurpose()}});
+		FScriptedRandom* RandomView = Random.Get();
+		TUniquePtr<IBattleRandom> RandomOwner = MoveTemp(Random);
+		TUniquePtr<FBattleEngine> Engine = MakeEngine(
+			Scenario,
+			MoveTemp(RandomOwner));
+		const FBattlerId PlayerId = MakeNumericId<FBattlerId>(PlayerValue);
+		if (!TestTrue(TEXT("Stealth Rock is prepared for forced entry"),
+				FBattleC08CEngineFixture::SeedCondition(
+					*Engine,
+					FBattleFieldSideConditionRules::GetStealthRockId(),
+					EBattleSide::Opponent,
+					PlayerId))
+			|| !TestTrue(TEXT("The item-focused forced-switch turn locks"),
+				LockTwoFights(
+					*Engine,
+					MakeDefinitionId<FMoveId>(ForcedSwitchMoveName),
+					MakeDefinitionId<FMoveId>(NormalMoveName)))
+			|| !TestTrue(TEXT("The forced-switch action starts"),
+				Engine->BeginNextLockedAction().WasAccepted())
+			|| !TestTrue(TEXT("The forced-switch PP commits"),
+				Engine->CommitCurrentMoveAfterPreMoveGates().WasAccepted())
+			|| !TestTrue(TEXT("The forced-switch target commits"),
+				Engine->ResolveCurrentMoveTargets().WasAccepted()))
+		{
+			return false;
+		}
+
+		const FBattleResolution Resolution = Engine->ExecuteCurrentMoveEffects();
+		const FBattleEngineState& State = FBattleC08CEngineFixture::GetState(*Engine);
+		const FBattleBattlerState* Incoming = State.FindBattler(
+			MakeNumericId<FBattlerId>(OpponentReserveValue));
+		const FBattleActivePositionState* Active = State.FindActivePosition(
+			MakeActiveSlotId(EBattleSide::Opponent, EBattlePosition::Left));
+		const int32 EnteredIndex = Resolution.GetEvents().IndexOfByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::EnteredActiveSlot;
+			});
+		const int32 ItemIndex = Resolution.GetEvents().IndexOfByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::ItemActivated
+					&& Event.GetSource().DefinitionId
+						== FBattleItemRules::GetSitrusBerryId().GetDefinitionId();
+			});
+		const int32 ConsumedIndex = Resolution.GetEvents().IndexOfByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::ItemConsumed;
+			});
+		const int32 HealingIndex = Resolution.GetEvents().IndexOfByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::Healing;
+			});
+		const int32 CompletionIndex = Resolution.GetEvents().IndexOfByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::ActionCompleted;
+			});
+		bool bValid = TestTrue(TEXT("The held-item forced-entry checkpoint is accepted"),
+			Resolution.WasAccepted());
+		bValid &= TestTrue(TEXT("The exact reserve occupies the opponent slot"),
+			Active != nullptr
+				&& Active->BattlerId
+					== MakeNumericId<FBattlerId>(OpponentReserveValue));
+		bValid &= TestTrue(TEXT("Stealth Rock damage and Sitrus recovery publish together"),
+			Incoming != nullptr
+				&& Incoming->CurrentHP == 135
+				&& !Incoming->MajorStatusId.IsValid());
+		bValid &= TestTrue(TEXT("Entry, held item, recovery, and completion retain canonical order"),
+			EnteredIndex != INDEX_NONE
+				&& ItemIndex > EnteredIndex
+				&& ConsumedIndex > ItemIndex
+				&& HealingIndex > ConsumedIndex
+				&& CompletionIndex > HealingIndex);
+		bValid &= TestTrue(TEXT("The entry item state and reveal publish together"),
+			Incoming != nullptr
+				&& Incoming->HeldItem.bConsumed
+				&& !Incoming->HeldItem.CurrentItemId.IsValid()
+				&& Incoming->HeldItem.bRevealed);
+		bValid &= TestTrue(TEXT("Damage and forced-selection draws are exact"),
+			RandomView != nullptr && RandomView->IsExact());
+		const TArray<FBattleRandomDraw> Trace = Engine->ExportRandomTrace();
+		bValid &= TestTrue(TEXT("The ordered committed trace has exact ranges and purposes"),
+			Trace.Num() == 2
+				&& Trace[0].InclusiveMinimum == 0
+				&& Trace[0].InclusiveMaximum == 15
+				&& Trace[0].RulePurpose
+					== FBattleEffectExecutor::GetDamageRandomRulePurpose()
+				&& Trace[1].InclusiveMinimum == 0
+				&& Trace[1].InclusiveMaximum == 0
+				&& Trace[1].RulePurpose
+					== FBattleSwitchResolver::GetForcedSelectionRulePurpose());
+		return bValid;
 	}
 }
 

@@ -17,6 +17,18 @@
 class FBattleC05BEngineFixture
 {
 public:
+	static const FBattleEngineState& GetState(const FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
+	static FBattleEngineState& GetMutableState(FBattleEngine& Engine)
+	{
+		check(Engine.State.IsValid());
+		return *Engine.State;
+	}
+
 	static bool SetCurrentEffectExecutionState(
 		FBattleEngine& Engine,
 		const EBattleLockedEffectExecutionState State)
@@ -2909,6 +2921,182 @@ namespace BattleEffectExecutorTests
 			TEXT("Identical duplicate rejection is deterministic"),
 			FirstAfterDuplicateBytes == SecondAfterDuplicateBytes);
 		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023E6ExecutorOwnedPlanTest,
+		"PokemonSolarus.Battle.ADR0002.3E6.Effects.Executor.OwnedPreparedPlanNoEarlyMutation",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023E6ExecutorOwnedPlanTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleMoveDefinition Move = MakeDamagingMove();
+		TUniquePtr<IBattleRandom> ParentRandom = MakeUnique<FStrictScriptedRandom>(
+			TArray<FExpectedDraw>());
+		TUniquePtr<FBattleEngine> Engine = MakeEngine(Move, MoveTemp(ParentRandom));
+		if (!TestTrue(TEXT("The owned-plan engine reaches committed targets"),
+				PrepareFirstMove(*Engine)))
+		{
+			return false;
+		}
+
+		const FBattlerId TargetId =
+			MakeNumericId<FBattlerId>(OpponentLeftBattlerValue);
+		const FBattleEngineState& Before = FBattleC05BEngineFixture::GetState(*Engine);
+		const int32 BeforeHP = Before.FindBattler(TargetId)->CurrentHP;
+		const FBattleLockedActionState& Action =
+			Before.LockedActions[Before.CurrentLockedActionIndex];
+		FStrictScriptedRandom ExecutionRandom({{
+			0,
+			15,
+			0,
+			FBattleEffectExecutor::GetDamageRandomRulePurpose()}});
+		FBattleEffectExecutionPlan Plan;
+		EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+		{
+			FBattleMoveDefinition RequestMove = Move;
+			FBattleEffectExecutionRequest Request;
+			Request.BattleId = Before.Setup.GetBattleId();
+			Request.TurnId = Before.TurnId;
+			Request.ActionId = Action.ActionId;
+			Request.ResolutionId = MakeNumericId<FResolutionId>(9001);
+			Request.UserBattlerId = Action.Decision.GetActingBattlerId();
+			Request.UserSlotId = Action.OrderKey.ActingSlotId;
+			Request.Move = &RequestMove;
+			Request.Targets = Action.TargetResolution.GetValue().Targets;
+			if (!TestTrue(TEXT("An equivalent copied move prepares an owned plan"),
+					FBattleEffectExecutor::TryPrepareAgainstState(
+						Request,
+						Before,
+						ExecutionRandom,
+						Plan,
+						Error)))
+			{
+				return false;
+			}
+		}
+
+		const FBattleBattlerState* PlannedTarget = Plan.Battlers.FindByPredicate(
+			[TargetId](const FBattleBattlerState& Battler)
+			{
+				return Battler.BattlerId == TargetId;
+			});
+		bool bValid = TestTrue(TEXT("Preparation leaves authoritative HP untouched"),
+			FBattleC05BEngineFixture::GetState(*Engine).FindBattler(TargetId)->CurrentHP
+				== BeforeHP);
+		bValid &= TestTrue(TEXT("The owned plan contains the staged HP mutation"),
+			PlannedTarget != nullptr && PlannedTarget->CurrentHP < BeforeHP);
+		const int32 PlannedHP = PlannedTarget != nullptr
+			? PlannedTarget->CurrentHP
+			: INDEX_NONE;
+		FBattleEffectExecutor::ApplyPreparedPlan(
+			FBattleC05BEngineFixture::GetMutableState(*Engine),
+			MoveTemp(Plan));
+		bValid &= TestEqual(TEXT("Assignment-only apply publishes the prepared HP"),
+			FBattleC05BEngineFixture::GetState(*Engine).FindBattler(TargetId)->CurrentHP,
+			PlannedHP);
+		bValid &= TestTrue(TEXT("The exact damage draw is consumed once"),
+			ExecutionRandom.IsExact());
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleADR00023E6ExecutorNestedRandomPlanTest,
+		"PokemonSolarus.Battle.ADR0002.3E6.Effects.Executor.TopLevelAndNestedRangesPurposesExact",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleADR00023E6ExecutorNestedRandomPlanTest::RunTest(
+		const FString& Parameters)
+	{
+		(void)Parameters;
+		FBattleMoveDefinition Move = MakeDamagingMove();
+		Move.bAlwaysHits = false;
+		Move.Accuracy = 100;
+		FBattleMoveEffectDescriptor Sleep = MakeEffect(
+			1,
+			EBattleMoveEffectKind::ApplyCondition,
+			EBattleEffectTarget::ResolvedTarget);
+		Sleep.ConditionId = FBattleMajorStatusRules::GetSleepId();
+		Move.Effects.Add(Sleep);
+
+		FBattleDefinitionCatalogInput CatalogInput = MakeCatalogInput(Move);
+		CatalogInput.Conditions.Add({
+			FBattleMajorStatusRules::GetSleepId(),
+			EBattleConditionKind::MajorStatus});
+		FBattleDefinitionCatalog Catalog;
+		TArray<FBattleCatalogDiagnostic> Diagnostics;
+		if (!TestTrue(TEXT("The nested-random catalog is valid"),
+				FBattleDefinitionCatalog::TryCreate(CatalogInput, Catalog, Diagnostics)))
+		{
+			return false;
+		}
+		TUniquePtr<IBattleRandom> ParentRandom = MakeUnique<FStrictScriptedRandom>(
+			TArray<FExpectedDraw>());
+		TUniquePtr<FBattleEngine> Engine;
+		FBattleRejection Rejection;
+		if (!TestTrue(TEXT("The nested-random engine is created"),
+				FBattleEngine::TryCreate(
+					MakeSingleSetup(),
+					Catalog,
+					MoveTemp(ParentRandom),
+					Engine,
+					Rejection))
+			|| !TestTrue(TEXT("The nested-random engine reaches committed targets"),
+				PrepareFirstMove(*Engine)))
+		{
+			return false;
+		}
+
+		const FBattleEngineState& State = FBattleC05BEngineFixture::GetState(*Engine);
+		const FBattleLockedActionState& Action =
+			State.LockedActions[State.CurrentLockedActionIndex];
+		FStrictScriptedRandom ExecutionRandom({
+			{0, 99, 0, FBattleEffectExecutor::GetAccuracyRulePurpose()},
+			{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()},
+			{2, 4, 2, FBattleMajorStatusRules::GetSleepDurationPurpose()}});
+		FBattleEffectExecutionRequest Request;
+		Request.BattleId = State.Setup.GetBattleId();
+		Request.TurnId = State.TurnId;
+		Request.ActionId = Action.ActionId;
+		Request.ResolutionId = MakeNumericId<FResolutionId>(9002);
+		Request.UserBattlerId = Action.Decision.GetActingBattlerId();
+		Request.UserSlotId = Action.OrderKey.ActingSlotId;
+		Request.Move = &Move;
+		Request.Targets = Action.TargetResolution.GetValue().Targets;
+		FBattleEffectExecutionPlan Plan;
+		EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+		bool bValid = TestTrue(TEXT("One plan consumes top-level and nested RNG"),
+			FBattleEffectExecutor::TryPrepareAgainstState(
+				Request,
+				State,
+				ExecutionRandom,
+				Plan,
+				Error));
+		bValid &= TestTrue(TEXT("All exact scripted draws are consumed"),
+			ExecutionRandom.IsExact());
+		const TConstArrayView<FBattleRandomDraw> Trace = ExecutionRandom.GetTrace();
+		bValid &= TestEqual(TEXT("The plan trace contains three ordered draws"),
+			Trace.Num(), 3);
+		if (Trace.Num() == 3)
+		{
+			bValid &= TestTrue(TEXT("Accuracy range and purpose are exact"),
+				Trace[0].InclusiveMinimum == 0
+					&& Trace[0].InclusiveMaximum == 99
+					&& Trace[0].RulePurpose
+						== FBattleEffectExecutor::GetAccuracyRulePurpose());
+			bValid &= TestTrue(TEXT("Damage range and purpose are exact"),
+				Trace[1].InclusiveMinimum == 0
+					&& Trace[1].InclusiveMaximum == 15
+					&& Trace[1].RulePurpose
+						== FBattleEffectExecutor::GetDamageRandomRulePurpose());
+			bValid &= TestTrue(TEXT("Sleep duration range and purpose are exact"),
+				Trace[2].InclusiveMinimum == 2
+					&& Trace[2].InclusiveMaximum == 4
+					&& Trace[2].RulePurpose
+						== FBattleMajorStatusRules::GetSleepDurationPurpose());
+		}
+		return bValid;
 	}
 }
 
