@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: ADR-0002 atomic resolution closeout before canonical proof content
-Task: B00-C09 complete; remediate stale Bag cancellation before C10A
+Feature: C10 canonical proof content after ADR-0002 atomic resolution closeout
+Task: B00-C09 and ADR-0002 complete; C10A Required Canonical Rows next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-27
@@ -10,17 +10,15 @@ Task: B00-C09 complete; remediate stale Bag cancellation before C10A
 
 - B00 through C09 package delivery is complete under focused validation. C10
   and C11 are the only remaining roadmap packages.
-- ADR-0002 remains an Accepted design, but its implementation gate is **FAIL**
-  at `f48146f4f439930ed06f5f7feaf957514bcc4408`.
-- The blocker is the accepted stale Bag-cancellation path in
-  `Game/Source/PokemonSolarus/Private/Battle/BattleEngine.cpp`. Its
-  `FinishAcceptedAction` helper finishes the action, advances the locked-action
-  cursor, runs the still-fallible post-action boundary path, and increments the
-  state version before invariant validation and resolution creation complete.
-  This is live-first behavior, not ADR-0002's prepare/stage/commit rule.
-- C10A Required Canonical Rows is the next roadmap package only after that
-  implementation defect is repaired and the ADR-0002 gate passes. Preserve the
-  order `C10A -> C10B -> C11A -> C11B`.
+- ADR-0002 is Accepted and its bounded implementation gate is **PASS** at
+  `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`.
+- The stale accepted Bag-cancellation blocker is closed. The live path now
+  prepares its state delta, queue boundary, replacement requests, events, and
+  resolution before the final identity recheck and one commit. Six focused ADR
+  tests cover Bag and Capture cancellation routes, recoverable preparation
+  failures, mandatory replacement, and final stale identity.
+- C10A Required Canonical Rows is the next roadmap package. Preserve the order
+  `C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -29,34 +27,35 @@ Task: B00-C09 complete; remediate stale Bag cancellation before C10A
 
 ## Verified evidence
 
-- Current HEAD is `f48146f4f439930ed06f5f7feaf957514bcc4408`.
+- Current HEAD is `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`.
 - The final evidence root is
-  `Game/Saved/AutomationReports/ADR0002-Task5-Final-20260827-111636`.
-  Its 22 exported `index.json` files report 594 successes in total, with zero
+  `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`.
+  Its 22 exported `index.json` files report 606 successes in total, with zero
   succeeded-with-warnings, failures, not-run, or in-process tests.
-- The 21 ADR/affected-filter reports before the full suite total 280 successes:
-  104 ADR-0002 tests and 176 affected package/runtime tests. The full
-  `PokemonSolarus.Battle` report passed 314 tests.
-- These reports are a strong baseline, but they do not prove the omitted
-  failure branch. The stale Capture cancellation test in
-  `BattleAtomicCheckpointTests.cpp` and the stale Bag tests in
-  `BattleBagItemTests.cpp` prove nominal cancellation only; they do not inject
-  post-action boundary, invariant, or resolution-preparation failure after the
-  action has begun.
+- The 21 ADR/affected-filter reports before the full suite total 286 successes:
+  110 ADR-0002 tests and 176 affected package/runtime tests. The full
+  `PokemonSolarus.Battle` report passed 320 tests.
+- The forced-Unity editor build passed with `-ForceUnity`,
+  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Every report
+  discovered tests, contained only exact-prefix unique paths, and had zero
+  per-test warnings or errors.
 - The gate report is
-  `production/gate-checks/2026-08-27-adr-0002-implementation-fail.md`.
+  `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md`. The
+  earlier `implementation-fail.md` remains a truthful historical record for
+  the superseded checkout and 594-success baseline.
 
 ## Working-tree scope to preserve
 
 - Preserve the pre-existing modification to
   `docs/registry/architecture.yaml`.
-- Preserve the pre-existing untracked ADR-0003, ADR-0004, and structural-split
-  documents. The approved documentation cleanup may make only the recorded
-  surgical corrections to ADR-0004 and the structural-split handoff; ADR-0003
-  and the architecture registry remain excluded.
+- Preserve the pre-existing untracked ADR-0003 and ADR-0004 documents. ADR-0003
+  and the architecture registry remain excluded from unrelated work.
 - Do not change production source, tests, visual assets, Blueprints, maps,
-  configuration, `.uproject` data, module rules, C10 content data, or generated
-  Unreal output as part of the documentation cleanup.
+  configuration, `.uproject` data, module rules, or C10 content data without a
+  new task-specific approval.
+- Unreal validation may update its normal generated files under
+  `Game/Saved/Config/**` and `Game/Saved/Logs/**`; final exported evidence must
+  still use a fresh unique `Game/Saved/AutomationReports/**` root.
 - Preserve replay schema `6`, existing enum ordinals, and frozen
   Cry/reinforcement behavior.
 - Do not commit, stage, push, create branches, or rewrite Git history unless the
@@ -64,15 +63,8 @@ Task: B00-C09 complete; remediate stale Bag cancellation before C10A
 
 ## Next
 
-1. Start a fresh, bounded implementation session for the stale accepted Bag
-   cancellation. Limit the proposed code write set to `BattleEngine.cpp`,
-   `BattleBagItemTests.cpp`, and `BattleAtomicCheckpointTests.cpp`; obtain
-   approval before editing.
-2. Stage every fallible boundary/request/resolution fact before changing live
-   action state, then commit once. Add fault-injection proof that every failure
-   preserves resources, Bag quota, RNG, state, cursor, events, action progress,
-   and resolution history.
-3. Run the forced-Unity build and the exact 22-report ADR/affected/full-Battle
-   matrix. Judge every exported `index.json`, then rerun the implementation
-   gate.
-4. After a PASS, proceed in order: `C10A -> C10B -> C11A -> C11B`.
+1. Start a fresh, bounded C10A Required Canonical Rows session and read the live
+   C10 roadmap package before proposing edits.
+2. Keep Cry for Help and reinforcement frozen, preserve replay schema `6`, and
+   obtain approval for the exact C10A write set before implementation.
+3. Continue in order: `C10A -> C10B -> C11A -> C11B`.

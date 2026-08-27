@@ -1,5 +1,13 @@
 # ADR-0002 Implementation Gate — 2026-08-27
 
+> **Historical gate:** This FAIL verdict applies to HEAD
+> `f48146f4f439930ed06f5f7feaf957514bcc4408` and the 594-success evidence root
+> recorded below. It was superseded by
+> `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md` at HEAD
+> `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, using final evidence root
+> `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`.
+> The historical path and totals below are intentionally unchanged.
+
 ## Verdict
 
 **FAIL**
