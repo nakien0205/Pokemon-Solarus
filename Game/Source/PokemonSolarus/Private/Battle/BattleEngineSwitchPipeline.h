@@ -6,6 +6,7 @@
 #include "BattleEngineTriggerRuntime.h"
 #include "BattleEntryHazardPrevention.h"
 #include "BattleFaintOutcomeResolver.h"
+#include "BattleMoveRedirection.h"
 
 namespace BattleEngineSwitchPipelinePrivate
 {
@@ -1011,11 +1012,13 @@ namespace BattleEngineSwitchPipelinePrivate
 						ResolutionId,
 						State.Battlers,
 						State.ActivePositions,
+						State.MoveRedirectionRegistrations,
 						State.CompiledEncounterPolicies,
 						FaintPlan)
 					|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 						State.Battlers,
 						State.ActivePositions,
+						State.MoveRedirectionRegistrations,
 						State.Phase,
 						State.Outcome,
 						State.OutcomeCause,
@@ -1332,6 +1335,9 @@ namespace BattleEngineSwitchPipelinePrivate
 		Outgoing->bAbilitySuppressed = false;
 		Outgoing->HeldItem.ChoiceLockedMoveId = FMoveId();
 		Outgoing->EnteredActiveOnTurnId = FTurnId();
+		FBattleMoveRedirection::RemoveForOccupant(
+			State.MoveRedirectionRegistrations,
+			{Active->ActiveSlotId, Outgoing->BattlerId});
 		Active->BattlerId = Incoming->BattlerId;
 		Incoming->bAbilitySuppressed = false;
 		Incoming->EnteredActiveOnTurnId = State.TurnId;

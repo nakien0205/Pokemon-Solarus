@@ -88,6 +88,7 @@ namespace BattleEngineCheckpointStatePrivate
 	{
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
+		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 		FBattleTriggerFramework TriggerFramework;
 		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 		FBattleHeldItemLedger HeldItemLedger;
@@ -107,6 +108,7 @@ namespace BattleEngineCheckpointStatePrivate
 		{
 			Battlers = State.Battlers;
 			ActivePositions = State.ActivePositions;
+			MoveRedirectionRegistrations = State.MoveRedirectionRegistrations;
 			TriggerFramework = State.TriggerFramework;
 			AbilityItemRevealTracker = State.AbilityItemRevealTracker;
 			HeldItemLedger = State.HeldItemLedger;
@@ -195,6 +197,7 @@ namespace BattleEngineCheckpointStatePrivate
 		const TArray<FBattleTrainerState>& Trainers;
 		TArray<FBattleBattlerState>& Battlers;
 		TArray<FBattleActivePositionState>& ActivePositions;
+		TArray<FBattleMoveRedirectionRegistration>& MoveRedirectionRegistrations;
 		TFieldState& Field;
 		TSideStates& Sides;
 		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies;
@@ -229,6 +232,7 @@ namespace BattleEngineCheckpointStatePrivate
 			, Trainers(Authority.Trainers)
 			, Battlers(Preparation.Battlers)
 			, ActivePositions(Preparation.ActivePositions)
+			, MoveRedirectionRegistrations(Preparation.MoveRedirectionRegistrations)
 			, Field(InField)
 			, Sides(InSides)
 			, CompiledEncounterPolicies(Authority.CompiledEncounterPolicies)
@@ -329,6 +333,7 @@ namespace BattleEngineCheckpointStatePrivate
 	{
 		TArray<FAtomicBattlerRecordDelta> Battlers;
 		TArray<FAtomicActivePositionRecordDelta> ActivePositions;
+		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 		FBattleTriggerFramework TriggerFramework;
 		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 		FBattleHeldItemLedger HeldItemLedger;

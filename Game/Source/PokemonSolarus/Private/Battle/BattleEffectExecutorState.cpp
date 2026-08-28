@@ -29,6 +29,7 @@ namespace BattleEffectExecutorPrivate
 		, Random(InRandom)
 		, Battlers(InState.Battlers)
 		, ActivePositions(InState.ActivePositions)
+		, MoveRedirectionRegistrations(InState.MoveRedirectionRegistrations)
 		, Field(InState.Field)
 		, Sides(InState.Sides)
 		, TriggerFramework(InState.TriggerFramework)
@@ -43,6 +44,8 @@ namespace BattleEffectExecutorPrivate
 	{
 		OutPlan.Battlers = MoveTemp(Battlers);
 		OutPlan.ActivePositions = MoveTemp(ActivePositions);
+		OutPlan.MoveRedirectionRegistrations =
+			MoveTemp(MoveRedirectionRegistrations);
 		OutPlan.Field = MoveTemp(Field);
 		OutPlan.Sides = MoveTemp(Sides);
 		OutPlan.TriggerFramework = MoveTemp(TriggerFramework);
@@ -461,6 +464,8 @@ void FBattleEffectExecutor::ApplyPreparedPlan(
 {
 	State.Battlers = MoveTemp(Plan.Battlers);
 	State.ActivePositions = MoveTemp(Plan.ActivePositions);
+	State.MoveRedirectionRegistrations =
+		MoveTemp(Plan.MoveRedirectionRegistrations);
 	State.Field = MoveTemp(Plan.Field);
 	State.Sides = MoveTemp(Plan.Sides);
 	State.TriggerFramework = MoveTemp(Plan.TriggerFramework);

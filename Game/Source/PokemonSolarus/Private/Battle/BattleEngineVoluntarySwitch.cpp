@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleMoveRedirection.h"
 #include "BattleResolutionCommit.h"
 #include "Math/NumericLimits.h"
 
@@ -216,6 +217,9 @@ namespace BattleEngineVoluntarySwitchPrivate
 			|| State.TriggerFramework.GetPendingLifecycleFactCount()
 				!= Identity.ExpectedPendingTriggerLifecycleCount
 			|| RandomTraceCount != Commit.ExpectedRandomTraceCount
+			|| !FBattleMoveRedirection::AreRegistrationsIdentical(
+				State.MoveRedirectionRegistrations,
+				Commit.ExpectedMoveRedirections)
 			|| State.Battlers.Num() != Identity.Battlers.Num()
 			|| State.ActivePositions.Num() != Identity.ActivePositions.Num()
 			|| State.HeldItemLedger.GetStates().Num() != Identity.HeldItemInstances.Num()

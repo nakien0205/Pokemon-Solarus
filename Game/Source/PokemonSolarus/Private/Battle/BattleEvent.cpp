@@ -5,7 +5,7 @@ namespace
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleEventType::PartnerTeamVictoryRecovery);
+			<= static_cast<uint8>(EBattleEventType::TargetRedirectionRegistered);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)

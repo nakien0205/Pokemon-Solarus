@@ -20,6 +20,7 @@
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
 #include "BattleResolutionCommit.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEngineEndTurnPrivate
@@ -1475,6 +1476,7 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 		const bool bTurnCreated = NextTurnValue > State->TurnId.GetValue()
 			&& FTurnId::TryCreate(NextTurnValue, NextTurnId);
 		check(bTurnCreated);
+		FBattleMoveRedirection::Clear(State->MoveRedirectionRegistrations);
 		State->TurnId = NextTurnId;
 		for (FBattleTrainerState& Trainer : State->Trainers)
 		{

@@ -1,6 +1,7 @@
 #include "Battle/BattleFaintOutcomeResolver.h"
 
 #include "Battle/BattleState.h"
+#include "BattleMoveRedirection.h"
 
 namespace
 {
@@ -188,6 +189,7 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 		ResolutionId,
 		State.Battlers,
 		State.ActivePositions,
+		State.MoveRedirectionRegistrations,
 		State.CompiledEncounterPolicies,
 		OutPlan);
 }
@@ -198,6 +200,7 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	const FResolutionId ResolutionId,
 	const TConstArrayView<FBattleBattlerState> Battlers,
 	const TConstArrayView<FBattleActivePositionState> ActivePositions,
+	const TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
 	const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
 	FBattleFaintOutcomePlan& OutPlan)
 {
@@ -297,6 +300,17 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 		{
 			return FaintActiveSlotLess(Left.Target.ActiveSlotId, Right.Target.ActiveSlotId);
 		});
+	OutPlan.MoveRedirectionsAfter.Reserve(MoveRedirections.Num());
+	for (const FBattleMoveRedirectionRegistration& Registration : MoveRedirections)
+	{
+		OutPlan.MoveRedirectionsAfter.Add(Registration);
+	}
+	for (const FBattleFaintTransitionRecord& Removal : OutResolution.Removals)
+	{
+		FBattleMoveRedirection::RemoveForOccupant(
+			OutPlan.MoveRedirectionsAfter,
+			{Removal.Target.ActiveSlotId, Removal.Target.BattlerId});
+	}
 	bool bPlayerFaintedThisAction = false;
 	bool bOpponentFaintedThisAction = false;
 	for (const FBattleFaintTransitionRecord& Transition : OutResolution.Faints)
@@ -374,6 +388,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 	return TryApplyActionPlan(
 		State.Battlers,
 		State.ActivePositions,
+		State.MoveRedirectionRegistrations,
 		State.Phase,
 		State.Outcome,
 		State.OutcomeCause,
@@ -385,6 +400,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 	TArray<FBattleBattlerState>& Battlers,
 	TArray<FBattleActivePositionState>& ActivePositions,
+	TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
 	EBattlePhase& Phase,
 	EBattleOutcome& Outcome,
 	EBattleOutcomeCause& OutcomeCause,
@@ -392,13 +408,18 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 	TArray<FBattleDecisionRequest>& PendingDecisionRequests,
 	const FBattleFaintOutcomePlan& Plan)
 {
-	if (!IsActionPlanApplicable(Battlers, ActivePositions, Plan))
+	if (!IsActionPlanApplicable(
+			Battlers,
+			ActivePositions,
+			MoveRedirections,
+			Plan))
 	{
 		return false;
 	}
 	ApplyPreparedActionPlan(
 		Battlers,
 		ActivePositions,
+		MoveRedirections,
 		Phase,
 		Outcome,
 		OutcomeCause,
@@ -412,12 +433,17 @@ bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 	const FBattleEngineState& State,
 	const FBattleFaintOutcomePlan& Plan)
 {
-	return IsActionPlanApplicable(State.Battlers, State.ActivePositions, Plan);
+	return IsActionPlanApplicable(
+		State.Battlers,
+		State.ActivePositions,
+		State.MoveRedirectionRegistrations,
+		Plan);
 }
 
 bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 	const TConstArrayView<FBattleBattlerState> Battlers,
 	const TConstArrayView<FBattleActivePositionState> ActivePositions,
+	const TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
 	const FBattleFaintOutcomePlan& Plan)
 {
 	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
@@ -469,6 +495,25 @@ bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 	{
 		return false;
 	}
+
+	TArray<FBattleMoveRedirectionRegistration> ExpectedMoveRedirections;
+	ExpectedMoveRedirections.Reserve(MoveRedirections.Num());
+	for (const FBattleMoveRedirectionRegistration& Registration : MoveRedirections)
+	{
+		ExpectedMoveRedirections.Add(Registration);
+	}
+	for (const FBattleFaintTransitionRecord& Removal : Resolution.Removals)
+	{
+		FBattleMoveRedirection::RemoveForOccupant(
+			ExpectedMoveRedirections,
+			{Removal.Target.ActiveSlotId, Removal.Target.BattlerId});
+	}
+	if (!FBattleMoveRedirection::AreRegistrationsIdentical(
+			ExpectedMoveRedirections,
+			Plan.MoveRedirectionsAfter))
+	{
+		return false;
+	}
 	return true;
 }
 
@@ -479,6 +524,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 	ApplyPreparedActionPlan(
 		State.Battlers,
 		State.ActivePositions,
+		State.MoveRedirectionRegistrations,
 		State.Phase,
 		State.Outcome,
 		State.OutcomeCause,
@@ -490,6 +536,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 	TArray<FBattleBattlerState>& Battlers,
 	TArray<FBattleActivePositionState>& ActivePositions,
+	TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
 	EBattlePhase& Phase,
 	EBattleOutcome& Outcome,
 	EBattleOutcomeCause& OutcomeCause,
@@ -498,6 +545,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 	const FBattleFaintOutcomePlan& Plan)
 {
 	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
+	MoveRedirections = Plan.MoveRedirectionsAfter;
 	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
 	{
 		FBattleBattlerState* Battler = Battlers.FindByPredicate(

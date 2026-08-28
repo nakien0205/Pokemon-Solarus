@@ -256,6 +256,8 @@ namespace BattleEngineCheckpointStatePrivate
 		}
 
 		OutDelta.TriggerFramework = Preparation.TriggerFramework;
+		OutDelta.MoveRedirectionRegistrations =
+			Preparation.MoveRedirectionRegistrations;
 		OutDelta.AbilityItemRevealTracker = Preparation.AbilityItemRevealTracker;
 		OutDelta.HeldItemLedger = Preparation.HeldItemLedger;
 		OutDelta.NextConditionCreationOrdinal = Preparation.NextConditionCreationOrdinal;
@@ -383,6 +385,7 @@ namespace BattleEngineCheckpointStatePrivate
 			*Position = Record.After;
 		}
 		State.TriggerFramework = Delta.TriggerFramework;
+		State.MoveRedirectionRegistrations = Delta.MoveRedirectionRegistrations;
 		State.AbilityItemRevealTracker = Delta.AbilityItemRevealTracker;
 		State.HeldItemLedger = Delta.HeldItemLedger;
 		State.NextConditionCreationOrdinal = Delta.NextConditionCreationOrdinal;

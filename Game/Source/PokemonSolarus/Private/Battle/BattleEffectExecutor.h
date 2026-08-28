@@ -118,6 +118,7 @@ struct FBattleEffectExecutionPlan
 	FBattleEffectExecutionResult Result;
 	TArray<FBattleBattlerState> Battlers;
 	TArray<FBattleActivePositionState> ActivePositions;
+	TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 	FBattleFieldState Field;
 	TArray<FBattleSideState> Sides;
 	FBattleTriggerFramework TriggerFramework;

@@ -7,6 +7,7 @@
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEffectExecutorPrivate
@@ -129,7 +130,7 @@ namespace BattleEffectExecutorPrivate
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Kind)
 	{
 		return static_cast<uint8>(Kind)
-			<= static_cast<uint8>(EBattleMoveEffectKind::RemoveCondition);
+			<= static_cast<uint8>(EBattleMoveEffectKind::RegisterTargetRedirection);
 	}
 
 	bool IsKnownEffectTarget(const EBattleEffectTarget Target)
@@ -252,6 +253,7 @@ namespace BattleEffectExecutorPrivate
 		case EBattleMoveEffectKind::Recharge:
 		case EBattleMoveEffectKind::Protect:
 		case EBattleMoveEffectKind::SemiInvulnerability:
+		case EBattleMoveEffectKind::RegisterTargetRedirection:
 			return EffectTarget == EBattleEffectTarget::User;
 		case EBattleMoveEffectKind::SetFieldCondition:
 			return EffectTarget == EBattleEffectTarget::Field
@@ -692,7 +694,9 @@ namespace BattleEffectExecutorPrivate
 		{
 			return false;
 		}
-		return AreResolvedTargetsValid(Request);
+		return (!FBattleMoveRedirection::ContainsRegistrationEffect(Move)
+				|| FBattleMoveRedirection::IsRegistrationMoveDefinitionValid(Move))
+			&& AreResolvedTargetsValid(Request);
 	}
 
 	bool TryAddTargetedEvent(
@@ -878,6 +882,8 @@ namespace BattleEffectExecutorPrivate
 			return Target.GetKind() == EBattleResolvedTargetKind::Battler
 				? EBattleEventType::StatusChanged
 				: EBattleEventType::FieldEffectChanged;
+		case EBattleMoveEffectKind::RegisterTargetRedirection:
+			return EBattleEventType::TargetRedirectionRegistered;
 		default:
 			return EBattleEventType::EffectFailed;
 		}

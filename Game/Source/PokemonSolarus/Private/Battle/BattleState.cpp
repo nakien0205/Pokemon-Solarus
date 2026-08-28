@@ -1149,6 +1149,15 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 			}
 		}
 	}
+	if (!FBattleMoveRedirection::IsRegistrationCollectionValid(
+			Format,
+			TurnId,
+			MoveRedirectionRegistrations,
+			Battlers,
+			ActivePositions))
+	{
+		return Fail(EBattleStateValidationError::InvalidLifecycle);
+	}
 
 	if (Sides.Num() != 2
 		|| Sides[0].Side != EBattleSide::Player

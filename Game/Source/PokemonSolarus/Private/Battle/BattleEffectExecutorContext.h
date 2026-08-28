@@ -389,6 +389,9 @@ namespace BattleEffectExecutorPrivate
 			const FBattleMoveEffectDescriptor& Effect,
 			const FBattleResolvedTarget& Target);
 
+		FBattleEffectHookResult ApplyTargetRedirectionRegistration(
+			const FBattleResolvedTarget& Target);
+
 		bool TryTakeTriggerContext(FBattleTriggerOperationContext& OutContext);
 
 		bool TryDispatchStatusPhase(
@@ -409,6 +412,7 @@ namespace BattleEffectExecutorPrivate
 		IBattleRandom& Random;
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
+		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 		FBattleFieldState Field;
 		TArray<FBattleSideState> Sides;
 		FBattleTriggerFramework TriggerFramework;

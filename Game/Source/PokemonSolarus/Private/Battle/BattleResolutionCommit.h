@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleEvent.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 class FBattleEngineState;
@@ -17,6 +18,7 @@ struct FBattleResolutionCommitIdentity
 	uint64 ExpectedEventOrdinal = 0;
 	int32 ExpectedResolutionCount = INDEX_NONE;
 	int32 ExpectedRandomTraceCount = INDEX_NONE;
+	TArray<FBattleMoveRedirectionRegistration> ExpectedMoveRedirections;
 };
 
 /** Prepared events and immutable resolution for one exact checkpoint publication. */

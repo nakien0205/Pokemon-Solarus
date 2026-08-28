@@ -7,6 +7,7 @@
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEffectExecutorPrivate
@@ -537,6 +538,8 @@ namespace BattleEffectExecutorPrivate
 			return SetSideCondition(Effect, Target);
 		case EBattleMoveEffectKind::RemoveCondition:
 			return RemoveCondition(Effect, Target);
+		case EBattleMoveEffectKind::RegisterTargetRedirection:
+			return ApplyTargetRedirectionRegistration(Target);
 		case EBattleMoveEffectKind::Charge:
 			return ApplyCharge(Effect, Target);
 		case EBattleMoveEffectKind::Recharge:
@@ -557,6 +560,43 @@ namespace BattleEffectExecutorPrivate
 		default:
 			return Outcome(EBattleEffectExecutionOutcome::Failed);
 		}
+	}
+
+	FBattleEffectHookResult FStateExecutionContext::ApplyTargetRedirectionRegistration(
+		const FBattleResolvedTarget& Target)
+	{
+		if (Target.GetKind() != EBattleResolvedTargetKind::Battler
+			|| Target.GetBattler().ActiveSlotId != Request.UserSlotId
+			|| Target.GetBattler().BattlerId != Request.UserBattlerId)
+		{
+			SetRuntimeFailure(EBattleEffectExecutorError::InvalidTarget);
+			return Outcome(EBattleEffectExecutionOutcome::Failed);
+		}
+
+		const EBattleMoveRedirectionRegistrationOutcome RegistrationOutcome =
+			FBattleMoveRedirection::TryRegister(
+				State.Format,
+				Request.TurnId,
+				Request.ActionId,
+				Target.GetBattler(),
+				Battlers,
+				ActivePositions,
+				MoveRedirectionRegistrations);
+		if (RegistrationOutcome
+			== EBattleMoveRedirectionRegistrationOutcome::IneligibleFormat)
+		{
+			return Outcome(EBattleEffectExecutionOutcome::Failed);
+		}
+		if (RegistrationOutcome
+			!= EBattleMoveRedirectionRegistrationOutcome::Registered)
+		{
+			SetRuntimeFailure(EBattleEffectExecutorError::InvalidHookResult);
+			return Outcome(EBattleEffectExecutionOutcome::Failed);
+		}
+
+		FBattleEffectHookResult Result = Applied();
+		Result.bStateMutated = true;
+		return Result;
 	}
 
 	bool FStateExecutionContext::HasRoom(const FConditionId& RoomId) const

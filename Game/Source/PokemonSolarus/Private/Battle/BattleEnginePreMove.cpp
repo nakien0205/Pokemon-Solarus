@@ -1340,11 +1340,13 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 								ResolutionId,
 								Projection.Battlers,
 								Projection.ActivePositions,
+								Projection.MoveRedirectionRegistrations,
 								Projection.CompiledEncounterPolicies,
 								FaintPlan)
 							|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 								Projection.Battlers,
 								Projection.ActivePositions,
+								Projection.MoveRedirectionRegistrations,
 								Projection.Phase,
 								Projection.Outcome,
 								Projection.OutcomeCause,

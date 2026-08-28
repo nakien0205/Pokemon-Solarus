@@ -300,7 +300,9 @@ namespace
 			{FName(TEXT("Recharge")), EBattleMoveEffectKind::Recharge},
 			{FName(TEXT("Protect")), EBattleMoveEffectKind::Protect},
 			{FName(TEXT("SemiInvulnerability")), EBattleMoveEffectKind::SemiInvulnerability},
-			{FName(TEXT("RemoveCondition")), EBattleMoveEffectKind::RemoveCondition}
+			{FName(TEXT("RemoveCondition")), EBattleMoveEffectKind::RemoveCondition},
+			{FName(TEXT("RegisterTargetRedirection")),
+				EBattleMoveEffectKind::RegisterTargetRedirection}
 		};
 		for (const auto& Mapping : Mappings)
 		{

@@ -20,6 +20,7 @@
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
 #include "BattleResolutionCommit.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEngineBagActionsPrivate
@@ -414,6 +415,7 @@ namespace BattleEngineBagActionsPrivate
 		FBattlerId TargetBattlerId;
 		FBattleBattlerState TargetBattler;
 		FActiveSlotId ClearedActiveSlotId;
+		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 		TOptional<FBattlePendingCaptureRecord> PendingCapture;
 		TArray<FCaptureQueuedCancellationFact> QueuedCancellations;
 		bool bApplyCleanupStage = false;
@@ -440,6 +442,8 @@ namespace BattleEngineBagActionsPrivate
 		OutDelta.Bag = AppliedBag.Items;
 		OutDelta.bBagActionAvailable = AppliedBag.bBagActionAvailable;
 		OutDelta.TargetBattlerId = TargetBattlerId;
+		OutDelta.MoveRedirectionRegistrations =
+			State.MoveRedirectionRegistrations;
 		OutDelta.NextLockedActionIndex = State.CurrentLockedActionIndex + 1;
 		OutDelta.Phase = State.Phase;
 		OutDelta.Outcome = State.Outcome;
@@ -572,6 +576,8 @@ namespace BattleEngineBagActionsPrivate
 		Projection.Trainers = State.Trainers;
 		Projection.Battlers = State.Battlers;
 		Projection.ActivePositions = State.ActivePositions;
+		Projection.MoveRedirectionRegistrations =
+			Delta.MoveRedirectionRegistrations;
 		Projection.CompiledEncounterPolicies = State.CompiledEncounterPolicies;
 		Projection.LockedActions = State.LockedActions;
 		Projection.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
@@ -736,6 +742,8 @@ namespace BattleEngineBagActionsPrivate
 								&& Queued->SelectedTargetBattlerId == Delta.TargetBattlerId))));
 			}
 		}
+		State.MoveRedirectionRegistrations =
+			Delta.MoveRedirectionRegistrations;
 
 		Action.bFinished = true;
 		State.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
@@ -1811,6 +1819,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 			CaptureDelta.bSucceeded = true;
 			CaptureDelta.PendingCapture = PendingCapture;
 			CaptureDelta.ClearedActiveSlotId = TargetActive->ActiveSlotId;
+			FBattleMoveRedirection::RemoveForOccupant(
+				CaptureDelta.MoveRedirectionRegistrations,
+				{TargetActive->ActiveSlotId, TargetBattler->BattlerId});
 			CaptureDelta.TargetBattler = *TargetBattler;
 			CaptureDelta.TargetBattler.MajorStatusId = FConditionId();
 			CaptureDelta.TargetBattler.Stages = FBattleStatStages();

@@ -20,6 +20,7 @@
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
 #include "BattleResolutionCommit.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEnginePreMovePrivate
@@ -508,6 +509,48 @@ namespace BattleEngineMoveTargetsPrivate
 			OutSpec.RandomContext.ResolutionId = ResolutionId;
 			OutSpec.RandomContext.RulePurpose =
 				FBattleTargetResolver::GetRandomLegalOpponentRulePurpose();
+		}
+
+		FAtomicCheckpointCommonPreparation SpeedPreparation;
+		SpeedPreparation.Capture(State);
+		FBattleFieldState SpeedField = State.Field;
+		TArray<FBattleSideState> SpeedSides = State.Sides;
+		FMutableFieldSideCheckpointView SpeedProjection(
+			State,
+			SpeedPreparation,
+			SpeedField,
+			SpeedSides);
+		const FBattleBattlerTarget UserTarget{
+			UserPosition->ActiveSlotId,
+			User->BattlerId};
+		if (!FBattleMoveRedirection::TrySelectWinningProposal(
+				State.Format,
+				State.TurnId,
+				Action.TargetClass,
+				UserTarget,
+				SpeedProjection.MoveRedirectionRegistrations,
+				SpeedProjection.Battlers,
+				SpeedProjection.ActivePositions,
+				[&SpeedProjection](
+					const FBattleBattlerTarget& Target,
+					int32& OutEffectiveSpeed)
+				{
+					const FBattleBattlerState* Battler =
+						SpeedProjection.FindBattler(Target.BattlerId);
+					const FBattleActivePositionState* Active =
+						SpeedProjection.FindActivePosition(Target.ActiveSlotId);
+					return Battler != nullptr
+						&& Active != nullptr
+						&& Active->BattlerId == Target.BattlerId
+						&& TryCalculateEffectiveSpeedForOrdering(
+							SpeedProjection,
+							*Battler,
+							Target.ActiveSlotId,
+							OutEffectiveSpeed);
+				},
+				OutSpec.RedirectionProposals))
+		{
+			return false;
 		}
 		return true;
 	}

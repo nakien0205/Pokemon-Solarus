@@ -637,6 +637,8 @@ namespace BattleEngineMoveEffectsPrivate
 			Common.Capture(State);
 			Common.Battlers = MoveTemp(EffectPlan.Battlers);
 			Common.ActivePositions = MoveTemp(EffectPlan.ActivePositions);
+			Common.MoveRedirectionRegistrations =
+				MoveTemp(EffectPlan.MoveRedirectionRegistrations);
 			Common.TriggerFramework = MoveTemp(EffectPlan.TriggerFramework);
 			Common.AbilityItemRevealTracker =
 				MoveTemp(EffectPlan.AbilityItemRevealTracker);
@@ -1099,11 +1101,13 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				ResolutionId,
 				Projection.Battlers,
 				Projection.ActivePositions,
+				Projection.MoveRedirectionRegistrations,
 				Projection.CompiledEncounterPolicies,
 				FaintPlan)
 			|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 				Projection.Battlers,
 				Projection.ActivePositions,
+				Projection.MoveRedirectionRegistrations,
 				Projection.Phase,
 				Projection.Outcome,
 				Projection.OutcomeCause,

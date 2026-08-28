@@ -78,6 +78,7 @@ enum class EBattleMoveEffectKind : uint8
 	Protect = 13,
 	SemiInvulnerability = 14,
 	RemoveCondition = 15,
+	RegisterTargetRedirection = 16,
 	Invalid = 255
 };
 

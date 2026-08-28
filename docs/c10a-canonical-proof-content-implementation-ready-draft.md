@@ -550,6 +550,8 @@ typed reusable capabilities and focused evidence are separately approved.
 
 ### R1 — Target vocabulary
 
+Status: **PASS — decisions accepted 2026-08-28**.
+
 Resolve B02 and B03 together because they append the same target taxonomy and
 touch the same validators. Preserve every existing ordinal and meaning.
 
@@ -579,6 +581,8 @@ Any additional required path means the lane must stop and revise its draft
 before editing it.
 
 ### R2 — Action-scoped redirection
+
+Status: **COMPLETE — implementation and validation accepted 2026-08-28**.
 
 Resolve B04 as a focused state/lifecycle family. A new focused file is required
 instead of adding an independent responsibility to a large engine or executor
@@ -611,6 +615,8 @@ The lane draft must choose the exact private state owner and prove snapshot and
 replay treatment before implementation.
 
 ### R3 — Action-scoped ally power modifier
+
+Status: **READY — implementation not started**.
 
 Resolve B05 separately from redirection. It may reuse R2's typed
 action-lifecycle contract, but it must not share a catch-all implementation

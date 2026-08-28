@@ -38,6 +38,7 @@ struct FBattleFaintOutcomeResolution
 struct FBattleFaintOutcomePlan
 {
 	FBattleFaintOutcomeResolution Resolution;
+	TArray<FBattleMoveRedirectionRegistration> MoveRedirectionsAfter;
 	TOptional<FBattlePartnerTeamVictoryRecoveryPlan> PartnerRecoveryPlan;
 };
 
@@ -75,6 +76,7 @@ public:
 		FResolutionId ResolutionId,
 		TConstArrayView<FBattleBattlerState> Battlers,
 		TConstArrayView<FBattleActivePositionState> ActivePositions,
+		TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
 		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
 		FBattleFaintOutcomePlan& OutPlan);
 
@@ -87,6 +89,7 @@ public:
 	[[nodiscard]] static bool TryApplyActionPlan(
 		TArray<FBattleBattlerState>& Battlers,
 		TArray<FBattleActivePositionState>& ActivePositions,
+		TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
 		EBattlePhase& Phase,
 		EBattleOutcome& Outcome,
 		EBattleOutcomeCause& OutcomeCause,
@@ -103,6 +106,7 @@ public:
 	[[nodiscard]] static bool IsActionPlanApplicable(
 		TConstArrayView<FBattleBattlerState> Battlers,
 		TConstArrayView<FBattleActivePositionState> ActivePositions,
+		TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
 		const FBattleFaintOutcomePlan& Plan);
 
 	/** Applies a plan that has already passed IsActionPlanApplicable. */
@@ -114,6 +118,7 @@ public:
 	static void ApplyPreparedActionPlan(
 		TArray<FBattleBattlerState>& Battlers,
 		TArray<FBattleActivePositionState>& ActivePositions,
+		TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
 		EBattlePhase& Phase,
 		EBattleOutcome& Outcome,
 		EBattleOutcomeCause& OutcomeCause,

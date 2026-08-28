@@ -7,6 +7,7 @@
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEffectExecutorPrivate
@@ -154,6 +155,9 @@ namespace BattleEffectExecutorPrivate
 			Outgoing->HeldItem.ChoiceLockedMoveId = FMoveId();
 			Outgoing->bAbilitySuppressed = false;
 			Outgoing->EnteredActiveOnTurnId = FTurnId();
+			FBattleMoveRedirection::RemoveForOccupant(
+				MoveRedirectionRegistrations,
+				ForcedTarget);
 			Active->BattlerId = Incoming->BattlerId;
 			Incoming->bAbilitySuppressed = false;
 			Incoming->EnteredActiveOnTurnId = Request.TurnId;

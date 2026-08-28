@@ -7,6 +7,7 @@
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleStatStages.h"
 #include "Battle/BattleTriggerFramework.h"
+#include "BattleMoveRedirection.h"
 
 /** Typed result from validating the authoritative internal battle state. */
 enum class EBattleStateValidationError : uint8
@@ -300,6 +301,8 @@ public:
 	TArray<FBattleTrainerState> Trainers;
 	TArray<FBattleBattlerState> Battlers;
 	TArray<FBattleActivePositionState> ActivePositions;
+	/** Turn-scoped redirection facts remain private and are never snapshot-projected. */
+	TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 	FBattleFieldState Field;
 	TArray<FBattleSideState> Sides;
 	TArray<FBattlePendingCaptureState> PendingCaptures;

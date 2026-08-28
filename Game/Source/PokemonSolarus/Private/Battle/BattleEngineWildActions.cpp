@@ -20,6 +20,7 @@
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
 #include "BattleResolutionCommit.h"
+#include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
 namespace BattleEngineWildActionsPrivate
@@ -47,6 +48,7 @@ namespace BattleEngineWildActionsPrivate
 		bool bRemoveBattler = false;
 		FBattlerId RemovedBattlerId;
 		FActiveSlotId ClearedActiveSlotId;
+		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
 		TOptional<uint64> OpponentRemovalCheckpointOrdinal;
 	};
 
@@ -63,6 +65,8 @@ namespace BattleEngineWildActionsPrivate
 		OutDelta.PendingDecision = State.PendingDecision;
 		OutDelta.PendingDecisionRequests = State.PendingDecisionRequests;
 		OutDelta.PendingReplacements = State.PendingReplacements;
+		OutDelta.MoveRedirectionRegistrations =
+			State.MoveRedirectionRegistrations;
 	}
 
 	bool IsProjectedActiveBattler(
@@ -261,6 +265,8 @@ namespace BattleEngineWildActionsPrivate
 			Active->TrainerId = FTrainerId();
 			Active->BattlerId = FBattlerId();
 		}
+		State.MoveRedirectionRegistrations =
+			Delta.MoveRedirectionRegistrations;
 
 		State.EscapeAttemptCount = Delta.EscapeAttemptCount;
 		State.Phase = Delta.Phase;
@@ -682,6 +688,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentWildAction()
 	Delta.bRemoveBattler = true;
 	Delta.RemovedBattlerId = ActingBattler->BattlerId;
 	Delta.ClearedActiveSlotId = Active->ActiveSlotId;
+	FBattleMoveRedirection::RemoveForOccupant(
+		Delta.MoveRedirectionRegistrations,
+		{Active->ActiveSlotId, ActingBattler->BattlerId});
 
 	FBattleEventTarget FleeingTarget;
 	FleeingTarget.TrainerId = ActingBattler->TrainerId;

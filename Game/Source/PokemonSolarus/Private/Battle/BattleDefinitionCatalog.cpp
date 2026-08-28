@@ -1,4 +1,5 @@
 #include "Battle/BattleDefinitionCatalog.h"
+#include "BattleMoveRedirection.h"
 
 namespace
 {
@@ -72,7 +73,8 @@ namespace
 
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleMoveEffectKind::RemoveCondition);
+		return static_cast<uint8>(Value)
+			<= static_cast<uint8>(EBattleMoveEffectKind::RegisterTargetRedirection);
 	}
 
 	bool IsKnownEffectTarget(const EBattleEffectTarget Value)
@@ -366,6 +368,14 @@ namespace
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.Target"));
 		}
+		if (Effect.Kind == EBattleMoveEffectKind::RegisterTargetRedirection
+			&& (Effect.Target != EBattleEffectTarget::User
+				|| Move.TargetClass != EBattleTargetClass::Self))
+		{
+			AddEffectDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.Target"));
+		}
 		if (Effect.Kind == EBattleMoveEffectKind::SetFieldCondition
 			&& (Effect.Target != EBattleEffectTarget::Field || Move.TargetClass != EBattleTargetClass::Field))
 		{
@@ -604,6 +614,13 @@ namespace
 				SemiInvulnerabilityEffectIndex = EffectIndex;
 			}
 			ValidateEffect(Move, Effect, EffectIndex, Conditions, Items, Diagnostics);
+		}
+		if (FBattleMoveRedirection::ContainsRegistrationEffect(Move)
+			&& !FBattleMoveRedirection::IsRegistrationMoveDefinitionValid(Move))
+		{
+			AddMoveDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.RegisterTargetRedirection"));
 		}
 
 		if (Move.Category == EBattleMoveCategory::Status && DamageEffectCount != 0)
