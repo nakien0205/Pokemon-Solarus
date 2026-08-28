@@ -49,6 +49,13 @@ See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
 
 @.codex/docs/coding-standards.md
 
+## Mandatory Code File Organization
+
+Before planning, creating, or modifying hand-authored code or automated tests,
+read and follow this project-wide guide:
+
+@docs/code-file-organization.md
+
 ## Context Management
 
 @.codex/docs/context-management.md

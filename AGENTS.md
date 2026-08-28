@@ -5,6 +5,8 @@
 - The authoritative Unreal project is `Game/PokemonSolarus.uproject`.
 - Engine: Unreal Engine 5.8.1. Primary implementation language: C++.
 - Read `production/session-state/active.md` before continuing ongoing work.
+- Before planning, creating, or modifying hand-authored code or automated tests,
+  read `docs/code-file-organization.md`. It is mandatory and project-wide.
 - Live source, the current roadmap package, the worktree, and exported Unreal
   Automation reports override historical status notes.
 - Read `docs/registry/external-assets.yaml` before importing or using third-party
