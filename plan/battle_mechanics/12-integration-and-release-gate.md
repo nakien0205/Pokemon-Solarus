@@ -1,7 +1,8 @@
 # C11 — Full Integration and Release Gate
 
 Priority: Mandatory completion gate  
-Status: Not started; blocked by C10A, C10B, and final ADR-0002 implementation closeout
+Status: Not started; blocked by C10A and C10B; the ADR-0002 implementation
+closeout is already PASS
 
 Required order: C11A, then C11B
 

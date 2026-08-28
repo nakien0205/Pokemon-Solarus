@@ -11,7 +11,10 @@ complete. The separately approved `BattleEffectExecutor` structural split was
 implemented and passed its fresh forced-Unity build and serial 22-filter matrix
 on 2026-08-28. The user separately authorized its bounded commit and push, and
 the implementation was published to `origin/main` as
-`504f036858bae310de8ad03ae450903ebedc2779`.**
+`504f036858bae310de8ad03ae450903ebedc2779`. A later independent migration
+review found no behavior, state, RNG, ordering, public-API, compile, or link
+regression. It identified one non-runtime executor helper-declaration concern,
+which is documented in the executor follow-up below.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,
@@ -53,8 +56,9 @@ commit changes only ADR-0002 closeout documents. The pre-P0 baseline HEAD and
 validated T1 split. Live production source now differs from the accepted
 production checkout only by P0's behavior-preserving private-helper relocation,
 P1's behavior-preserving non-checkpoint member relocation, and P2's
-behavior-preserving checkpoint member relocation. Live tests differ only by
-T1's validated translation-unit split.
+behavior-preserving checkpoint member relocation, plus the separately approved
+and published `BattleEffectExecutor` structural split. Live tests differ only
+by T1's validated translation-unit split.
 
 Live source, the accepted ADR-0002 gate, the worktree, the current roadmap
 package, and exported Unreal Automation reports override all historical
@@ -106,7 +110,8 @@ checkout `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`:
    `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`.
 4. The accepted evidence root
    `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`
-   contains 22 readable exported `index.json` files and 606 successes.
+   contains 22 readable exported `index.json` files and 606 executions across
+   overlapping filters.
 5. The full `PokemonSolarus.Battle` filter has 320 successes. Every warning,
    failure, not-run, in-process, per-test warning, and per-test error counter is
    zero.
@@ -151,10 +156,10 @@ to rediscover this plan.
 
 ## Mandatory guide-reference migration
 
-As of 2026-08-27, the canonical ADR and traceability-registry directory is
-`docs/registry/architecture/`. Current guidance uses that path. The two dated
-ADR-0002 gate reports retain `docs/architecture/` only as historical evidence
-of their reviewed checkout.
+As of 2026-08-27, the canonical architecture-document directory is
+`docs/registry/architecture/`. Current guides, examples, and project-local
+skills use that path. The two dated ADR-0002 gate reports retain
+`docs/architecture/` only as historical evidence of their reviewed checkout.
 
 Guide discovery is a prerequisite, not cleanup work to be remembered later.
 Before modifying production C++ or tests, the split task must find every
@@ -197,13 +202,18 @@ responsibility. Its old-to-new classification is:
 | `production/session-state/active.md` | C10A immediately next; prior accepted checkout described as current HEAD | Bounded structural work is current; C10A remains next afterward; distinguish live HEAD from accepted source checkout | Update in G1B |
 | `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md` | Historical authoring context says stale Bag cancellation remains open | Preserve the paragraph and add a dated accepted-gate amendment | Amend in G1B |
 | `docs/registry/architecture/adr-0002-battle-encounter-runtime-authority-and-atomic-resolution-commit.md` | Method-name responsibility and commit contracts | Method names and contracts remain unchanged | Preserve accepted decision |
-| `plan/battle_mechanics/00-roadmap-index.md`, `02-core-contracts-events-and-rng.md`, `04-battle-state-snapshots-and-decisions.md`, `05-actions-order-and-targeting.md`, `06-hit-damage-effects-and-outcomes.md`, `07-parties-switching-and-replacements.md`, and `10-encounters-capture-escape-and-partner.md` | Historical paths, hashes, and package ownership | Historical accepted checkouts | Preserve completion records |
+| `plan/battle_mechanics/00-roadmap-index.md` | Current gate text still described ADR-0002 as blocking C10A; historical paths and package evidence also remain | Record ADR-0002 and the structural work as complete, with C10A next; preserve dated package evidence | Correct current status in post-migration reconciliation |
+| `plan/battle_mechanics/11-canonical-proof-content.md` and `12-integration-and-release-gate.md` | Current status still listed the completed ADR-0002 closeout as a blocker | Mark the ADR-0002 gate satisfied; retain only the real C10 dependency chain | Correct current status in post-migration reconciliation |
+| `plan/battle_mechanics/02-core-contracts-events-and-rng.md`, `04-battle-state-snapshots-and-decisions.md`, `05-actions-order-and-targeting.md`, `06-hit-damage-effects-and-outcomes.md`, `07-parties-switching-and-replacements.md`, and `10-encounters-capture-escape-and-partner.md` | Historical paths, hashes, and package ownership | Historical accepted checkouts | Preserve completion records |
 | `production/gate-checks/2026-08-27-adr-0002-implementation-fail.md` and `2026-08-27-adr-0002-implementation-pass.md` | Historical paths, line locations, and report evidence | Historical reviewed checkouts | Preserve evidence |
 | ADR-0003, `docs/battle-system-interview-handoff.md`, the reusable-damage quick spec, `design/ux/battle-hud.md`, roadmap `03-stats-types-moves-and-data-adapters.md`, and `plan/battle_mechanics/reference/modern-rules-snapshot.md` | Responsibility-only or gameplay references without current file-location assumptions | Existing path-neutral wording | Preserve; no migration needed |
 | `Game/Saved/AutomationReports/**`, logs, and generated Unreal output | Generated evidence | Generated evidence only | Never hand-edit |
 
-No stale structural path assumption was found in `AGENTS.md`, `CLAUDE.md`,
-`UE.md`, or `.codex/skills/`.
+No stale Battle source-location assumption was found in `AGENTS.md`,
+`CLAUDE.md`, `UE.md`, or `.codex/skills/`. The later post-migration review did
+find that 20 local skill guides still used the removed
+`docs/architecture/` directory; the documentation reconciliation replaced
+those paths with `docs/registry/architecture/`.
 
 The post-T1 discovery pass repeated the filename and responsibility search.
 References to the removed monolith now remain only in this handoff's historical
@@ -268,6 +278,29 @@ historical beneath its dated prerequisite amendment. The seven roadmap files
 and two ADR-0002 gate reports remain truthful historical evidence. No match was
 found in `AGENTS.md`, `CLAUDE.md`, `UE.md`, or `.codex/skills/`, and no stale
 live file-location assumption remains.
+
+That G2 conclusion was accurate for the searched Battle source locations, but
+it was too broad as a statement about all current documentation. The later
+independent migration review also checked roadmap gate state and the canonical
+architecture-document directory. It found and corrected the stale current
+status in the global roadmap, C10, and C11; the omitted executor split in this
+document's source-of-truth paragraph; and 76 retired architecture-directory
+references across 20 local project skills. This post-migration result supersedes
+the broader no-stale-document interpretation without rewriting the truthful G2
+file-location history.
+
+### Post-migration documentation reconciliation — 2026-08-28
+
+The reconciliation updated the six live authorities that could otherwise
+misdirect continuation: this handoff, `production/session-state/active.md`, the
+implemented executor guide, the global roadmap, C10, and C11. It also replaced
+76 retired architecture-directory references across 20 local project skills.
+Only `.codex/skills/architecture-decision/SKILL.md` and
+`.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 are
+intentionally ignored local tooling. The reconciliation changed no production
+source, test, generated evidence, ADR content, registry content, or Git state.
+Historical package hashes, completion snapshots, and the two dated ADR-0002
+gate reports remain unchanged.
 
 The exact approved G1B guide write set is:
 
@@ -425,8 +458,9 @@ comparison proved 84 unique old paths and 84 identical unique new paths before
 The user approved the bounded implementation guide at
 `docs/battle-effect-executor-split-implementation-ready-draft.md` on
 2026-08-28. The approved split is implemented and freshly validated. This
-records implementation completion. The user's later commit-and-push instruction
-is task-specific and does not authorize any broader Git action.
+records implementation completion and the later independent migration-review
+result. The user's later commit-and-push instruction was task-specific and does
+not authorize any broader Git action.
 
 Keep `BattleEffectExecutor.h` byte-for-byte unchanged, keep the complete
 ordered `FBattleEffectExecutor::TryExecute` coordinator in
@@ -464,13 +498,31 @@ and the forced-Unity build passed. `BattleEngineMoveEffects.cpp` remains
 unchanged, preserving the existing identity recheck, transactional-RNG commit,
 one delta application, and one successful `PublishPrepared` path.
 
+The later migration review confirmed that behavior-preserving result and found
+one structural deviation from the approved helper-ownership plan. Three focused
+sources manually redeclare six helpers whose definitions remain in
+`BattleEffectExecutor.cpp`: four declarations in
+`BattleEffectExecutorState.cpp`, `MakeRuleId` in
+`BattleEffectExecutorDamage.cpp`, and `TryAddRandomEvent` in
+`BattleEffectExecutorConditions.cpp`. Their signatures match and the build
+links successfully, so no present runtime or ODR failure was found. The manual
+declarations remain a documented dependency-clarity concern until a separately
+approved source change restores local ownership or introduces one explicit
+private declaration header.
+
+The executor build used `-BytesPerUnityCPP=1`, so each generated Unity wrapper
+contained one project source. It proves independent translation-unit compilation
+and linking, not ordinary multi-source Unity co-location. The source audit found
+no concrete anonymous-namespace or duplicate-helper collision.
+
 Fresh validation passed:
 
 - forced-Unity build log:
   `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`;
 - serial 22-filter evidence root:
   `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`;
-- 286 focused successes plus 320 full-Battle successes, for 606 total;
+- 286 focused executions plus 320 full-Battle executions, for 606 executions
+  across overlapping filters and 320 unique full-Battle paths;
 - zero aggregate warnings, failures, not-run, or in-process tests and zero
   per-test warnings or errors; and
 - full sorted 320-path SHA-256
@@ -598,11 +650,11 @@ G2 ran no Git status or diff and makes no clean-worktree claim.
 The preserved generated evidence remains readable:
 
 - `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852` contains
-  two exported reports and 430 successes: 110 ADR-0002 plus 320 full Battle;
+  two exported reports and 430 executions: 110 ADR-0002 plus 320 full Battle;
 - `Game/Saved/AutomationReports/BattleStructural-P0-20260827-200412`,
   `BattleStructural-P1-20260827-212839`, and
   `BattleStructural-P2-20260827-225953` each contain 22 exported reports and
-  606 successes, including 320 full Battle; and
+  606 executions across overlapping filters, including 320 full Battle; and
 - across all 68 `index.json` files, every aggregate issue counter and per-test
   warning/error counter is zero, every test state is `Success`, and no report
   contains a duplicate path. All 22 P2 path sets exactly match P1.
@@ -666,8 +718,9 @@ the forced-Unity build plus this exact serial 22-filter matrix:
 `C08C`, `C09A`, `C09B`, `C09C`, `Runtime`, and full `Battle`, all under
 the `PokemonSolarus.Battle` prefix.
 
-The accepted per-filter counts must remain unchanged, including 606 successes
-in aggregate and 320 for full Battle. Every exported `index.json` must have
+The accepted per-filter counts must remain unchanged, including 606 executions
+in aggregate across overlapping filters and 320 unique paths for full Battle.
+Every exported `index.json` must have
 zero succeeded-with-warnings, failed, not-run, and in-process counters; every
 test entry must have zero warnings and errors. Use a fresh unique generated
 root under `Game/Saved/AutomationReports/BattleStructural-<wave>-<timestamp>`.
@@ -688,7 +741,7 @@ behavior, and no Automation ran before the corrected build passed. Evidence is:
   `C04A=7`, `C04B=9`, `C05A=8`, `C05B=9`, `C05C=7`, `C06A=7`, `C06B=8`,
   `C07A=7`, `C07B=9`, `C07C=8`, `C07D=9`, `C08A=7`, `C08B=20`, `C08C=27`,
   `C09A=6`, `C09B=7`, `C09C=6`, `Runtime=3`, and full `Battle=320`;
-- the 22 reports contain 606 successes in aggregate; and
+- the 22 reports contain 606 executions in aggregate; and
 - every exported aggregate warning, failure, not-run, and in-process counter is
   zero, every test entry has zero warnings and errors, and every test state is
   `Success`.
@@ -709,7 +762,7 @@ error. No Automation ran before the corrected build passed. Evidence is:
   `C04A=7`, `C04B=9`, `C05A=8`, `C05B=9`, `C05C=7`, `C06A=7`, `C06B=8`,
   `C07A=7`, `C07B=9`, `C07C=8`, `C07D=9`, `C08A=7`, `C08B=20`, `C08C=27`,
   `C09A=6`, `C09B=7`, `C09C=6`, `Runtime=3`, and full `Battle=320`;
-- the 22 reports contain 606 successes in aggregate; and
+- the 22 reports contain 606 executions in aggregate; and
 - every exported aggregate issue counter is zero, every test entry has zero
   warnings and errors and state `Success`, every report contains exact-prefix
   unique paths, and every report path set exactly matches P0's accepted matrix.
@@ -726,7 +779,7 @@ P2 passes the required build and matrix without a correction wave. Evidence is:
   `C04A=7`, `C04B=9`, `C05A=8`, `C05B=9`, `C05C=7`, `C06A=7`, `C06B=8`,
   `C07A=7`, `C07B=9`, `C07C=8`, `C07D=9`, `C08A=7`, `C08B=20`, `C08C=27`,
   `C09A=6`, `C09B=7`, `C09C=6`, `Runtime=3`, and full `Battle=320`;
-- the 22 reports contain 606 successes in aggregate; and
+- the 22 reports contain 606 executions in aggregate; and
 - every exported aggregate issue counter is zero, every test entry has zero
   warnings and errors and state `Success`, every report contains exact-prefix
   unique paths, and every report path set exactly matches P1's accepted matrix.
@@ -798,5 +851,8 @@ The structural work is complete only when:
 - no unrelated or generated files were hand-edited; and
 - the user has reviewed the final diff and validation evidence.
 
-All criteria above were satisfied when the user approved G2 on 2026-08-28. The
-Battle Engine structural split is complete.
+All Battle Engine criteria above were satisfied when the user approved G2 on
+2026-08-28. The Battle Engine split and the mechanically behavior-preserving
+executor relocation are complete. The executor helper-declaration seam remains
+an explicitly documented non-runtime follow-up; this document does not claim
+that source concern has been remediated.

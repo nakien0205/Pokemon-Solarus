@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: Behavior-preserving BattleEffectExecutor structural split before C10A
-Task: BattleEffectExecutor structural split implemented, validated, and published
+Feature: Behavior-preserving Battle structural splits before C10A
+Task: Structural migrations published; dependent live documentation reconciled
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-28
@@ -44,6 +44,20 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   commit/publication path. The user separately authorized one bounded commit and
   push, and the implementation was published to `origin/main` as
   `504f036858bae310de8ad03ae450903ebedc2779`.
+- An independent post-migration review found no changed battle logic, public
+  contract, state ownership, RNG behavior, event ordering, commit/publication
+  order, compile result, or link result. It found one non-runtime executor
+  dependency concern: three focused sources manually redeclare six helpers whose
+  definitions remain in `BattleEffectExecutor.cpp`. The declarations currently
+  match and link. This documentation-only reconciliation records that concern;
+  it does not claim the source seam has been remediated.
+- The documentation reconciliation updated this file, both structural guides,
+  the global roadmap, C10, C11, and 76 canonical architecture-directory
+  references across 20 local project skills. Only
+  `.codex/skills/architecture-decision/SKILL.md` and
+  `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
+  files are intentionally ignored local tooling. Dated package evidence and
+  ADR-0002 gate reports remain unchanged.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -62,9 +76,9 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   facade, member-method locations, or behavior contracts.
 - The final evidence root is
   `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`.
-  Its 22 exported `index.json` files report 606 successes in total, with zero
-  succeeded-with-warnings, failures, not-run, or in-process tests.
-- The 21 ADR/affected-filter reports before the full suite total 286 successes:
+  Its 22 exported `index.json` files report 606 test executions in total, with
+  zero succeeded-with-warnings, failures, not-run, or in-process tests.
+- The 21 ADR/affected-filter reports before the full suite total 286 executions:
   110 ADR-0002 tests and 176 affected package/runtime tests. The full
   `PokemonSolarus.Battle` report passed 320 tests.
 - The forced-Unity editor build passed with `-ForceUnity`,
@@ -90,7 +104,7 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   `Game/Saved/Logs/BattleStructural-P0-20260827-200221-ForcedUnityBuild.log`.
 - P0's exact serial 22-filter evidence root is
   `Game/Saved/AutomationReports/BattleStructural-P0-20260827-200412`. The
-  exported reports contain 606 successes in aggregate, including 320 for full
+  exported reports contain 606 executions in aggregate, including 320 for full
   `PokemonSolarus.Battle`; every aggregate and per-test issue counter is zero.
 - `BattleEngine.cpp` is 13,035 lines after P0. The 12 exact private support
   files exist, no `.cpp` includes another `.cpp`, and no P1 or P2 production
@@ -100,7 +114,7 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   `Game/Saved/Logs/BattleStructural-P1-20260827-212714-ForcedUnityBuild.log`.
 - P1's exact serial 22-filter evidence root is
   `Game/Saved/AutomationReports/BattleStructural-P1-20260827-212839`. The 22
-  readable exported reports contain 606 successes in aggregate, including 320
+  readable exported reports contain 606 executions in aggregate, including 320
   for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
   are zero. Every report contains exact-prefix unique paths, and every path set
   exactly matches P0's accepted matrix.
@@ -114,7 +128,7 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   `Game/Saved/Logs/BattleStructural-P2-20260827-225012-ForcedUnityBuild.log`.
 - P2's exact serial 22-filter evidence root is
   `Game/Saved/AutomationReports/BattleStructural-P2-20260827-225953`. The 22
-  readable exported reports contain 606 successes in aggregate, including 320
+  readable exported reports contain 606 executions in aggregate, including 320
   for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
   are zero. Every report contains exact-prefix unique paths, and every path set
   exactly matches P1's accepted matrix. The full sorted path-set SHA-256 remains
@@ -137,7 +151,7 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   `BattleStructural-P0-20260827-200412`,
   `BattleStructural-P1-20260827-212839`, and
   `BattleStructural-P2-20260827-225953`. T1's two reports contain 430
-  successes. P0, P1, and P2 each contain 22 reports and 606 successes,
+  executions. P0, P1, and P2 each contain 22 reports and 606 executions,
   including 320 in full `PokemonSolarus.Battle`. Every aggregate issue counter
   and per-test warning/error counter is zero, every test state is `Success`,
   and no report has a duplicate path. All 22 P2 path sets exactly match P1.
@@ -151,10 +165,11 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`.
 - Its fresh serial 22-filter evidence root is
   `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`.
-  The 22 exported reports contain 606 successes: 286 focused and 320 full
-  Battle. All aggregate issue counters and per-test warning/error counters are
-  zero, all states are `Success`, every report has unique exact-prefix paths,
-  and the full sorted path-set SHA-256 remains
+  The 22 exported reports contain 606 executions: 286 focused and 320 full
+  Battle, representing 320 unique full-Battle paths because the focused filters
+  overlap the full suite. All aggregate issue counters and per-test warning or
+  error counters are zero, all states are `Success`, every report has unique
+  exact-prefix paths, and the full sorted path-set SHA-256 remains
   `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
 - The final executor source audit found the 102 context definitions exactly once
   in the approved `22 / 8 / 27 / 16 / 3 / 26` file split and all nine executor
@@ -162,23 +177,28 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
   at its recorded SHA-256, and `BattleEngineMoveEffects.cpp` remains unchanged.
   The implementation retains one context construction, one staged state, the
   ordered coordinator, and the existing single outer commit/publication path.
-- G2 repeated the required filename-and-responsibility search across root
-  instructions, `.codex/skills/`, `docs/`, `production/`, `plan/`, `design/`,
-  and other repository text, excluding generated Unreal output. It found the
-  same 13 classified guide/evidence files. This file and the handoff are the
-  current structural authorities; accepted ADR references remain path-neutral,
-  and roadmap plus gate-report paths remain historical evidence. No stale live
-  file-location assumption was found.
+- A later independent post-migration search found that the global roadmap, C10,
+  C11, and one current-source paragraph in the structural handoff had not been
+  refreshed after the accepted ADR-0002 and executor work. It also found local
+  project skills still using the removed `docs/architecture/` directory. This
+  documentation reconciliation corrected those live authorities and skill
+  paths while preserving dated package hashes, completion snapshots, and gate
+  reports as historical evidence.
 
 ## Working-tree scope to preserve
 
-- The canonical ADR and traceability-registry directory is now
+- The canonical architecture-document directory is now
   `docs/registry/architecture/`. References under current guides, registries,
-  examples, and package documents use that path. The old `docs/architecture/`
-  path remains only in dated historical gate reports.
+  examples, package documents, and local project skills use that path. The old
+  `docs/architecture/` path remains only in dated historical gate reports and
+  in current statements that explicitly identify it as the retired path.
 - Do not modify `docs/registry/architecture.yaml`; it is outside this task.
 - Preserve the pre-existing ADR-0003 and ADR-0004 documents. Neither is in
   G2's write set.
+- ADR-0003 and ADR-0004 remain untracked local documents and therefore are not
+  present in the published `origin/main` checkout. The tracked registry links
+  to those local paths. This documentation pass does not authorize staging,
+  committing, or changing either ADR or the registry.
 - The exact G1B write set is this file,
   `docs/battle-engine-structural-split-handoff.md`, and
   `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
@@ -233,8 +253,12 @@ Task: BattleEffectExecutor structural split implemented, validated, and publishe
 
 1. Treat the `BattleEffectExecutor` structural split as implemented, freshly
    validated, and published at `504f036858bae310de8ad03ae450903ebedc2779`.
-2. Do not begin cleanup, deduplication, mechanics changes, or C10A under this
-   implementation approval.
-3. C10A remains afterward and will begin only when called by the user. Preserve
+2. Keep the six-helper cross-translation-unit declaration seam recorded as a
+   non-runtime source follow-up. Do not claim it has been remediated without a
+   separately approved source change and validation.
+3. Do not begin cleanup, deduplication, mechanics changes, or C10A under this
+   documentation-only approval.
+4. C10A remains the next roadmap package and will begin only when called by the
+   user. Preserve
    roadmap order
    `C10A -> C10B -> C11A -> C11B`.

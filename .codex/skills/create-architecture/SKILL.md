@@ -10,7 +10,7 @@ agent: technical-director
 
 # Create Architecture
 
-This skill produces `docs/architecture/architecture.md` — the master architecture
+This skill produces `docs/registry/architecture/architecture.md` — the master architecture
 document that translates all approved GDDs into a concrete technical blueprint.
 It sits between design and implementation, and must exist before sprint planning begins.
 
@@ -100,7 +100,7 @@ left without an architectural decision to support it by the end of this session.
 
 ### 0c. Existing Architecture Decisions
 
-Read all files in `docs/architecture/` to understand what has already been decided.
+Read all files in `docs/registry/architecture/` to understand what has already been decided.
 List any ADRs found and their domains.
 
 ### 0d. Generate Engine Evidence Inventory
@@ -326,11 +326,11 @@ but don't yet. Group by priority:
 ## Phase 7: Write the Master Architecture Document
 
 Once all sections are approved, write the complete document to
-`docs/architecture/architecture.md`.
+`docs/registry/architecture/architecture.md`.
 
 Display a one-paragraph summary of what the document will contain (layers, modules, data flows, ADR gaps). Then use `AskUserQuestion`:
 - "All sections approved. May I write the master architecture document?"
-  - [A] Yes — write to `docs/architecture/architecture.md` now
+  - [A] Yes — write to `docs/registry/architecture/architecture.md` now
   - [B] Show me the full draft inline first, then ask again
   - [C] Not yet — I have more changes to discuss
 
@@ -412,7 +412,7 @@ Update the Document Status section:
 
 Show the proposed Document Status block inline, then use `AskUserQuestion`:
 - "May I update the Document Status section with the sign-off results?"
-  - [A] Yes — apply to `docs/architecture/architecture.md`
+  - [A] Yes — apply to `docs/registry/architecture/architecture.md`
   - [B] Not yet — I want to revisit the concerns first
 
 ---
@@ -427,7 +427,7 @@ Show the proposed Document Status block inline, then use `AskUserQuestion`:
 
 ## Architecture Complete
 
-`docs/architecture/architecture.md` v1.0 — [TD verdict: APPROVED / APPROVED WITH CONCERNS / CONCERNS]. [One sentence on what the architecture covers.]
+`docs/registry/architecture/architecture.md` v1.0 — [TD verdict: APPROVED / APPROVED WITH CONCERNS / CONCERNS]. [One sentence on what the architecture covers.]
 
 ---
 

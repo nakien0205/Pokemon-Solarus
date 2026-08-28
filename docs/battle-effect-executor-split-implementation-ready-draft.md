@@ -1,25 +1,30 @@
-# BattleEffectExecutor Split — Temporary Implementation-Ready Guide
+# BattleEffectExecutor Split — Implemented Structural Guide
 
-**State:** `IMPLEMENTED`
+**State:** `IMPLEMENTED — POST-MIGRATION CONCERN DOCUMENTED`
 **Approved by:** User
 **Approval date:** 2026-08-28
 **Implementation date:** 2026-08-28
-**Validation:** `PASS`
+**Validation:** `PASS` for build, Automation, and behavior-preserving relocation
+**Post-migration review:** `REVISE` for one private helper-declaration seam; no
+runtime, state, RNG, ordering, API, compile, or link regression was found
 **Implementation commit:** `504f036858bae310de8ad03ae450903ebedc2779`
 **Purpose:** Preserved contract and evidence for the completed bounded implementation
 **Authority:** Records the approved structural draft; it does not replace the
 live authorities listed below
 
 This guide stores the executor-split draft that was approved in the preceding
-read-only review and subsequently implemented in a fresh session. The
-pre-implementation hashes and line locations below remain the truthful baseline
-for that approved relocation; they are not claims about the current split
-layout. Final layout and validation evidence are recorded at the end.
+read-only review and subsequently implemented in a fresh session. A later
+independent migration review found no behavior regression and identified one
+non-runtime structural concern, recorded below. The pre-implementation hashes
+and line locations below remain the truthful baseline for that approved
+relocation; they are not claims about the current split layout. Final layout and
+validation evidence are recorded at the end. Imperative wording in the preserved
+draft records constraints applied during the completed implementation; it is not
+new authorization or a claim that the split remains unimplemented.
 
-Do not implement the split in the review session that created this guide. A
-fresh implementation session must recheck the live baseline before editing. If
-an in-scope authority or executor source differs from this guide, stop and show
-the conflict. Do not infer a revised plan.
+The approved execution boundary prohibited implementation in the review session
+that created this guide and required a fresh implementation session to recheck
+the live baseline before editing. That boundary was followed.
 
 This implementation approval did not authorize a commit, stage, push, branch,
 Git-history change, C10A work, cleanup, deduplication, or a mechanics change.
@@ -144,7 +149,8 @@ After the mechanical move, `BattleEffectExecutor.cpp` retains approximately
 2,119 current lines:
 
 - all pure request/move validation and event-building helpers currently
-  outside the context;
+  outside the context; six of those helpers are also called by relocated
+  context methods, as documented in the post-migration result below;
 - `TryApplyChance`, `TryApplyOrdinaryDescriptor`, and
   `TryApplyLinkedDescriptor`;
 - all five rule-purpose getters; and
@@ -237,11 +243,17 @@ It must not contain:
 - new generic abstractions; or
 - unrelated inline helpers.
 
-Coordinator-only free helpers remain local in `BattleEffectExecutor.cpp`. The
-first mechanical pass creates no new shared free-helper seam. Any unavoidable
-file-local helper must use a unique named namespace such as
-`BattleEffectExecutorDamagePrivate`; do not use anonymous namespaces or repeat
-generic private helper names that can collide under forced Unity.
+The approved constraint was that coordinator-only free helpers would remain
+local to `BattleEffectExecutor.cpp` and that the first mechanical pass would
+create no shared free-helper seam. The final implementation kept the helper
+definitions in that source, but three focused sources manually redeclare six of
+them for cross-translation-unit calls. Those declarations currently match and
+the build links successfully, so this is not an observed runtime defect. It is
+an explicit post-migration architecture concern: a later approved source change
+should either restore local ownership or replace the manual declarations with
+one private shared declaration header. Any file-local helper must still use a
+unique named namespace; do not use anonymous namespaces or repeat generic
+private helper names that can collide under Unity builds.
 
 ## Approved hand-edited write set (implemented)
 
@@ -303,13 +315,18 @@ executor/context symbols:
 | `plan/battle_mechanics/06-hit-damage-effects-and-outcomes.md` | Historical C05B/C05C hashes and evidence | Preserve unchanged |
 | `plan/battle_mechanics/07-parties-switching-and-replacements.md` | Historical C06A hashes and evidence | Preserve unchanged |
 
-Responsibility-only matches in ADR-0002, roadmap files `00`, `03`, `05`, `08`,
-and `12`, the modern-rules snapshot, battle-system interview, reusable-damage
-quick spec, battle-HUD guide, ADR-0003, ADR-0004, and the historical ADR-0002
-fail report are path-neutral or historical. Preserve them unchanged.
+During the executor implementation, responsibility-only matches in ADR-0002,
+roadmap files `00`, `03`, `05`, `08`, and `12`, the modern-rules snapshot,
+battle-system interview, reusable-damage quick spec, battle-HUD guide,
+ADR-0003, ADR-0004, and the historical ADR-0002 fail report required no
+executor-location migration. A later documentation reconciliation updated only
+the current gate status in roadmap `00` and `12`; their historical package
+evidence remains unchanged.
 
 No stale executor-location assumption was found in `AGENTS.md`, `CLAUDE.md`,
-`UE.md`, or `.codex/skills/`. Preserve generated evidence unchanged.
+`UE.md`, or `.codex/skills/`. A separate architecture-directory correction
+later updated local skill paths without changing executor responsibilities.
+Preserve generated evidence unchanged.
 
 ### Old-to-new mapping
 
@@ -364,7 +381,7 @@ forced-Unity flags:
 Then run these filters serially, stopping on the first build failure or
 exported JSON gate failure:
 
-| Filter | Expected successes |
+| Filter | Expected successful executions |
 |---|---:|
 | `PokemonSolarus.Battle.ADR0002` | 110 |
 | `PokemonSolarus.Battle.C03A` | 6 |
@@ -389,8 +406,9 @@ exported JSON gate failure:
 | `PokemonSolarus.Battle.Runtime` | 3 |
 | `PokemonSolarus.Battle` | 320 |
 
-The 21 focused filters contain 286 expected successes. Including full Battle,
-the matrix contains 606 expected successes.
+The 21 focused filters contain 286 expected executions. Including full Battle,
+the matrix contains 606 expected executions across overlapping filters and 320
+unique full-Battle paths.
 
 The approved review found 320 unique live Battle paths with sorted path-set
 SHA-256:
@@ -422,8 +440,11 @@ The implementation wave is complete only when:
   commit/publication path;
 - all 102 context methods and all nine executor definitions occur exactly once;
 - no `.cpp` includes another `.cpp`;
-- focused sources have self-contained includes and forced-Unity-safe unique
-  named namespaces;
+- focused sources have self-contained includes, retain the shared
+  `BattleEffectExecutorPrivate` namespace needed by the context, and introduce
+  no anonymous or duplicate file-local helper definitions;
+- any implementation deviation from the approved helper-ownership plan is
+  recorded explicitly rather than presented as full structural compliance;
 - both live guides record truthful final layout and fresh evidence while all
   historical evidence remains unchanged;
 - the forced-Unity build passes; and
@@ -435,9 +456,11 @@ separately authorized by the user.
 
 ## Implementation result — 2026-08-28
 
-**PASS.** The implementation session rechecked the recorded hashes, live
-authorities, caller contract, guide references, and working-tree inventory
-before editing. No conflict was found.
+**PASS for behavior-preserving relocation, build, and Automation.** The
+implementation session rechecked the recorded hashes, live authorities, caller
+contract, guide references, and working-tree inventory before editing. No
+runtime or mechanics conflict was found. The later migration review found the
+private helper-declaration concern documented below.
 
 The final physical layout is:
 
@@ -463,13 +486,34 @@ transactional-RNG commit, state-delta application, and successful publication
 path. No `.cpp` includes another `.cpp`, and no focused source adds an anonymous
 namespace or file-local helper definition.
 
+Three focused sources do, however, manually redeclare six helpers whose sole
+definitions remain in `BattleEffectExecutor.cpp`:
+
+- `BattleEffectExecutorState.cpp`: `IsKnownSide`,
+  `AreMoveDefinitionsIdentical`, `RequiresConditionReference`, and
+  `IsRemovalTargetCompatible`;
+- `BattleEffectExecutorDamage.cpp`: `MakeRuleId`; and
+- `BattleEffectExecutorConditions.cpp`: `TryAddRandomEvent`.
+
+The declarations match their definitions and were compiled and linked as
+separate translation units. This is therefore a documented maintainability and
+dependency-clarity concern, not evidence of changed battle behavior. No source
+remediation is part of this documentation-only reconciliation.
+
+Because the approved build used `-BytesPerUnityCPP=1`, its generated wrappers
+contained one project source each. That evidence proves separate-translation-
+unit compilation and linking; it does not exercise ordinary multi-source Unity
+co-location. The source audit found no concrete namespace or duplicate-helper
+collision.
+
 Fresh validation evidence:
 
 - forced-Unity build log:
   `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`;
 - serial 22-filter evidence root:
   `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`;
-- 286 focused successes plus 320 full-Battle successes, for 606 total;
+- 286 focused executions plus 320 full-Battle executions, for 606 executions
+  across overlapping filters and 320 unique full-Battle paths;
 - zero aggregate warnings, failures, not-run, or in-process tests and zero
   per-test warnings or errors; and
 - full sorted 320-path SHA-256

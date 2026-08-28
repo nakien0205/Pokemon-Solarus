@@ -19,7 +19,7 @@ Resolve the review mode (once, store for all gate spawns this run):
 See `.codex/docs/director-gates.md` for the full check pattern.
 
 **If the argument starts with `retrofit` followed by a file path**
-(e.g., `/architecture-decision retrofit docs/architecture/adr-0001-event-system.md`):
+(e.g., `/architecture-decision retrofit docs/registry/architecture/adr-0001-event-system.md`):
 
 Enter **retrofit mode**:
 
@@ -156,7 +156,7 @@ Run `/setup-engine` first, or tell me which engine you are using."
 
 ## 2. Determine the next ADR number
 
-Scan `docs/architecture/` for existing ADRs to find the next number.
+Scan `docs/registry/architecture/` for existing ADRs to find the next number.
 
 ---
 
@@ -423,7 +423,7 @@ If GDD sync issues were found:
 
 If no GDD sync issues:
 - "ADR draft is complete. May I write it?"
-  - [A] Write ADR to `docs/architecture/adr-[NNNN]-[slug].md`
+  - [A] Write ADR to `docs/registry/architecture/adr-[NNNN]-[slug].md`
   - [B] Not yet — I need to review further
 
 If yes to any write option, write the file, creating the directory if needed.
