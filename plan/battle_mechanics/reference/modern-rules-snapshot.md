@@ -28,6 +28,81 @@ game sources. Where those sources remained incomplete, the accepted Solarus
 rule is stated explicitly instead of being presented as verified Gen IX
 behavior.
 
+## C10A R0 amendment — 2026-08-28
+
+Status: **Accepted source/scope decision; documentation only**
+
+The user approved Pokemon Showdown as the main behavior guideline for the C10A
+R0 decisions and authorized the best long-term bounded decision where Showdown
+does not carry the required fact. This amendment supersedes only the earlier
+closures that conflict with the four decisions below. Every other accepted
+B00B rule remains unchanged. This amendment does not authorize C++, tests,
+source JSON, Unreal assets, generated output, status changes, or Git actions.
+
+Authority order for these decisions is:
+
+1. the explicit C10A R0 decisions in this amendment;
+2. other accepted Solarus rules that this amendment does not change;
+3. Pokemon Showdown commit
+   `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d`; and
+4. PokeAPI commit `7af36d9f3424366ffc46e90d94c8bc120df39cd0`,
+   `data/v2/csv/pokemon_species.csv`, for `capture_rate` only.
+
+The approved C10 species catch rates are:
+
+| Species/form | Catch rate |
+|---|---:|
+| Charizard | 45 |
+| Venusaur | 45 |
+| Gyarados | 45 |
+| Rotom base form | 45 |
+| Pelipper | 45 |
+| Espathra | 60 |
+| Clefable | 25 |
+| Excadrill | 60 |
+
+Pokemon Showdown supplies the other selected species facts but carries no
+catch-rate field. PokeAPI is not approved as a replacement source for those
+other facts.
+
+For Toxic in the modern ruleset, a Poison-type user bypasses the
+semi-invulnerability reachability check and the accuracy roll. This consumes no
+accuracy RNG. Protect and every later applicable type, status, Ability, item,
+Substitute, and effect gate remain in their existing order. A non-Poison user
+keeps Toxic's ordinary `90` accuracy and ordinary reachability.
+
+For Solar Beam, Sun skips the charging turn. Rain, Sandstorm, or Snow halves
+move power at the damage execution checkpoint; other approved weather leaves
+power unchanged. Without Sun, Solar Beam remains an ordinary two-turn charge
+move. Primal weather and Hail remain outside the approved Solarus weather set.
+
+For Thunder, base accuracy is `70`. Rain changes accuracy to literal `true`,
+which consumes no accuracy draw. Sun changes accuracy to `50`. Other approved
+weather leaves accuracy at `70`. Thunder retains Fly-style reach and its `30%`
+Paralysis secondary.
+
+These are behavior contracts, not permission to copy Showdown's move-ID
+branches. Solarus implementation must use the smallest authored typed hit,
+weather-charge, weather-power, and weather-accuracy rules that preserve the
+shared hit pipeline and support later related moves.
+
+For cross-platform reproducibility, R0 makes SHA-256 of the raw committed bytes
+the canonical extraction identity:
+
+| Source | Path | Raw-byte SHA-256 | Approved use |
+|---|---|---|---|
+| Showdown `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d` | `data/moves.ts` | `f541faead2379951830576787fd2a9a22f82467df2464a819f10feea228b3095` | Selected move facts and authored behavior evidence |
+| Showdown `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d` | `sim/battle-actions.ts` | `a30408e2f9a53a43333bf4a865366d6adbe26d3d91a836ba51042accce4d9437` | Toxic and hit-pipeline behavior evidence |
+| Showdown `34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d` | `data/pokedex.ts` | `1ef21d85befbcba8111b13827e04b54c8a689679a465552d27b386969c9f8a44` | Selected typing, base stats, and Ability choices |
+| PokeAPI `7af36d9f3424366ffc46e90d94c8bc120df39cd0` | `data/v2/csv/pokemon_species.csv` | `9878f19c0637095cdd9a4134b4aac8fb2b64776d3bdc599aa68f15c3a011b87c` | Selected `capture_rate` values only |
+
+The older `data/moves.ts` hash
+`30e36c2295ce6e2088cbdbebc41fb554c32a8d52be5635ace6067aaf1532ed11`
+and `sim/battle-actions.ts` hash
+`cb55b98e111926bc2f7bf62d2cadfd0d9c4bff81932336e5f3286a642d9fbb0d`
+are verified Windows CRLF checkout hashes of the same pinned files. They remain
+truthful historical evidence but are not the cross-platform extraction hash.
+
 ## Reproducible source lock
 
 | Authority | Exact revision or version | Verification |
@@ -284,6 +359,10 @@ A semi-invulnerable target remains selectable. Reachability is evaluated when
 the action resolves. Fly-style targets can be hit by Gust, Twister, Sky
 Uppercut, Thunder, Hurricane, Smack Down, and Thousand Arrows; Gust and Twister
 double their base power for this target state.
+
+The C10A R0 amendment adds one conditional exception to the ordinary allowlist:
+a Poison-type user's Toxic bypasses the semi-invulnerability check. A
+non-Poison user's Toxic does not.
 
 An accuracy value of literal `true` consumes no accuracy draw. Otherwise, after
 all modifiers, consume `r = U[0,99]`; hit iff `r < EffectiveAccuracy`. Numeric
@@ -676,6 +755,12 @@ Excluded mechanics such as Gravity or Iron Ball are not inferred.
 | Rain | 5 | Water move damage `6144/4096`; Fire `2048/4096`. |
 | Sandstorm | 5 | Rock-type Special Defense `PokeRound(stat * 3 / 2)` directly before the ordinary defense-modifier chain; end-turn `max(1, floor(BaseMaxHP/16))` to non-Rock/Ground/Steel battlers unless another approved immunity blocks it. |
 | Snow | 5 | Ice-type Defense `PokeRound(stat * 3 / 2)` directly before the ordinary defense-modifier chain; no residual damage. |
+
+The C10A R0 amendment additionally freezes these move-specific weather rules:
+Sun skips Solar Beam's charge; Rain, Sandstorm, and Snow halve Solar Beam's
+move power; Rain makes Thunder always hit; and Sun changes Thunder's accuracy
+to `50`. These rules do not admit primal weather, Hail, or unrelated weather
+mechanics.
 
 Drizzle establishes Rain through the same one-weather slot. No transformation,
 primal weather, or overworld weather effects are in scope.
@@ -1151,8 +1236,8 @@ stage, damage, ordering, RNG-interface, or Data Table boundary remains in B00B.
 | RNG eligibility and call order | frozen, including deterministic obedience and Bag execution checkpoints |
 | action classes, ties, and Quick Claw | frozen |
 | standard obedience | frozen as sourced setup facts plus accepted Solarus deterministic outcome |
-| major status and approved volatiles | frozen |
-| weather, terrain, hazards, screens, rooms, side conditions | frozen |
+| major status and approved volatiles | frozen, including the dated C10A R0 Poison-user Toxic amendment |
+| weather, terrain, hazards, screens, rooms, side conditions | frozen, including the dated C10A R0 Solar Beam and Thunder amendment |
 | approved Abilities and held items | frozen |
 | Hyper Potion and Poke Ball | frozen |
 | Revive, Full Heal, X Attack | frozen |
