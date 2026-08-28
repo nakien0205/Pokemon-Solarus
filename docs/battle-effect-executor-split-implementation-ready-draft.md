@@ -5,6 +5,7 @@
 **Approval date:** 2026-08-28
 **Implementation date:** 2026-08-28
 **Validation:** `PASS`
+**Implementation commit:** `504f036858bae310de8ad03ae450903ebedc2779`
 **Purpose:** Preserved contract and evidence for the completed bounded implementation
 **Authority:** Records the approved structural draft; it does not replace the
 live authorities listed below
@@ -23,7 +24,9 @@ the conflict. Do not infer a revised plan.
 This implementation approval did not authorize a commit, stage, push, branch,
 Git-history change, C10A work, cleanup, deduplication, or a mechanics change.
 After implementation and validation passed, the user separately authorized one
-bounded commit and push of the completed task paths.
+bounded commit and push of the completed task paths. The implementation and its
+initial documentation were published to `origin/main` as
+`504f036858bae310de8ad03ae450903ebedc2779`.
 
 ## Workspace and required read order
 

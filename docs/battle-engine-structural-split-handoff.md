@@ -9,8 +9,9 @@ complete. G2's documentation-only closeout evidence was recorded on 2026-08-28
 and accepted by the user on 2026-08-28. The Battle Engine structural split is
 complete. The separately approved `BattleEffectExecutor` structural split was
 implemented and passed its fresh forced-Unity build and serial 22-filter matrix
-on 2026-08-28. The user separately authorized its bounded commit and push on
-2026-08-28.**
+on 2026-08-28. The user separately authorized its bounded commit and push, and
+the implementation was published to `origin/main` as
+`504f036858bae310de8ad03ae450903ebedc2779`.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,

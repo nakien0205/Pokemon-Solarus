@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: Behavior-preserving BattleEffectExecutor structural split before C10A
-Task: BattleEffectExecutor structural split implemented and validated; bounded commit and push authorized
+Task: BattleEffectExecutor structural split implemented, validated, and published
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-28
@@ -42,7 +42,8 @@ Task: BattleEffectExecutor structural split implemented and validated; bounded c
   header plus six focused sources while preserving one staged context, one
   staged state, the ordered `TryExecute` coordinator, and the existing outer
   commit/publication path. The user separately authorized one bounded commit and
-  push of the completed implementation and current documentation.
+  push, and the implementation was published to `origin/main` as
+  `504f036858bae310de8ad03ae450903ebedc2779`.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -231,7 +232,7 @@ Task: BattleEffectExecutor structural split implemented and validated; bounded c
 ## Next
 
 1. Treat the `BattleEffectExecutor` structural split as implemented, freshly
-   validated, and authorized for the current bounded commit and push.
+   validated, and published at `504f036858bae310de8ad03ae450903ebedc2779`.
 2. Do not begin cleanup, deduplication, mechanics changes, or C10A under this
    implementation approval.
 3. C10A remains afterward and will begin only when called by the user. Preserve
