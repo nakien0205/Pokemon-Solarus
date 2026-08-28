@@ -5,8 +5,8 @@
 **Guide Wave G1B, atomic-test Wave T1, private-production-seam Wave P0,
 non-checkpoint member-relocation Wave P1, and checkpoint member-relocation Wave
 P2 were completed on 2026-08-27. The post-ADR structural delta review is
-complete. G2 is approved for a later fresh bounded closeout session but has not
-started.**
+complete. G2's documentation-only closeout evidence was recorded on 2026-08-28
+and accepted by the user on 2026-08-28. The structural split is complete.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,
@@ -28,7 +28,10 @@ session under its exact seven-source map, this handoff, and ordinary generated
 validation output. P2 changed no public contract, behavior rule, test source,
 module boundary, or visual asset. Its implementation session changed no Git
 state. The user later authorized one task-specific P2 guide sync, commit, and
-push. G2 is separately approved but has not started; C10A remains unapproved.
+push. G2's separately approved evidence capture and two-guide update are now
+implemented. The user approved the final G2 diff and evidence, then authorized
+one task-specific commit and push of the exact two-guide set. C10A remains
+unapproved and will come later when called by the user.
 
 The review was intentionally limited to file size, responsibility boundaries,
 and safe translation-unit decomposition. It was not an in-depth mechanics or
@@ -245,10 +248,20 @@ search across the root instructions, `.codex/skills/`, `docs/`, `production/`,
 classified guide/evidence files. The seven P2 source names occur only in this
 handoff, and they now describe live files. Accepted ADR method contracts remain
 path-neutral, while roadmap completion records and gate reports remain truthful
-historical evidence. The later P2 commit approval-sync updates
+historical evidence. The later P2 commit approval-sync updated
 `production/session-state/active.md` to record P2 as complete and G2 as approved
-but not started. That sync does not perform the G2 closeout review or mark G2
+but not started. That sync did not perform the G2 closeout review or mark G2
 complete.
+
+The G2 closeout repeated the same search on 2026-08-28, excluding generated
+Unreal output. It again found exactly the 13 guide/evidence files classified in
+the table above. This handoff and `production/session-state/active.md` are the
+only current structural authorities. The accepted ADR-0002 method references
+remain path-neutral. ADR-0004's older stale-Bag paragraph remains explicitly
+historical beneath its dated prerequisite amendment. The seven roadmap files
+and two ADR-0002 gate reports remain truthful historical evidence. No match was
+found in `AGENTS.md`, `CLAUDE.md`, `UE.md`, or `.codex/skills/`, and no stale
+live file-location assumption remains.
 
 The exact approved G1B guide write set is:
 
@@ -430,7 +443,8 @@ independent state copies or commits.
 ## Approval-bounded write sets and sequence
 
 Use separate changes rather than one broad refactor. G1B, T1, P0, P1, and P2
-have been approved and completed. G2 is approved but not started.
+have been approved and completed. G2's evidence capture and guide updates are
+implemented and accepted.
 
 ### G1B - active guide migration (approved)
 
@@ -532,15 +546,43 @@ and a unique named private namespace, and no `.cpp` includes another `.cpp`.
 cancellation, and Capture. Do not create separate Capture or Pivot source files
 in this wave.
 
-### G2 - structural closeout (approved, not started)
+### G2 - structural closeout (implemented and accepted 2026-08-28)
 
-Update this handoff and `production/session-state/active.md` with the final live
-worktree, generated report roots, exported counters, and current guide search.
-Then stop for user diff review. Do not commit.
+G2 changed only this handoff and `production/session-state/active.md`. It made
+no production-source, test, generated-output, visual-asset, configuration, or
+Git change.
 
-G2 approval applies only to a later fresh bounded closeout session. The current
-approval-sync may record that status and commit and push the exact P2 source and
-guide set, but it must not perform G2, mark it complete, or begin cleanup.
+The read-only live-layout pass found all 25 expected P0, P1, and P2 structural
+files with the exact recorded line counts. The 13 facade-member sources contain
+all 28 `FBattleEngine` definitions exactly once: five in `BattleEngine.cpp`, 16
+across the five P1 sources, and seven across the seven P2 sources. No `.cpp`
+file includes another `.cpp` file. This was a direct filesystem inspection;
+G2 ran no Git status or diff and makes no clean-worktree claim.
+
+The preserved generated evidence remains readable:
+
+- `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852` contains
+  two exported reports and 430 successes: 110 ADR-0002 plus 320 full Battle;
+- `Game/Saved/AutomationReports/BattleStructural-P0-20260827-200412`,
+  `BattleStructural-P1-20260827-212839`, and
+  `BattleStructural-P2-20260827-225953` each contain 22 exported reports and
+  606 successes, including 320 full Battle; and
+- across all 68 `index.json` files, every aggregate issue counter and per-test
+  warning/error counter is zero, every test state is `Success`, and no report
+  contains a duplicate path. All 22 P2 path sets exactly match P1.
+
+The existing P2 build log at
+`Game/Saved/Logs/BattleStructural-P2-20260827-225012-ForcedUnityBuild.log`
+records `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and
+`-NoUBA`, followed by `Result: Succeeded`. G2 did not rerun the build or
+Automation because its approved scope is evidence inspection and guide
+closeout only. This VERIFY is not a fresh build or test run and does not prove
+byte-for-byte source identity.
+
+The fresh guide search is recorded in the mandatory migration section above.
+The user reviewed and approved the final G2 diff and evidence on 2026-08-28.
+That approval completes the structural split. Cleanup, C10A work, and the later
+`BattleEffectExecutor` split remain outside G2.
 
 After G2, separately review any behavior cleanup or duplication reduction. A
 later `BattleEffectExecutor` split is another independent task.
@@ -655,10 +697,9 @@ P2 passes the required build and matrix without a correction wave. Evidence is:
   The full sorted path-set SHA-256 remains
   `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
 
-After G2, rerun the guide-reference search and verify that active guidance
-reflects current versus proposed files accurately. No
-Blueprint lifecycle or actual-size PIE claim is part of this plain-C++
-structural task.
+G2 reran the guide-reference search and verified that active guidance reflects
+current versus proposed files accurately. No Blueprint lifecycle or actual-size
+PIE claim is part of this plain-C++ structural task.
 
 ## Exact exclusions
 
@@ -678,12 +719,12 @@ Unless a later approval explicitly changes this list, exclude:
   assets, maps, configuration, `.uproject`, module rules, and new modules;
 - hand edits under `Game/Saved`, `Game/Intermediate`, or `Game/Binaries`;
   approved build/Automation tools may write their ordinary generated output;
-- `docs/registry/architecture.yaml`, ADR-0003, and every part of the untracked
-  ADR-0004 other than the dated G1B amendment; and
+- `docs/registry/architecture.yaml`, ADR-0003, and every part of ADR-0004 other
+  than the dated G1B amendment; and
 - staging, committing, pushing, branching, or rewriting Git history, except for
-  the current one task-specific commit and push containing the exact P2 source
-  set, this handoff, and `production/session-state/active.md`. G2 approval does
-  not authorize Git actions for its later implementation.
+  the one task-specific G2 commit and push authorized after final review. That
+  exception contains exactly this handoff and
+  `production/session-state/active.md`.
 
 ## Mechanical and validation constraints
 
@@ -720,3 +761,6 @@ The structural work is complete only when:
 - historical evidence remains historically accurate;
 - no unrelated or generated files were hand-edited; and
 - the user has reviewed the final diff and validation evidence.
+
+All criteria above were satisfied when the user approved G2 on 2026-08-28. The
+Battle Engine structural split is complete.

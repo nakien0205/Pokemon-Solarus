@@ -1,10 +1,10 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: Behavior-preserving Battle Engine structural split before C10A
-Task: Production Wave P2 complete; G2 approved but not started
+Task: G2 accepted; Battle Engine structural split complete
 <!-- /STATUS -->
 
-# Active Project State — 2026-08-27
+# Active Project State — 2026-08-28
 
 ## Current work
 
@@ -34,7 +34,9 @@ Task: Production Wave P2 complete; G2 approved but not started
 - Checkpoint member-relocation Wave P2 is approved and complete. The seven
   focused production sources now own action start, Wild actions, Bag and
   Capture, voluntary Switch, pre-move, target resolution, and move effects.
-  G2 is approved for a later fresh bounded closeout session but has not started.
+  G2's documentation-only evidence capture and guide updates are complete. The
+  user approved the final diff and evidence on 2026-08-28, so the structural
+  split is accepted.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -116,6 +118,33 @@ Task: Production Wave P2 complete; G2 approved but not started
   definitions still exist exactly once. Every P2 source has self-contained
   includes and a unique named private namespace, and no `.cpp` includes another
   `.cpp`.
+- G2 re-read the final live structural layout on 2026-08-28. All 25 expected
+  files from P0, P1, and P2 are present with the recorded line counts. The 13
+  facade-member sources still contain all 28 `FBattleEngine` definitions
+  exactly once: five in `BattleEngine.cpp`, 16 across P1, and seven across P2.
+  A fresh source scan found no `.cpp` include of another `.cpp`. This was a
+  direct filesystem inspection; G2 ran no Git status or diff and makes no
+  clean-worktree claim.
+- G2 re-opened all 68 preserved exported `index.json` files under
+  `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852`,
+  `BattleStructural-P0-20260827-200412`,
+  `BattleStructural-P1-20260827-212839`, and
+  `BattleStructural-P2-20260827-225953`. T1's two reports contain 430
+  successes. P0, P1, and P2 each contain 22 reports and 606 successes,
+  including 320 in full `PokemonSolarus.Battle`. Every aggregate issue counter
+  and per-test warning/error counter is zero, every test state is `Success`,
+  and no report has a duplicate path. All 22 P2 path sets exactly match P1.
+- G2 also re-read the P2 build log. It records all four required forced-Unity
+  flags and `Result: Succeeded`. No new build or Automation run was required or
+  authorized for this documentation-only closeout. This VERIFY is not a fresh
+  build or test run and does not prove byte-for-byte source identity.
+- G2 repeated the required filename-and-responsibility search across root
+  instructions, `.codex/skills/`, `docs/`, `production/`, `plan/`, `design/`,
+  and other repository text, excluding generated Unreal output. It found the
+  same 13 classified guide/evidence files. This file and the handoff are the
+  current structural authorities; accepted ADR references remain path-neutral,
+  and roadmap plus gate-report paths remain historical evidence. No stale live
+  file-location assumption was found.
 
 ## Working-tree scope to preserve
 
@@ -124,20 +153,20 @@ Task: Production Wave P2 complete; G2 approved but not started
   examples, and package documents use that path. The old `docs/architecture/`
   path remains only in dated historical gate reports.
 - Do not modify `docs/registry/architecture.yaml`; it is outside this task.
-- Preserve the pre-existing untracked ADR-0003 and ADR-0004 documents. Do not
-  add either document to the P2 commit.
+- Preserve the pre-existing ADR-0003 and ADR-0004 documents. Neither is in
+  G2's write set.
 - The exact G1B write set is this file,
   `docs/battle-engine-structural-split-handoff.md`, and
   `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
 - T1's exact code layout and validation evidence are recorded in
-  `docs/battle-engine-structural-split-handoff.md`. The later documentation and
-  Git approval covers only the T1 source changes, this file, and that handoff;
-  it excludes the architecture registry, ADR-0003, and ADR-0004.
-- The current P0 commit write set is `BattleEngine.cpp`, the exact six private
-  support `.h`/`.cpp` pairs, this file, and
-  `docs/battle-engine-structural-split-handoff.md`. The user separately approved
-  one commit and push for only that set. It excludes the architecture registry,
-  ADR-0003, and ADR-0004.
+  `docs/battle-engine-structural-split-handoff.md`. Its later task-specific
+  documentation and Git approval covered only the T1 source changes, this file,
+  and that handoff; it excluded the architecture registry, ADR-0003, and
+  ADR-0004.
+- P0's task-specific commit write set was `BattleEngine.cpp`, the exact six
+  private support `.h`/`.cpp` pairs, this file, and
+  `docs/battle-engine-structural-split-handoff.md`. It excluded the architecture
+  registry, ADR-0003, and ADR-0004.
 - P1's exact hand-edited write set is `BattleEngine.cpp`,
   `BattleEngineSnapshots.cpp`, `BattleEngineDecisionFlow.cpp`,
   `BattleEngineEndTurn.cpp`, `BattleEngineBetweenActions.cpp`,
@@ -149,8 +178,9 @@ Task: Production Wave P2 complete; G2 approved but not started
   Its hand-edited implementation set is `BattleEngine.cpp`, the seven named P2
   sources, and that handoff. Its only other writes are ordinary generated build
   and Automation output under `Game/Saved`.
-- G2 is approved only for a later fresh bounded closeout session. This
-  approval-sync and P2 commit task must not implement G2 or mark it complete.
+- G2's exact hand-edited write set is this file and
+  `docs/battle-engine-structural-split-handoff.md`. It authorizes no production
+  source, test, generated-output, C10A, or cleanup change.
 - Do not change any other production source, tests, visual assets, Blueprints,
   maps, configuration, `.uproject` data, module rules, or C10 content data
   without a new task-specific approval.
@@ -159,18 +189,15 @@ Task: Production Wave P2 complete; G2 approved but not started
   still use a fresh unique `Game/Saved/AutomationReports/**` root.
 - Preserve replay schema `6`, existing enum ordinals, and frozen
   Cry/reinforcement behavior.
-- The current task authorizes one commit and push containing only
-  `BattleEngine.cpp`, the seven named P2 sources, this file, and
-  `docs/battle-engine-structural-split-handoff.md`. It excludes the architecture
-  registry, ADR-0003, ADR-0004, generated output, G2 implementation, C10A,
-  branches, and Git history rewrites.
+- After approving the final G2 diff, the user authorized one task-specific
+  commit and push containing exactly this file and
+  `docs/battle-engine-structural-split-handoff.md`. No branch or Git-history
+  rewrite is authorized.
 
 ## Next
 
-1. Treat P2 as complete; do not continue relocation cleanup or behavior changes
-   under its approval.
-2. G2 is approved but not started. Begin it only in a later fresh bounded
-   closeout session. This task only synchronizes approval status and commits and
-   pushes the exact P2 set.
-3. After the approved structural work closes, resume roadmap order at
+1. Treat the Battle Engine structural split as complete and accepted.
+2. Do not begin cleanup, deduplication, the later `BattleEffectExecutor` split,
+   or C10A under G2.
+3. C10A will come later when called by the user. Preserve roadmap order
    `C10A -> C10B -> C11A -> C11B`.
