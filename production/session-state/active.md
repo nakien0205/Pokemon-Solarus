@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: Behavior-preserving Battle Engine structural split before C10A
-Task: G2 accepted; Battle Engine structural split complete
+Feature: Behavior-preserving BattleEffectExecutor structural split before C10A
+Task: BattleEffectExecutor structural split implemented and validated; bounded commit and push authorized
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-28
@@ -37,6 +37,12 @@ Task: G2 accepted; Battle Engine structural split complete
   G2's documentation-only evidence capture and guide updates are complete. The
   user approved the final diff and evidence on 2026-08-28, so the structural
   split is accepted.
+- The separately approved `BattleEffectExecutor` structural split is
+  implemented and freshly validated. Its completed map uses one private context
+  header plus six focused sources while preserving one staged context, one
+  staged state, the ordered `TryExecute` coordinator, and the existing outer
+  commit/publication path. The user separately authorized one bounded commit and
+  push of the completed implementation and current documentation.
 - C10A Required Canonical Rows remains the next roadmap package after the
   separately approved structural work. Preserve the order
   `C10A -> C10B -> C11A -> C11B`.
@@ -138,6 +144,23 @@ Task: G2 accepted; Battle Engine structural split complete
   flags and `Result: Succeeded`. No new build or Automation run was required or
   authorized for this documentation-only closeout. This VERIFY is not a fresh
   build or test run and does not prove byte-for-byte source identity.
+- The `BattleEffectExecutor` split's fresh forced-Unity editor build passed with
+  `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`.
+  Its build log is
+  `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`.
+- Its fresh serial 22-filter evidence root is
+  `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`.
+  The 22 exported reports contain 606 successes: 286 focused and 320 full
+  Battle. All aggregate issue counters and per-test warning/error counters are
+  zero, all states are `Success`, every report has unique exact-prefix paths,
+  and the full sorted path-set SHA-256 remains
+  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
+- The final executor source audit found the 102 context definitions exactly once
+  in the approved `22 / 8 / 27 / 16 / 3 / 26` file split and all nine executor
+  definitions exactly once. `BattleEffectExecutor.h` is byte-for-byte unchanged
+  at its recorded SHA-256, and `BattleEngineMoveEffects.cpp` remains unchanged.
+  The implementation retains one context construction, one staged state, the
+  ordered coordinator, and the existing single outer commit/publication path.
 - G2 repeated the required filename-and-responsibility search across root
   instructions, `.codex/skills/`, `docs/`, `production/`, `plan/`, `design/`,
   and other repository text, excluding generated Unreal output. It found the
@@ -181,6 +204,17 @@ Task: G2 accepted; Battle Engine structural split complete
 - G2's exact hand-edited write set is this file and
   `docs/battle-engine-structural-split-handoff.md`. It authorizes no production
   source, test, generated-output, C10A, or cleanup change.
+- The `BattleEffectExecutor` implementation's exact hand-edited write set is
+  `BattleEffectExecutor.cpp`, `BattleEffectExecutorContext.h`, the six focused
+  `BattleEffectExecutor*.cpp` sources recorded in the handoff, this file, and
+  `docs/battle-engine-structural-split-handoff.md`. Its only other writes are
+  ordinary generated build and Automation output under `Game/Saved`. The
+  implementation approval itself authorized no Git action.
+- After the implementation and validation report, the user separately
+  authorized one commit and push containing that exact code set plus this file,
+  `docs/battle-engine-structural-split-handoff.md`, and
+  `docs/battle-effect-executor-split-implementation-ready-draft.md`. Preserve
+  the unrelated untracked ADR-0003 and ADR-0004 files and every other exclusion.
 - Do not change any other production source, tests, visual assets, Blueprints,
   maps, configuration, `.uproject` data, module rules, or C10 content data
   without a new task-specific approval.
@@ -196,8 +230,10 @@ Task: G2 accepted; Battle Engine structural split complete
 
 ## Next
 
-1. Treat the Battle Engine structural split as complete and accepted.
-2. Do not begin cleanup, deduplication, the later `BattleEffectExecutor` split,
-   or C10A under G2.
-3. C10A will come later when called by the user. Preserve roadmap order
+1. Treat the `BattleEffectExecutor` structural split as implemented, freshly
+   validated, and authorized for the current bounded commit and push.
+2. Do not begin cleanup, deduplication, mechanics changes, or C10A under this
+   implementation approval.
+3. C10A remains afterward and will begin only when called by the user. Preserve
+   roadmap order
    `C10A -> C10B -> C11A -> C11B`.

@@ -6,7 +6,11 @@
 non-checkpoint member-relocation Wave P1, and checkpoint member-relocation Wave
 P2 were completed on 2026-08-27. The post-ADR structural delta review is
 complete. G2's documentation-only closeout evidence was recorded on 2026-08-28
-and accepted by the user on 2026-08-28. The structural split is complete.**
+and accepted by the user on 2026-08-28. The Battle Engine structural split is
+complete. The separately approved `BattleEffectExecutor` structural split was
+implemented and passed its fresh forced-Unity build and serial 22-filter matrix
+on 2026-08-28. The user separately authorized its bounded commit and push on
+2026-08-28.**
 
 This document records the completed read-only delta review and the live
 approval boundaries. G1B authorized only this file,
@@ -134,8 +138,9 @@ Additional verified facts:
 - Target-resolution 3E5 and move-effect 3E6 add checkpoint-local identities,
   owned preparations, and deltas around the existing state/commit boundary.
   They do not create another state owner or commit seam.
-- `BattleEffectExecutor` still uses one staged `FStateExecutionContext` and one
-  owned `FBattleEffectExecutionPlan`; its split remains a later task.
+- At that pre-T1 review, `BattleEffectExecutor` still used one staged
+  `FStateExecutionContext` and one owned `FBattleEffectExecutionPlan`, and its
+  split remained later work. The completed split is recorded below.
 - The worktree paths to preserve are modified
   `docs/registry/architecture.yaml`, untracked ADR-0003, and the pre-existing
   untracked ADR-0004 except for its explicitly approved G1B amendment.
@@ -416,29 +421,59 @@ comparison proved 84 unique old paths and 84 identical unique new paths before
 
 ## `BattleEffectExecutor` follow-up
 
-`BattleEffectExecutor.cpp` is the second production priority. The accepted
-ADR-0002 gate confirms that its atomic move-effect and outcome staging is
-stable, but it is excluded from the `BattleEngine` split and still requires a
-later read-only delta review, exact write set, and separate approval.
+The user approved the bounded implementation guide at
+`docs/battle-effect-executor-split-implementation-ready-draft.md` on
+2026-08-28. The approved split is implemented and freshly validated. This
+records implementation completion. The user's later commit-and-push instruction
+is task-specific and does not authorize any broader Git action.
 
-Keep:
+Keep `BattleEffectExecutor.h` byte-for-byte unchanged, keep the complete
+ordered `FBattleEffectExecutor::TryExecute` coordinator in
+`BattleEffectExecutor.cpp`, and keep exactly one staged
+`BattleEffectExecutorPrivate::FStateExecutionContext`, one staged state, and
+the existing outer commit/publication path.
 
-- the current private header contract;
-- the ordered `FBattleEffectExecutor::TryExecute` coordinator; and
-- exactly one staged `FStateExecutionContext` and commit.
+`BattleEffectExecutor.h` remains at 256 physical lines and retains its recorded
+SHA-256
+`0dadca0d3da930f2f5cf2a8548016e20ec70a1252f090bd452dbf16dc258e989`.
+The retained coordinator source is 2,118 physical lines. The completed focused
+file map and actual line counts are:
 
-Then consider moving the context declaration to a private header and defining
-its methods across focused files for:
+| File | Lines | Responsibility |
+|---|---:|---|
+| `BattleEffectExecutorContext.h` | 429 | The single private context declaration, unchanged method declarations, and existing data members in their current order |
+| `BattleEffectExecutorState.cpp` | 471 | Context construction, validation, shared lookup, plan materialization, and direct-state plan application |
+| `BattleEffectExecutorDamage.cpp` | 809 | Hit gates, accuracy, critical, damage input, and HP mutation |
+| `BattleEffectExecutorConditions.cpp` | 1,726 | Statuses, stat stages, volatiles, field conditions, and side conditions |
+| `BattleEffectExecutorAbilityItems.cpp` | 962 | Ability/item evaluation, activation, reveal, ledger mutation, and immediate updates |
+| `BattleEffectExecutorSwitching.cpp` | 623 | Forced switching, switch-out status handling, and entry hazards |
+| `BattleEffectExecutorTriggers.cpp` | 1,005 | Trigger registration, dispatch, suppression, update, and cleanup |
 
-- common state-context construction, validation, lookup, and commit;
-- damage and HP changes;
-- statuses, volatiles, field, and side conditions;
-- abilities and held items;
-- switching and entry hazards; and
-- trigger registration, dispatch, and cleanup.
+All six focused sources define methods on the same context. None may create an
+independent state copy, RNG owner, commit seam, or publication path. The
+approved wave excludes mechanics changes, cleanup, C10A, public headers, tests,
+other production sources, and Git actions.
 
-These files must operate on the same staged context. They must not create
-independent state copies or commits.
+The final source audit found all 102 context definitions exactly once in the
+approved `22 / 8 / 27 / 16 / 3 / 26` ownership split and all nine executor
+definitions exactly once. It also found one context construction, no independent
+state/context copy or commit seam, no `.cpp` include, no anonymous namespace,
+and no new file-local helper definition. Each focused source is self-contained,
+and the forced-Unity build passed. `BattleEngineMoveEffects.cpp` remains
+unchanged, preserving the existing identity recheck, transactional-RNG commit,
+one delta application, and one successful `PublishPrepared` path.
+
+Fresh validation passed:
+
+- forced-Unity build log:
+  `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`;
+- serial 22-filter evidence root:
+  `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`;
+- 286 focused successes plus 320 full-Battle successes, for 606 total;
+- zero aggregate warnings, failures, not-run, or in-process tests and zero
+  per-test warnings or errors; and
+- full sorted 320-path SHA-256
+  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
 
 ## Approval-bounded write sets and sequence
 
