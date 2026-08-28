@@ -258,7 +258,8 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	}
 
 	TArray<int32> DirectSpreadFaintIndexes;
-	if (TargetClass == EBattleTargetClass::FixedSpreadSet)
+	if (TargetClass == EBattleTargetClass::FixedSpreadSet
+		|| TargetClass == EBattleTargetClass::FixedOpponentSpreadSet)
 	{
 		for (int32 FaintIndex = 0; FaintIndex < OutResolution.Faints.Num(); ++FaintIndex)
 		{

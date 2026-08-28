@@ -1133,6 +1133,94 @@ namespace BattleFaintOutcomeTests
 	}
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10OpponentSpreadFaintTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Faint.OpponentSpreadSimultaneousGrouping",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC10OpponentSpreadFaintTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		FC05CScenario Scenario;
+		Scenario.Format = EBattleFormat::Double;
+		Scenario.TargetClass = EBattleTargetClass::FixedOpponentSpreadSet;
+		Scenario.ExpectedFirstActor = PlayerLeftBattlerValue;
+		Scenario.ExpectedDamageDraws = 2;
+		Scenario.Battlers =
+		{
+			{PlayerTrainerValue, PlayerLeftBattlerValue, 0, 200, 400, 3, true,
+				EBattleSide::Player, EBattlePosition::Left},
+			{PlayerTrainerValue, PlayerRightBattlerValue, 1, 200, 300, 3, true,
+				EBattleSide::Player, EBattlePosition::Right},
+			{OpponentTrainerValue, OpponentLeftBattlerValue, 0, 1, 200, 3, true,
+				EBattleSide::Opponent, EBattlePosition::Left},
+			{OpponentTrainerValue, OpponentRightBattlerValue, 1, 1, 100, 3, true,
+				EBattleSide::Opponent, EBattlePosition::Right}
+		};
+		const FC05CEvidence First = RunScenario(Scenario);
+		const FC05CEvidence Second = RunScenario(Scenario);
+		TestDeterministicTwins(*this, First, Second);
+
+		const FBattleEvent* TargetsResolved = First.Events.FindByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::TargetsResolved;
+			});
+		TestTrue(
+			TEXT("Opponent spread publishes exactly opponent Left then opponent Right"),
+			TargetsResolved != nullptr
+				&& TargetsResolved->GetTargetResolution().IsSet()
+				&& TargetsResolved->GetTargetResolution().GetValue().TargetClass
+					== EBattleTargetClass::FixedOpponentSpreadSet
+				&& TargetsResolved->GetTargets().Num() == 2
+				&& TargetsResolved->GetTargets()[0].BattlerId.GetValue()
+					== OpponentLeftBattlerValue
+				&& TargetsResolved->GetTargets()[1].BattlerId.GetValue()
+					== OpponentRightBattlerValue);
+
+		TArray<const FBattleEvent*> Faints;
+		for (const FBattleEvent& Event : First.Events)
+		{
+			if (Event.GetType() == EBattleEventType::Fainted)
+			{
+				Faints.Add(&Event);
+			}
+		}
+		TestEqual(TEXT("Opponent-only spread emits two faint facts"), Faints.Num(), 2);
+		if (Faints.Num() == 2)
+		{
+			TestTrue(
+				TEXT("Both opponent faints share one simultaneous group in stable order"),
+				Faints[0]->GetTargets()[0].BattlerId.GetValue() == OpponentLeftBattlerValue
+					&& Faints[1]->GetTargets()[0].BattlerId.GetValue() == OpponentRightBattlerValue
+					&& Faints[0]->GetSimultaneousGroupId().IsSet()
+					&& Faints[1]->GetSimultaneousGroupId().IsSet()
+					&& Faints[0]->GetSimultaneousGroupId().GetValue() > 0
+					&& Faints[0]->GetSimultaneousGroupId().GetValue()
+						== Faints[1]->GetSimultaneousGroupId().GetValue());
+		}
+		const FBattlePartyEntrySetup* Ally = First.Snapshot.FindBattler(
+			MakeNumericId<FBattlerId>(PlayerRightBattlerValue));
+		TestTrue(
+			TEXT("Opponent-only spread never damages or faints the ally"),
+			Ally != nullptr
+				&& Ally->CurrentHP == 200
+				&& CountTargetEvents(
+					First,
+					EBattleEventType::Damage,
+					PlayerRightBattlerValue) == 0
+				&& CountTargetEvents(
+					First,
+					EBattleEventType::Fainted,
+					PlayerRightBattlerValue) == 0);
+		TestEqual(TEXT("Opponent-only spread consumes exactly two damage draws"),
+			First.RandomTrace.Num(), 2);
+		TestEqual(TEXT("Fainting both opponents resolves Victory"), First.Outcome,
+			EBattleOutcome::Victory);
+		TestTerminalFacts(*this, First, EBattleOutcomeCause::Ordinary);
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 		FBattleC05COpponentCheckpointTest,
 		"PokemonSolarus.Battle.C05C.Checkpoint.StableOneUseOpponentRemoval",
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

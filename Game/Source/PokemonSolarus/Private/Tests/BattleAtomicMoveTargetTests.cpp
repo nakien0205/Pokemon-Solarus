@@ -850,6 +850,276 @@ bool FBattleADR00023E5RejectionPreservationTest::RunTest(
 	return bValid;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetStateInvariantTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.State.IdentityAliasesAndSpreadDuplicates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC10TargetStateInvariantTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	auto MakeResolvedBattler = [](const FActiveSlotId ActiveSlotId, const FBattlerId BattlerId)
+	{
+		FBattleBattlerTarget BattlerTarget;
+		BattlerTarget.ActiveSlotId = ActiveSlotId;
+		BattlerTarget.BattlerId = BattlerId;
+		FBattleResolvedTarget Target;
+		const bool bCreated = FBattleResolvedTarget::TryCreateBattler(BattlerTarget, Target);
+		check(bCreated);
+		return Target;
+	};
+	auto SetResolvedTargets = [](
+		FBattleLockedActionState& Action,
+		const EBattleTargetClass TargetClass,
+		TArray<FBattleResolvedTarget> Targets,
+		const bool bWasRedirected = false)
+	{
+		Action.TargetClass = TargetClass;
+		FBattleTargetResolutionResult Resolution;
+		Resolution.TargetClass = TargetClass;
+		Resolution.Outcome = EBattleTargetResolutionOutcome::Resolved;
+		Resolution.Targets = MoveTemp(Targets);
+		Resolution.bWasRedirected = bWasRedirected;
+		Action.TargetResolution = MoveTemp(Resolution);
+	};
+	auto ValidateState = [this](
+		const TCHAR* What,
+		const FBattleEngineState& State,
+		const bool bExpectedValid)
+	{
+		EBattleStateValidationError Error = EBattleStateValidationError::None;
+		const bool bActualValid = State.ValidateInvariants(Error);
+		bool bMatches = TestEqual(What, bActualValid, bExpectedValid);
+		bMatches &= TestEqual(
+			TEXT("Target-shape state validation returns the expected typed result"),
+			Error,
+			bExpectedValid
+				? EBattleStateValidationError::None
+				: EBattleStateValidationError::InvalidCounter);
+		return bMatches;
+	};
+
+	FAtomicWildScenario SelectedOtherScenario = MakePreMoveScenario();
+	SelectedOtherScenario.Format = EBattleFormat::Double;
+	TUniquePtr<FBattleEngine> SelectedOtherEngine;
+	FStrictBattleRandom* SelectedOtherRandom = nullptr;
+	if (!TestTrue(
+			TEXT("The SelectedOther state-invariant engine is created"),
+			TryMakeStrictEngine(
+				SelectedOtherScenario,
+				{},
+				SelectedOtherEngine,
+				SelectedOtherRandom))
+		|| !TestNotNull(
+			TEXT("The SelectedOther state-invariant RNG is retained"),
+			SelectedOtherRandom)
+		|| !TestTrue(
+			TEXT("The SelectedOther state-invariant checkpoint is prepared"),
+			TryPrepareTargetCheckpoint(
+				*SelectedOtherEngine,
+				MakeDefinitionId<FMoveId>(TargetProbeMoveName))))
+	{
+		return false;
+	}
+	FBattleEngineState& SelectedOtherState =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*SelectedOtherEngine);
+	if (!SelectedOtherState.LockedActions.IsValidIndex(
+			SelectedOtherState.CurrentLockedActionIndex))
+	{
+		return false;
+	}
+	FBattleLockedActionState& SelectedOtherAction =
+		SelectedOtherState.LockedActions[SelectedOtherState.CurrentLockedActionIndex];
+	const FActiveSlotId SourceSlot = SelectedOtherAction.OrderKey.ActingSlotId;
+	const FBattlerId SourceBattlerId = SelectedOtherAction.Decision.GetActingBattlerId();
+	const FActiveSlotId AllySlot = MakeActiveSlotId(
+		EBattleSide::Player,
+		EBattlePosition::Right);
+	const FBattlerId AllyBattlerId = MakeNumericId<FBattlerId>(PlayerRightValue);
+	const FActiveSlotId OpponentLeftSlot = MakeActiveSlotId(
+		EBattleSide::Opponent,
+		EBattlePosition::Left);
+	const FBattlerId OpponentLeftId = MakeNumericId<FBattlerId>(OpponentLeftValue);
+
+	SetResolvedTargets(
+		SelectedOtherAction,
+		EBattleTargetClass::SelectedOtherBattler,
+		{MakeResolvedBattler(SourceSlot, SourceBattlerId)});
+	bool bValid = ValidateState(
+		TEXT("State rejects the exact SelectedOther source identity"),
+		SelectedOtherState,
+		false);
+	SetResolvedTargets(
+		SelectedOtherAction,
+		EBattleTargetClass::SelectedOtherBattler,
+		{MakeResolvedBattler(AllySlot, SourceBattlerId)});
+	bValid &= ValidateState(
+		TEXT("State rejects the source battler ID paired with another slot"),
+		SelectedOtherState,
+		false);
+	SetResolvedTargets(
+		SelectedOtherAction,
+		EBattleTargetClass::SelectedOtherBattler,
+		{MakeResolvedBattler(SourceSlot, AllyBattlerId)});
+	bValid &= ValidateState(
+		TEXT("State rejects another battler ID paired with the source slot"),
+		SelectedOtherState,
+		false);
+	SetResolvedTargets(
+		SelectedOtherAction,
+		EBattleTargetClass::SelectedOtherBattler,
+		{MakeResolvedBattler(AllySlot, AllyBattlerId)},
+		true);
+	bValid &= ValidateState(
+		TEXT("State accepts a canonical redirected SelectedOther ally"),
+		SelectedOtherState,
+		true);
+	SetResolvedTargets(
+		SelectedOtherAction,
+		EBattleTargetClass::SelectedOtherBattler,
+		{MakeResolvedBattler(OpponentLeftSlot, OpponentLeftId)});
+	bValid &= ValidateState(
+		TEXT("State accepts a canonical SelectedOther opponent"),
+		SelectedOtherState,
+		true);
+	bValid &= TestTrue(
+		TEXT("SelectedOther state fault injection consumes no target RNG"),
+		SelectedOtherRandom->IsExact() && SelectedOtherRandom->GetTrace().IsEmpty());
+
+	const FMoveId SpreadMoveId =
+		MakeDefinitionId<FMoveId>(RandomTargetProbeMoveName);
+	FAtomicWildScenario SpreadScenario = MakePreMoveScenario(SpreadMoveId);
+	SpreadScenario.Format = EBattleFormat::Double;
+	TUniquePtr<FBattleEngine> SpreadEngine;
+	FStrictBattleRandom* SpreadRandom = nullptr;
+	if (!TestTrue(
+			TEXT("The opponent-spread state-invariant engine is created"),
+			TryMakeStrictEngine(SpreadScenario, {}, SpreadEngine, SpreadRandom))
+		|| !TestNotNull(
+			TEXT("The opponent-spread state-invariant RNG is retained"),
+			SpreadRandom)
+		|| !TestTrue(
+			TEXT("The opponent-spread state-invariant checkpoint is prepared"),
+			TryPrepareTargetCheckpoint(
+				*SpreadEngine,
+				SpreadMoveId)))
+	{
+		return false;
+	}
+	FBattleEngineState& SpreadState =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*SpreadEngine);
+	if (!SpreadState.LockedActions.IsValidIndex(SpreadState.CurrentLockedActionIndex))
+	{
+		return false;
+	}
+	FBattleLockedActionState& SpreadAction =
+		SpreadState.LockedActions[SpreadState.CurrentLockedActionIndex];
+	const FActiveSlotId OpponentRightSlot = MakeActiveSlotId(
+		EBattleSide::Opponent,
+		EBattlePosition::Right);
+	const FBattlerId OpponentRightId = MakeNumericId<FBattlerId>(OpponentRightValue);
+	const FBattleResolvedTarget OpponentLeft = MakeResolvedBattler(
+		OpponentLeftSlot,
+		OpponentLeftId);
+	const FBattleResolvedTarget OpponentRight = MakeResolvedBattler(
+		OpponentRightSlot,
+		OpponentRightId);
+
+	SetResolvedTargets(
+		SpreadAction,
+		EBattleTargetClass::FixedOpponentSpreadSet,
+		{OpponentLeft, OpponentRight});
+	bValid &= ValidateState(
+		TEXT("State accepts a canonical ordered opponent spread"),
+		SpreadState,
+		true);
+	SetResolvedTargets(
+		SpreadAction,
+		EBattleTargetClass::FixedOpponentSpreadSet,
+		{
+			OpponentLeft,
+			MakeResolvedBattler(OpponentRightSlot, OpponentLeftId)
+		});
+	bValid &= ValidateState(
+		TEXT("State rejects duplicate battler IDs paired with different slots"),
+		SpreadState,
+		false);
+	SetResolvedTargets(
+		SpreadAction,
+		EBattleTargetClass::FixedOpponentSpreadSet,
+		{
+			OpponentLeft,
+			MakeResolvedBattler(OpponentLeftSlot, OpponentRightId)
+		});
+	bValid &= ValidateState(
+		TEXT("State rejects different battler IDs paired with the same slot"),
+		SpreadState,
+		false);
+	bValid &= TestTrue(
+		TEXT("Opponent-spread state fault injection consumes no target RNG"),
+		SpreadRandom->IsExact() && SpreadRandom->GetTrace().IsEmpty());
+	return bValid;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetAtomicRollbackInjectionTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.Atomic.SelectedOtherCatalogMismatchRollbackInjection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC10TargetAtomicRollbackInjectionTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FAtomicWildScenario Scenario = MakePreMoveScenario();
+	Scenario.Format = EBattleFormat::Double;
+	TUniquePtr<FBattleEngine> Engine;
+	FStrictBattleRandom* Random = nullptr;
+	if (!TestTrue(
+			TEXT("The SelectedOther rollback-injection engine is created"),
+			TryMakeStrictEngine(Scenario, {}, Engine, Random))
+		|| !TestNotNull(TEXT("The SelectedOther rollback-injection RNG is retained"), Random)
+		|| !TestTrue(
+			TEXT("The SelectedOther rollback-injection checkpoint is prepared"),
+			TryPrepareTargetCheckpoint(
+				*Engine,
+				MakeDefinitionId<FMoveId>(TargetProbeMoveName))))
+	{
+		return false;
+	}
+
+	FBattleEngineState& State =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*Engine);
+	if (!State.LockedActions.IsValidIndex(State.CurrentLockedActionIndex))
+	{
+		return false;
+	}
+	// Deliberate white-box fault injection: the catalog move remains SelectedOpponent.
+	// This test proves only checkpoint rollback after a frozen-class mismatch is injected.
+	State.LockedActions[State.CurrentLockedActionIndex].TargetClass =
+		EBattleTargetClass::SelectedOtherBattler;
+	State.StateVersion = TNumericLimits<uint64>::Max();
+	const FTargetCheckpointObservation Before = ObserveTargetCheckpoint(*Engine);
+	const FBattleResolution Rejected = Engine->ResolveCurrentMoveTargets();
+	bool bValid = TestTrue(
+		TEXT("The rollback fixture is explicitly a catalog-mismatched failure injection"),
+		Before.bHasCurrentAction
+			&& Before.CurrentAction.TargetClass == EBattleTargetClass::SelectedOtherBattler
+			&& !Before.CurrentAction.TargetResolution.IsSet());
+	bValid &= VerifyRejectedTargetCheckpoint(
+		*this,
+		*Engine,
+		Before,
+		EBattleRejectionReason::CheckpointPreparationFailed,
+		Rejected);
+	bValid &= TestTrue(
+		TEXT("The injected SelectedOther rejection consumes no target RNG"),
+		Random->IsExact() && Random->GetTrace().IsEmpty());
+	bValid &= TestEqual(
+		TEXT("The injected rollback replay remains schema 6"),
+		Engine->ExportReplayRecord().GetSchemaVersion(),
+		static_cast<uint32>(6));
+	return bValid;
+}
+
 } // namespace BattleAtomicMoveTargetTestsPrivate
 
 #endif

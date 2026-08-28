@@ -361,6 +361,7 @@ namespace BattleEffectExecutorTests
 			FBattleFinalDamageInput& OutInput) override
 		{
 			Calls.Add(GateCall(TEXT("TypeImmunity"), Target));
+			DamageSpreadFlags.Add(bSpreadAcrossMultipleTargets);
 			OutInput = FBattleFinalDamageInput();
 			OutInput.AttackerLevel = 50;
 			OutInput.AttackerStats = {100, 100, 100, 100, 100, 100};
@@ -570,6 +571,7 @@ namespace BattleEffectExecutorTests
 		TMap<int32, EBattleEffectExecutionOutcome> ApplicationOutcomes;
 		TArray<FString> Calls;
 		TArray<int32> AppliedEffectOrders;
+		TArray<bool> DamageSpreadFlags;
 		int32 AttackStage = 0;
 		int32 ImmediateUpdateCount = 0;
 		bool bSourceCanContinue = true;
@@ -3096,6 +3098,203 @@ namespace BattleEffectExecutorTests
 					&& Trace[2].RulePurpose
 						== FBattleMajorStatusRules::GetSleepDurationPurpose());
 		}
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10TargetExecutorContractTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Executor.TargetShapesSpreadDamageAndMultiHit",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10TargetExecutorContractTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleResolvedTarget User = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerLeftBattlerValue);
+		const FBattleResolvedTarget Ally = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerRightBattlerValue);
+		const FBattleResolvedTarget OpponentLeft = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentLeftBattlerValue);
+		const FBattleResolvedTarget OpponentRight = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Right,
+			OpponentRightBattlerValue);
+		const FBattleResolvedTarget SourceBattlerInOtherSlot = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerLeftBattlerValue);
+		const FBattleResolvedTarget OtherBattlerInSourceSlot = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerRightBattlerValue);
+
+		auto RejectsBeforeExecution = [this](
+			const TCHAR* What,
+			const FBattleMoveDefinition& Move,
+			TArray<FBattleResolvedTarget> Targets,
+			const uint64 ResolutionValue)
+		{
+			FMockExecutionContext Context;
+			FStrictScriptedRandom Random({});
+			FBattleEffectExecutionResult Result;
+			EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+			bool bRejected = TestFalse(
+				What,
+				FBattleEffectExecutor::TryExecute(
+					MakeRequest(Move, MoveTemp(Targets), ResolutionValue),
+					Context,
+					Random,
+					Result,
+					Error));
+			bRejected &= TestEqual(
+				TEXT("Rejected target shape reports InvalidMoveDefinition"),
+				Error,
+				EBattleEffectExecutorError::InvalidMoveDefinition);
+			bRejected &= TestTrue(
+				TEXT("Rejected target shape occurs before RNG, hooks, or committed effects"),
+				Random.IsExact()
+					&& Random.GetTrace().IsEmpty()
+					&& Context.Calls.IsEmpty()
+					&& Context.AppliedEffectOrders.IsEmpty()
+					&& Context.DamageSpreadFlags.IsEmpty()
+					&& Context.ImmediateUpdateCount == 0
+					&& Context.GetHp(PlayerLeftBattlerValue) == 100
+					&& Context.GetHp(PlayerRightBattlerValue) == 100
+					&& Context.GetHp(OpponentLeftBattlerValue) == 100
+					&& Context.GetHp(OpponentRightBattlerValue) == 100
+					&& !Result.bValid
+					&& Result.Events.IsEmpty());
+			return bRejected;
+		};
+
+		FBattleMoveDefinition SelectedOtherMove = MakeDamagingMove(
+			EBattleTargetClass::SelectedOtherBattler,
+			EBattleEffectTarget::ResolvedTarget);
+		for (const FBattleResolvedTarget& LegalOther : {Ally, OpponentLeft})
+		{
+			FMockExecutionContext Context;
+			FStrictScriptedRandom Random(
+				{{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()}});
+			FBattleEffectExecutionResult Result;
+			EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+			TestTrue(
+				TEXT("Selected Other Battler executes against an ally or opponent"),
+				FBattleEffectExecutor::TryExecute(
+					MakeRequest(SelectedOtherMove, {LegalOther}),
+					Context,
+					Random,
+					Result,
+					Error));
+			TestTrue(TEXT("Selected-other execution consumes only its damage draw"), Random.IsExact());
+			TestTrue(
+				TEXT("A single selected-other target never receives spread damage"),
+				!Context.DamageSpreadFlags.IsEmpty()
+					&& !Context.DamageSpreadFlags.Contains(true));
+		}
+
+		bool bValid = RejectsBeforeExecution(
+			TEXT("Selected Other Battler rejects the exact user at the Executor boundary"),
+			SelectedOtherMove,
+			{User},
+			10);
+		bValid &= RejectsBeforeExecution(
+			TEXT("Selected Other Battler rejects the source battler ID in another slot"),
+			SelectedOtherMove,
+			{SourceBattlerInOtherSlot},
+			11);
+		bValid &= RejectsBeforeExecution(
+			TEXT("Selected Other Battler rejects another battler ID in the source slot"),
+			SelectedOtherMove,
+			{OtherBattlerInSourceSlot},
+			12);
+
+		FBattleMoveDefinition OpponentSpreadMove = MakeDamagingMove(
+			EBattleTargetClass::FixedOpponentSpreadSet,
+			EBattleEffectTarget::AllResolvedTargets);
+		FMockExecutionContext DoubleContext;
+		FStrictScriptedRandom DoubleRandom({
+			{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()},
+			{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()}});
+		FBattleEffectExecutionResult DoubleResult;
+		EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+		TestTrue(
+			TEXT("A canonical two-opponent spread executes"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(OpponentSpreadMove, {OpponentLeft, OpponentRight}, 20),
+				DoubleContext,
+				DoubleRandom,
+				DoubleResult,
+				Error));
+		TestTrue(TEXT("Two opponent-spread damage draws are exact"), DoubleRandom.IsExact());
+		TestTrue(
+			TEXT("Both Doubles targets receive the spread-damage modifier"),
+			DoubleContext.DamageSpreadFlags.Num() >= 2
+				&& !DoubleContext.DamageSpreadFlags.Contains(false));
+
+		const FBattleResolvedTarget DuplicateBattlerIdInRightSlot = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Right,
+			OpponentLeftBattlerValue);
+		bValid &= RejectsBeforeExecution(
+			TEXT("Fixed Opponent Spread Set rejects duplicate battler IDs in different slots"),
+			OpponentSpreadMove,
+			{OpponentLeft, DuplicateBattlerIdInRightSlot},
+			13);
+		const FBattleResolvedTarget DifferentBattlerInLeftSlot = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentRightBattlerValue);
+		bValid &= RejectsBeforeExecution(
+			TEXT("Fixed Opponent Spread Set rejects different battler IDs in the same slot"),
+			OpponentSpreadMove,
+			{OpponentLeft, DifferentBattlerInLeftSlot},
+			14);
+
+		FMockExecutionContext SingleContext;
+		FStrictScriptedRandom SingleRandom(
+			{{0, 15, 0, FBattleEffectExecutor::GetDamageRandomRulePurpose()}});
+		FBattleEffectExecutionResult SingleResult;
+		Error = EBattleEffectExecutorError::None;
+		TestTrue(
+			TEXT("A one-opponent spread executes in Singles shape"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(OpponentSpreadMove, {OpponentLeft}, 21),
+				SingleContext,
+				SingleRandom,
+				SingleResult,
+				Error));
+		TestTrue(TEXT("The Singles opponent-spread damage draw is exact"), SingleRandom.IsExact());
+		TestTrue(
+			TEXT("A one-target opponent spread does not receive spread damage"),
+			!SingleContext.DamageSpreadFlags.IsEmpty()
+				&& !SingleContext.DamageSpreadFlags.Contains(true));
+
+		bValid &= RejectsBeforeExecution(
+			TEXT("Fixed Opponent Spread Set rejects ally inclusion"),
+			OpponentSpreadMove,
+			{Ally, OpponentLeft},
+			22);
+
+		FBattleMoveDefinition SpreadMultiHit = OpponentSpreadMove;
+		SpreadMultiHit.Effects[0].Order = 1;
+		FBattleMoveEffectDescriptor MultiHit = MakeEffect(
+			0,
+			EBattleMoveEffectKind::MultiHit,
+			EBattleEffectTarget::AllResolvedTargets);
+		MultiHit.MinimumCount = 2;
+		MultiHit.MaximumCount = 2;
+		SpreadMultiHit.Effects.Insert(MultiHit, 0);
+		bValid &= RejectsBeforeExecution(
+			TEXT("Opponent-only spread plus multi-hit remains rejected by direct execution"),
+			SpreadMultiHit,
+			{OpponentLeft, OpponentRight},
+			23);
 		return bValid;
 	}
 }

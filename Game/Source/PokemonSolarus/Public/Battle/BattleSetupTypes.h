@@ -98,7 +98,9 @@ enum class EBattleTargetClass : uint8
 	OpponentSide = 6,
 	BothSides = 7,
 	Field = 8,
-	FixedSpreadSet = 9
+	FixedSpreadSet = 9,
+	SelectedOtherBattler = 10,
+	FixedOpponentSpreadSet = 11
 };
 
 /** Observer scope for a fact or event; ownership IDs supply the matching Trainer or side. */

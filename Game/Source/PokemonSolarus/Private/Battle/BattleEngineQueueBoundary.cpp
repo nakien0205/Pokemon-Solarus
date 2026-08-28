@@ -121,7 +121,8 @@ namespace BattleEngineQueueBoundaryPrivate
 	{
 		return TargetClass == EBattleTargetClass::SelectedAlly
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
-			|| TargetClass == EBattleTargetClass::AnySelectedBattler;
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler;
 	}
 
 	TArray<FBattleTargetPositionFacts> BuildBattleEngineTargetPositions(

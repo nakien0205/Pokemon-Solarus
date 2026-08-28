@@ -945,6 +945,101 @@ bool FBattleC04AEngineObedienceTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetQueueShapeTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.Queue.ExplicitAndAutomaticDecisionShapes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10TargetQueueShapeTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FBattleActionOrderCandidate SelectedOther = MakeOrderCandidate(
+		101,
+		PlayerTrainerValue,
+		PlayerLeftBattlerValue,
+		EBattleSide::Player,
+		EBattlePosition::Left,
+		EBattleActionKind::Fight,
+		EBattleActionCommandBand::Move,
+		0,
+		0,
+		100);
+	SelectedOther.TargetClass = EBattleTargetClass::SelectedOtherBattler;
+
+	FSequenceBattleRandom NoTargetRandom({});
+	TArray<FBattleLockedAction> Queue;
+	EBattleActionQueueError Error = EBattleActionQueueError::None;
+	TestTrue(
+		TEXT("Selected Other Battler locks only with an explicit target identity"),
+		FBattleActionQueueResolver::TryLock(
+			MakeLockSpec({SelectedOther}),
+			NoTargetRandom,
+			Queue,
+			Error));
+	TestTrue(
+		TEXT("The selected-other target identity is preserved in the locked action"),
+		Queue.Num() == 1
+			&& Queue[0].TargetClass == EBattleTargetClass::SelectedOtherBattler
+			&& Queue[0].Decision.GetActiveTargetId().IsValid()
+			&& Queue[0].SelectedTargetBattlerId.IsValid());
+
+	FBattleActionOrderCandidate FixedOpponentSpread = SelectedOther;
+	FixedOpponentSpread.ActionId = MakeNumericId<FActionId>(102);
+	FixedOpponentSpread.TargetClass = EBattleTargetClass::FixedOpponentSpreadSet;
+	FixedOpponentSpread.SelectedTargetBattlerId = FBattlerId();
+	FBattleDecision AutomaticDecision;
+	TestTrue(
+		TEXT("An automatic Fight decision can represent the opponent-only spread"),
+		FBattleDecision::TryCreateAutomaticallyTargetedFight(
+			1,
+			MakeNumericId<FTrainerId>(PlayerTrainerValue),
+			MakeNumericId<FBattlerId>(PlayerLeftBattlerValue),
+			MakeDefinitionId<FMoveId>(NormalMoveName),
+			AutomaticDecision));
+	FixedOpponentSpread.Decision = AutomaticDecision;
+	Queue.Reset();
+	Error = EBattleActionQueueError::None;
+	TestTrue(
+		TEXT("Fixed Opponent Spread Set locks only with the automatic decision shape"),
+		FBattleActionQueueResolver::TryLock(
+			MakeLockSpec({FixedOpponentSpread}),
+			NoTargetRandom,
+			Queue,
+			Error));
+
+	FBattleActionOrderCandidate MissingSelectedOther = FixedOpponentSpread;
+	MissingSelectedOther.ActionId = MakeNumericId<FActionId>(103);
+	MissingSelectedOther.TargetClass = EBattleTargetClass::SelectedOtherBattler;
+	Queue.Reset();
+	Error = EBattleActionQueueError::None;
+	TestFalse(
+		TEXT("Selected Other Battler rejects an automatic decision shape"),
+		FBattleActionQueueResolver::TryLock(
+			MakeLockSpec({MissingSelectedOther}),
+			NoTargetRandom,
+			Queue,
+			Error));
+	TestEqual(TEXT("A missing selected-other identity is an invalid candidate"), Error,
+		EBattleActionQueueError::InvalidCandidate);
+
+	FBattleActionOrderCandidate ExplicitFixedOpponent = SelectedOther;
+	ExplicitFixedOpponent.ActionId = MakeNumericId<FActionId>(104);
+	ExplicitFixedOpponent.TargetClass = EBattleTargetClass::FixedOpponentSpreadSet;
+	Queue.Reset();
+	Error = EBattleActionQueueError::None;
+	TestFalse(
+		TEXT("Fixed Opponent Spread Set rejects an explicit decision shape"),
+		FBattleActionQueueResolver::TryLock(
+			MakeLockSpec({ExplicitFixedOpponent}),
+			NoTargetRandom,
+			Queue,
+			Error));
+	TestEqual(TEXT("An explicit opponent-spread identity is an invalid candidate"), Error,
+		EBattleActionQueueError::InvalidCandidate);
+	TestTrue(TEXT("Target-shape validation consumes no battle RNG"), NoTargetRandom.GetTrace().IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC04AReplayTest,
 	"PokemonSolarus.Battle.C04A.Replay.DeterministicLockedQueue",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

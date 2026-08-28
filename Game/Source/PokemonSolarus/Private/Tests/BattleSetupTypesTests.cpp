@@ -100,6 +100,41 @@ bool FBattleSetupTaxonomyTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetOrdinalContractTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.Enum.AppendOnlyOrdinals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10TargetOrdinalContractTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	const TArray<uint8> ExistingOrdinals =
+	{
+		static_cast<uint8>(EBattleTargetClass::Self),
+		static_cast<uint8>(EBattleTargetClass::SelectedAlly),
+		static_cast<uint8>(EBattleTargetClass::SelectedOpponent),
+		static_cast<uint8>(EBattleTargetClass::AnySelectedBattler),
+		static_cast<uint8>(EBattleTargetClass::RandomLegalOpponent),
+		static_cast<uint8>(EBattleTargetClass::UserSide),
+		static_cast<uint8>(EBattleTargetClass::OpponentSide),
+		static_cast<uint8>(EBattleTargetClass::BothSides),
+		static_cast<uint8>(EBattleTargetClass::Field),
+		static_cast<uint8>(EBattleTargetClass::FixedSpreadSet)
+	};
+	TestTrue(
+		TEXT("The original target vocabulary keeps ordinals zero through nine"),
+		ExistingOrdinals == TArray<uint8>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+	TestEqual(
+		TEXT("Selected Other Battler is appended after the original vocabulary"),
+		static_cast<uint8>(EBattleTargetClass::SelectedOtherBattler),
+		static_cast<uint8>(10));
+	TestEqual(
+		TEXT("Fixed Opponent Spread Set is the appended maximum target class"),
+		static_cast<uint8>(EBattleTargetClass::FixedOpponentSpreadSet),
+		static_cast<uint8>(11));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FNatureStatModifierContractTest,
 	"PokemonSolarus.Battle.CoreContracts.SetupTypes.NatureStatModifier",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)

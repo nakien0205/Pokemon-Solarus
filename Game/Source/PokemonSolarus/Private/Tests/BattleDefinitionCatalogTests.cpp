@@ -446,6 +446,75 @@ bool FBattleC02BCatalogDeterministicOrderAndDiagnosticsTest::RunTest(const FStri
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetCatalogCompatibilityTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.Catalog.TargetClassCompatibility",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10TargetCatalogCompatibilityTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	FBattleDefinitionCatalogInput Input = MakeValidCatalogInput();
+	FBattleMoveDefinition SelectedOther = MakeDamagingMove(
+		TEXT("Move.C10.SelectedOther"),
+		EPokemonType::Flying,
+		EBattleMoveCategory::Physical,
+		90,
+		EBattleTargetClass::SelectedOtherBattler);
+	FBattleMoveDefinition OpponentSpread = MakeDamagingMove(
+		TEXT("Move.C10.OpponentSpread"),
+		EPokemonType::Normal,
+		EBattleMoveCategory::Special,
+		60,
+		EBattleTargetClass::FixedOpponentSpreadSet);
+	OpponentSpread.Effects[0].Target = EBattleEffectTarget::AllResolvedTargets;
+	Input.Moves.Add(SelectedOther);
+	Input.Moves.Add(OpponentSpread);
+
+	FBattleDefinitionCatalog Catalog;
+	TArray<FBattleCatalogDiagnostic> Diagnostics;
+	TestTrue(
+		TEXT("The catalog accepts both appended battler target classes"),
+		FBattleDefinitionCatalog::TryCreate(Input, Catalog, Diagnostics));
+	TestTrue(TEXT("The appended target classes add no catalog diagnostics"), Diagnostics.IsEmpty());
+	const FBattleMoveDefinition* FrozenSelectedOther = Catalog.FindMove(
+		MakeDefinitionId<FMoveId>(TEXT("Move.C10.SelectedOther")));
+	const FBattleMoveDefinition* FrozenOpponentSpread = Catalog.FindMove(
+		MakeDefinitionId<FMoveId>(TEXT("Move.C10.OpponentSpread")));
+	TestTrue(
+		TEXT("The selected-other target class survives catalog freezing"),
+		FrozenSelectedOther != nullptr
+			&& FrozenSelectedOther->TargetClass == EBattleTargetClass::SelectedOtherBattler);
+	TestTrue(
+		TEXT("The opponent-spread target class and all-target effect survive catalog freezing"),
+		FrozenOpponentSpread != nullptr
+			&& FrozenOpponentSpread->TargetClass == EBattleTargetClass::FixedOpponentSpreadSet
+			&& FrozenOpponentSpread->Effects.Num() == 1
+			&& FrozenOpponentSpread->Effects[0].Target
+				== EBattleEffectTarget::AllResolvedTargets);
+
+	FBattleDefinitionCatalogInput MultiHitInput = Input;
+	FBattleMoveDefinition SpreadMultiHit = OpponentSpread;
+	SpreadMultiHit.Id = MakeDefinitionId<FMoveId>(TEXT("Move.C10.InvalidSpreadMultiHit"));
+	SpreadMultiHit.Effects[0].Order = 1;
+	FBattleMoveEffectDescriptor MultiHit = MakeEffect(
+		0,
+		EBattleMoveEffectKind::MultiHit,
+		EBattleEffectTarget::AllResolvedTargets);
+	MultiHit.MinimumCount = 2;
+	MultiHit.MaximumCount = 2;
+	SpreadMultiHit.Effects.Insert(MultiHit, 0);
+	MultiHitInput.Moves.Add(MoveTemp(SpreadMultiHit));
+	Diagnostics.Reset();
+	TestFalse(
+		TEXT("Opponent-only spread plus multi-hit remains rejected"),
+		FBattleDefinitionCatalog::TryCreate(MultiHitInput, Catalog, Diagnostics));
+	TestTrue(
+		TEXT("The spread multi-hit rejection is a typed incompatibility"),
+		ContainsDiagnosticCode(Diagnostics, EBattleCatalogDiagnosticCode::IncompatibleEffect));
+	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -42,14 +42,16 @@ namespace
 
 	bool IsKnownActionQueueTargetClass(const EBattleTargetClass Value)
 	{
-		return static_cast<uint8>(Value) <= static_cast<uint8>(EBattleTargetClass::FixedSpreadSet);
+		return static_cast<uint8>(Value)
+			<= static_cast<uint8>(EBattleTargetClass::FixedOpponentSpreadSet);
 	}
 
 	bool RequiresSelectedActiveTarget(const EBattleTargetClass Value)
 	{
 		return Value == EBattleTargetClass::SelectedAlly
 			|| Value == EBattleTargetClass::SelectedOpponent
-			|| Value == EBattleTargetClass::AnySelectedBattler;
+			|| Value == EBattleTargetClass::AnySelectedBattler
+			|| Value == EBattleTargetClass::SelectedOtherBattler;
 	}
 
 	bool IsCandidateValid(const FBattleActionOrderCandidate& Candidate)

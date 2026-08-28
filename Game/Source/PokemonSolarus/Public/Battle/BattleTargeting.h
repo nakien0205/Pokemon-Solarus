@@ -178,7 +178,7 @@ struct POKEMONSOLARUS_API FBattleTargetResolutionSpec
 	FBattlerId UserBattlerId;
 	TArray<FBattleTargetPositionFacts> Positions;
 
-	/** Required only by SelectedAlly, SelectedOpponent, and AnySelectedBattler. */
+	/** Required only by SelectedAlly, SelectedOpponent, AnySelectedBattler, and SelectedOtherBattler. */
 	FBattleBattlerTarget ExplicitTarget;
 
 	/** Applied in caller-supplied rule order after a single battler target exists. */
@@ -198,7 +198,7 @@ struct POKEMONSOLARUS_API FBattleTargetResolutionResult
 	bool bUsedFaintedTargetFallback = false;
 };
 
-/** Pure selection and resolution rules for the ten frozen C04B target classes. */
+/** Pure selection and resolution rules for the twelve frozen C04B target classes. */
 class POKEMONSOLARUS_API FBattleTargetResolver
 {
 public:

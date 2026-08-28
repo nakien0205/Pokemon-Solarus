@@ -20,7 +20,9 @@ namespace BattleTargetingPrivate
 			|| TargetClass == EBattleTargetClass::OpponentSide
 			|| TargetClass == EBattleTargetClass::BothSides
 			|| TargetClass == EBattleTargetClass::Field
-			|| TargetClass == EBattleTargetClass::FixedSpreadSet;
+			|| TargetClass == EBattleTargetClass::FixedSpreadSet
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler
+			|| TargetClass == EBattleTargetClass::FixedOpponentSpreadSet;
 	}
 
 	bool IsKnownPositionState(const EBattleTargetPositionState State)
@@ -48,7 +50,8 @@ namespace BattleTargetingPrivate
 	{
 		return TargetClass == EBattleTargetClass::SelectedAlly
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
-			|| TargetClass == EBattleTargetClass::AnySelectedBattler;
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler;
 	}
 
 	bool SupportsRuleRedirection(const EBattleTargetClass TargetClass)
@@ -87,8 +90,12 @@ namespace BattleTargetingPrivate
 			return !bSameSide;
 		case EBattleTargetClass::AnySelectedBattler:
 			return true;
+		case EBattleTargetClass::SelectedOtherBattler:
+			return !bSelf;
 		case EBattleTargetClass::FixedSpreadSet:
 			return !bSelf;
+		case EBattleTargetClass::FixedOpponentSpreadSet:
+			return !bSameSide;
 		default:
 			return false;
 		}
@@ -359,7 +366,8 @@ bool FBattleTargetResolver::TryBuildSelection(
 
 		AddBattlerCandidate(Position, OutResult.BattlerCandidates);
 		if (Spec.TargetClass == EBattleTargetClass::Self
-			|| Spec.TargetClass == EBattleTargetClass::FixedSpreadSet)
+			|| Spec.TargetClass == EBattleTargetClass::FixedSpreadSet
+			|| Spec.TargetClass == EBattleTargetClass::FixedOpponentSpreadSet)
 		{
 			const bool bAdded = AddResolvedBattler(
 				OutResult.BattlerCandidates.Last(),
@@ -456,7 +464,8 @@ bool FBattleTargetResolver::TryResolve(
 		else if (ExplicitPosition->State == EBattleTargetPositionState::Fainted
 			&& ExplicitPosition->ActiveSlotId.GetSide() != User->ActiveSlotId.GetSide()
 			&& (Spec.TargetClass == EBattleTargetClass::SelectedOpponent
-				|| Spec.TargetClass == EBattleTargetClass::AnySelectedBattler))
+				|| Spec.TargetClass == EBattleTargetClass::AnySelectedBattler
+				|| Spec.TargetClass == EBattleTargetClass::SelectedOtherBattler))
 		{
 			for (const FBattleTargetPositionFacts& Candidate : Positions)
 			{
@@ -537,6 +546,7 @@ bool FBattleTargetResolver::TryResolve(
 			OutResult.Targets.Add(FBattleResolvedTarget::CreateField());
 			break;
 		case EBattleTargetClass::FixedSpreadSet:
+		case EBattleTargetClass::FixedOpponentSpreadSet:
 			for (const FBattleTargetPositionFacts& Position : Positions)
 			{
 				if (!IsLiving(Position) || !IsPermittedBattler(Spec.TargetClass, *User, Position))

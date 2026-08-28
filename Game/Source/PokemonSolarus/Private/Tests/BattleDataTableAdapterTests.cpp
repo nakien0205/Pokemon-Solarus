@@ -282,6 +282,80 @@ bool FBattleC02BDataTableValidationDiagnosticsTest::RunTest(const FString& Param
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10TargetAdapterNamesTest,
+	"PokemonSolarus.Battle.C04B.C10Targets.Adapter.TargetClassNamesAndUnknownFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10TargetAdapterNamesTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	struct FTargetMapping
+	{
+		FName Name;
+		EBattleTargetClass TargetClass;
+	};
+	const TArray<FTargetMapping> Mappings =
+	{
+		{FName(TEXT("SelectedOtherBattler")), EBattleTargetClass::SelectedOtherBattler},
+		{FName(TEXT("FixedOpponentSpreadSet")), EBattleTargetClass::FixedOpponentSpreadSet}
+	};
+
+	for (const FTargetMapping& Mapping : Mappings)
+	{
+		TArray<FString> NatureImportProblems;
+		const FTransientBattleTables Tables = MakeValidTransientTables(NatureImportProblems);
+		FBattleMoveTableRow* MoveRow = Tables.Moves->FindRow<FBattleMoveTableRow>(
+			FName(TEXT("Move.Flamethrower")),
+			TEXT("C10 target mapping"),
+			false);
+		if (!TestNotNull(TEXT("The target-mapping source move exists"), MoveRow))
+		{
+			return false;
+		}
+		MoveRow->TargetClass = Mapping.Name;
+
+		FBattleDefinitionCatalog Catalog;
+		TArray<FBattleCatalogDiagnostic> Diagnostics;
+		TestTrue(
+			FString::Printf(TEXT("The adapter accepts target class %s"), *Mapping.Name.ToString()),
+			FBattleDataTableAdapter::BuildCatalog(Tables.AsInput(), Catalog, Diagnostics));
+		const FBattleMoveDefinition* Move = Catalog.FindMove(
+			MakeDefinitionId<FMoveId>(TEXT("Move.Flamethrower")));
+		TestTrue(
+			FString::Printf(TEXT("The adapter freezes target class %s exactly"), *Mapping.Name.ToString()),
+			Move != nullptr && Move->TargetClass == Mapping.TargetClass);
+		TestTrue(TEXT("A known appended target name adds no diagnostics"), Diagnostics.IsEmpty());
+	}
+
+	TArray<FString> NatureImportProblems;
+	const FTransientBattleTables UnknownTables = MakeValidTransientTables(NatureImportProblems);
+	FBattleMoveTableRow* UnknownMove = UnknownTables.Moves->FindRow<FBattleMoveTableRow>(
+		FName(TEXT("Move.Flamethrower")),
+		TEXT("C10 unknown target mapping"),
+		false);
+	if (!TestNotNull(TEXT("The unknown-target source move exists"), UnknownMove))
+	{
+		return false;
+	}
+	UnknownMove->TargetClass = FName(TEXT("UnknownC10Target"));
+	FBattleDefinitionCatalog RejectedCatalog;
+	TArray<FBattleCatalogDiagnostic> Diagnostics;
+	TestFalse(
+		TEXT("An unknown authored target name rejects the adapter build"),
+		FBattleDataTableAdapter::BuildCatalog(
+			UnknownTables.AsInput(),
+			RejectedCatalog,
+			Diagnostics));
+	TestFalse(TEXT("Unknown target failure returns no partial catalog"), RejectedCatalog.IsValid());
+	TestTrue(
+		TEXT("Unknown target failure reports InvalidAuthoredValue"),
+		ContainsDiagnosticCode(
+			Diagnostics,
+			EBattleCatalogDiagnosticCode::InvalidAuthoredValue));
+	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

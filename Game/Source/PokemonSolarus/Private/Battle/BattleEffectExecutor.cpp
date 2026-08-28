@@ -61,6 +61,13 @@ namespace BattleEffectExecutorPrivate
 		return Side == EBattleSide::Player || Side == EBattleSide::Opponent;
 	}
 
+	int32 GetStableActiveSlotOrder(const FActiveSlotId ActiveSlotId)
+	{
+		const int32 SideOffset = ActiveSlotId.GetSide() == EBattleSide::Player ? 0 : 2;
+		const int32 PositionOffset = ActiveSlotId.GetPosition() == EBattlePosition::Left ? 0 : 1;
+		return SideOffset + PositionOffset;
+	}
+
 	bool IsKnownMoveCategory(const EBattleMoveCategory Category)
 	{
 		return Category == EBattleMoveCategory::Physical
@@ -143,7 +150,9 @@ namespace BattleEffectExecutorPrivate
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
 			|| TargetClass == EBattleTargetClass::AnySelectedBattler
 			|| TargetClass == EBattleTargetClass::RandomLegalOpponent
-			|| TargetClass == EBattleTargetClass::FixedSpreadSet;
+			|| TargetClass == EBattleTargetClass::FixedSpreadSet
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler
+			|| TargetClass == EBattleTargetClass::FixedOpponentSpreadSet;
 	}
 
 	bool IsBattlerEffectTargetCompatible(
@@ -427,7 +436,14 @@ namespace BattleEffectExecutorPrivate
 			}
 			for (int32 EarlierIndex = 0; EarlierIndex < Index; ++EarlierIndex)
 			{
-				if (Target == Request.Targets[EarlierIndex])
+				const FBattleResolvedTarget& EarlierTarget = Request.Targets[EarlierIndex];
+				if (Target == EarlierTarget
+					|| (Target.GetKind() == EBattleResolvedTargetKind::Battler
+						&& EarlierTarget.GetKind() == EBattleResolvedTargetKind::Battler
+						&& (Target.GetBattler().BattlerId
+								== EarlierTarget.GetBattler().BattlerId
+							|| Target.GetBattler().ActiveSlotId
+								== EarlierTarget.GetBattler().ActiveSlotId)))
 				{
 					return false;
 				}
@@ -455,8 +471,31 @@ namespace BattleEffectExecutorPrivate
 		case EBattleTargetClass::AnySelectedBattler:
 		case EBattleTargetClass::RandomLegalOpponent:
 			return Request.Targets.Num() == 1 && AllAre(EBattleResolvedTargetKind::Battler);
+		case EBattleTargetClass::SelectedOtherBattler:
+			return Request.Targets.Num() == 1
+				&& Request.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Request.Targets[0].GetBattler().BattlerId != Request.UserBattlerId
+				&& Request.Targets[0].GetBattler().ActiveSlotId != Request.UserSlotId;
 		case EBattleTargetClass::FixedSpreadSet:
 			return Request.Targets.Num() <= 3 && AllAre(EBattleResolvedTargetKind::Battler);
+		case EBattleTargetClass::FixedOpponentSpreadSet:
+			if (Request.Targets.Num() > 2 || !AllAre(EBattleResolvedTargetKind::Battler))
+			{
+				return false;
+			}
+			for (int32 Index = 0; Index < Request.Targets.Num(); ++Index)
+			{
+				const FActiveSlotId TargetSlot = Request.Targets[Index].GetBattler().ActiveSlotId;
+				if (TargetSlot.GetSide() == Request.UserSlotId.GetSide()
+					|| (Index > 0
+						&& GetStableActiveSlotOrder(
+							Request.Targets[Index - 1].GetBattler().ActiveSlotId)
+							>= GetStableActiveSlotOrder(TargetSlot)))
+				{
+					return false;
+				}
+			}
+			return true;
 		case EBattleTargetClass::UserSide:
 			return Request.Targets.Num() == 1
 				&& Request.Targets[0].GetKind() == EBattleResolvedTargetKind::Side
@@ -493,7 +532,7 @@ namespace BattleEffectExecutorPrivate
 		if (!Move.Id.IsValid()
 			|| !IsKnownMoveCategory(Move.Category)
 			|| static_cast<uint8>(Move.TargetClass)
-				> static_cast<uint8>(EBattleTargetClass::FixedSpreadSet)
+				> static_cast<uint8>(EBattleTargetClass::FixedOpponentSpreadSet)
 			|| (static_cast<uint32>(Move.Flags) & ~KnownMoveFlags) != 0
 			|| (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::AlwaysCritical)
 				&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))
@@ -648,7 +687,8 @@ namespace BattleEffectExecutorPrivate
 			&& (OutDamage == nullptr
 				|| OutMultiHit->Order >= OutDamage->Order
 				|| OutMultiHit->Target != OutDamage->Target
-				|| Move.TargetClass == EBattleTargetClass::FixedSpreadSet))
+				|| Move.TargetClass == EBattleTargetClass::FixedSpreadSet
+				|| Move.TargetClass == EBattleTargetClass::FixedOpponentSpreadSet))
 		{
 			return false;
 		}
@@ -1416,7 +1456,8 @@ bool FBattleEffectExecutor::TryExecute(
 	}
 
 	const bool bDamagingMove = DamageEffect != nullptr;
-	const bool bSpread = Request.Move->TargetClass == EBattleTargetClass::FixedSpreadSet
+	const bool bSpread = (Request.Move->TargetClass == EBattleTargetClass::FixedSpreadSet
+			|| Request.Move->TargetClass == EBattleTargetClass::FixedOpponentSpreadSet)
 		&& Request.Targets.Num() > 1;
 	int64 TotalActualDamage = 0;
 	int32 TotalCompletedHits = 0;

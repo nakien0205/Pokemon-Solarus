@@ -2,6 +2,7 @@
 
 #include "Algo/Count.h"
 #include "Battle/BattleEngine.h"
+#include "Battle/BattleEvent.h"
 #include "Battle/BattleTargeting.h"
 #include "BattleTestFactories.h"
 #include "BattleTestRandom.h"
@@ -111,6 +112,19 @@ namespace BattleTargetingTests
 		return Target;
 	}
 
+	FBattleEventTarget MakeEventBattlerTarget(
+		const uint64 TrainerValue,
+		const EBattleSide Side,
+		const EBattlePosition Position,
+		const uint64 BattlerValue)
+	{
+		FBattleEventTarget Target;
+		Target.TrainerId = MakeNumericId<FTrainerId>(TrainerValue);
+		Target.BattlerId = MakeNumericId<FBattlerId>(BattlerValue);
+		Target.ActiveSlotId = MakeActiveSlotId(Side, Position);
+		return Target;
+	}
+
 	FBattleRandomContext MakeRandomContext(const uint64 ResolutionValue = 1)
 	{
 		FBattleRandomContext Context;
@@ -149,6 +163,29 @@ namespace BattleTargetingTests
 		return Spec;
 	}
 
+	FBattleEventSpec MakeSelectedOtherEventSpec(const FBattleEventTarget& Target)
+	{
+		FBattleEventSpec Spec;
+		Spec.EventOrdinal = 1;
+		Spec.BattleId = MakeNumericId<FBattleId>(4404);
+		Spec.TurnId = MakeNumericId<FTurnId>(1);
+		Spec.ActionId = MakeNumericId<FActionId>(1);
+		Spec.ResolutionId = MakeNumericId<FResolutionId>(1);
+		Spec.Type = EBattleEventType::TargetsResolved;
+		Spec.Cause = EBattleEventCause::Targeting;
+		Spec.CauseActionKind = EBattleActionKind::Fight;
+		Spec.Source.TrainerId = MakeNumericId<FTrainerId>(PlayerTrainerValue);
+		Spec.Source.BattlerId = MakeNumericId<FBattlerId>(PlayerLeftBattlerValue);
+		Spec.Source.ActiveSlotId = MakeActiveSlotId(
+			EBattleSide::Player,
+			EBattlePosition::Left);
+		Spec.Targets.Add(Target);
+		FBattleTargetResolutionMetadata Metadata;
+		Metadata.TargetClass = EBattleTargetClass::SelectedOtherBattler;
+		Spec.TargetResolution = Metadata;
+		return Spec;
+	}
+
 	bool ContainsCandidate(
 		const TConstArrayView<FBattleBattlerTarget> Candidates,
 		const FBattleBattlerTarget& Expected)
@@ -182,7 +219,9 @@ namespace BattleTargetingTests
 			EBattleTargetClass::OpponentSide,
 			EBattleTargetClass::BothSides,
 			EBattleTargetClass::Field,
-			EBattleTargetClass::FixedSpreadSet
+			EBattleTargetClass::FixedSpreadSet,
+			EBattleTargetClass::SelectedOtherBattler,
+			EBattleTargetClass::FixedOpponentSpreadSet
 		};
 	}
 
@@ -190,7 +229,8 @@ namespace BattleTargetingTests
 	{
 		return TargetClass == EBattleTargetClass::SelectedAlly
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
-			|| TargetClass == EBattleTargetClass::AnySelectedBattler;
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler;
 	}
 
 	TArray<FBattleTypeChartEntry> MakeTypeChart()
@@ -608,7 +648,7 @@ namespace BattleTargetingTests
 			TestTrue(TEXT("Each Singles target class produces a valid selection result"), bBuilt);
 			TestEqual(TEXT("Selection preserves the target class"), Selection.TargetClass, TargetClass);
 			TestEqual(
-				TEXT("Only the three selected-battler classes request an explicit choice"),
+				TEXT("Only selected-battler classes request an explicit choice"),
 				Selection.bRequiresExplicitChoice,
 				RequiresExplicitChoice(TargetClass));
 
@@ -624,6 +664,7 @@ namespace BattleTargetingTests
 				TestTrue(TEXT("Singles selected-ally candidates are empty"), Selection.BattlerCandidates.IsEmpty());
 				continue;
 			case EBattleTargetClass::SelectedOpponent:
+			case EBattleTargetClass::SelectedOtherBattler:
 			case EBattleTargetClass::RandomLegalOpponent:
 				TestEqual(TEXT("The living Singles opponent is the only candidate"), Selection.BattlerCandidates.Num(), 1);
 				TestTrue(TEXT("The Singles opponent is present"), ContainsCandidate(Selection.BattlerCandidates, OpponentLeft));
@@ -642,6 +683,7 @@ namespace BattleTargetingTests
 				TestEqual(TEXT("Both-sides has two stable automatic targets"), Selection.AutomaticTargets.Num(), 2);
 				break;
 			case EBattleTargetClass::FixedSpreadSet:
+			case EBattleTargetClass::FixedOpponentSpreadSet:
 				TestEqual(TEXT("Singles fixed spread excludes the user"), Selection.BattlerCandidates.Num(), 1);
 				TestEqual(TEXT("Singles fixed spread is frozen automatically"), Selection.AutomaticTargets.Num(), 1);
 				break;
@@ -654,7 +696,8 @@ namespace BattleTargetingTests
 
 			FBattleBattlerTarget ExplicitTarget;
 			if (TargetClass == EBattleTargetClass::SelectedOpponent
-				|| TargetClass == EBattleTargetClass::AnySelectedBattler)
+				|| TargetClass == EBattleTargetClass::AnySelectedBattler
+				|| TargetClass == EBattleTargetClass::SelectedOtherBattler)
 			{
 				ExplicitTarget = OpponentLeft;
 			}
@@ -854,6 +897,10 @@ namespace BattleTargetingTests
 				ExpectedCandidateCount = 4;
 				ExplicitTarget = OpponentRight;
 				break;
+			case EBattleTargetClass::SelectedOtherBattler:
+				ExpectedCandidateCount = 3;
+				ExplicitTarget = PlayerRight;
+				break;
 			case EBattleTargetClass::RandomLegalOpponent:
 				ExpectedCandidateCount = 2;
 				break;
@@ -863,6 +910,10 @@ namespace BattleTargetingTests
 			case EBattleTargetClass::FixedSpreadSet:
 				ExpectedCandidateCount = 3;
 				ExpectedResolvedCount = 3;
+				break;
+			case EBattleTargetClass::FixedOpponentSpreadSet:
+				ExpectedCandidateCount = 2;
+				ExpectedResolvedCount = 2;
 				break;
 			default:
 				break;
@@ -897,6 +948,11 @@ namespace BattleTargetingTests
 				TestTrue(TEXT("Friendly-fire spread begins with the ally"), Result.Targets[0].GetBattler() == PlayerRight);
 				TestTrue(TEXT("Friendly-fire spread then targets opponent Left"), Result.Targets[1].GetBattler() == OpponentLeft);
 				TestTrue(TEXT("Friendly-fire spread ends with opponent Right"), Result.Targets[2].GetBattler() == OpponentRight);
+			}
+			else if (TargetClass == EBattleTargetClass::FixedOpponentSpreadSet)
+			{
+				TestTrue(TEXT("Opponent-only spread begins with opponent Left"), Result.Targets[0].GetBattler() == OpponentLeft);
+				TestTrue(TEXT("Opponent-only spread ends with opponent Right"), Result.Targets[1].GetBattler() == OpponentRight);
 			}
 			else if (TargetClass == EBattleTargetClass::RandomLegalOpponent)
 			{
@@ -948,6 +1004,635 @@ namespace BattleTargetingTests
 			TestTrue(TEXT("An explicit Doubles Struggle decision is constructible"), bExplicitCreated);
 			TestTrue(TEXT("The request accepts an explicit legal Struggle target"), Request.Allows(Explicit, Rejection));
 		}
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10TargetStableCandidatesTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Targeting.SinglesAndDoublesStableCandidates",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10TargetStableCandidatesTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleBattlerTarget PlayerLeft = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerLeftBattlerValue);
+		const FBattleBattlerTarget PlayerRight = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerRightBattlerValue);
+		const FBattleBattlerTarget OpponentLeft = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentLeftBattlerValue);
+		const FBattleBattlerTarget OpponentRight = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Right,
+			OpponentRightBattlerValue);
+
+		FBattleTargetSelectionResult Selection;
+		EBattleTargetingError Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("Selected Other Battler builds a Singles choice"),
+			FBattleTargetResolver::TryBuildSelection(
+				MakeSelectionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MakeSinglePositions()),
+				Selection,
+				Error));
+		TestTrue(
+			TEXT("Singles selected-other excludes self and exposes only the opponent"),
+			Selection.bRequiresExplicitChoice
+				&& Selection.BattlerCandidates == TArray<FBattleBattlerTarget>({OpponentLeft})
+				&& !Selection.BattlerCandidates.Contains(PlayerLeft)
+				&& Selection.AutomaticTargets.IsEmpty());
+
+		TestTrue(
+			TEXT("Fixed Opponent Spread Set builds a Singles automatic target"),
+			FBattleTargetResolver::TryBuildSelection(
+				MakeSelectionSpec(
+					EBattleTargetClass::FixedOpponentSpreadSet,
+					MakeSinglePositions()),
+				Selection,
+				Error));
+		TestTrue(
+			TEXT("Singles opponent spread contains exactly one automatic opponent"),
+			!Selection.bRequiresExplicitChoice
+				&& Selection.BattlerCandidates == TArray<FBattleBattlerTarget>({OpponentLeft})
+				&& Selection.AutomaticTargets.Num() == 1
+				&& Selection.AutomaticTargets[0].GetBattler() == OpponentLeft);
+
+		TestTrue(
+			TEXT("Selected Other Battler builds a Doubles choice"),
+			FBattleTargetResolver::TryBuildSelection(
+				MakeSelectionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MakeDoublePositions()),
+				Selection,
+				Error));
+		TestTrue(
+			TEXT("Doubles selected-other is canonical ally then opponents and never self"),
+			Selection.BattlerCandidates
+				== TArray<FBattleBattlerTarget>({PlayerRight, OpponentLeft, OpponentRight})
+				&& !Selection.BattlerCandidates.Contains(PlayerLeft));
+
+		TestTrue(
+			TEXT("Fixed Opponent Spread Set builds a Doubles automatic set"),
+			FBattleTargetResolver::TryBuildSelection(
+				MakeSelectionSpec(
+					EBattleTargetClass::FixedOpponentSpreadSet,
+					MakeDoublePositions()),
+				Selection,
+				Error));
+		TestTrue(
+			TEXT("Doubles opponent spread is canonical opponent Left then Right with no ally"),
+			Selection.BattlerCandidates
+				== TArray<FBattleBattlerTarget>({OpponentLeft, OpponentRight})
+				&& Selection.AutomaticTargets.Num() == 2
+				&& Selection.AutomaticTargets[0].GetBattler() == OpponentLeft
+				&& Selection.AutomaticTargets[1].GetBattler() == OpponentRight
+				&& !Selection.BattlerCandidates.Contains(PlayerRight));
+
+		TArray<FBattleTargetPositionFacts> UnavailablePositions = MakeDoublePositions();
+		for (FBattleTargetPositionFacts& Position : UnavailablePositions)
+		{
+			if (Position.ActiveSlotId == OpponentLeft.ActiveSlotId)
+			{
+				Position.State = EBattleTargetPositionState::Fainted;
+			}
+			else if (Position.ActiveSlotId == OpponentRight.ActiveSlotId)
+			{
+				Position.State = EBattleTargetPositionState::Removed;
+			}
+		}
+		TestTrue(
+			TEXT("Opponent spread accepts structurally unavailable opponent positions"),
+			FBattleTargetResolver::TryBuildSelection(
+				MakeSelectionSpec(
+					EBattleTargetClass::FixedOpponentSpreadSet,
+					MoveTemp(UnavailablePositions)),
+				Selection,
+				Error));
+		TestTrue(
+			TEXT("Fainted and removed opponents are excluded without admitting the ally"),
+			!Selection.bHasLegalTarget
+				&& Selection.BattlerCandidates.IsEmpty()
+				&& Selection.AutomaticTargets.IsEmpty());
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10TargetEventIdentityValidationTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Event.SelectedOtherIdentityAliases",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10TargetEventIdentityValidationTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleEventTarget ExactSource = MakeEventBattlerTarget(
+			PlayerTrainerValue,
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerLeftBattlerValue);
+		const FBattleEventTarget SourceBattlerInOtherSlot = MakeEventBattlerTarget(
+			PlayerTrainerValue,
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerLeftBattlerValue);
+		const FBattleEventTarget OtherBattlerInSourceSlot = MakeEventBattlerTarget(
+			PlayerTrainerValue,
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerRightBattlerValue);
+		const FBattleEventTarget Ally = MakeEventBattlerTarget(
+			PlayerTrainerValue,
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerRightBattlerValue);
+		const FBattleEventTarget Opponent = MakeEventBattlerTarget(
+			OpponentTrainerValue,
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentLeftBattlerValue);
+
+		auto RejectsTarget = [this](const TCHAR* What, const FBattleEventTarget& Target)
+		{
+			FBattleEvent Event;
+			const bool bCreated = FBattleEvent::TryCreate(
+				MakeSelectedOtherEventSpec(Target),
+				Event);
+			return TestFalse(What, bCreated)
+				&& TestFalse(TEXT("A rejected SelectedOther event remains invalid"), Event.IsValid());
+		};
+
+		bool bValid = RejectsTarget(
+			TEXT("The Event boundary rejects the exact source identity"),
+			ExactSource);
+		bValid &= RejectsTarget(
+			TEXT("The Event boundary rejects the source battler ID in another slot"),
+			SourceBattlerInOtherSlot);
+		bValid &= RejectsTarget(
+			TEXT("The Event boundary rejects another battler ID in the source slot"),
+			OtherBattlerInSourceSlot);
+
+		FBattleEvent AllyEvent;
+		bValid &= TestTrue(
+			TEXT("The Event boundary accepts a canonical SelectedOther ally"),
+			FBattleEvent::TryCreate(MakeSelectedOtherEventSpec(Ally), AllyEvent));
+		FBattleEvent OpponentEvent;
+		bValid &= TestTrue(
+			TEXT("The Event boundary accepts a canonical SelectedOther opponent"),
+			FBattleEvent::TryCreate(MakeSelectedOtherEventSpec(Opponent), OpponentEvent));
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10TargetResolutionContractTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Targeting.ResolutionFallbackAndNoRng",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10TargetResolutionContractTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleBattlerTarget PlayerLeft = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerLeftBattlerValue);
+		const FBattleBattlerTarget PlayerRight = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerRightBattlerValue);
+		const FBattleBattlerTarget OpponentLeft = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentLeftBattlerValue);
+		const FBattleBattlerTarget OpponentRight = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Right,
+			OpponentRightBattlerValue);
+
+		FStrictBattleRandom NoTargetRandom({});
+		FBattleTargetResolutionResult Result;
+		EBattleTargetingError Error = EBattleTargetingError::None;
+		TestFalse(
+			TEXT("Selected Other Battler rejects the exact user"),
+			FBattleTargetResolver::TryResolve(
+				MakeResolutionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MakeDoublePositions(),
+					PlayerLeft),
+				NoTargetRandom,
+				Result,
+				Error));
+		TestEqual(TEXT("Selecting self reports InvalidSelection"), Error,
+			EBattleTargetingError::InvalidSelection);
+
+		Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("Selected Other Battler resolves a living ally explicitly"),
+			FBattleTargetResolver::TryResolve(
+				MakeResolutionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MakeDoublePositions(),
+					PlayerRight),
+				NoTargetRandom,
+				Result,
+				Error));
+		TestTrue(
+			TEXT("The explicit ally resolves without fallback or target RNG"),
+			Result.Outcome == EBattleTargetResolutionOutcome::Resolved
+				&& Result.Targets.Num() == 1
+				&& Result.Targets[0].GetBattler() == PlayerRight
+				&& !Result.bUsedFaintedTargetFallback
+				&& NoTargetRandom.IsExact());
+
+		TArray<FBattleTargetPositionFacts> FaintedOpponentPositions = MakeDoublePositions();
+		for (FBattleTargetPositionFacts& Position : FaintedOpponentPositions)
+		{
+			if (Position.ActiveSlotId == OpponentLeft.ActiveSlotId)
+			{
+				Position.State = EBattleTargetPositionState::Fainted;
+			}
+		}
+		Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("Selected Other Battler resolves a fainted opponent through the existing fallback"),
+			FBattleTargetResolver::TryResolve(
+				MakeResolutionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MoveTemp(FaintedOpponentPositions),
+					OpponentLeft),
+				NoTargetRandom,
+				Result,
+				Error));
+		TestTrue(
+			TEXT("Fainted-opponent fallback stays on the opponent side and uses no RNG"),
+			Result.Outcome == EBattleTargetResolutionOutcome::Resolved
+				&& Result.bWasRedirected
+				&& Result.bUsedFaintedTargetFallback
+				&& Result.Targets.Num() == 1
+				&& Result.Targets[0].GetBattler() == OpponentRight
+				&& NoTargetRandom.IsExact());
+
+		TArray<FBattleTargetPositionFacts> FaintedAllyPositions = MakeDoublePositions();
+		for (FBattleTargetPositionFacts& Position : FaintedAllyPositions)
+		{
+			if (Position.ActiveSlotId == PlayerRight.ActiveSlotId)
+			{
+				Position.State = EBattleTargetPositionState::Fainted;
+			}
+		}
+		Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("A fainted selected ally is a valid no-target resolution"),
+			FBattleTargetResolver::TryResolve(
+				MakeResolutionSpec(
+					EBattleTargetClass::SelectedOtherBattler,
+					MoveTemp(FaintedAllyPositions),
+					PlayerRight),
+				NoTargetRandom,
+				Result,
+				Error));
+		TestTrue(
+			TEXT("Selected-other never crosses sides to replace a fainted ally"),
+			Result.Outcome == EBattleTargetResolutionOutcome::NoLegalTarget
+				&& Result.Targets.IsEmpty()
+				&& !Result.bWasRedirected
+				&& !Result.bUsedFaintedTargetFallback);
+
+		FBattleTargetResolutionSpec SpreadSpec = MakeResolutionSpec(
+			EBattleTargetClass::FixedOpponentSpreadSet,
+			MakeDoublePositions());
+		SpreadSpec.RedirectionProposals.Add({PlayerRight});
+		Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("Fixed Opponent Spread Set resolves the Doubles opponent set"),
+			FBattleTargetResolver::TryResolve(
+				SpreadSpec,
+				NoTargetRandom,
+				Result,
+				Error));
+		TestTrue(
+			TEXT("Opponent spread ignores redirection and freezes both opponents in canonical order"),
+			Result.Outcome == EBattleTargetResolutionOutcome::Resolved
+				&& !Result.bWasRedirected
+				&& Result.Targets.Num() == 2
+				&& Result.Targets[0].GetBattler() == OpponentLeft
+				&& Result.Targets[1].GetBattler() == OpponentRight
+				&& NoTargetRandom.IsExact());
+
+		TArray<FBattleTargetPositionFacts> NoOpponentPositions = MakeDoublePositions();
+		for (FBattleTargetPositionFacts& Position : NoOpponentPositions)
+		{
+			if (Position.ActiveSlotId.GetSide() == EBattleSide::Opponent)
+			{
+				Position.State = EBattleTargetPositionState::Fainted;
+			}
+		}
+		Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("An empty opponent spread uses the existing no-target path"),
+			FBattleTargetResolver::TryResolve(
+				MakeResolutionSpec(
+					EBattleTargetClass::FixedOpponentSpreadSet,
+					MoveTemp(NoOpponentPositions)),
+				NoTargetRandom,
+				Result,
+				Error));
+		TestTrue(
+			TEXT("Empty opponent spread has no targets, redirection, fallback, or RNG"),
+			Result.Outcome == EBattleTargetResolutionOutcome::NoLegalTarget
+				&& Result.Targets.IsEmpty()
+				&& !Result.bWasRedirected
+				&& !Result.bUsedFaintedTargetFallback
+				&& NoTargetRandom.IsExact());
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10SelectedOtherRedirectionTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Targeting.SelectedOtherRedirection",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10SelectedOtherRedirectionTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleBattlerTarget PlayerLeft = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Left,
+			PlayerLeftBattlerValue);
+		const FBattleBattlerTarget PlayerRight = MakeBattlerTarget(
+			EBattleSide::Player,
+			EBattlePosition::Right,
+			PlayerRightBattlerValue);
+		const FBattleBattlerTarget OpponentLeft = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Left,
+			OpponentLeftBattlerValue);
+		const FBattleBattlerTarget OpponentRight = MakeBattlerTarget(
+			EBattleSide::Opponent,
+			EBattlePosition::Right,
+			OpponentRightBattlerValue);
+
+		FBattleTargetResolutionSpec Spec = MakeResolutionSpec(
+			EBattleTargetClass::SelectedOtherBattler,
+			MakeDoublePositions(),
+			OpponentLeft);
+		Spec.RedirectionProposals.Add({PlayerLeft});
+		Spec.RedirectionProposals.Add({OpponentLeft});
+		Spec.RedirectionProposals.Add({PlayerRight});
+		Spec.RedirectionProposals.Add({OpponentRight});
+
+		FStrictBattleRandom NoTargetRandom({});
+		FBattleTargetResolutionResult Result;
+		EBattleTargetingError Error = EBattleTargetingError::None;
+		TestTrue(
+			TEXT("SelectedOther evaluates ordered redirection proposals"),
+			FBattleTargetResolver::TryResolve(Spec, NoTargetRandom, Result, Error));
+		TestTrue(
+			TEXT("SelectedOther skips self and no-op proposals before choosing the legal ally"),
+			Result.Outcome == EBattleTargetResolutionOutcome::Resolved
+				&& Result.Targets.Num() == 1
+				&& Result.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Result.Targets[0].GetBattler() == PlayerRight);
+		TestTrue(TEXT("SelectedOther reports the effective rule redirection"), Result.bWasRedirected);
+		TestFalse(
+			TEXT("SelectedOther rule redirection is not a fainted-target fallback"),
+			Result.bUsedFaintedTargetFallback);
+		TestTrue(
+			TEXT("SelectedOther redirection consumes no target-selection RNG"),
+			NoTargetRandom.IsExact() && NoTargetRandom.GetTrace().IsEmpty());
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10SelectedOtherPublicEngineTest,
+		"PokemonSolarus.Battle.C04B.C10Targets.Engine.SelectedOtherPublicQueueEventReplay",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC10SelectedOtherPublicEngineTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FMoveId MoveId = MakeDefinitionId<FMoveId>(FixedSpreadMoveName);
+		const FBattlerId PlayerLeftId = MakeNumericId<FBattlerId>(PlayerLeftBattlerValue);
+		const FBattlerId OpponentRightId = MakeNumericId<FBattlerId>(OpponentRightBattlerValue);
+		const FActiveSlotId PlayerLeftSlot = MakeActiveSlotId(
+			EBattleSide::Player,
+			EBattlePosition::Left);
+		const FActiveSlotId PlayerRightSlot = MakeActiveSlotId(
+			EBattleSide::Player,
+			EBattlePosition::Right);
+		const FActiveSlotId OpponentLeftSlot = MakeActiveSlotId(
+			EBattleSide::Opponent,
+			EBattlePosition::Left);
+		const FActiveSlotId OpponentRightSlot = MakeActiveSlotId(
+			EBattleSide::Opponent,
+			EBattlePosition::Right);
+
+		TUniquePtr<FBattleEngine> Engine = MakeDoubleEngine(
+			10,
+			4410,
+			EBattleTargetClass::SelectedOtherBattler);
+		FBattleRejection Rejection;
+		if (!TestTrue(
+				TEXT("The catalog-authored SelectedOther battle begins through the public API"),
+				Engine->TryBeginActionDecisionSequence(Rejection)))
+		{
+			return false;
+		}
+
+		const TArray<FBattleDecisionRequest> PlayerRequests =
+			Engine->GetPendingDecisionRequests();
+		TestEqual(TEXT("The player receives both active decision requests"), PlayerRequests.Num(), 2);
+		const FBattleDecisionRequest* PlayerLeftRequest = PlayerRequests.FindByPredicate(
+			[PlayerLeftId](const FBattleDecisionRequest& Request)
+			{
+				return Request.GetActingBattlerId() == PlayerLeftId;
+			});
+		if (!TestNotNull(TEXT("The Player Left SelectedOther request exists"), PlayerLeftRequest))
+		{
+			return false;
+		}
+
+		auto HasMoveTarget = [PlayerLeftRequest, MoveId](const FActiveSlotId Slot)
+		{
+			return PlayerLeftRequest->GetLegalMoveTargets().ContainsByPredicate(
+				[MoveId, Slot](const FBattleMoveTargetOption& Option)
+				{
+					return Option.MoveId == MoveId && Option.ActiveSlotId == Slot;
+				});
+		};
+		const int32 SelectedOtherOptionCount = Algo::CountIf(
+			PlayerLeftRequest->GetLegalMoveTargets(),
+			[MoveId](const FBattleMoveTargetOption& Option)
+			{
+				return Option.MoveId == MoveId;
+			});
+		TestTrue(
+			TEXT("SelectedOther exposes the ally and both living opponents, but never the actor"),
+			SelectedOtherOptionCount == 3
+				&& HasMoveTarget(PlayerRightSlot)
+				&& HasMoveTarget(OpponentLeftSlot)
+				&& HasMoveTarget(OpponentRightSlot)
+				&& !HasMoveTarget(PlayerLeftSlot));
+		TestFalse(
+			TEXT("SelectedOther is not classified as automatically targeted"),
+			PlayerLeftRequest->GetAutomaticallyTargetedMoveIds().Contains(MoveId));
+
+		TArray<FBattleDecision> PlayerDecisions;
+		for (const FBattleDecisionRequest& Request : PlayerRequests)
+		{
+			const FActiveSlotId TargetSlot = Request.GetActingBattlerId() == PlayerLeftId
+				? OpponentRightSlot
+				: OpponentLeftSlot;
+			FBattleDecision Decision;
+			if (!TestTrue(
+					TEXT("Each SelectedOther player choice is created with an explicit target"),
+					FBattleDecision::TryCreateFight(
+						Request.GetStateVersion(),
+						Request.GetDecisionOwnerTrainerId(),
+						Request.GetActingBattlerId(),
+						MoveId,
+						TargetSlot,
+						Decision)))
+			{
+				return false;
+			}
+			PlayerDecisions.Add(Decision);
+		}
+		const FBattleResolution PlayerSubmitted = Engine->SubmitDecisionBatch(
+			MakeBatch(PlayerRequests, MoveTemp(PlayerDecisions)));
+		if (!TestTrue(
+				TEXT("The public engine accepts the explicit SelectedOther player batch"),
+				PlayerSubmitted.WasAccepted())
+			|| !TestTrue(
+				TEXT("The remaining configured explicit fights lock through the public engine"),
+				LockAllConfiguredFights(*Engine)))
+		{
+			return false;
+		}
+
+		const TArray<FBattleLockedAction> LockedActions = Engine->GetLockedActions();
+		const FBattleLockedAction* PlayerLeftAction = LockedActions.FindByPredicate(
+			[PlayerLeftId](const FBattleLockedAction& Action)
+			{
+				return Action.Decision.GetActingBattlerId() == PlayerLeftId;
+			});
+		if (!TestNotNull(TEXT("The Player Left action is present in the public locked queue"), PlayerLeftAction))
+		{
+			return false;
+		}
+		TestTrue(
+			TEXT("The queue retains target class 10 and the canonical explicit opponent identity"),
+			PlayerLeftAction->TargetClass == EBattleTargetClass::SelectedOtherBattler
+				&& static_cast<uint8>(PlayerLeftAction->TargetClass) == 10
+				&& PlayerLeftAction->Decision.GetActiveTargetId() == OpponentRightSlot
+				&& PlayerLeftAction->SelectedTargetBattlerId == OpponentRightId
+				&& !PlayerLeftAction->TargetResolution.IsSet());
+
+		if (!TestTrue(
+				TEXT("The SelectedOther action starts through the public checkpoint"),
+				Engine->BeginNextLockedAction().WasAccepted())
+			|| !TestTrue(
+				TEXT("The SelectedOther move commits through the public pre-move checkpoint"),
+				Engine->CommitCurrentMoveAfterPreMoveGates().WasAccepted()))
+		{
+			return false;
+		}
+		const int32 RandomDrawsBeforeTargets = Engine->ExportRandomTrace().Num();
+		const FBattleResolution TargetResolution = Engine->ResolveCurrentMoveTargets();
+		TestTrue(
+			TEXT("The public SelectedOther target checkpoint resolves"),
+			TargetResolution.WasAccepted());
+		TestEqual(
+			TEXT("SelectedOther target resolution consumes no RNG draw"),
+			Engine->ExportRandomTrace().Num(),
+			RandomDrawsBeforeTargets);
+		TestEqual(
+			TEXT("The complete public flow needs no RNG before target resolution"),
+			RandomDrawsBeforeTargets,
+			0);
+
+		const TOptional<FBattleLockedAction> Current = Engine->GetCurrentLockedAction();
+		TestTrue(
+			TEXT("The resolved public action retains the selected canonical opponent"),
+			Current.IsSet()
+				&& Current->TargetClass == EBattleTargetClass::SelectedOtherBattler
+				&& Current->SelectedTargetBattlerId == OpponentRightId
+				&& Current->TargetResolution.IsSet()
+				&& Current->TargetResolution.GetValue().TargetClass
+					== EBattleTargetClass::SelectedOtherBattler
+				&& Current->TargetResolution.GetValue().Outcome
+					== EBattleTargetResolutionOutcome::Resolved
+				&& Current->TargetResolution.GetValue().Targets.Num() == 1
+				&& Current->TargetResolution.GetValue().Targets[0].GetKind()
+					== EBattleResolvedTargetKind::Battler
+				&& Current->TargetResolution.GetValue().Targets[0].GetBattler().BattlerId
+					== OpponentRightId
+				&& Current->TargetResolution.GetValue().Targets[0].GetBattler().ActiveSlotId
+					== OpponentRightSlot);
+
+		const FBattleEvent* TargetsEvent = TargetResolution.GetEvents().FindByPredicate(
+			[](const FBattleEvent& Event)
+			{
+				return Event.GetType() == EBattleEventType::TargetsResolved;
+			});
+		TestTrue(
+			TEXT("The public target event preserves class 10 and the selected canonical identity"),
+			TargetsEvent != nullptr
+				&& TargetsEvent->GetTargetResolution().IsSet()
+				&& TargetsEvent->GetTargetResolution().GetValue().TargetClass
+					== EBattleTargetClass::SelectedOtherBattler
+				&& TargetsEvent->GetTargets().Num() == 1
+				&& TargetsEvent->GetTargets()[0].BattlerId == OpponentRightId
+				&& TargetsEvent->GetTargets()[0].ActiveSlotId == OpponentRightSlot);
+
+		const FBattleReplayRecord Replay = Engine->ExportReplayRecord();
+		const bool bHasSubmittedDecision = Replay.GetInputs().Decisions.ContainsByPredicate(
+			[PlayerLeftId, MoveId, OpponentRightSlot](const FBattleDecision& Decision)
+			{
+				return Decision.GetActingBattlerId() == PlayerLeftId
+					&& Decision.GetMoveId() == MoveId
+					&& Decision.GetActiveTargetId() == OpponentRightSlot;
+			});
+		int32 MatchingReplayResolutionCount = 0;
+		const FBattleResolution* ReplayTargetResolution = nullptr;
+		for (const FBattleResolution& Resolution : Replay.GetResolutions())
+		{
+			if (Resolution.GetResolutionId() == TargetResolution.GetResolutionId())
+			{
+				++MatchingReplayResolutionCount;
+				ReplayTargetResolution = &Resolution;
+			}
+		}
+		const FBattleEvent* ReplayTargetsEvent = ReplayTargetResolution != nullptr
+			? ReplayTargetResolution->GetEvents().FindByPredicate(
+				[](const FBattleEvent& Event)
+				{
+					return Event.GetType() == EBattleEventType::TargetsResolved;
+				})
+			: nullptr;
+		TestTrue(
+			TEXT("Replay keeps the explicit decision and one canonical SelectedOther target fact"),
+			Replay.IsValid()
+				&& Replay.GetSchemaVersion() == 6
+				&& bHasSubmittedDecision
+				&& MatchingReplayResolutionCount == 1
+				&& ReplayTargetsEvent != nullptr
+				&& ReplayTargetsEvent->GetTargetResolution().IsSet()
+				&& ReplayTargetsEvent->GetTargetResolution().GetValue().TargetClass
+					== EBattleTargetClass::SelectedOtherBattler
+				&& ReplayTargetsEvent->GetTargets().Num() == 1
+				&& ReplayTargetsEvent->GetTargets()[0].BattlerId == OpponentRightId
+				&& ReplayTargetsEvent->GetTargets()[0].ActiveSlotId == OpponentRightSlot
+				&& Replay.GetRandomTrace().IsEmpty());
+		TArray<uint8> ReplayBytes;
+		TestTrue(
+			TEXT("The SelectedOther public replay serializes canonically"),
+			FBattleReplaySerializer::TrySerializeCanonical(Replay, ReplayBytes, Rejection)
+				&& !ReplayBytes.IsEmpty());
 		return true;
 	}
 

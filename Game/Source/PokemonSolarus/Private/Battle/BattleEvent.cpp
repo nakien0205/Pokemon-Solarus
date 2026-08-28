@@ -84,7 +84,7 @@ namespace
 	bool IsTargetResolutionMetadataValid(const FBattleTargetResolutionMetadata& Metadata)
 	{
 		return static_cast<uint8>(Metadata.TargetClass)
-			<= static_cast<uint8>(EBattleTargetClass::FixedSpreadSet);
+			<= static_cast<uint8>(EBattleTargetClass::FixedOpponentSpreadSet);
 	}
 
 	int32 GetBattleEventActiveSlotOrder(const FActiveSlotId ActiveSlotId)
@@ -111,7 +111,8 @@ namespace
 			|| !Spec.Source.ActiveSlotId.IsValid()
 			|| (Metadata.bUsedFaintedTargetFallback
 				&& Metadata.TargetClass != EBattleTargetClass::SelectedOpponent
-				&& Metadata.TargetClass != EBattleTargetClass::AnySelectedBattler))
+				&& Metadata.TargetClass != EBattleTargetClass::AnySelectedBattler
+				&& Metadata.TargetClass != EBattleTargetClass::SelectedOtherBattler))
 		{
 			return false;
 		}
@@ -119,6 +120,7 @@ namespace
 		const bool bSupportsRedirection = Metadata.TargetClass == EBattleTargetClass::SelectedAlly
 			|| Metadata.TargetClass == EBattleTargetClass::SelectedOpponent
 			|| Metadata.TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| Metadata.TargetClass == EBattleTargetClass::SelectedOtherBattler
 			|| Metadata.TargetClass == EBattleTargetClass::RandomLegalOpponent;
 		if (Metadata.bWasRedirected && !bSupportsRedirection)
 		{
@@ -131,8 +133,10 @@ namespace
 				&& (Metadata.TargetClass == EBattleTargetClass::SelectedAlly
 					|| Metadata.TargetClass == EBattleTargetClass::SelectedOpponent
 					|| Metadata.TargetClass == EBattleTargetClass::AnySelectedBattler
+					|| Metadata.TargetClass == EBattleTargetClass::SelectedOtherBattler
 					|| Metadata.TargetClass == EBattleTargetClass::RandomLegalOpponent
-					|| Metadata.TargetClass == EBattleTargetClass::FixedSpreadSet);
+					|| Metadata.TargetClass == EBattleTargetClass::FixedSpreadSet
+					|| Metadata.TargetClass == EBattleTargetClass::FixedOpponentSpreadSet);
 		}
 
 		for (int32 Index = 0; Index < Spec.Targets.Num(); ++Index)
@@ -182,6 +186,11 @@ namespace
 				&& Spec.Targets[0].ActiveSlotId.GetSide() == OtherSide;
 		case EBattleTargetClass::AnySelectedBattler:
 			return Spec.Targets.Num() == 1 && IsBattleEventBattlerTarget(Spec.Targets[0]);
+		case EBattleTargetClass::SelectedOtherBattler:
+			return Spec.Targets.Num() == 1
+				&& IsBattleEventBattlerTarget(Spec.Targets[0])
+				&& Spec.Targets[0].BattlerId != Spec.Source.BattlerId
+				&& Spec.Targets[0].ActiveSlotId != Spec.Source.ActiveSlotId;
 		case EBattleTargetClass::UserSide:
 			return Spec.Targets.Num() == 1
 				&& Spec.Targets[0].bHasSide
@@ -208,6 +217,20 @@ namespace
 				if (!IsBattleEventBattlerTarget(Target)
 					|| (Target.BattlerId == Spec.Source.BattlerId
 						&& Target.ActiveSlotId == Spec.Source.ActiveSlotId))
+				{
+					return false;
+				}
+			}
+			return true;
+		case EBattleTargetClass::FixedOpponentSpreadSet:
+			if (Spec.Targets.Num() > 2)
+			{
+				return false;
+			}
+			for (const FBattleEventTarget& Target : Spec.Targets)
+			{
+				if (!IsBattleEventBattlerTarget(Target)
+					|| Target.ActiveSlotId.GetSide() != OtherSide)
 				{
 					return false;
 				}

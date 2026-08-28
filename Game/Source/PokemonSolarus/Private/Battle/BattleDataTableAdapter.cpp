@@ -359,7 +359,9 @@ namespace
 			{FName(TEXT("OpponentSide")), EBattleTargetClass::OpponentSide},
 			{FName(TEXT("BothSides")), EBattleTargetClass::BothSides},
 			{FName(TEXT("Field")), EBattleTargetClass::Field},
-			{FName(TEXT("FixedSpreadSet")), EBattleTargetClass::FixedSpreadSet}
+			{FName(TEXT("FixedSpreadSet")), EBattleTargetClass::FixedSpreadSet},
+			{FName(TEXT("SelectedOtherBattler")), EBattleTargetClass::SelectedOtherBattler},
+			{FName(TEXT("FixedOpponentSpreadSet")), EBattleTargetClass::FixedOpponentSpreadSet}
 		};
 		for (const auto& Mapping : Mappings)
 		{

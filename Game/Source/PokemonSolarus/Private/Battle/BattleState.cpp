@@ -247,14 +247,15 @@ namespace
 	bool IsBattleStateKnownTargetClass(const EBattleTargetClass TargetClass)
 	{
 		return static_cast<uint8>(TargetClass)
-			<= static_cast<uint8>(EBattleTargetClass::FixedSpreadSet);
+			<= static_cast<uint8>(EBattleTargetClass::FixedOpponentSpreadSet);
 	}
 
 	bool DoesBattleStateTargetClassRequireSelection(const EBattleTargetClass TargetClass)
 	{
 		return TargetClass == EBattleTargetClass::SelectedAlly
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
-			|| TargetClass == EBattleTargetClass::AnySelectedBattler;
+			|| TargetClass == EBattleTargetClass::AnySelectedBattler
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler;
 	}
 
 	int32 GetBattleStateActiveSlotOrder(const FActiveSlotId ActiveSlotId)
@@ -281,7 +282,8 @@ namespace
 			|| (Resolution.bUsedFaintedTargetFallback && !Resolution.bWasRedirected)
 			|| (Resolution.bUsedFaintedTargetFallback
 				&& Action.TargetClass != EBattleTargetClass::SelectedOpponent
-				&& Action.TargetClass != EBattleTargetClass::AnySelectedBattler)
+				&& Action.TargetClass != EBattleTargetClass::AnySelectedBattler
+				&& Action.TargetClass != EBattleTargetClass::SelectedOtherBattler)
 			|| (Resolution.Outcome == EBattleTargetResolutionOutcome::Resolved) == Resolution.Targets.IsEmpty()
 			|| (Resolution.Targets.IsEmpty()
 				&& (Resolution.bWasRedirected || Resolution.bUsedFaintedTargetFallback)))
@@ -298,7 +300,13 @@ namespace
 			}
 			for (int32 PriorIndex = 0; PriorIndex < Index; ++PriorIndex)
 			{
-				if (Resolution.Targets[PriorIndex] == Target)
+				const FBattleResolvedTarget& PriorTarget = Resolution.Targets[PriorIndex];
+				if (PriorTarget == Target
+					|| (PriorTarget.GetKind() == EBattleResolvedTargetKind::Battler
+						&& Target.GetKind() == EBattleResolvedTargetKind::Battler
+						&& (PriorTarget.GetBattler().BattlerId == Target.GetBattler().BattlerId
+							|| PriorTarget.GetBattler().ActiveSlotId
+								== Target.GetBattler().ActiveSlotId)))
 				{
 					return false;
 				}
@@ -330,8 +338,10 @@ namespace
 			return Action.TargetClass == EBattleTargetClass::SelectedAlly
 				|| Action.TargetClass == EBattleTargetClass::SelectedOpponent
 				|| Action.TargetClass == EBattleTargetClass::AnySelectedBattler
+				|| Action.TargetClass == EBattleTargetClass::SelectedOtherBattler
 				|| Action.TargetClass == EBattleTargetClass::RandomLegalOpponent
-				|| Action.TargetClass == EBattleTargetClass::FixedSpreadSet;
+				|| Action.TargetClass == EBattleTargetClass::FixedSpreadSet
+				|| Action.TargetClass == EBattleTargetClass::FixedOpponentSpreadSet;
 		}
 
 		switch (Action.TargetClass)
@@ -356,6 +366,13 @@ namespace
 		case EBattleTargetClass::AnySelectedBattler:
 			return Resolution.Targets.Num() == 1
 				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler;
+		case EBattleTargetClass::SelectedOtherBattler:
+			return Resolution.Targets.Num() == 1
+				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Battler
+				&& Resolution.Targets[0].GetBattler().ActiveSlotId
+					!= Action.OrderKey.ActingSlotId
+				&& Resolution.Targets[0].GetBattler().BattlerId
+					!= Action.Decision.GetActingBattlerId();
 		case EBattleTargetClass::UserSide:
 			return Resolution.Targets.Num() == 1
 				&& Resolution.Targets[0].GetKind() == EBattleResolvedTargetKind::Side
@@ -386,6 +403,20 @@ namespace
 				if (Target.GetKind() != EBattleResolvedTargetKind::Battler
 					|| (Target.GetBattler().ActiveSlotId == Action.OrderKey.ActingSlotId
 						&& Target.GetBattler().BattlerId == Action.Decision.GetActingBattlerId()))
+				{
+					return false;
+				}
+			}
+			return true;
+		case EBattleTargetClass::FixedOpponentSpreadSet:
+			if (Resolution.bWasRedirected || Resolution.Targets.Num() > 2)
+			{
+				return false;
+			}
+			for (const FBattleResolvedTarget& Target : Resolution.Targets)
+			{
+				if (Target.GetKind() != EBattleResolvedTargetKind::Battler
+					|| Target.GetBattler().ActiveSlotId.GetSide() != OtherSide)
 				{
 					return false;
 				}

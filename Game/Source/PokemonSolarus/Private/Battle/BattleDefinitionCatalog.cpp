@@ -91,7 +91,9 @@ namespace
 			|| Value == EBattleTargetClass::OpponentSide
 			|| Value == EBattleTargetClass::BothSides
 			|| Value == EBattleTargetClass::Field
-			|| Value == EBattleTargetClass::FixedSpreadSet;
+			|| Value == EBattleTargetClass::FixedSpreadSet
+			|| Value == EBattleTargetClass::SelectedOtherBattler
+			|| Value == EBattleTargetClass::FixedOpponentSpreadSet;
 	}
 
 	bool IsKnownBattleStat(const EBattleStat Value)
@@ -266,7 +268,9 @@ namespace
 			|| TargetClass == EBattleTargetClass::SelectedOpponent
 			|| TargetClass == EBattleTargetClass::AnySelectedBattler
 			|| TargetClass == EBattleTargetClass::RandomLegalOpponent
-			|| TargetClass == EBattleTargetClass::FixedSpreadSet;
+			|| TargetClass == EBattleTargetClass::FixedSpreadSet
+			|| TargetClass == EBattleTargetClass::SelectedOtherBattler
+			|| TargetClass == EBattleTargetClass::FixedOpponentSpreadSet;
 	}
 
 	bool IsBattlerEffectTargetCompatible(
@@ -632,7 +636,8 @@ namespace
 				|| MultiHitEffect->ChanceDenominator != 1
 				|| MultiHitEffect->Order >= DamageEffect->Order
 				|| MultiHitEffect->Target != DamageEffect->Target
-				|| Move.TargetClass == EBattleTargetClass::FixedSpreadSet))
+				|| Move.TargetClass == EBattleTargetClass::FixedSpreadSet
+				|| Move.TargetClass == EBattleTargetClass::FixedOpponentSpreadSet))
 		{
 			AddDiagnostic(
 				Diagnostics,
