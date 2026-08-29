@@ -6,6 +6,7 @@
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleMoveHitRules.h"
+#include "Battle/BattleMoveWeatherRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleMoveRedirection.h"
@@ -148,20 +149,78 @@ namespace BattleEffectExecutorPrivate
 		return Result;
 	}
 
-	bool FStateExecutionContext::ShouldSkipEffectDescriptor(
-		const FBattleMoveEffectDescriptor& Effect) const
+	bool FStateExecutionContext::TryShouldSkipEffectDescriptor(
+		const FBattleMoveEffectDescriptor& Effect,
+		bool& OutShouldSkip)
 	{
+		OutShouldSkip = false;
 		if (Effect.Kind != EBattleMoveEffectKind::Charge
 			&& Effect.Kind != EBattleMoveEffectKind::SemiInvulnerability)
 		{
-			return false;
+			return true;
 		}
 		FMoveId LockedMoveId;
-		return TryGetVolatilePayloadMoveId(
-			Request.UserBattlerId,
-			FBattleVolatileRules::GetChargingId(),
-			LockedMoveId)
-			&& LockedMoveId == Request.Move->Id;
+		if (TryGetVolatilePayloadMoveId(
+				Request.UserBattlerId,
+				FBattleVolatileRules::GetChargingId(),
+				LockedMoveId)
+			&& LockedMoveId == Request.Move->Id)
+		{
+			OutShouldSkip = true;
+			return true;
+		}
+		const FBattleBattlerState* User = FindBattler(Request.UserBattlerId);
+		if (User == nullptr
+			|| HasVolatile(*User, FBattleVolatileRules::GetChargingId()))
+		{
+			return false;
+		}
+		if (!EnumHasAllFlags(Request.Move->Flags, EBattleMoveFlags::SkipsChargeInSun))
+		{
+			return true;
+		}
+		if (CachedFirstTurnChargeSkip.IsSet())
+		{
+			OutShouldSkip = CachedFirstTurnChargeSkip.GetValue();
+			return true;
+		}
+
+		const FConditionId WeatherId = GetWeatherId();
+		EBattleFieldSideConditionKind WeatherKind =
+			FBattleFieldSideConditionRules::GetKind(WeatherId);
+		bool bWeatherTriggerActive = false;
+		const bool bCanonicalWeather =
+			FBattleFieldSideConditionRules::IsCanonical(WeatherId);
+		if (bCanonicalWeather
+			&& !TryIsFieldSideConditionActiveForPhase(
+				WeatherId,
+				TOptional<EBattleSide>(),
+				EBattleTriggerPhase::BeforeHit,
+				Request.UserSlotId,
+				bWeatherTriggerActive))
+		{
+			return false;
+		}
+		if (bCanonicalWeather && !bWeatherTriggerActive)
+		{
+			WeatherKind = EBattleFieldSideConditionKind::None;
+		}
+		else if (!WeatherId.IsValid())
+		{
+			WeatherKind = EBattleFieldSideConditionKind::None;
+		}
+
+		FBattleMoveWeatherChargeSkipResult ChargeSkip;
+		if (!FBattleMoveWeatherRules::TryResolveChargeSkip(
+				*Request.Move,
+				WeatherKind,
+				ChargeSkip))
+		{
+			return false;
+		}
+		CachedFirstTurnChargeSkip = ChargeSkip.bShouldSkipCharge;
+		OutShouldSkip = ChargeSkip.bShouldSkipCharge;
+		return true;
 	}
 
 	FBattleEffectHookResult FStateExecutionContext::CheckEffectEligibility(

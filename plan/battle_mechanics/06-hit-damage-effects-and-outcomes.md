@@ -323,3 +323,20 @@ Implemented C05C source hashes:
 | `Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp` | `2a9f96992aeab114dbb113d52682dd12e88773461c2baa2c760be47cdb8607dc` |
 
 C05 is complete under focused validation. C06A is the next sequential package.
+
+## R4B live executor addendum — 2026-08-29
+
+The separately approved R4B lane replaced the private boolean charge hook with
+`TryShouldSkipEffectDescriptor(Effect, OutShouldSkip)`. The charge owner caches
+one staged first-turn decision, preserves charged release, and treats weather
+dispatch failure as `InvalidHookResult`. The accuracy owner dispatches canonical
+weather at the existing `BeforeAccuracy` phase; Rain is literal always-hit with
+no accuracy draw, while Sun uses ordinary accuracy RNG at base accuracy `50`.
+Failures use the existing hit-resolution rollback path.
+
+Every actual damage build reuses the existing `BeforeDamage` weather dispatch.
+Rain, Sandstorm, and Snow append the named Q12 `2048` power modifier after the
+existing ally-action priority 10 and terrain priority 6 modifiers. The final
+damage calculator and its rounding are unchanged. One staged context, the outer
+identity recheck, transactional RNG, state application, publication, replay
+schema, PP owner, and target-lock owner remain unchanged.

@@ -6,6 +6,7 @@
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleMoveHitRules.h"
+#include "Battle/BattleMoveWeatherRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleAllyActionPowerModifier.h"
@@ -34,7 +35,10 @@ namespace BattleEffectExecutorPrivate
 		| static_cast<uint32>(EBattleMoveFlags::RespectsTypeImmunity)
 		| static_cast<uint32>(EBattleMoveFlags::Powder)
 		| static_cast<uint32>(
-			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy);
+			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy)
+		| static_cast<uint32>(EBattleMoveFlags::SkipsChargeInSun)
+		| static_cast<uint32>(EBattleMoveFlags::HalvesPowerInRainSandstormOrSnow)
+		| static_cast<uint32>(EBattleMoveFlags::RainAlwaysHitsSunAccuracyFifty);
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
@@ -543,6 +547,8 @@ namespace BattleEffectExecutorPrivate
 			|| Move.Category == EBattleMoveCategory::Special;
 		EBattleMoveHitRuleValidationError HitRuleError =
 			EBattleMoveHitRuleValidationError::None;
+		EBattleMoveWeatherRuleValidationError WeatherRuleError =
+			EBattleMoveWeatherRuleValidationError::None;
 		if (!Move.Id.IsValid()
 			|| !IsKnownMoveCategory(Move.Category)
 			|| static_cast<uint8>(Move.TargetClass)
@@ -551,6 +557,7 @@ namespace BattleEffectExecutorPrivate
 			|| (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::AlwaysCritical)
 				&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))
 			|| !FBattleMoveHitRules::TryValidateMoveDefinition(Move, HitRuleError)
+			|| !FBattleMoveWeatherRules::TryValidateMoveDefinition(Move, WeatherRuleError)
 			|| (!bTypeless && !FBattleTypeChart::IsKnownType(Move.Type))
 			|| (bTypeless && Move.Type != EPokemonType::Invalid)
 			|| (bDamaging && (Move.Power < 1 || Move.Power > 1000))
@@ -960,7 +967,13 @@ namespace BattleEffectExecutorPrivate
 		EBattleEffectExecutorError& OutError,
 		TArray<FBattleResolvedTarget>* InOutAppliedTargets)
 	{
-		if (Context.ShouldSkipEffectDescriptor(Effect))
+		bool bShouldSkip = false;
+		if (!Context.TryShouldSkipEffectDescriptor(Effect, bShouldSkip))
+		{
+			OutError = EBattleEffectExecutorError::InvalidHookResult;
+			return false;
+		}
+		if (bShouldSkip)
 		{
 			return true;
 		}
@@ -1457,7 +1470,14 @@ bool FBattleEffectExecutor::TryExecute(
 		{
 			return Effect.Kind == EBattleMoveEffectKind::Charge;
 		});
-	if (ChargeEffect != nullptr && !Context.ShouldSkipEffectDescriptor(*ChargeEffect))
+	bool bShouldSkipCharge = false;
+	if (ChargeEffect != nullptr
+		&& !Context.TryShouldSkipEffectDescriptor(*ChargeEffect, bShouldSkipCharge))
+	{
+		OutError = EBattleEffectExecutorError::InvalidHookResult;
+		return false;
+	}
+	if (ChargeEffect != nullptr && !bShouldSkipCharge)
 	{
 		if (!TryApplyOrdinaryDescriptor(
 				Request,

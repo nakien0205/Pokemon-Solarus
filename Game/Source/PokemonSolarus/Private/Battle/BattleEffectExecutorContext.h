@@ -83,8 +83,9 @@ namespace BattleEffectExecutorPrivate
 
 		virtual bool IsTargetAbleToContinue(const FBattleResolvedTarget& Target) const override;
 
-		virtual bool ShouldSkipEffectDescriptor(
-			const FBattleMoveEffectDescriptor& Effect) const override;
+		virtual bool TryShouldSkipEffectDescriptor(
+			const FBattleMoveEffectDescriptor& Effect,
+			bool& OutShouldSkip) override;
 
 		virtual FBattleEffectHookResult CheckEffectEligibility(
 			const FBattleMoveEffectDescriptor& Effect,
@@ -435,6 +436,7 @@ namespace BattleEffectExecutorPrivate
 		TSet<FBattlerId> PendingDamagingHitConnections;
 		TSet<FBattlerId> PendingImmediateItemUpdates;
 		FBattleEffectExecutionResult* ExecutionResult = nullptr;
+		TOptional<bool> CachedFirstTurnChargeSkip;
 		bool bApplyingDirectMoveDamageHit = false;
 		bool bMoveAffectedDifferentBattler = false;
 		bool bRuntimeValid = true;

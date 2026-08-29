@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C10A reusable typed-remediation lanes
-Task: R1-R4A complete; R4B is next
+Task: R1-R4B complete; R5 is next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-29
@@ -58,15 +58,16 @@ Task: R1-R4A complete; R4B is next
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1 through R4A are complete. R1 added the two typed
+- C10A remediation lanes R1 through R4B are complete. R1 added the two typed
   target classes, R2 added private action-scoped redirection, R3 added the
   private typed ally action power modifier, and R4A added reusable authored hit
   qualifiers for status-move type immunity, Powder immunity, and Poison-type
-  user reachability and accuracy behavior. Swift, Fly, Follow Me, Helping Hand,
-  Toxic, and Powder moves are now expressible, but their C10A rows remain
-  unauthored.
-- R4B is next. Preserve the order
-  `R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+  user reachability and accuracy behavior. R4B added reusable authored weather
+  charge, accuracy, and power rules for Solar Beam and Thunder. Swift, Fly,
+  Follow Me, Helping Hand, Toxic, Powder moves, Solar Beam, and Thunder are now
+  expressible, but their C10A rows remain unauthored.
+- R5 is next. Preserve the order
+  `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -200,6 +201,27 @@ Task: R1-R4A complete; R4B is next
   total executions with zero aggregate or per-test warnings, errors, failures,
   not-run, or in-process results. Both final reviews returned PASS with no
   remaining validated finding.
+- R4B's final forced-Unity editor build passed with `-ForceUnity`,
+  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. The final build
+  log is
+  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-PostReview-20260829-201311/build.log`
+  at SHA-256
+  `2A3BE861A4AC4BA0C07BFEA9176F7B21608BB10749D2E4D22D3AA1B179FFC595`.
+- R4B's final evidence combines the post-review focused and C05B reports with
+  the ten unchanged accepted affected-filter reports under
+  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-Acceptance-20260829-195514`.
+  All 12 selected reports contain 161 successful overlapping executions over
+  153 unique full-test paths, with zero aggregate or per-test warnings, errors,
+  failures, not-run, in-process, or issue entries. The counter and exact-path
+  manifests are under
+  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-PostReview-20260829-201311`
+  at SHA-256
+  `1690F7F612585A631FE205993C0F62A15A1993C8449DE8DDBF6E14ECCF51A8C0`
+  and
+  `D9E3A0FB661D272AA13F382AAC334988B498D0737CC4728F7C9EC68974D7C1CF`.
+  Final `code-review` was APPROVED and `test-evidence-review` was
+  ADEQUATE/COMPLETE, with no blocking or advisory gap. Independent R7 has not
+  been performed.
 
 ## Working-tree scope to preserve
 
@@ -273,6 +295,23 @@ Task: R1-R4A complete; R4B is next
   this file; and `docs/c10a-canonical-proof-content-implementation-ready-draft.md`.
   The user approved one bounded commit and push for that exact set. Preserve the
   unrelated untracked ADR-0003 and ADR-0004 files and all generated evidence.
+- R4B's exact hand-authored production/test set is the new
+  `BattleMoveWeatherRules.h`, `BattleMoveWeatherRules.cpp`, and
+  `BattleMoveWeatherRuleTests.cpp`; the modified `BattleDefinitions.h`,
+  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
+  `BattleEffectExecutor.h`, `BattleEffectExecutorContext.h`,
+  `BattleEffectExecutor.cpp`, `BattleEffectExecutorConditions.cpp`,
+  `BattleEffectExecutorDamage.cpp`, `BattleFieldSideConditions.cpp`, and
+  `BattleFieldSideConditionTests.cpp`. Its exact current-document set is this
+  file, `plan/battle_mechanics/00-roadmap-index.md`,
+  `plan/battle_mechanics/11-canonical-proof-content.md`,
+  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`,
+  `plan/battle_mechanics/reference/modern-rules-snapshot.md`,
+  `plan/battle_mechanics/03-stats-types-moves-and-data-adapters.md`,
+  `plan/battle_mechanics/06-hit-damage-effects-and-outcomes.md`,
+  `plan/battle_mechanics/08-status-volatiles-field-and-side-conditions.md`, and
+  `docs/battle-engine-structural-split-handoff.md`. No R4B Git action is
+  authorized or performed. Preserve both unrelated untracked ADRs.
 
 ## Next
 
@@ -281,9 +320,9 @@ Task: R1-R4A complete; R4B is next
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Treat R1 through R4A as complete. R4A passed its forced-Unity build, all
-   seven focused tests, eleven affected regression filters, and both required
-   independent reviews.
-4. R4B is the next separately approved remediation lane. Do not author C10A
-   source rows until R4B-R6 and independent R7 pass. Preserve roadmap order
-   `R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+3. Treat R1 through R4B as complete. R4B passed its forced-Unity build, all
+   eight focused tests, eleven affected regression filters, and both required
+   reviews.
+4. R5 is the next separately approved remediation lane. Do not author C10A
+   source rows until R5, R6, and independent R7 pass. Preserve roadmap order
+   `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.

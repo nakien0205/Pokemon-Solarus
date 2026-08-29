@@ -185,11 +185,14 @@ public:
 
 	virtual bool IsSourceAbleToContinue() const = 0;
 	virtual bool IsTargetAbleToContinue(const FBattleResolvedTarget& Target) const = 0;
-	/** Allows a staged context to omit setup-only descriptors on a stored charge's release turn. */
-	virtual bool ShouldSkipEffectDescriptor(const FBattleMoveEffectDescriptor& Effect) const
+	/** Resolves whether a staged context should omit a setup-only descriptor. */
+	virtual bool TryShouldSkipEffectDescriptor(
+		const FBattleMoveEffectDescriptor& Effect,
+		bool& OutShouldSkip)
 	{
 		(void)Effect;
-		return false;
+		OutShouldSkip = false;
+		return true;
 	}
 	virtual FBattleEffectHookResult CheckEffectEligibility(
 		const FBattleMoveEffectDescriptor& Effect,

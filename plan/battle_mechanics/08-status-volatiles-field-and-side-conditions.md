@@ -276,3 +276,12 @@ effects are framework-only and excluded from this proof set.
 - Battle snapshots contain exact remaining duration/layers for future Battle
   Info.
 - C08 can register Ability/item hooks without editing individual conditions.
+
+## R4B live weather-trigger addendum — 2026-08-29
+
+`BattleFieldSideConditions.cpp` remains the canonical field-trigger registration
+owner. R4B added no new trigger phase: it registers Sun at `BeforeHit`,
+`BeforeAccuracy`, `BeforeDamage`, then expiry, and Rain at `BeforeAccuracy`,
+`BeforeDamage`, then expiry. The existing C07D contract identity now asserts
+those exact ordered phase sets. Dispatch uses the current canonical weather;
+inactive, suppressed, or unsupported weather remains neutral.

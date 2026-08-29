@@ -351,3 +351,16 @@ Final C02B source/test hashes:
 | `Game/Source/PokemonSolarus/Private/Tests/BattleTypeChartTests.cpp` | `04a368411083d71698234a813b36a64daf3c50687f07fe15c60f5ee8c61a1720` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleDefinitionCatalogTests.cpp` | `2e414a126dfbd58f643c5446259e69eeb77bae337dd686c5d87ec498d3a755f9` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleDataTableAdapterTests.cpp` | `60626a10c88f5c833809261130a74c6b70c2a6a15eefd1b01db78c0d4d486b17` |
+
+## R4B live move-definition addendum — 2026-08-29
+
+The separately approved R4B lane appended these authored `EBattleMoveFlags`
+without changing existing values: `SkipsChargeInSun = 1U << 19`,
+`HalvesPowerInRainSandstormOrSnow = 1U << 20`, and
+`RainAlwaysHitsSunAccuracyFifty = 1U << 21`.
+
+`BattleDataTableAdapter.cpp` parses those exact names and rejects unknown or
+duplicate flags. `BattleDefinitionCatalog.cpp` and direct executor validation
+both call the public stateless `FBattleMoveWeatherRules` definition validator,
+so invalid flag/definition combinations fail before mutation. No Data Table row
+schema, importer, source JSON, or C10A row changed in R4B.

@@ -455,6 +455,17 @@ comparison proved 84 unique old paths and 84 identical unique new paths before
 
 ## `BattleEffectExecutor` follow-up
 
+**2026-08-29 live-surface note:** the split-era header hash, line counts, and
+"byte-for-byte unchanged" constraint below are preserved as 2026-08-28
+historical split evidence. Separately approved R4A and R4B mechanics work later
+changed the existing executor header, context, condition, and damage owners
+within their established responsibilities. R4B also replaced the private
+boolean charge hook with
+`TryShouldSkipEffectDescriptor(Effect, OutShouldSkip)` and added the focused
+`BattleMoveWeatherRules.h/.cpp` seam. It did not add another context, state,
+identity recheck, RNG owner, commit, or publication path. Current source and the
+C10A blocker register override the split-era measurements below.
+
 The user approved the bounded implementation guide at
 `docs/battle-effect-executor-split-implementation-ready-draft.md` on
 2026-08-28. The approved split is implemented and freshly validated. This

@@ -405,6 +405,18 @@ namespace
 			{
 				Flag = EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy;
 			}
+			else if (Name == FName(TEXT("SkipsChargeInSun")))
+			{
+				Flag = EBattleMoveFlags::SkipsChargeInSun;
+			}
+			else if (Name == FName(TEXT("HalvesPowerInRainSandstormOrSnow")))
+			{
+				Flag = EBattleMoveFlags::HalvesPowerInRainSandstormOrSnow;
+			}
+			else if (Name == FName(TEXT("RainAlwaysHitsSunAccuracyFifty")))
+			{
+				Flag = EBattleMoveFlags::RainAlwaysHitsSunAccuracyFifty;
+			}
 			else return false;
 
 			if (EnumHasAnyFlags(OutFlags, Flag))

@@ -1,17 +1,18 @@
 # C10 — Canonical Proof Content
 
 Priority: P3  
-Status: C10A row authoring not started; R1-R3 remediation is complete and R4A
+Status: C10A row authoring not started; R1-R4B remediation is complete and R5
 is next; ADR-0002 entry gate is satisfied
 
-Required order: R4A, R4B, R5, R6, R7, C10A, then C10B
+Required order: R5, R6, R7, C10A, C10B, C11A, then C11B
 Entry gate: Satisfied — ADR-0002 implementation PASS at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0` with fresh affected-filter and
 full-Battle evidence
 
-R1-R3 resolved the generic target-vocabulary, redirection, and ally action
-power-modifier gaps for Swift, Fly, Follow Me, and Helping Hand. Those rows are
-now expressible but remain unauthored. C10A stays blocked until R4A-R6 and the
+R1-R4B resolved the generic target-vocabulary, redirection, ally action power,
+hit-qualifier, and weather-move gaps for Swift, Fly, Follow Me, Helping Hand,
+Thunder Wave, Powder moves, Toxic, Solar Beam, and Thunder. Those rows are now
+expressible but remain unauthored. C10A stays blocked until R5, R6, and the
 independent R7 gate pass.
 
 ## Objective

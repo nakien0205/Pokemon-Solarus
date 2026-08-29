@@ -1041,6 +1041,25 @@ bool FBattleC07DCanonicalCatalogTriggerLifecycleTest::RunTest(const FString& Par
 			TestTrue(TEXT("Every registration keeps the condition source identity"),
 				Spec.SourceDefinition.ConditionId == Ids[Index]);
 		}
+		if (Ids[Index] == FBattleFieldSideConditionRules::GetSunId())
+		{
+			TestTrue(TEXT("Sun has the exact BeforeHit, BeforeAccuracy, BeforeDamage, expiry phase set"),
+				Specs.Num() == 4
+					&& Specs[0].Rule.Phase == EBattleTriggerPhase::BeforeHit
+					&& Specs[1].Rule.Phase == EBattleTriggerPhase::BeforeAccuracy
+					&& Specs[2].Rule.Phase == EBattleTriggerPhase::BeforeDamage
+					&& Specs[3].Rule.Phase == EBattleTriggerPhase::EndTurn
+					&& Specs[3].Rule.bDecrementDurationBeforeEffect);
+		}
+		if (Ids[Index] == FBattleFieldSideConditionRules::GetRainId())
+		{
+			TestTrue(TEXT("Rain has the exact BeforeAccuracy, BeforeDamage, expiry phase set"),
+				Specs.Num() == 3
+					&& Specs[0].Rule.Phase == EBattleTriggerPhase::BeforeAccuracy
+					&& Specs[1].Rule.Phase == EBattleTriggerPhase::BeforeDamage
+					&& Specs[2].Rule.Phase == EBattleTriggerPhase::EndTurn
+					&& Specs[2].Rule.bDecrementDurationBeforeEffect);
+		}
 		if (Ids[Index] == FBattleFieldSideConditionRules::GetSandstormId())
 		{
 			TestTrue(TEXT("Sandstorm residual runs before default-last expiry"),

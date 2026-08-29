@@ -1,9 +1,10 @@
 # B00B Modern Rules Snapshot
 
 Status date: 2026-08-20  
-Status: Accepted B00B completion artifact  
-Scope: Documentation and reference freezing only; no battle mechanics were
-implemented or changed
+Status: Accepted B00B completion artifact; later implementation addenda through
+R4B are recorded below
+Scope: B00B froze documentation and references only. Later addenda record
+separately approved reusable implementation without changing the frozen rules.
 
 ## Gate
 
@@ -105,7 +106,7 @@ truthful historical evidence but are not the cross-platform extraction hash.
 
 ## C10A typed-remediation amendment — 2026-08-29
 
-Status: **R1, R2, and R3 implemented and freshly validated**
+Status: **R1 through R4B implemented and freshly validated**
 
 This amendment records reusable runtime capabilities. It does not add or
 authorize any C10A source-data row, condition row, or asset. Replay remains
@@ -121,9 +122,19 @@ schema 6.
   before terrain priority 6, apply to every target and hit of the bound action,
   and expire through the approved action, occupant, and turn cleanup paths.
   One typed registration event supplies schema-6 replay evidence.
+- R4A added authored status-move type immunity, Powder immunity, and the typed
+  Poison-user Toxic reachability/accuracy rule while preserving later gates.
+- R4B appended authored weather-charge, weather-power, and weather-accuracy
+  traits. Sun may skip the paired Charge/semi-invulnerability setup at
+  `BeforeHit`; Sun and Rain resolve Thunder at `BeforeAccuracy`; actual damage
+  builds resolve the Solar Beam half-power rule after ally-action priority 10
+  and terrain priority 6. Rain's literal always-hit path consumes no accuracy
+  draw. These rules use the canonical typed weather and suppression state at
+  execution time and preserve schema-6 replay and the outer transaction owner.
 
-These are generic capabilities, not special cases. Swift, Fly, Follow Me, and
-Helping Hand are now expressible but remain unauthored.
+These are generic capabilities, not special cases. Swift, Fly, Follow Me,
+Helping Hand, Thunder Wave, Powder moves, Toxic, Solar Beam, and Thunder are now
+expressible but remain unauthored.
 
 ## Reproducible source lock
 
@@ -783,6 +794,11 @@ Sun skips Solar Beam's charge; Rain, Sandstorm, and Snow halve Solar Beam's
 move power; Rain makes Thunder always hit; and Sun changes Thunder's accuracy
 to `50`. These rules do not admit primal weather, Hail, or unrelated weather
 mechanics.
+
+R4B implements that frozen behavior through reusable authored traits rather
+than move-ID branches. Canonical Sun registers `BeforeHit`, `BeforeAccuracy`,
+`BeforeDamage`, then expiry; canonical Rain registers `BeforeAccuracy`,
+`BeforeDamage`, then expiry. Suppressed or unsupported weather is neutral.
 
 Drizzle establishes Rain through the same one-weather slot. No transformation,
 primal weather, or overworld weather effects are in scope.

@@ -1,6 +1,6 @@
 # C10A Canonical Proof Content — Implementation-Ready Draft and Blocker Register
 
-Status: **DRAFT ONLY — IMPLEMENTATION IS NOT APPROVED**
+Status: **CURRENT BLOCKER REGISTER — C10A ROW IMPLEMENTATION IS NOT APPROVED**
 
 Date: 2026-08-29
 
@@ -8,7 +8,7 @@ Primary verdict: **BLOCK**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1 through R4A COMPLETE; R4B is next**
+Remediation status: **R1 through R4B COMPLETE; R5 is next**
 
 Direct C10A row authoring is not ready. The live catalog can represent most of
 the approved proof slice, but it cannot faithfully represent or execute every
@@ -22,9 +22,10 @@ required row. The safe form of Option A is therefore:
 4. author the complete C10A source-JSON slice;
 5. perform C10B import and integration in its own later session.
 
-This R0 session authorizes documentation changes only in this document and the
-accepted B00B modern-rules snapshot. It does not authorize C++, tests, source
-JSON, Unreal assets, generated output, status documents, or Git changes.
+The original R0 session authorized documentation changes only in this document
+and the accepted B00B modern-rules snapshot. Later remediation lanes required
+their own approval; none authorizes C10A source JSON, Unreal assets, or Git
+changes.
 
 ## 1. What this audit can and cannot prove
 
@@ -93,11 +94,12 @@ Current remediation state:
 | R2 action-scoped redirection | COMPLETE | Published in `cf8b3e6`; B04 resolved |
 | R3 ally action power modifier | COMPLETE | Fresh forced-Unity build, 11 focused successes, and 13 clean affected filters on 2026-08-29; B05 resolved |
 | R4A hit qualifiers | COMPLETE | Final code and test-evidence reviews PASS; forced-Unity build, 7 focused successes, and 11 clean affected filters on 2026-08-29; B06, B07, and B08 resolved |
-| Next lane | R4B | B09 and B10 remain blocked |
+| R4B weather move rules | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 8 focused successes, and 11 clean affected filters on 2026-08-29; B09 and B10 resolved |
+| Next lane | R5 | B11 remains blocked |
 
-C10A source-row authoring remains not started and blocked until R4B, R5, R6,
-and independent R7 complete. Required order:
-`R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+C10A source-row authoring remains not started and blocked until R5, R6, and
+independent R7 complete. Required order:
+`R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -160,10 +162,10 @@ Every non-ready finding uses one of these labels:
 | Fly must target any other active battler | `SelectedOtherBattler` is implemented and validated | RESOLVED | Author the row only in C10A |
 | Follow Me must feed redirection | Typed private action-scoped redirection is implemented and validated | RESOLVED | Author the row only in C10A; no condition row |
 | Helping Hand must modify an ally's action | Typed private ally action power modifiers are implemented and validated | RESOLVED | Author the row only in C10A; no condition row |
-| Thunder Wave must respect Electric move immunity | CheckMoveImmunity is a no-op for status moves | ADDITIVE GAP | Add an authored respects-type-immunity rule used before accuracy |
-| Powder moves must respect powder immunity | No Powder flag or Grass-target gate exists | ADDITIVE GAP | Add a generic Powder move trait and move/Ability/item immunity hook path |
-| Toxic's Poison-user hit rule must be exact | R0 follows pinned Showdown: a Poison-type user bypasses semi-invulnerability and accuracy, while later hit gates remain | ADDITIVE GAP | Add one authored conditional hit rule based on user typing; never inspect Toxic's ID |
-| Solar Beam and Thunder weather behavior must be exact | R0 narrowly reopens B00B for Showdown's supported Sun/Rain/Sandstorm/Snow behavior | ADDITIVE GAP | Add generic authored weather-charge, weather-power, and weather-accuracy rules in a separate sub-wave |
+| Thunder Wave must respect Electric move immunity | R4A implemented and validated the authored status-move type-immunity trait before accuracy | RESOLVED | Author the row only in C10A |
+| Powder moves must respect powder immunity | R4A implemented and validated the authored Powder trait and Grass-target gate before accuracy | RESOLVED | Author the rows only in C10A |
+| Toxic's Poison-user hit rule must be exact | R4A implemented and validated the typed Poison-user reachability and accuracy bypass while preserving later gates | RESOLVED | Author the row only in C10A; never inspect Toxic's ID |
+| Solar Beam and Thunder weather behavior must be exact | R4B implemented and validated reusable authored weather charge, power, and accuracy rules | RESOLVED | Author the rows only in C10A; never inspect either move ID |
 | Item-changing moves must reach the held-item ledger | The ledger already models consume, restore, remove, swap, and temporary steal; ChangeItem only defers and emits no item intent | SEQUENCING OVERLAP | Add a generic move-to-ledger intent bridge with atomic state, hook, and event updates |
 | Removal moves must tolerate absent conditions | RemoveCondition requires one fixed ID and reports failure when it is absent | ADDITIVE GAP | Add optional-if-absent removal semantics and prove pre/post-damage ordering |
 | C10B must validate before asset mutation | The importer checks JSON array shape, non-empty Name, and duplicates, then mutates all nine tables; semantic catalog validation is later | SEQUENCING OVERLAP | Add pure preflight and an explicit family allowlist before the C10B import |
@@ -187,12 +189,12 @@ Status meanings:
 | 6 | Follow Me | Self action that registers turn-scoped redirection | READY | — |
 | 7 | Helping Hand | Selected-ally action power modifier | READY | — |
 | 8 | Swords Dance | User Attack stage +2 | READY | — |
-| 9 | Thunder Wave | Paralysis plus status-move type immunity | BLOCKED | B06 |
+| 9 | Thunder Wave | Paralysis plus status-move type immunity | READY | — |
 | 10 | Will-O-Wisp | Selected-opponent Burn application | READY | — |
-| 11 | Sleep Powder | Sleep application plus Powder trait | BLOCKED | B07 |
+| 11 | Sleep Powder | Sleep application plus Powder trait | READY | — |
 | 12 | Ice Beam | Damage, then 10% Freeze | READY | — |
-| 13 | Poison Powder | Poison application plus Powder trait | BLOCKED | B07 |
-| 14 | Toxic | Toxic application plus Poison-user semi-invulnerability and accuracy bypass | BLOCKED | B08 |
+| 13 | Poison Powder | Poison application plus Powder trait | READY | — |
+| 14 | Toxic | Toxic application plus Poison-user semi-invulnerability and accuracy bypass | READY | — |
 | 15 | Confuse Ray | Confusion application | READY | — |
 | 16 | Bite | Contact Damage, then 30% Flinch | READY | — |
 | 17 | Protect | Priority self Protect effect | READY | — |
@@ -203,10 +205,10 @@ Status meanings:
 | 22 | Encore | Selected-opponent Encore volatile | READY | — |
 | 23 | Disable | Selected-opponent Disable volatile | READY | — |
 | 24 | Substitute | User Substitute volatile and HP cost | READY | — |
-| 25 | Solar Beam | Charge then Damage; Sun skips charge and Rain/Sandstorm/Snow halve power | BLOCKED | B09 |
+| 25 | Solar Beam | Charge then Damage; Sun skips charge and Rain/Sandstorm/Snow halve power | READY | — |
 | 26 | Hyper Beam | Damage, then user Recharge | READY | — |
 | 27 | Fly | Charge, semi-invulnerability, then selected-other Damage | READY | — |
-| 28 | Thunder | Damage, Fly reach, 30% Paralysis; Rain always-hit and Sun 50% accuracy | BLOCKED | B10 |
+| 28 | Thunder | Damage, Fly reach, 30% Paralysis; Rain always-hit and Sun 50% accuracy | READY | — |
 | 29 | Bullet Seed | Ranged MultiHit plus Damage | READY | — |
 | 30 | Giga Drain | Damage plus one-half actual-damage Drain | READY | — |
 | 31 | Double-Edge | Damage plus one-third actual-damage Recoil using Solarus half-up rule | READY | — |
@@ -242,7 +244,7 @@ Status meanings:
 | 61 | Safeguard | Set user-side condition | READY | — |
 | 62 | Mist | Set user-side condition | READY | — |
 
-Totals: 49 READY and 13 BLOCKED, with no unresolved decision rows. The 13
+Totals: 55 READY and 7 BLOCKED, with no unresolved decision rows. The 7
 non-ready rows account for every selected move.
 
 The READY label does not claim that a row is already tested through imported
@@ -333,45 +335,47 @@ Data Tables. That is C10B work.
 
 ### B06 — Status moves cannot opt into move-type immunity
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks faithful Thunder Wave.
+- Implementation status: **RESOLVED IN CODE by R4A**.
+- Original classification: **ADDITIVE GAP**.
+- Current gate: closed; the C10A row remains unauthored.
 - Owner: C05 hit pipeline.
-- Evidence: damaging moves obtain pre-accuracy type no-effect resolution from
-  damage input, but FStateExecutionContext::CheckMoveImmunity currently returns
-  Applied for every move and target.
-- Required capability: an authored typed trait that checks the move's type
-  chart immunity before Ability/item immunity and before accuracy.
-- Required proof: Thunder Wave versus Ground consumes no accuracy RNG and
+- Original evidence: before R4A, damaging moves obtained pre-accuracy type
+  no-effect resolution from damage input while status moves had no authored
+  opt-in.
+- Implemented capability: an authored typed trait checks the move's type-chart
+  immunity before Ability/item immunity and before accuracy.
+- R4A proof: Thunder Wave versus Ground consumes no accuracy RNG and
   applies no Paralysis; Confuse Ray and other status moves that ignore ordinary
   type immunity remain unchanged.
 
 ### B07 — No Powder trait or Powder immunity gate
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks faithful Sleep Powder and Poison Powder.
+- Implementation status: **RESOLVED IN CODE by R4A**.
+- Original classification: **ADDITIVE GAP**.
+- Current gate: closed; the C10A rows remain unauthored.
 - Owner: C05 hit/immunity rules, with existing Ability/item immunity hooks
   available for later extensions.
-- Required capability: an authored Powder move trait; Grass targets block it
+- Implemented capability: an authored Powder move trait; Grass targets block it
   at the move-immunity checkpoint.
-- Required proof: Grass immunity occurs before accuracy and consumes no
+- R4A proof: Grass immunity occurs before accuracy and consumes no
   accuracy/status RNG; non-Grass targets retain normal accuracy; future
   Ability/item powder immunity can attach without move-ID branches.
 
 ### B08 — Poison-user Toxic needs a typed conditional hit rule
 
 - R0 status: **RESOLVED**.
-- Classification after R0: **ADDITIVE GAP**.
-- Gate: behavior is decided, but the missing typed capability still blocks the
-  final Toxic row.
+- Implementation status: **RESOLVED IN CODE by R4A**.
+- Classification after R0: **ADDITIVE GAP**, now closed.
+- Current gate: closed; the final Toxic row remains unauthored.
 - Evidence: pinned Showdown bypasses both its invulnerability event and its
   accuracy roll for a Generation 8+ Poison-type Toxic user.
 - Approved behavior: a Poison-type user bypasses semi-invulnerability and
   accuracy without consuming accuracy RNG. Protect and every later applicable
   hit, immunity, status, and effect gate remains in order. A non-Poison user
   keeps ordinary `90` accuracy and reachability.
-- Required capability: a typed conditional hit rule based on user typing,
+- Implemented capability: a typed conditional hit rule based on user typing,
   never a Toxic ID check.
-- Required proof: Poison and non-Poison users across ordinary and
+- R4A proof: Poison and non-Poison users across ordinary and
   semi-invulnerable targets, no accuracy draw on the approved bypass,
   ordinary RNG for the non-Poison route, Protect still blocking, later gates
   unchanged, exact events, replay, and rollback.
@@ -379,30 +383,32 @@ Data Tables. That is C10B work.
 ### B09 — Solar Beam needs typed weather charge and power rules
 
 - R0 status: **RESOLVED** by a narrow B00B amendment.
-- Classification after R0: **ADDITIVE GAP**.
-- Gate: the approved behavior still lacks authored generic capabilities.
+- Implementation status: **RESOLVED IN CODE by R4B**.
+- Classification after R0: **ADDITIVE GAP**, now closed.
+- Current gate: closed; the Solar Beam row remains unauthored.
 - Approved behavior: Sun skips the charging turn. Rain, Sandstorm, and Snow
   halve move power at the damage execution checkpoint. Other approved weather
   leaves power unchanged. Without Sun, Solar Beam remains a two-turn charge
   move.
-- Scope: primal weather and Hail remain excluded. The implementation must use
-  authored weather/charge/power rules that can support later related moves; no
-  Solar Beam ID check is acceptable.
-- Required proof: charge entry and skip, PP and target-lock behavior, weather
+- Scope: primal weather and Hail remain excluded. R4B uses authored
+  weather/charge/power rules that can support later related moves and contains
+  no Solar Beam ID check.
+- R4B proof: charge entry and skip, PP and target-lock behavior, weather
   changes between charge and execution, exact half-power arithmetic, supported
   and unsupported weather, event/RNG order, replay, cleanup, and rollback.
 
 ### B10 — Thunder needs a typed weather-accuracy rule
 
 - R0 status: **RESOLVED** by a narrow B00B amendment.
-- Classification after R0: **ADDITIVE GAP**.
-- Gate: the approved behavior still lacks an authored generic capability.
+- Implementation status: **RESOLVED IN CODE by R4B**.
+- Classification after R0: **ADDITIVE GAP**, now closed.
+- Current gate: closed; the Thunder row remains unauthored.
 - Approved behavior: base accuracy is `70`; Rain changes it to literal
   always-hit with no accuracy RNG; Sun changes it to `50`; other approved
   weather leaves it at `70`. Existing Fly reach and `30%` Paralysis remain.
-- Scope: primal weather remains excluded. The implementation must use an
-  authored weather-accuracy rule; no Thunder ID check is acceptable.
-- Required proof: each supported weather, Rain's zero-draw route, Sun and
+- Scope: primal weather remains excluded. R4B uses an authored
+  weather-accuracy rule and contains no Thunder ID check.
+- R4B proof: each supported weather, Rain's zero-draw route, Sun and
   ordinary accuracy draws, Fly reachability before accuracy, secondary RNG
   only after a hit, exact events/replay, and rollback.
 
@@ -561,8 +567,9 @@ Status: **COMPLETE — implementation published in `06d884e` and validated**.
 - Raw committed bytes are the canonical cross-platform extraction hashes;
   the verified Windows CRLF hashes remain historical checkout evidence.
 
-R0 authorizes no implementation. B08 through B10 remain blocked until their
-typed reusable capabilities and focused evidence are separately approved.
+R0 authorized no implementation. At that point B08 through B10 remained
+blocked. R4A later resolved B08, and R4B later resolved B09 and B10, under
+separate implementation approvals and focused evidence.
 
 ### R1 — Target vocabulary
 
@@ -710,11 +717,70 @@ validated finding.
 
 ### R4B — Weather move rules
 
-Resolve B09 and B10 in a separate approved sub-wave because charge selection,
-damage power, and accuracy are different checkpoints from R4A's immunity and
-conditional-hit work. The R4B implementation draft must trace the live owners,
-state its exact focused file map and test identity, and keep all weather rules
-authored and reusable. R0 does not approve a source write set for R4B.
+**COMPLETE — B09 and B10 resolved.** The implementation uses the public
+stateless `FBattleMoveWeatherRules` seam and three append-only authored flags.
+It contains no Solar Beam, Thunder, raw condition-ID, or match-specific branch.
+The existing outer transaction remains the only identity recheck, RNG commit,
+state application, and event-publication owner.
+
+Actual hand-authored production/test set:
+
+- new Game/Source/PokemonSolarus/Public/Battle/BattleMoveWeatherRules.h
+- new Game/Source/PokemonSolarus/Private/Battle/BattleMoveWeatherRules.cpp
+- new Game/Source/PokemonSolarus/Private/Tests/BattleMoveWeatherRuleTests.cpp
+- Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h
+- Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.h
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorContext.h
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorConditions.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorDamage.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleFieldSideConditions.cpp
+- Game/Source/PokemonSolarus/Private/Tests/BattleFieldSideConditionTests.cpp
+
+The exact focused identities are:
+
+1. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Contract.FlagsAdapterCatalogAndTriggerPhases`
+2. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Charge.SunSkipOrdinaryChargePpTargetLockCleanup`
+3. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Charge.ExecutionUsesCurrentWeather`
+4. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Power.SupportedUnsupportedExactHalfAndPriority`
+5. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Accuracy.RainSunOrdinaryDrawsAndSuppression`
+6. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Order.FlyReachAccuracySecondaryAndEvents`
+7. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Replay.DeterminismNoDuplicationAndCleanup`
+8. `PokemonSolarus.Battle.C05B.C10WeatherMoveRules.Atomic.RollbackRngStateAndPublication`
+
+Final evidence identity:
+`Game/Saved/AutomationReports/R4B-WeatherMoveRules-PostReview-20260829-201311`.
+Its forced-Unity build log passed all four required flags at SHA-256
+`2A3BE861A4AC4BA0C07BFEA9176F7B21608BB10749D2E4D22D3AA1B179FFC595`.
+The final report composition uses its post-review focused and C05B reports plus
+the ten unchanged accepted reports from
+`Game/Saved/AutomationReports/R4B-WeatherMoveRules-Acceptance-20260829-195514`:
+
+| Filter | Success / warnings / failed / not run / in process | `index.json` SHA-256 |
+|---|---:|---|
+| `PokemonSolarus.Battle.C05B.C10WeatherMoveRules` | 8 / 0 / 0 / 0 / 0 | `DF110ECEA3AEA560297EC88B572FB30462B32EAC75C8D8C5F83A86ED325CE9E0` |
+| `PokemonSolarus.Battle.C03A` | 6 / 0 / 0 / 0 / 0 | `004BBDA6DAB5B8CF2B806060E44AF3FE153F705B612F822BD870371FD0C72558` |
+| `PokemonSolarus.Battle.C03B` | 6 / 0 / 0 / 0 / 0 | `069022E29F5895BA954406BA62367D4092FC24E794E6CB1C136AC6E12DB185D2` |
+| `PokemonSolarus.Battle.C05A` | 8 / 0 / 0 / 0 / 0 | `70D80CDC5FF769E5D0A9F494A8146B370BEEC15B44E32544446D377EA76D090F` |
+| `PokemonSolarus.Battle.C05B` | 35 / 0 / 0 / 0 / 0 | `5078CD86B9934D19986621384F5D217120E4BC5586E239B8D9C53FB96316B7AF` |
+| `PokemonSolarus.Battle.C05C` | 7 / 0 / 0 / 0 / 0 | `E749AB00C7FD7799F4DDDABF6FF51BBF790C9EF5F29BA026E7C123CE751DA7F0` |
+| `PokemonSolarus.Battle.C07B` | 9 / 0 / 0 / 0 / 0 | `583FE411FCB7405E7B286D613BEF58A16E47F3BCC6FF73A7515A52DFE3531190` |
+| `PokemonSolarus.Battle.C07C` | 8 / 0 / 0 / 0 / 0 | `98F32B87867A0D787BCC70DC713681DFB2498E2B46CE606C4D97BF190066B5CB` |
+| `PokemonSolarus.Battle.C07D` | 9 / 0 / 0 / 0 / 0 | `86E5CF00094D2198357597149EE899ECD704D11D7CDADF057666660A26AB9BC9` |
+| `PokemonSolarus.Battle.C08B` | 20 / 0 / 0 / 0 / 0 | `CD0CFA74273975EA11ED1254F1FEC40DBCB367283F2CCD3DAEE5A188D32345E9` |
+| `PokemonSolarus.Battle.C08C` | 27 / 0 / 0 / 0 / 0 | `78BE1C34FFFAC6618BF7D931BD0ACD3018D65D0DA06517C10C9535A4C3CFD445` |
+| `PokemonSolarus.Battle.ADR0002.3E6` | 18 / 0 / 0 / 0 / 0 | `78C24B0299790E854E433BE2721DEC8C1A94377D1734F8B34201C472C3F36B47` |
+
+The reports contain 161 overlapping executions and 153 unique full-test paths.
+The counter manifest hash is
+`1690F7F612585A631FE205993C0F62A15A1993C8449DE8DDBF6E14ECCF51A8C0`;
+the exact path manifest hash is
+`D9E3A0FB661D272AA13F382AAC334988B498D0737CC4728F7C9EC68974D7C1CF`.
+Every aggregate and per-test issue counter is zero. Final `code-review` was
+APPROVED and `test-evidence-review` was ADEQUATE/COMPLETE with no blocking or
+advisory gap. This is not R7, and no C10A row was authored.
 
 ### R5 — Held-item move intents
 
@@ -965,8 +1031,12 @@ C10A becomes ready only when all of the following are true:
 
 Until then, direct C10A implementation must remain stopped.
 
-## 15. Session stop line
+## 15. Historical R0 session stop line
 
 This R0 session updates this document and the B00B rules snapshot only. It does
 not implement, build, run Automation, import, stage, commit, or approve any
 remediation or C10 content.
+
+Current continuation: R1 through R4B are complete, R5 is next, and the required
+order is `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`. Independent R7 and
+C10A row-authoring approval are still required later.

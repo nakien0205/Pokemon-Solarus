@@ -114,6 +114,7 @@ namespace BattleFieldSideConditionsPrivate
 		case EBattleTriggerPhase::ActionOrderCalculation: return TEXT("ActionOrderCalculation");
 		case EBattleTriggerPhase::BeforeAction: return TEXT("BeforeAction");
 		case EBattleTriggerPhase::BeforeHit: return TEXT("BeforeHit");
+		case EBattleTriggerPhase::BeforeAccuracy: return TEXT("BeforeAccuracy");
 		case EBattleTriggerPhase::BeforeDamage: return TEXT("BeforeDamage");
 		case EBattleTriggerPhase::SwitchIn: return TEXT("SwitchIn");
 		case EBattleTriggerPhase::EndTurn: return TEXT("EndTurn");
@@ -129,9 +130,11 @@ namespace BattleFieldSideConditionsPrivate
 		{
 		case EBattleFieldSideConditionKind::Sun:
 			return Phase == EBattleTriggerPhase::BeforeHit
+				|| Phase == EBattleTriggerPhase::BeforeAccuracy
 				|| Phase == EBattleTriggerPhase::BeforeDamage;
 		case EBattleFieldSideConditionKind::Rain:
-			return Phase == EBattleTriggerPhase::BeforeDamage;
+			return Phase == EBattleTriggerPhase::BeforeAccuracy
+				|| Phase == EBattleTriggerPhase::BeforeDamage;
 		case EBattleFieldSideConditionKind::Sandstorm:
 			return Phase == EBattleTriggerPhase::BeforeDamage
 				|| Phase == EBattleTriggerPhase::EndTurn;
@@ -1194,9 +1197,11 @@ bool FBattleFieldSideConditionRules::TryBuildTriggerRegistrationSpecs(
 	{
 	case EBattleFieldSideConditionKind::Sun:
 		Add(EBattleTriggerPhase::BeforeHit);
+		Add(EBattleTriggerPhase::BeforeAccuracy);
 		Add(EBattleTriggerPhase::BeforeDamage);
 		break;
 	case EBattleFieldSideConditionKind::Rain:
+		Add(EBattleTriggerPhase::BeforeAccuracy);
 		Add(EBattleTriggerPhase::BeforeDamage);
 		break;
 	case EBattleFieldSideConditionKind::Sandstorm:

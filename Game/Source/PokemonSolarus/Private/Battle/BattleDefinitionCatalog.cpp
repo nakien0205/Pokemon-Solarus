@@ -1,5 +1,6 @@
 #include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleMoveHitRules.h"
+#include "Battle/BattleMoveWeatherRules.h"
 #include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 
@@ -25,7 +26,10 @@ namespace
 		| static_cast<uint32>(EBattleMoveFlags::RespectsTypeImmunity)
 		| static_cast<uint32>(EBattleMoveFlags::Powder)
 		| static_cast<uint32>(
-			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy);
+			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy)
+		| static_cast<uint32>(EBattleMoveFlags::SkipsChargeInSun)
+		| static_cast<uint32>(EBattleMoveFlags::HalvesPowerInRainSandstormOrSnow)
+		| static_cast<uint32>(EBattleMoveFlags::RainAlwaysHitsSunAccuracyFifty);
 
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
@@ -548,6 +552,12 @@ namespace
 		EBattleMoveHitRuleValidationError HitRuleError =
 			EBattleMoveHitRuleValidationError::None;
 		if (!FBattleMoveHitRules::TryValidateMoveDefinition(Move, HitRuleError))
+		{
+			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
+		}
+		EBattleMoveWeatherRuleValidationError WeatherRuleError =
+			EBattleMoveWeatherRuleValidationError::None;
+		if (!FBattleMoveWeatherRules::TryValidateMoveDefinition(Move, WeatherRuleError))
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
 		}

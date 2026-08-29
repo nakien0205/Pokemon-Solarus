@@ -8,7 +8,7 @@ Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides
-Next remediation lane: R4A C10A Hit Qualifiers
+Next remediation lane: R5 C10A Held-item move intents
 
 ## Current Truth
 
@@ -159,9 +159,9 @@ already existed, so it cannot explain or restore those missing files.
   still did not establish.
 - B00 through C09 package delivery is complete. The ADR-0002 implementation
   closeout passed, and the later behavior-preserving Battle Engine and executor
-  structural splits were validated and published. C10A remediation R1-R3 is
-  complete; R4A is next. C10A row authoring is not started and remains blocked
-  through R4A, R4B, R5, R6, and independent R7. C11 remains blocked behind C10.
+  structural splits were validated and published. C10A remediation R1-R4B is
+  complete; R5 is next. C10A row authoring is not started and remains blocked
+  through R5, R6, and independent R7. C11 remains blocked behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4

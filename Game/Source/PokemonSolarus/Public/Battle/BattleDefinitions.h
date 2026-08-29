@@ -127,7 +127,13 @@ enum class EBattleMoveFlags : uint32
 	/** Marks a Powder move that is ineffective against Grass-type targets. */
 	Powder = 1U << 17,
 	/** Lets a Poison-type user bypass semi-invulnerability and accuracy only. */
-	PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy = 1U << 18
+	PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy = 1U << 18,
+	/** Skips an authored primary charge descriptor while active Sun is dispatched. */
+	SkipsChargeInSun = 1U << 19,
+	/** Halves authored move power under active Rain, Sandstorm, or Snow. */
+	HalvesPowerInRainSandstormOrSnow = 1U << 20,
+	/** Uses literal always-hit in active Rain and numeric accuracy 50 in active Sun. */
+	RainAlwaysHitsSunAccuracyFifty = 1U << 21
 };
 ENUM_CLASS_FLAGS(EBattleMoveFlags);
 

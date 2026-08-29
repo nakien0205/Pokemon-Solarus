@@ -7,6 +7,7 @@
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleMoveHitRules.h"
+#include "Battle/BattleMoveWeatherRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "Math/NumericLimits.h"
@@ -154,6 +155,42 @@ namespace BattleEffectExecutorPrivate
 		}
 		OutInput.bAlwaysHits = Move.bAlwaysHits;
 		OutInput.BaseAccuracy = Move.Accuracy;
+		const FConditionId WeatherId = GetWeatherId();
+		EBattleFieldSideConditionKind WeatherKind =
+			FBattleFieldSideConditionRules::GetKind(WeatherId);
+		bool bWeatherTriggerActive = false;
+		const bool bCanonicalWeather =
+			FBattleFieldSideConditionRules::IsCanonical(WeatherId);
+		if (bCanonicalWeather)
+		{
+			const TOptional<FActiveSlotId> ActiveSlotId =
+				Target.GetKind() == EBattleResolvedTargetKind::Battler
+					? TOptional<FActiveSlotId>(Target.GetBattler().ActiveSlotId)
+					: TOptional<FActiveSlotId>(Request.UserSlotId);
+			if (!TryIsFieldSideConditionActiveForPhase(
+					WeatherId,
+					TOptional<EBattleSide>(),
+					EBattleTriggerPhase::BeforeAccuracy,
+					ActiveSlotId,
+					bWeatherTriggerActive))
+			{
+				return false;
+			}
+		}
+		if ((bCanonicalWeather && !bWeatherTriggerActive) || !WeatherId.IsValid())
+		{
+			WeatherKind = EBattleFieldSideConditionKind::None;
+		}
+		FBattleMoveWeatherAccuracyResult WeatherAccuracy;
+		if (!FBattleMoveWeatherRules::TryResolveAccuracy(
+				Move,
+				WeatherKind,
+				WeatherAccuracy))
+		{
+			return false;
+		}
+		OutInput.bAlwaysHits = WeatherAccuracy.bAlwaysHits;
+		OutInput.BaseAccuracy = WeatherAccuracy.BaseAccuracy;
 		if (EnumHasAllFlags(
 				Move.Flags,
 				EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy))
@@ -425,7 +462,8 @@ namespace BattleEffectExecutorPrivate
 		}
 		const FConditionId WeatherId = GetWeatherId();
 		bool bWeatherTriggerActive = false;
-		if (WeatherId.IsValid()
+		if (bActualDamageBuild
+			&& WeatherId.IsValid()
 			&& FBattleFieldSideConditionRules::IsCanonical(WeatherId))
 		{
 			if (!TryIsFieldSideConditionActiveForPhase(
@@ -438,7 +476,7 @@ namespace BattleEffectExecutorPrivate
 				return false;
 			}
 		}
-		if (bWeatherTriggerActive)
+		if (bActualDamageBuild && bWeatherTriggerActive)
 		{
 			if (!FBattleFieldSideConditionRules::TryGetWeatherDamageModifierQ12(
 				WeatherId,
@@ -580,6 +618,33 @@ namespace BattleEffectExecutorPrivate
 					EBattleAbilityItemHookPoint::TypeImmunity))
 			{
 				return false;
+			}
+		}
+
+		if (bActualDamageBuild)
+		{
+			EBattleFieldSideConditionKind WeatherKind =
+				FBattleFieldSideConditionRules::GetKind(WeatherId);
+			if ((FBattleFieldSideConditionRules::IsCanonical(WeatherId)
+					&& !bWeatherTriggerActive)
+				|| !WeatherId.IsValid())
+			{
+				WeatherKind = EBattleFieldSideConditionKind::None;
+			}
+			FBattleMoveWeatherPowerModifierResult PowerModifier;
+			if (!FBattleMoveWeatherRules::TryResolvePowerModifier(
+					Move,
+					WeatherKind,
+					PowerModifier))
+			{
+				return false;
+			}
+			if (PowerModifier.bApplies)
+			{
+				OutInput.PowerModifiers.Add({
+					PowerModifier.RuleId,
+					PowerModifier.ModifierQ12,
+					false});
 			}
 		}
 
