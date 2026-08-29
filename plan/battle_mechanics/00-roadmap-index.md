@@ -1,6 +1,6 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-28
+Status date: 2026-08-29
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
 complete under focused validation; C10 and C11 remain
@@ -8,7 +8,7 @@ Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides
-Next package: C10A Required Canonical Rows
+Next remediation lane: R4A C10A Hit Qualifiers
 
 ## Current Truth
 
@@ -159,8 +159,9 @@ already existed, so it cannot explain or restore those missing files.
   still did not establish.
 - B00 through C09 package delivery is complete. The ADR-0002 implementation
   closeout passed, and the later behavior-preserving Battle Engine and executor
-  structural splits were validated and published. C10A is not started and is
-  next; C11 remains dependency-blocked behind C10.
+  structural splits were validated and published. C10A remediation R1-R3 is
+  complete; R4A is next. C10A row authoring is not started and remains blocked
+  through R4A, R4B, R5, R6, and independent R7. C11 remains blocked behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4

@@ -220,6 +220,9 @@ namespace BattleEngineVoluntarySwitchPrivate
 			|| !FBattleMoveRedirection::AreRegistrationsIdentical(
 				State.MoveRedirectionRegistrations,
 				Commit.ExpectedMoveRedirections)
+			|| !FBattleAllyActionPowerModifier::AreRegistrationsIdentical(
+				State.AllyActionPowerModifierRegistrations,
+				Commit.ExpectedAllyActionPowerModifiers)
 			|| State.Battlers.Num() != Identity.Battlers.Num()
 			|| State.ActivePositions.Num() != Identity.ActivePositions.Num()
 			|| State.HeldItemLedger.GetStates().Num() != Identity.HeldItemInstances.Num()

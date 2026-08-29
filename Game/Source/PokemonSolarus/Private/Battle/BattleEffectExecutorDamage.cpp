@@ -1,5 +1,6 @@
 #include "BattleEffectExecutorContext.h"
 
+#include "BattleAllyActionPowerModifier.h"
 #include "Battle/BattleAbility.h"
 #include "BattleEntryHazardPrevention.h"
 #include "Battle/BattleFieldSideConditions.h"
@@ -403,6 +404,18 @@ namespace BattleEffectExecutorPrivate
 					DefensiveModifierQ12,
 					false});
 			}
+		}
+
+		// Priority 10 ally-action modifiers precede priority 6 terrain modifiers.
+		if (!FBattleAllyActionPowerModifier::AppendMatchingPowerModifiers(
+				Request.TurnId,
+				Request.ActionId,
+				{Request.UserSlotId, Request.UserBattlerId},
+				bActualDamageBuild,
+				AllyActionPowerModifierRegistrations,
+				OutInput.PowerModifiers))
+		{
+			return false;
 		}
 
 		const FConditionId TerrainId = GetTerrainId();

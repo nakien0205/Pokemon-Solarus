@@ -7,6 +7,7 @@
 #include "Battle/BattleReplay.h"
 #include "Battle/BattleStatStages.h"
 #include "Battle/BattleTriggerFramework.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 
 /** Typed result from validating the authoritative internal battle state. */
@@ -303,6 +304,9 @@ public:
 	TArray<FBattleActivePositionState> ActivePositions;
 	/** Turn-scoped redirection facts remain private and are never snapshot-projected. */
 	TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+	/** Ordered action bindings remain private and are never snapshot-projected. */
+	TArray<FBattleAllyActionPowerModifierRegistration>
+		AllyActionPowerModifierRegistrations;
 	FBattleFieldState Field;
 	TArray<FBattleSideState> Sides;
 	TArray<FBattlePendingCaptureState> PendingCaptures;

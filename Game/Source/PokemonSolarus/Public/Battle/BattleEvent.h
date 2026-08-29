@@ -61,7 +61,8 @@ enum class EBattleEventType : uint8
 	ItemRemoved = 51,
 	/** C09C terminal result: first valid player party entry restored to 1 HP and cured. */
 	PartnerTeamVictoryRecovery = 52,
-	TargetRedirectionRegistered = 53
+	TargetRedirectionRegistered = 53,
+	ActionPowerModifierRegistered = 54
 };
 
 /** Typed source family for an event cause. */

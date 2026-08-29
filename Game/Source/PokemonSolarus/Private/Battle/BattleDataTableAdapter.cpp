@@ -302,7 +302,9 @@ namespace
 			{FName(TEXT("SemiInvulnerability")), EBattleMoveEffectKind::SemiInvulnerability},
 			{FName(TEXT("RemoveCondition")), EBattleMoveEffectKind::RemoveCondition},
 			{FName(TEXT("RegisterTargetRedirection")),
-				EBattleMoveEffectKind::RegisterTargetRedirection}
+				EBattleMoveEffectKind::RegisterTargetRedirection},
+			{FName(TEXT("RegisterAllyActionPowerModifier")),
+				EBattleMoveEffectKind::RegisterAllyActionPowerModifier}
 		};
 		for (const auto& Mapping : Mappings)
 		{

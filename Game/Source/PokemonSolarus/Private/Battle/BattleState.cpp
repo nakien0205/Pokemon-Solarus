@@ -1158,6 +1158,16 @@ bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutErro
 	{
 		return Fail(EBattleStateValidationError::InvalidLifecycle);
 	}
+	if (!FBattleAllyActionPowerModifier::IsRegistrationCollectionValid(
+			Format,
+			TurnId,
+			AllyActionPowerModifierRegistrations,
+			Battlers,
+			ActivePositions,
+			LockedActions))
+	{
+		return Fail(EBattleStateValidationError::InvalidLifecycle);
+	}
 
 	if (Sides.Num() != 2
 		|| Sides[0].Side != EBattleSide::Player

@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "Math/NumericLimits.h"
 
@@ -93,6 +94,8 @@ namespace BattleEngineActionStartPrivate
 		OutIdentity.CommitIdentity.ExpectedEventOrdinal = State.NextEventOrdinal;
 		OutIdentity.CommitIdentity.ExpectedResolutionCount = State.Resolutions.Num();
 		OutIdentity.CommitIdentity.ExpectedRandomTraceCount = State.Random->GetTrace().Num();
+		OutIdentity.CommitIdentity.ExpectedAllyActionPowerModifiers =
+			State.AllyActionPowerModifierRegistrations;
 		OutIdentity.ExpectedPhase = State.Phase;
 		OutIdentity.ExpectedLockedActionCount = State.LockedActions.Num();
 		OutIdentity.ExpectedEventCount = State.OrderedEvents.Num();
@@ -141,6 +144,9 @@ namespace BattleEngineActionStartPrivate
 			|| State.Resolutions.Num() != Commit.ExpectedResolutionCount
 			|| State.OrderedEvents.Num() != Identity.ExpectedEventCount
 			|| RandomTraceCount != Commit.ExpectedRandomTraceCount
+			|| !FBattleAllyActionPowerModifier::AreRegistrationsIdentical(
+				State.AllyActionPowerModifierRegistrations,
+				Commit.ExpectedAllyActionPowerModifiers)
 			|| !State.LockedActions.IsValidIndex(Commit.ExpectedLockedActionIndex))
 		{
 			return false;
@@ -641,6 +647,8 @@ namespace BattleEngineActionStartPrivate
 		TOptional<FBattleDecisionRequest> PendingDecision;
 		TArray<FBattleDecisionRequest> PendingDecisionRequests;
 		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 	};
 
 	void InitializeActionStartDelta(
@@ -664,6 +672,8 @@ namespace BattleEngineActionStartPrivate
 		OutDelta.PendingDecision = State.PendingDecision;
 		OutDelta.PendingDecisionRequests = State.PendingDecisionRequests;
 		OutDelta.PendingReplacements = State.PendingReplacements;
+		OutDelta.AllyActionPowerModifierRegistrations =
+			State.AllyActionPowerModifierRegistrations;
 	}
 
 	bool TryPrepareActionStartBoundary(
@@ -864,6 +874,8 @@ namespace BattleEngineActionStartPrivate
 		State.PendingDecision = Delta.PendingDecision;
 		State.PendingDecisionRequests = Delta.PendingDecisionRequests;
 		State.PendingReplacements = Delta.PendingReplacements;
+		State.AllyActionPowerModifierRegistrations =
+			Delta.AllyActionPowerModifierRegistrations;
 	}
 }
 
@@ -1131,6 +1143,9 @@ FBattleResolution FBattleEngine::BeginNextLockedAction()
 	TArray<FBattleReplacementRequirement> ReplacementRequirements;
 	if (bCompletesAction)
 	{
+		FBattleAllyActionPowerModifier::RemoveForAction(
+			Delta.AllyActionPowerModifierRegistrations,
+			ActionId);
 		Delta.NextLockedActionIndex = State->CurrentLockedActionIndex + 1;
 		if (CheckpointIdentity.CommitIdentity.ExpectedStateVersion
 				== TNumericLimits<uint64>::Max()

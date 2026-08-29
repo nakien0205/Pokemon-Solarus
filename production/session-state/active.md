@@ -1,10 +1,10 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: Behavior-preserving Battle structural splits before C10A
-Task: Structural migrations published; dependent live documentation reconciled
+Feature: C10A reusable typed-remediation lanes
+Task: R1-R3 complete; R4A is next
 <!-- /STATUS -->
 
-# Active Project State — 2026-08-28
+# Active Project State — 2026-08-29
 
 ## Current work
 
@@ -58,9 +58,12 @@ Task: Structural migrations published; dependent live documentation reconciled
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A Required Canonical Rows remains the next roadmap package after the
-  separately approved structural work. Preserve the order
-  `C10A -> C10B -> C11A -> C11B`.
+- C10A remediation lanes R1, R2, and R3 are complete. R1 added the two typed
+  target classes, R2 added private action-scoped redirection, and R3 added the
+  private typed ally action power modifier. Swift, Fly, Follow Me, and Helping
+  Hand are now expressible, but their C10A rows remain unauthored.
+- R4A is next. Preserve the order
+  `R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -256,9 +259,8 @@ Task: Structural migrations published; dependent live documentation reconciled
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Do not begin cleanup, deduplication, mechanics changes, or C10A under this
-   documentation-only approval.
-4. C10A remains the next roadmap package and will begin only when called by the
-   user. Preserve
-   roadmap order
-   `C10A -> C10B -> C11A -> C11B`.
+3. Treat R1, R2, and R3 as complete. R3 passed its forced-Unity build, all 11
+   focused tests, 13 affected regression filters, and two independent reviews.
+4. R4A is the next separately approved remediation lane. Do not author C10A
+   source rows until R4A-R6 and independent R7 pass. Preserve roadmap order
+   `R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.

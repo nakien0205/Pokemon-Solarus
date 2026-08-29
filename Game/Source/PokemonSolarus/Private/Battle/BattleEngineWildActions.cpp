@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
@@ -49,6 +50,8 @@ namespace BattleEngineWildActionsPrivate
 		FBattlerId RemovedBattlerId;
 		FActiveSlotId ClearedActiveSlotId;
 		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 		TOptional<uint64> OpponentRemovalCheckpointOrdinal;
 	};
 
@@ -67,6 +70,8 @@ namespace BattleEngineWildActionsPrivate
 		OutDelta.PendingReplacements = State.PendingReplacements;
 		OutDelta.MoveRedirectionRegistrations =
 			State.MoveRedirectionRegistrations;
+		OutDelta.AllyActionPowerModifierRegistrations =
+			State.AllyActionPowerModifierRegistrations;
 	}
 
 	bool IsProjectedActiveBattler(
@@ -267,6 +272,8 @@ namespace BattleEngineWildActionsPrivate
 		}
 		State.MoveRedirectionRegistrations =
 			Delta.MoveRedirectionRegistrations;
+		State.AllyActionPowerModifierRegistrations =
+			Delta.AllyActionPowerModifierRegistrations;
 
 		State.EscapeAttemptCount = Delta.EscapeAttemptCount;
 		State.Phase = Delta.Phase;
@@ -690,6 +697,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentWildAction()
 	Delta.ClearedActiveSlotId = Active->ActiveSlotId;
 	FBattleMoveRedirection::RemoveForOccupant(
 		Delta.MoveRedirectionRegistrations,
+		{Active->ActiveSlotId, ActingBattler->BattlerId});
+	FBattleAllyActionPowerModifier::RemoveForOccupant(
+		Delta.AllyActionPowerModifierRegistrations,
 		{Active->ActiveSlotId, ActingBattler->BattlerId});
 
 	FBattleEventTarget FleeingTarget;

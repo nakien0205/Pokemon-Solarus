@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
@@ -1477,6 +1478,8 @@ FBattleResolution FBattleEngine::ResolveEndTurn()
 			&& FTurnId::TryCreate(NextTurnValue, NextTurnId);
 		check(bTurnCreated);
 		FBattleMoveRedirection::Clear(State->MoveRedirectionRegistrations);
+		FBattleAllyActionPowerModifier::Clear(
+			State->AllyActionPowerModifierRegistrations);
 		State->TurnId = NextTurnId;
 		for (FBattleTrainerState& Trainer : State->Trainers)
 		{

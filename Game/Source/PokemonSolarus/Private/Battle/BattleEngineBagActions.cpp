@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
@@ -416,6 +417,8 @@ namespace BattleEngineBagActionsPrivate
 		FBattleBattlerState TargetBattler;
 		FActiveSlotId ClearedActiveSlotId;
 		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 		TOptional<FBattlePendingCaptureRecord> PendingCapture;
 		TArray<FCaptureQueuedCancellationFact> QueuedCancellations;
 		bool bApplyCleanupStage = false;
@@ -444,6 +447,8 @@ namespace BattleEngineBagActionsPrivate
 		OutDelta.TargetBattlerId = TargetBattlerId;
 		OutDelta.MoveRedirectionRegistrations =
 			State.MoveRedirectionRegistrations;
+		OutDelta.AllyActionPowerModifierRegistrations =
+			State.AllyActionPowerModifierRegistrations;
 		OutDelta.NextLockedActionIndex = State.CurrentLockedActionIndex + 1;
 		OutDelta.Phase = State.Phase;
 		OutDelta.Outcome = State.Outcome;
@@ -578,6 +583,8 @@ namespace BattleEngineBagActionsPrivate
 		Projection.ActivePositions = State.ActivePositions;
 		Projection.MoveRedirectionRegistrations =
 			Delta.MoveRedirectionRegistrations;
+		Projection.AllyActionPowerModifierRegistrations =
+			Delta.AllyActionPowerModifierRegistrations;
 		Projection.CompiledEncounterPolicies = State.CompiledEncounterPolicies;
 		Projection.LockedActions = State.LockedActions;
 		Projection.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
@@ -744,6 +751,8 @@ namespace BattleEngineBagActionsPrivate
 		}
 		State.MoveRedirectionRegistrations =
 			Delta.MoveRedirectionRegistrations;
+		State.AllyActionPowerModifierRegistrations =
+			Delta.AllyActionPowerModifierRegistrations;
 
 		Action.bFinished = true;
 		State.CurrentLockedActionIndex = Delta.NextLockedActionIndex;
@@ -1822,6 +1831,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 			FBattleMoveRedirection::RemoveForOccupant(
 				CaptureDelta.MoveRedirectionRegistrations,
 				{TargetActive->ActiveSlotId, TargetBattler->BattlerId});
+			FBattleAllyActionPowerModifier::RemoveForOccupant(
+				CaptureDelta.AllyActionPowerModifierRegistrations,
+				{TargetActive->ActiveSlotId, TargetBattler->BattlerId});
 			CaptureDelta.TargetBattler = *TargetBattler;
 			CaptureDelta.TargetBattler.MajorStatusId = FConditionId();
 			CaptureDelta.TargetBattler.Stages = FBattleStatStages();
@@ -1837,6 +1849,13 @@ FBattleResolution FBattleEngine::ExecuteCurrentBagItem()
 				*State,
 				TargetBattlerId,
 				CaptureDelta);
+			for (const FCaptureQueuedCancellationFact& Fact :
+				CaptureDelta.QueuedCancellations)
+			{
+				FBattleAllyActionPowerModifier::RemoveForAction(
+					CaptureDelta.AllyActionPowerModifierRegistrations,
+					Fact.ActionId);
+			}
 
 			CaptureDelta.CleanupStage.Capture(*State);
 			if (!TryStageSourceDependentVolatileCleanup(

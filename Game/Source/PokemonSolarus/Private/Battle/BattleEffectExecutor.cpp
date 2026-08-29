@@ -7,6 +7,7 @@
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
@@ -130,7 +131,8 @@ namespace BattleEffectExecutorPrivate
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Kind)
 	{
 		return static_cast<uint8>(Kind)
-			<= static_cast<uint8>(EBattleMoveEffectKind::RegisterTargetRedirection);
+			<= static_cast<uint8>(
+				EBattleMoveEffectKind::RegisterAllyActionPowerModifier);
 	}
 
 	bool IsKnownEffectTarget(const EBattleEffectTarget Target)
@@ -255,6 +257,9 @@ namespace BattleEffectExecutorPrivate
 		case EBattleMoveEffectKind::SemiInvulnerability:
 		case EBattleMoveEffectKind::RegisterTargetRedirection:
 			return EffectTarget == EBattleEffectTarget::User;
+		case EBattleMoveEffectKind::RegisterAllyActionPowerModifier:
+			return MoveTargetClass == EBattleTargetClass::SelectedAlly
+				&& EffectTarget == EBattleEffectTarget::ResolvedTarget;
 		case EBattleMoveEffectKind::SetFieldCondition:
 			return EffectTarget == EBattleEffectTarget::Field
 				&& MoveTargetClass == EBattleTargetClass::Field;
@@ -696,6 +701,8 @@ namespace BattleEffectExecutorPrivate
 		}
 		return (!FBattleMoveRedirection::ContainsRegistrationEffect(Move)
 				|| FBattleMoveRedirection::IsRegistrationMoveDefinitionValid(Move))
+			&& (!FBattleAllyActionPowerModifier::ContainsRegistrationEffect(Move)
+				|| FBattleAllyActionPowerModifier::IsRegistrationMoveDefinitionValid(Move))
 			&& AreResolvedTargetsValid(Request);
 	}
 
@@ -884,6 +891,8 @@ namespace BattleEffectExecutorPrivate
 				: EBattleEventType::FieldEffectChanged;
 		case EBattleMoveEffectKind::RegisterTargetRedirection:
 			return EBattleEventType::TargetRedirectionRegistered;
+		case EBattleMoveEffectKind::RegisterAllyActionPowerModifier:
+			return EBattleEventType::ActionPowerModifierRegistered;
 		default:
 			return EBattleEventType::EffectFailed;
 		}

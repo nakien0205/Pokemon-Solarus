@@ -89,6 +89,8 @@ namespace BattleEngineCheckpointStatePrivate
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
 		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 		FBattleTriggerFramework TriggerFramework;
 		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 		FBattleHeldItemLedger HeldItemLedger;
@@ -109,6 +111,8 @@ namespace BattleEngineCheckpointStatePrivate
 			Battlers = State.Battlers;
 			ActivePositions = State.ActivePositions;
 			MoveRedirectionRegistrations = State.MoveRedirectionRegistrations;
+			AllyActionPowerModifierRegistrations =
+				State.AllyActionPowerModifierRegistrations;
 			TriggerFramework = State.TriggerFramework;
 			AbilityItemRevealTracker = State.AbilityItemRevealTracker;
 			HeldItemLedger = State.HeldItemLedger;
@@ -198,6 +202,8 @@ namespace BattleEngineCheckpointStatePrivate
 		TArray<FBattleBattlerState>& Battlers;
 		TArray<FBattleActivePositionState>& ActivePositions;
 		TArray<FBattleMoveRedirectionRegistration>& MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>&
+			AllyActionPowerModifierRegistrations;
 		TFieldState& Field;
 		TSideStates& Sides;
 		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies;
@@ -233,6 +239,8 @@ namespace BattleEngineCheckpointStatePrivate
 			, Battlers(Preparation.Battlers)
 			, ActivePositions(Preparation.ActivePositions)
 			, MoveRedirectionRegistrations(Preparation.MoveRedirectionRegistrations)
+			, AllyActionPowerModifierRegistrations(
+				Preparation.AllyActionPowerModifierRegistrations)
 			, Field(InField)
 			, Sides(InSides)
 			, CompiledEncounterPolicies(Authority.CompiledEncounterPolicies)
@@ -334,6 +342,8 @@ namespace BattleEngineCheckpointStatePrivate
 		TArray<FAtomicBattlerRecordDelta> Battlers;
 		TArray<FAtomicActivePositionRecordDelta> ActivePositions;
 		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 		FBattleTriggerFramework TriggerFramework;
 		FBattleAbilityItemRevealTracker AbilityItemRevealTracker;
 		FBattleHeldItemLedger HeldItemLedger;

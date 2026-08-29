@@ -190,6 +190,7 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 		State.Battlers,
 		State.ActivePositions,
 		State.MoveRedirectionRegistrations,
+		State.AllyActionPowerModifierRegistrations,
 		State.CompiledEncounterPolicies,
 		OutPlan);
 }
@@ -201,6 +202,8 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	const TConstArrayView<FBattleBattlerState> Battlers,
 	const TConstArrayView<FBattleActivePositionState> ActivePositions,
 	const TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
+	const TConstArrayView<FBattleAllyActionPowerModifierRegistration>
+		AllyActionPowerModifiers,
 	const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
 	FBattleFaintOutcomePlan& OutPlan)
 {
@@ -305,10 +308,19 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	{
 		OutPlan.MoveRedirectionsAfter.Add(Registration);
 	}
+	OutPlan.AllyActionPowerModifiersAfter.Reserve(AllyActionPowerModifiers.Num());
+	for (const FBattleAllyActionPowerModifierRegistration& Registration :
+		AllyActionPowerModifiers)
+	{
+		OutPlan.AllyActionPowerModifiersAfter.Add(Registration);
+	}
 	for (const FBattleFaintTransitionRecord& Removal : OutResolution.Removals)
 	{
 		FBattleMoveRedirection::RemoveForOccupant(
 			OutPlan.MoveRedirectionsAfter,
+			{Removal.Target.ActiveSlotId, Removal.Target.BattlerId});
+		FBattleAllyActionPowerModifier::RemoveForOccupant(
+			OutPlan.AllyActionPowerModifiersAfter,
 			{Removal.Target.ActiveSlotId, Removal.Target.BattlerId});
 	}
 	bool bPlayerFaintedThisAction = false;
@@ -377,6 +389,8 @@ bool FBattleFaintOutcomeResolver::TryResolveAction(
 	if (OutResolution.Outcome != EBattleOutcome::InProgress)
 	{
 		OutResolution.bBattleEnded = true;
+		FBattleAllyActionPowerModifier::Clear(
+			OutPlan.AllyActionPowerModifiersAfter);
 	}
 	return true;
 }
@@ -389,6 +403,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 		State.Battlers,
 		State.ActivePositions,
 		State.MoveRedirectionRegistrations,
+		State.AllyActionPowerModifierRegistrations,
 		State.Phase,
 		State.Outcome,
 		State.OutcomeCause,
@@ -401,6 +416,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 	TArray<FBattleBattlerState>& Battlers,
 	TArray<FBattleActivePositionState>& ActivePositions,
 	TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
+	TArray<FBattleAllyActionPowerModifierRegistration>& AllyActionPowerModifiers,
 	EBattlePhase& Phase,
 	EBattleOutcome& Outcome,
 	EBattleOutcomeCause& OutcomeCause,
@@ -412,6 +428,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 			Battlers,
 			ActivePositions,
 			MoveRedirections,
+			AllyActionPowerModifiers,
 			Plan))
 	{
 		return false;
@@ -420,6 +437,7 @@ bool FBattleFaintOutcomeResolver::TryApplyActionPlan(
 		Battlers,
 		ActivePositions,
 		MoveRedirections,
+		AllyActionPowerModifiers,
 		Phase,
 		Outcome,
 		OutcomeCause,
@@ -437,6 +455,7 @@ bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 		State.Battlers,
 		State.ActivePositions,
 		State.MoveRedirectionRegistrations,
+		State.AllyActionPowerModifierRegistrations,
 		Plan);
 }
 
@@ -444,6 +463,8 @@ bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 	const TConstArrayView<FBattleBattlerState> Battlers,
 	const TConstArrayView<FBattleActivePositionState> ActivePositions,
 	const TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
+	const TConstArrayView<FBattleAllyActionPowerModifierRegistration>
+		AllyActionPowerModifiers,
 	const FBattleFaintOutcomePlan& Plan)
 {
 	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
@@ -514,6 +535,31 @@ bool FBattleFaintOutcomeResolver::IsActionPlanApplicable(
 	{
 		return false;
 	}
+	TArray<FBattleAllyActionPowerModifierRegistration>
+		ExpectedAllyActionPowerModifiers;
+	ExpectedAllyActionPowerModifiers.Reserve(AllyActionPowerModifiers.Num());
+	for (const FBattleAllyActionPowerModifierRegistration& Registration :
+		AllyActionPowerModifiers)
+	{
+		ExpectedAllyActionPowerModifiers.Add(Registration);
+	}
+	for (const FBattleFaintTransitionRecord& Removal : Resolution.Removals)
+	{
+		FBattleAllyActionPowerModifier::RemoveForOccupant(
+			ExpectedAllyActionPowerModifiers,
+			{Removal.Target.ActiveSlotId, Removal.Target.BattlerId});
+	}
+	if (Resolution.bBattleEnded)
+	{
+		FBattleAllyActionPowerModifier::Clear(
+			ExpectedAllyActionPowerModifiers);
+	}
+	if (!FBattleAllyActionPowerModifier::AreRegistrationsIdentical(
+			ExpectedAllyActionPowerModifiers,
+			Plan.AllyActionPowerModifiersAfter))
+	{
+		return false;
+	}
 	return true;
 }
 
@@ -525,6 +571,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 		State.Battlers,
 		State.ActivePositions,
 		State.MoveRedirectionRegistrations,
+		State.AllyActionPowerModifierRegistrations,
 		State.Phase,
 		State.Outcome,
 		State.OutcomeCause,
@@ -537,6 +584,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 	TArray<FBattleBattlerState>& Battlers,
 	TArray<FBattleActivePositionState>& ActivePositions,
 	TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
+	TArray<FBattleAllyActionPowerModifierRegistration>& AllyActionPowerModifiers,
 	EBattlePhase& Phase,
 	EBattleOutcome& Outcome,
 	EBattleOutcomeCause& OutcomeCause,
@@ -546,6 +594,7 @@ void FBattleFaintOutcomeResolver::ApplyPreparedActionPlan(
 {
 	const FBattleFaintOutcomeResolution& Resolution = Plan.Resolution;
 	MoveRedirections = Plan.MoveRedirectionsAfter;
+	AllyActionPowerModifiers = Plan.AllyActionPowerModifiersAfter;
 	for (const FBattleFaintTransitionRecord& Transition : Resolution.Removals)
 	{
 		FBattleBattlerState* Battler = Battlers.FindByPredicate(

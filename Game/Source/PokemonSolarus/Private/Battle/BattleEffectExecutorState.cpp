@@ -30,6 +30,8 @@ namespace BattleEffectExecutorPrivate
 		, Battlers(InState.Battlers)
 		, ActivePositions(InState.ActivePositions)
 		, MoveRedirectionRegistrations(InState.MoveRedirectionRegistrations)
+		, AllyActionPowerModifierRegistrations(
+			InState.AllyActionPowerModifierRegistrations)
 		, Field(InState.Field)
 		, Sides(InState.Sides)
 		, TriggerFramework(InState.TriggerFramework)
@@ -46,6 +48,8 @@ namespace BattleEffectExecutorPrivate
 		OutPlan.ActivePositions = MoveTemp(ActivePositions);
 		OutPlan.MoveRedirectionRegistrations =
 			MoveTemp(MoveRedirectionRegistrations);
+		OutPlan.AllyActionPowerModifierRegistrations =
+			MoveTemp(AllyActionPowerModifierRegistrations);
 		OutPlan.Field = MoveTemp(Field);
 		OutPlan.Sides = MoveTemp(Sides);
 		OutPlan.TriggerFramework = MoveTemp(TriggerFramework);
@@ -78,6 +82,16 @@ namespace BattleEffectExecutorPrivate
 			|| User->bFainted
 			|| User->bCaptured
 			|| User->bRemoved)
+		{
+			return false;
+		}
+		if (!FBattleAllyActionPowerModifier::IsRegistrationCollectionValid(
+				State.Format,
+				State.TurnId,
+				AllyActionPowerModifierRegistrations,
+				Battlers,
+				ActivePositions,
+				State.LockedActions))
 		{
 			return false;
 		}
@@ -466,6 +480,8 @@ void FBattleEffectExecutor::ApplyPreparedPlan(
 	State.ActivePositions = MoveTemp(Plan.ActivePositions);
 	State.MoveRedirectionRegistrations =
 		MoveTemp(Plan.MoveRedirectionRegistrations);
+	State.AllyActionPowerModifierRegistrations =
+		MoveTemp(Plan.AllyActionPowerModifierRegistrations);
 	State.Field = MoveTemp(Plan.Field);
 	State.Sides = MoveTemp(Plan.Sides);
 	State.TriggerFramework = MoveTemp(Plan.TriggerFramework);

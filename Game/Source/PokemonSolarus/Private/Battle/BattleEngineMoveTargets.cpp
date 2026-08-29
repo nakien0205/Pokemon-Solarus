@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
@@ -105,6 +106,8 @@ namespace BattleEngineMoveTargetsPrivate
 		TOptional<FBattleDecisionRequest> PendingDecision;
 		TArray<FBattleDecisionRequest> PendingDecisionRequests;
 		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 
 		bool Capture(
 			const FBattleEngineState& State,
@@ -133,6 +136,8 @@ namespace BattleEngineMoveTargetsPrivate
 			PendingDecision = State.PendingDecision;
 			PendingDecisionRequests = State.PendingDecisionRequests;
 			PendingReplacements = State.PendingReplacements;
+			AllyActionPowerModifierRegistrations =
+				State.AllyActionPowerModifierRegistrations;
 			return true;
 		}
 	};
@@ -158,6 +163,8 @@ namespace BattleEngineMoveTargetsPrivate
 		TOptional<FBattleDecisionRequest>& PendingDecision;
 		TArray<FBattleDecisionRequest>& PendingDecisionRequests;
 		TArray<FBattlePendingReplacementState>& PendingReplacements;
+		TArray<FBattleAllyActionPowerModifierRegistration>&
+			AllyActionPowerModifierRegistrations;
 		FBattleTriggerFramework& TriggerFramework;
 		uint64& NextTriggerReentrancyToken;
 		uint64& NextEventOrdinal;
@@ -183,6 +190,8 @@ namespace BattleEngineMoveTargetsPrivate
 			, PendingDecision(Preparation.PendingDecision)
 			, PendingDecisionRequests(Preparation.PendingDecisionRequests)
 			, PendingReplacements(Preparation.PendingReplacements)
+			, AllyActionPowerModifierRegistrations(
+				Preparation.AllyActionPowerModifierRegistrations)
 			, TriggerFramework(Preparation.TriggerFramework)
 			, NextTriggerReentrancyToken(Preparation.NextTriggerReentrancyToken)
 			, NextEventOrdinal(Preparation.NextEventOrdinal)
@@ -263,6 +272,8 @@ namespace BattleEngineMoveTargetsPrivate
 		TOptional<FBattleDecisionRequest> PendingDecision;
 		TArray<FBattleDecisionRequest> PendingDecisionRequests;
 		TArray<FBattlePendingReplacementState> PendingReplacements;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 	};
 
 	bool AreTargetResolutionBattlerIdentitiesIdentical(
@@ -930,6 +941,8 @@ namespace BattleEngineMoveTargetsPrivate
 		OutDelta.PendingDecision = Preparation.PendingDecision;
 		OutDelta.PendingDecisionRequests = Preparation.PendingDecisionRequests;
 		OutDelta.PendingReplacements = Preparation.PendingReplacements;
+		OutDelta.AllyActionPowerModifierRegistrations =
+			Preparation.AllyActionPowerModifierRegistrations;
 		return true;
 	}
 
@@ -955,6 +968,8 @@ namespace BattleEngineMoveTargetsPrivate
 		State.PendingDecision = Delta.PendingDecision;
 		State.PendingDecisionRequests = Delta.PendingDecisionRequests;
 		State.PendingReplacements = Delta.PendingReplacements;
+		State.AllyActionPowerModifierRegistrations =
+			Delta.AllyActionPowerModifierRegistrations;
 	}
 
 	bool TryPublishTargetResolutionCheckpointRejection(
@@ -1190,6 +1205,9 @@ FBattleResolution FBattleEngine::ResolveCurrentMoveTargets()
 			return RejectCheckpoint(
 				EBattleRejectionReason::CheckpointPreparationFailed);
 		}
+		FBattleAllyActionPowerModifier::RemoveForAction(
+			Projection.AllyActionPowerModifierRegistrations,
+			ProjectedAction.ActionId);
 		ProjectedAction.bFinished = true;
 		if (!TryMakeTargetResolutionActionEventSpec(
 				Projection,

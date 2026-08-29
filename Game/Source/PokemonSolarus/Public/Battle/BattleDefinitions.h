@@ -79,6 +79,7 @@ enum class EBattleMoveEffectKind : uint8
 	SemiInvulnerability = 14,
 	RemoveCondition = 15,
 	RegisterTargetRedirection = 16,
+	RegisterAllyActionPowerModifier = 17,
 	Invalid = 255
 };
 

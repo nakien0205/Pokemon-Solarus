@@ -2,11 +2,13 @@
 
 Status: **DRAFT ONLY — IMPLEMENTATION IS NOT APPROVED**
 
-Date: 2026-08-28
+Date: 2026-08-29
 
 Primary verdict: **BLOCK**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
+
+Remediation status: **R1, R2, and R3 COMPLETE; R4A is next**
 
 Direct C10A row authoring is not ready. The live catalog can represent most of
 the approved proof slice, but it cannot faithfully represent or execute every
@@ -72,7 +74,7 @@ Authorities were applied in this order:
 8. pinned external sources only where the higher authorities do not supply a
    value.
 
-Live checkout facts:
+Original R0 checkout facts (historical baseline):
 
 | Fact | Verified value |
 |---|---|
@@ -82,6 +84,19 @@ Live checkout facts:
 | C10 state | Not started; C10A is next |
 | Required roadmap order | C10A, then C10B, then C11A, then C11B |
 | Frozen feature | Cry for Help and wild reinforcement remain frozen |
+
+Current remediation state:
+
+| Lane | State | Durable evidence |
+|---|---|---|
+| R1 target vocabulary | COMPLETE | Published in `06d884e`; B02 and B03 resolved |
+| R2 action-scoped redirection | COMPLETE | Published in `cf8b3e6`; B04 resolved |
+| R3 ally action power modifier | COMPLETE | Fresh forced-Unity build, 11 focused successes, and 13 clean affected filters on 2026-08-29; B05 resolved |
+| Next lane | R4A | B06, B07, and B08 remain blocked |
+
+C10A source-row authoring remains not started and blocked until R4A, R4B, R5,
+R6, and independent R7 complete. Required order:
+`R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -140,10 +155,10 @@ Every non-ready finding uses one of these labels:
 |---|---|---|---|
 | C10A must provide the complete bounded row set | Current JSON contains only the baseline rows in section 3 | ADDITIVE GAP | Add all rows only after every required mechanic is expressible |
 | No move-ID branches | BattleDefinitions.h provides typed target, flag, and effect vocabularies | — | Extend append-only typed vocabularies; never inspect MoveId for behavior |
-| Swift must hit the opposing spread only | FixedSpreadSet includes every living battler except the user, including the ally | ADDITIVE GAP | Add a foe-only fixed spread target class |
-| Fly must target any other active battler | AnySelectedBattler currently includes the user | ADDITIVE GAP | Add an explicit selected-other-battler target class without changing the old ordinal or meaning |
-| Follow Me must feed redirection | Target resolver accepts ordered RedirectionProposals, but no production writer populates them | SEQUENCING OVERLAP | Add a typed turn-scoped redirection producer and feed the existing C04B seam |
-| Helping Hand must modify an ally's action | No action-scoped ally power modifier exists | ADDITIVE GAP | Add a typed, expiring action modifier; do not invent a content-ID branch or an unapproved condition row |
+| Swift must hit the opposing spread only | `FixedOpponentSpreadSet` is implemented and validated | RESOLVED | Author the row only in C10A |
+| Fly must target any other active battler | `SelectedOtherBattler` is implemented and validated | RESOLVED | Author the row only in C10A |
+| Follow Me must feed redirection | Typed private action-scoped redirection is implemented and validated | RESOLVED | Author the row only in C10A; no condition row |
+| Helping Hand must modify an ally's action | Typed private ally action power modifiers are implemented and validated | RESOLVED | Author the row only in C10A; no condition row |
 | Thunder Wave must respect Electric move immunity | CheckMoveImmunity is a no-op for status moves | ADDITIVE GAP | Add an authored respects-type-immunity rule used before accuracy |
 | Powder moves must respect powder immunity | No Powder flag or Grass-target gate exists | ADDITIVE GAP | Add a generic Powder move trait and move/Ability/item immunity hook path |
 | Toxic's Poison-user hit rule must be exact | R0 follows pinned Showdown: a Poison-type user bypasses semi-invulnerability and accuracy, while later hit gates remain | ADDITIVE GAP | Add one authored conditional hit rule based on user typing; never inspect Toxic's ID |
@@ -166,10 +181,10 @@ Status meanings:
 | 1 | Flamethrower | Selected-opponent Damage, then 10% Burn | READY | — |
 | 2 | Vine Whip | Selected-opponent Damage | READY | — |
 | 3 | Quick Attack | Selected-opponent Damage with authored priority | READY | — |
-| 4 | Swift | Always-hit Damage to a foe-only spread | BLOCKED | B02 |
+| 4 | Swift | Always-hit Damage to a foe-only spread | READY | — |
 | 5 | Earthquake | FixedSpreadSet Damage plus ReducedByGrassyTerrain | READY | — |
-| 6 | Follow Me | Self action that registers turn-scoped redirection | BLOCKED | B04 |
-| 7 | Helping Hand | Selected-ally action power modifier | BLOCKED | B05 |
+| 6 | Follow Me | Self action that registers turn-scoped redirection | READY | — |
+| 7 | Helping Hand | Selected-ally action power modifier | READY | — |
 | 8 | Swords Dance | User Attack stage +2 | READY | — |
 | 9 | Thunder Wave | Paralysis plus status-move type immunity | BLOCKED | B06 |
 | 10 | Will-O-Wisp | Selected-opponent Burn application | READY | — |
@@ -189,7 +204,7 @@ Status meanings:
 | 24 | Substitute | User Substitute volatile and HP cost | READY | — |
 | 25 | Solar Beam | Charge then Damage; Sun skips charge and Rain/Sandstorm/Snow halve power | BLOCKED | B09 |
 | 26 | Hyper Beam | Damage, then user Recharge | READY | — |
-| 27 | Fly | Charge, semi-invulnerability, then selected-other Damage | BLOCKED | B03 |
+| 27 | Fly | Charge, semi-invulnerability, then selected-other Damage | READY | — |
 | 28 | Thunder | Damage, Fly reach, 30% Paralysis; Rain always-hit and Sun 50% accuracy | BLOCKED | B10 |
 | 29 | Bullet Seed | Ranged MultiHit plus Damage | READY | — |
 | 30 | Giga Drain | Damage plus one-half actual-damage Drain | READY | — |
@@ -226,7 +241,7 @@ Status meanings:
 | 61 | Safeguard | Set user-side condition | READY | — |
 | 62 | Mist | Set user-side condition | READY | — |
 
-Totals: 45 READY and 17 BLOCKED, with no unresolved decision rows. The 17
+Totals: 49 READY and 13 BLOCKED, with no unresolved decision rows. The 13
 non-ready rows account for every selected move.
 
 The READY label does not claim that a row is already tested through imported
@@ -263,10 +278,10 @@ Data Tables. That is C10B work.
 - Scope rule: use this PokeAPI source for `capture_rate` only. Showdown remains
   the source for the other selected species facts.
 
-### B02 — No foe-only fixed spread target
+### B02 — Foe-only fixed spread target resolved
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks Swift.
+- Classification: **RESOLVED by R1**
+- Gate: Swift is expressible; its row remains unauthored.
 - Owner: C02B definition vocabulary plus C04B target resolution.
 - Required capability: append a target class such as FixedOpponentSpreadSet.
 - Stable-contract rule: do not renumber or broaden FixedSpreadSet; Earthquake
@@ -275,10 +290,10 @@ Data Tables. That is C10B work.
   unavailable slots excluded, no RNG, exact target events, replay identity,
   and no change to Earthquake-style spread behavior.
 
-### B03 — No selected-other-battler target
+### B03 — Selected-other-battler target resolved
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks Fly.
+- Classification: **RESOLVED by R1**
+- Gate: Fly is expressible; its row remains unauthored.
 - Owner: C02B/C04B.
 - Required capability: append a target class such as SelectedOtherBattler.
 - Stable-contract rule: do not change AnySelectedBattler, which currently and
@@ -287,10 +302,10 @@ Data Tables. That is C10B work.
   format permits, explicit target is required, no enum ordinal changes, and
   existing selected-target replay facts remain stable.
 
-### B04 — Redirection has a consumer but no production producer
+### B04 — Typed redirection producer resolved
 
-- Classification: **SEQUENCING OVERLAP**
-- Gate: blocks Follow Me.
+- Classification: **RESOLVED by R2**
+- Gate: Follow Me is expressible; its row remains unauthored.
 - Owner: C04B target resolution with C05/C07 action-scoped state and trigger
   integration.
 - Evidence: FBattleTargetResolutionSpec already accepts ordered
@@ -302,10 +317,10 @@ Data Tables. That is C10B work.
   exact event order, and atomic rollback.
 - Do not add an unapproved Condition.FollowMe row merely to route behavior.
 
-### B05 — No action-scoped ally power modifier
+### B05 — Action-scoped ally power modifier resolved
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks Helping Hand.
+- Classification: **RESOLVED by R3**
+- Gate: Helping Hand is expressible; its row remains unauthored.
 - Owner: C05 effect execution and damage input, with turn/action lifecycle
   state.
 - Required capability: an appended typed effect that registers a rational
@@ -535,7 +550,7 @@ cycle. No lane inherits write approval from this document.
 
 ### R0 — Source and scope decisions
 
-Status: **PASS — decisions accepted 2026-08-28**.
+Status: **COMPLETE — implementation published in `06d884e` and validated**.
 
 - Catch rates use the pinned PokeAPI CSV for `capture_rate` only.
 - Poison-user Toxic bypasses semi-invulnerability and accuracy without an
@@ -616,13 +631,27 @@ replay treatment before implementation.
 
 ### R3 — Action-scoped ally power modifier
 
-Status: **READY — implementation not started**.
+Status: **COMPLETE — implementation and validation accepted 2026-08-29**.
 
 Resolve B05 separately from redirection. It may reuse R2's typed
 action-lifecycle contract, but it must not share a catch-all implementation
 file.
 
-Proposed maximum additional write set:
+The proposed list below is historical. It was superseded by the separately
+approved exact 36-path R3 boundary, with focused
+`BattleAllyActionPowerModifier` ownership and four focused test files.
+
+Accepted evidence: forced-Unity log
+`Game/Saved/Logs/R3-Final-ForcedUnity-20260829-102504.log` (SHA-256
+`4DF6A8DA6670A161EEFDDEB77FFCC37BEF1D985CCD21DF9BA0FF9B1446B60144`)
+and focused report
+`Game/Saved/AutomationReports/R3-Focused-Final-20260829-102510/index.json`
+(11 successes, no warnings or failures; SHA-256
+`A1734190D6E47F54D98215782E0CA465DA849DE098F65D53953B9D619F8ADC37`).
+The 13 serial affected filters contributed 200 overlapping executions and 177
+unique full test paths, all successful. Both independent reviews passed.
+
+Historical proposed maximum additional write set:
 
 - Game/Source/PokemonSolarus/Private/Battle/BattleActionScopedMoveRules.h
 - Game/Source/PokemonSolarus/Private/Battle/BattleActionScopedMoveRules.cpp
@@ -747,7 +776,7 @@ Validate-only:
 - both untracked ADR files
 
 C10A must stop instead of expanding scope if any row is still not expressible.
-It must not author only the 45 currently READY moves and call that C10A
+It must not author only the 49 currently READY moves and call that C10A
 complete.
 
 C10A exclusions:

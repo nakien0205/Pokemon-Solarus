@@ -1,5 +1,6 @@
 #include "BattleEffectExecutorContext.h"
 
+#include "BattleAllyActionPowerModifier.h"
 #include "Battle/BattleAbility.h"
 #include "BattleEntryHazardPrevention.h"
 #include "Battle/BattleFieldSideConditions.h"
@@ -157,6 +158,9 @@ namespace BattleEffectExecutorPrivate
 			Outgoing->EnteredActiveOnTurnId = FTurnId();
 			FBattleMoveRedirection::RemoveForOccupant(
 				MoveRedirectionRegistrations,
+				ForcedTarget);
+			FBattleAllyActionPowerModifier::RemoveForOccupant(
+				AllyActionPowerModifierRegistrations,
 				ForcedTarget);
 			Active->BattlerId = Incoming->BattlerId;
 			Incoming->bAbilitySuppressed = false;

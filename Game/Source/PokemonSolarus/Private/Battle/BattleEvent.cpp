@@ -5,7 +5,7 @@ namespace
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleEventType::TargetRedirectionRegistered);
+			<= static_cast<uint8>(EBattleEventType::ActionPowerModifierRegistered);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)
@@ -286,6 +286,30 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 			|| Spec.NumericBefore != TOptional<int64>(0)
 			|| Spec.NumericAfter != TOptional<int64>(1)
 			|| Spec.NumericDelta != TOptional<int64>(1)))
+	{
+		return false;
+	}
+	if (Spec.Type == EBattleEventType::ActionPowerModifierRegistered
+		&& (!Spec.ActionId.IsValid()
+			|| Spec.Cause != EBattleEventCause::Move
+			|| Spec.CauseActionKind != EBattleActionKind::Fight
+			|| !Spec.Source.TrainerId.IsValid()
+			|| !Spec.Source.BattlerId.IsValid()
+			|| !Spec.Source.ActiveSlotId.IsValid()
+			|| !Spec.Source.DefinitionId.IsValid()
+			|| Spec.Targets.Num() != 1
+			|| !IsBattleEventBattlerTarget(Spec.Targets[0])
+			|| Spec.Targets[0].ActiveSlotId.GetSide()
+				!= Spec.Source.ActiveSlotId.GetSide()
+			|| Spec.Targets[0].BattlerId == Spec.Source.BattlerId
+			|| !Spec.NumericBefore.IsSet()
+			|| !Spec.NumericAfter.IsSet()
+			|| !Spec.NumericDelta.IsSet()
+			|| Spec.NumericBefore.GetValue() < 0
+			|| Spec.NumericAfter.GetValue() != Spec.NumericBefore.GetValue() + 1
+			|| Spec.NumericDelta.GetValue() != 1
+			|| Spec.HitIndex.IsSet()
+			|| Spec.HitCount.IsSet()))
 	{
 		return false;
 	}

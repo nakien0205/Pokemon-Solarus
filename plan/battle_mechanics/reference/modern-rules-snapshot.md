@@ -103,6 +103,28 @@ and `sim/battle-actions.ts` hash
 are verified Windows CRLF checkout hashes of the same pinned files. They remain
 truthful historical evidence but are not the cross-platform extraction hash.
 
+## C10A typed-remediation amendment — 2026-08-29
+
+Status: **R1, R2, and R3 implemented and freshly validated**
+
+This amendment records reusable runtime capabilities. It does not add or
+authorize any C10A source-data row, condition row, or asset. Replay remains
+schema 6.
+
+- R1 appended `SelectedOtherBattler` and `FixedOpponentSpreadSet` without
+  changing existing target meanings or ordinals.
+- R2 added private turn/action/occupant-scoped redirection with deterministic
+  selection, lifecycle cleanup, no additional RNG, and typed replay evidence.
+- R3 added private selected-ally action power modifiers. Authored rationals
+  remain exact; `3/2` becomes Q12 `6144` only at the actual `BeforeDamage`
+  checkpoint. Matching modifiers multiply in stable order at priority 10
+  before terrain priority 6, apply to every target and hit of the bound action,
+  and expire through the approved action, occupant, and turn cleanup paths.
+  One typed registration event supplies schema-6 replay evidence.
+
+These are generic capabilities, not special cases. Swift, Fly, Follow Me, and
+Helping Hand are now expressible but remain unauthored.
+
 ## Reproducible source lock
 
 | Authority | Exact revision or version | Verification |

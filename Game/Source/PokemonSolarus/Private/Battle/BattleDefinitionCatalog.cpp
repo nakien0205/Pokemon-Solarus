@@ -1,4 +1,5 @@
 #include "Battle/BattleDefinitionCatalog.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 
 namespace
@@ -74,7 +75,8 @@ namespace
 	bool IsKnownEffectKind(const EBattleMoveEffectKind Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleMoveEffectKind::RegisterTargetRedirection);
+			<= static_cast<uint8>(
+				EBattleMoveEffectKind::RegisterAllyActionPowerModifier);
 	}
 
 	bool IsKnownEffectTarget(const EBattleEffectTarget Value)
@@ -376,6 +378,14 @@ namespace
 				EBattleCatalogDiagnosticCode::IncompatibleEffect,
 				TEXT("Effects.Target"));
 		}
+		if (Effect.Kind == EBattleMoveEffectKind::RegisterAllyActionPowerModifier
+			&& (Effect.Target != EBattleEffectTarget::ResolvedTarget
+				|| Move.TargetClass != EBattleTargetClass::SelectedAlly))
+		{
+			AddEffectDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.Target"));
+		}
 		if (Effect.Kind == EBattleMoveEffectKind::SetFieldCondition
 			&& (Effect.Target != EBattleEffectTarget::Field || Move.TargetClass != EBattleTargetClass::Field))
 		{
@@ -621,6 +631,13 @@ namespace
 			AddMoveDiagnostic(
 				EBattleCatalogDiagnosticCode::IncompatibleEffect,
 				TEXT("Effects.RegisterTargetRedirection"));
+		}
+		if (FBattleAllyActionPowerModifier::ContainsRegistrationEffect(Move)
+			&& !FBattleAllyActionPowerModifier::IsRegistrationMoveDefinitionValid(Move))
+		{
+			AddMoveDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.RegisterAllyActionPowerModifier"));
 		}
 
 		if (Move.Category == EBattleMoveCategory::Status && DamageEffectCount != 0)

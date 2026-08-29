@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "Math/NumericLimits.h"
 
@@ -639,6 +640,8 @@ namespace BattleEngineMoveEffectsPrivate
 			Common.ActivePositions = MoveTemp(EffectPlan.ActivePositions);
 			Common.MoveRedirectionRegistrations =
 				MoveTemp(EffectPlan.MoveRedirectionRegistrations);
+			Common.AllyActionPowerModifierRegistrations =
+				MoveTemp(EffectPlan.AllyActionPowerModifierRegistrations);
 			Common.TriggerFramework = MoveTemp(EffectPlan.TriggerFramework);
 			Common.AbilityItemRevealTracker =
 				MoveTemp(EffectPlan.AbilityItemRevealTracker);
@@ -1102,12 +1105,14 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 				Projection.Battlers,
 				Projection.ActivePositions,
 				Projection.MoveRedirectionRegistrations,
+				Projection.AllyActionPowerModifierRegistrations,
 				Projection.CompiledEncounterPolicies,
 				FaintPlan)
 			|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 				Projection.Battlers,
 				Projection.ActivePositions,
 				Projection.MoveRedirectionRegistrations,
+				Projection.AllyActionPowerModifierRegistrations,
 				Projection.Phase,
 				Projection.Outcome,
 				Projection.OutcomeCause,
@@ -1393,6 +1398,9 @@ FBattleResolution FBattleEngine::ExecuteCurrentMoveEffects()
 		{
 			ProjectedAction.EffectExecutionState =
 				EBattleLockedEffectExecutionState::Completed;
+			FBattleAllyActionPowerModifier::RemoveForAction(
+				Projection.AllyActionPowerModifierRegistrations,
+				ProjectedAction.ActionId);
 			ProjectedAction.bFinished = true;
 			Events.Add(MakeActionDetailEvent(
 				Projection,

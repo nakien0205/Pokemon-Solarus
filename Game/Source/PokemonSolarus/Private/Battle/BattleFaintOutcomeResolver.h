@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Battle/BattleEffectExecutor.h"
 #include "Battle/BattlePartnerFlow.h"
+#include "BattleAllyActionPowerModifier.h"
 
 class FBattleEngineState;
 
@@ -39,6 +40,8 @@ struct FBattleFaintOutcomePlan
 {
 	FBattleFaintOutcomeResolution Resolution;
 	TArray<FBattleMoveRedirectionRegistration> MoveRedirectionsAfter;
+	TArray<FBattleAllyActionPowerModifierRegistration>
+		AllyActionPowerModifiersAfter;
 	TOptional<FBattlePartnerTeamVictoryRecoveryPlan> PartnerRecoveryPlan;
 };
 
@@ -77,6 +80,8 @@ public:
 		TConstArrayView<FBattleBattlerState> Battlers,
 		TConstArrayView<FBattleActivePositionState> ActivePositions,
 		TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
+		TConstArrayView<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifiers,
 		const FBattleCompiledEncounterPolicies& CompiledEncounterPolicies,
 		FBattleFaintOutcomePlan& OutPlan);
 
@@ -90,6 +95,7 @@ public:
 		TArray<FBattleBattlerState>& Battlers,
 		TArray<FBattleActivePositionState>& ActivePositions,
 		TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
+		TArray<FBattleAllyActionPowerModifierRegistration>& AllyActionPowerModifiers,
 		EBattlePhase& Phase,
 		EBattleOutcome& Outcome,
 		EBattleOutcomeCause& OutcomeCause,
@@ -107,6 +113,8 @@ public:
 		TConstArrayView<FBattleBattlerState> Battlers,
 		TConstArrayView<FBattleActivePositionState> ActivePositions,
 		TConstArrayView<FBattleMoveRedirectionRegistration> MoveRedirections,
+		TConstArrayView<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifiers,
 		const FBattleFaintOutcomePlan& Plan);
 
 	/** Applies a plan that has already passed IsActionPlanApplicable. */
@@ -119,6 +127,7 @@ public:
 		TArray<FBattleBattlerState>& Battlers,
 		TArray<FBattleActivePositionState>& ActivePositions,
 		TArray<FBattleMoveRedirectionRegistration>& MoveRedirections,
+		TArray<FBattleAllyActionPowerModifierRegistration>& AllyActionPowerModifiers,
 		EBattlePhase& Phase,
 		EBattleOutcome& Outcome,
 		EBattleOutcomeCause& OutcomeCause,

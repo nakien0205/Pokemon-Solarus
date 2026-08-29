@@ -1013,12 +1013,14 @@ namespace BattleEngineSwitchPipelinePrivate
 						State.Battlers,
 						State.ActivePositions,
 						State.MoveRedirectionRegistrations,
+						State.AllyActionPowerModifierRegistrations,
 						State.CompiledEncounterPolicies,
 						FaintPlan)
 					|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 						State.Battlers,
 						State.ActivePositions,
 						State.MoveRedirectionRegistrations,
+						State.AllyActionPowerModifierRegistrations,
 						State.Phase,
 						State.Outcome,
 						State.OutcomeCause,
@@ -1337,6 +1339,9 @@ namespace BattleEngineSwitchPipelinePrivate
 		Outgoing->EnteredActiveOnTurnId = FTurnId();
 		FBattleMoveRedirection::RemoveForOccupant(
 			State.MoveRedirectionRegistrations,
+			{Active->ActiveSlotId, Outgoing->BattlerId});
+		FBattleAllyActionPowerModifier::RemoveForOccupant(
+			State.AllyActionPowerModifierRegistrations,
 			{Active->ActiveSlotId, Outgoing->BattlerId});
 		Active->BattlerId = Incoming->BattlerId;
 		Incoming->bAbilitySuppressed = false;

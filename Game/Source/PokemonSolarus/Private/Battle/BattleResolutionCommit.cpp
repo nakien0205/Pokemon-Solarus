@@ -39,6 +39,8 @@ bool FBattleResolutionCommit::TryCaptureIdentity(
 	OutIdentity.ExpectedResolutionCount = State.Resolutions.Num();
 	OutIdentity.ExpectedRandomTraceCount = State.Random->GetTrace().Num();
 	OutIdentity.ExpectedMoveRedirections = State.MoveRedirectionRegistrations;
+	OutIdentity.ExpectedAllyActionPowerModifiers =
+		State.AllyActionPowerModifierRegistrations;
 	return true;
 }
 
@@ -59,6 +61,9 @@ bool FBattleResolutionCommit::IsIdentityCurrent(
 		|| !FBattleMoveRedirection::AreRegistrationsIdentical(
 			State.MoveRedirectionRegistrations,
 			Identity.ExpectedMoveRedirections)
+		|| !FBattleAllyActionPowerModifier::AreRegistrationsIdentical(
+			State.AllyActionPowerModifierRegistrations,
+			Identity.ExpectedAllyActionPowerModifiers)
 		|| !State.LockedActions.IsValidIndex(Identity.ExpectedLockedActionIndex))
 	{
 		return false;

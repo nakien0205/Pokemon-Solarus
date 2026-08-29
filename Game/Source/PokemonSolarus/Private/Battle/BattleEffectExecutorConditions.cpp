@@ -540,6 +540,8 @@ namespace BattleEffectExecutorPrivate
 			return RemoveCondition(Effect, Target);
 		case EBattleMoveEffectKind::RegisterTargetRedirection:
 			return ApplyTargetRedirectionRegistration(Target);
+		case EBattleMoveEffectKind::RegisterAllyActionPowerModifier:
+			return ApplyAllyActionPowerModifierRegistration(Effect, Target);
 		case EBattleMoveEffectKind::Charge:
 			return ApplyCharge(Effect, Target);
 		case EBattleMoveEffectKind::Recharge:

@@ -19,6 +19,7 @@
 #include "BattleEngineQueueBoundary.h"
 #include "BattleEngineSwitchPipeline.h"
 #include "BattleEngineTriggerRuntime.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleResolutionCommit.h"
 #include "Math/NumericLimits.h"
 
@@ -895,6 +896,9 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 				return RejectCheckpoint(
 					EBattleRejectionReason::CheckpointPreparationFailed);
 			}
+			FBattleAllyActionPowerModifier::RemoveForAction(
+				Projection.AllyActionPowerModifierRegistrations,
+				Action.ActionId);
 			Action.bFinished = true;
 			Events.Add(MakeActionDetailEvent(
 				Projection,
@@ -1341,12 +1345,14 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 								Projection.Battlers,
 								Projection.ActivePositions,
 								Projection.MoveRedirectionRegistrations,
+								Projection.AllyActionPowerModifierRegistrations,
 								Projection.CompiledEncounterPolicies,
 								FaintPlan)
 							|| !FBattleFaintOutcomeResolver::TryApplyActionPlan(
 								Projection.Battlers,
 								Projection.ActivePositions,
 								Projection.MoveRedirectionRegistrations,
+								Projection.AllyActionPowerModifierRegistrations,
 								Projection.Phase,
 								Projection.Outcome,
 								Projection.OutcomeCause,
@@ -1447,6 +1453,9 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 					return RejectCheckpoint(
 						EBattleRejectionReason::CheckpointPreparationFailed);
 				}
+				FBattleAllyActionPowerModifier::RemoveForAction(
+					Projection.AllyActionPowerModifierRegistrations,
+					Action.ActionId);
 				Action.bFinished = true;
 				Events.Add(MakeActionDetailEvent(
 					Projection,
@@ -1537,6 +1546,9 @@ FBattleResolution FBattleEngine::CommitCurrentMoveAfterPreMoveGates()
 						return RejectCheckpoint(
 							EBattleRejectionReason::CheckpointPreparationFailed);
 					}
+					FBattleAllyActionPowerModifier::RemoveForAction(
+						Projection.AllyActionPowerModifierRegistrations,
+						Action.ActionId);
 					Action.bFinished = true;
 					if (bChoiceBandDenied)
 					{

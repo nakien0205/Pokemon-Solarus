@@ -392,6 +392,10 @@ namespace BattleEffectExecutorPrivate
 		FBattleEffectHookResult ApplyTargetRedirectionRegistration(
 			const FBattleResolvedTarget& Target);
 
+		FBattleEffectHookResult ApplyAllyActionPowerModifierRegistration(
+			const FBattleMoveEffectDescriptor& Effect,
+			const FBattleResolvedTarget& Target);
+
 		bool TryTakeTriggerContext(FBattleTriggerOperationContext& OutContext);
 
 		bool TryDispatchStatusPhase(
@@ -413,6 +417,8 @@ namespace BattleEffectExecutorPrivate
 		TArray<FBattleBattlerState> Battlers;
 		TArray<FBattleActivePositionState> ActivePositions;
 		TArray<FBattleMoveRedirectionRegistration> MoveRedirectionRegistrations;
+		TArray<FBattleAllyActionPowerModifierRegistration>
+			AllyActionPowerModifierRegistrations;
 		FBattleFieldState Field;
 		TArray<FBattleSideState> Sides;
 		FBattleTriggerFramework TriggerFramework;

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleEvent.h"
+#include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
@@ -19,6 +20,8 @@ struct FBattleResolutionCommitIdentity
 	int32 ExpectedResolutionCount = INDEX_NONE;
 	int32 ExpectedRandomTraceCount = INDEX_NONE;
 	TArray<FBattleMoveRedirectionRegistration> ExpectedMoveRedirections;
+	TArray<FBattleAllyActionPowerModifierRegistration>
+		ExpectedAllyActionPowerModifiers;
 };
 
 /** Prepared events and immutable resolution for one exact checkpoint publication. */
