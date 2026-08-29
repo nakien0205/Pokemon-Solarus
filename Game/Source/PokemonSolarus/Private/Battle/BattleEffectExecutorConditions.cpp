@@ -5,6 +5,7 @@
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
+#include "Battle/BattleMoveHitRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleMoveRedirection.h"
@@ -54,6 +55,18 @@ namespace BattleEffectExecutorPrivate
 		Facts.bMoveDoublesPowerAgainstFlyTarget = EnumHasAllFlags(
 			Move.Flags,
 			EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget);
+		if (Facts.bTargetFlySemiInvulnerable
+			&& EnumHasAllFlags(
+				Move.Flags,
+				EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy))
+		{
+			FBattleMoveUserHitQualifiers Qualifiers;
+			if (!TryResolveMoveUserHitQualifiers(Move, Qualifiers))
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			Facts.bMoveReachesFlyTarget |= Qualifiers.bBypassSemiInvulnerability;
+		}
 		FBattleFlyReachabilityResult Reachability;
 		if (!FBattleVolatileRules::TryResolveFlyReachability(Facts, Reachability))
 		{

@@ -5,6 +5,7 @@
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
+#include "Battle/BattleMoveHitRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleAllyActionPowerModifier.h"
@@ -29,7 +30,11 @@ namespace BattleEffectExecutorPrivate
 		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
 		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection)
 		| static_cast<uint32>(EBattleMoveFlags::BypassesSideProtection)
-		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain);
+		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain)
+		| static_cast<uint32>(EBattleMoveFlags::RespectsTypeImmunity)
+		| static_cast<uint32>(EBattleMoveFlags::Powder)
+		| static_cast<uint32>(
+			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy);
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
@@ -536,6 +541,8 @@ namespace BattleEffectExecutorPrivate
 		const bool bTypeless = EnumHasAllFlags(Move.Flags, EBattleMoveFlags::TypelessDamage);
 		const bool bDamaging = Move.Category == EBattleMoveCategory::Physical
 			|| Move.Category == EBattleMoveCategory::Special;
+		EBattleMoveHitRuleValidationError HitRuleError =
+			EBattleMoveHitRuleValidationError::None;
 		if (!Move.Id.IsValid()
 			|| !IsKnownMoveCategory(Move.Category)
 			|| static_cast<uint8>(Move.TargetClass)
@@ -543,6 +550,7 @@ namespace BattleEffectExecutorPrivate
 			|| (static_cast<uint32>(Move.Flags) & ~KnownMoveFlags) != 0
 			|| (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::AlwaysCritical)
 				&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))
+			|| !FBattleMoveHitRules::TryValidateMoveDefinition(Move, HitRuleError)
 			|| (!bTypeless && !FBattleTypeChart::IsKnownType(Move.Type))
 			|| (bTypeless && Move.Type != EPokemonType::Invalid)
 			|| (bDamaging && (Move.Power < 1 || Move.Power > 1000))

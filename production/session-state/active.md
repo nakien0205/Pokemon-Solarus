@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C10A reusable typed-remediation lanes
-Task: R1-R3 complete; R4A is next
+Task: R1-R4A complete; R4B is next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-29
@@ -58,12 +58,15 @@ Task: R1-R3 complete; R4A is next
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1, R2, and R3 are complete. R1 added the two typed
-  target classes, R2 added private action-scoped redirection, and R3 added the
-  private typed ally action power modifier. Swift, Fly, Follow Me, and Helping
-  Hand are now expressible, but their C10A rows remain unauthored.
-- R4A is next. Preserve the order
-  `R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+- C10A remediation lanes R1 through R4A are complete. R1 added the two typed
+  target classes, R2 added private action-scoped redirection, R3 added the
+  private typed ally action power modifier, and R4A added reusable authored hit
+  qualifiers for status-move type immunity, Powder immunity, and Poison-type
+  user reachability and accuracy behavior. Swift, Fly, Follow Me, Helping Hand,
+  Toxic, and Powder moves are now expressible, but their C10A rows remain
+  unauthored.
+- R4B is next. Preserve the order
+  `R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -187,6 +190,16 @@ Task: R1-R3 complete; R4A is next
   documentation reconciliation corrected those live authorities and skill
   paths while preserving dated package hashes, completion snapshots, and gate
   reports as historical evidence.
+- R4A's post-review forced-Unity editor build passed with `-ForceUnity`,
+  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
+  `Game/Saved/Logs/R4A-HitRules-PostReview-20260829-160909-Build.log`.
+- R4A's fresh serial evidence root is
+  `Game/Saved/AutomationReports/R4A-HitRules-PostReview-20260829-160909`.
+  The focused `PokemonSolarus.Battle.C05B.C10HitRules` report passed exactly
+  seven tests. The eleven required affected filters also passed, for 152/152
+  total executions with zero aggregate or per-test warnings, errors, failures,
+  not-run, or in-process results. Both final reviews returned PASS with no
+  remaining validated finding.
 
 ## Working-tree scope to preserve
 
@@ -251,6 +264,15 @@ Task: R1-R3 complete; R4A is next
   commit and push containing exactly this file and
   `docs/battle-engine-structural-split-handoff.md`. No branch or Git-history
   rewrite is authorized.
+- R4A's exact hand-authored implementation set is the new
+  `BattleMoveHitRules.h`, `BattleMoveHitRules.cpp`, and
+  `BattleMoveHitRuleTests.cpp`; the modified `BattleDefinitions.h`,
+  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
+  `BattleEffectExecutor.cpp`, `BattleEffectExecutorContext.h`,
+  `BattleEffectExecutorConditions.cpp`, and `BattleEffectExecutorDamage.cpp`;
+  this file; and `docs/c10a-canonical-proof-content-implementation-ready-draft.md`.
+  The user approved one bounded commit and push for that exact set. Preserve the
+  unrelated untracked ADR-0003 and ADR-0004 files and all generated evidence.
 
 ## Next
 
@@ -259,8 +281,9 @@ Task: R1-R3 complete; R4A is next
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Treat R1, R2, and R3 as complete. R3 passed its forced-Unity build, all 11
-   focused tests, 13 affected regression filters, and two independent reviews.
-4. R4A is the next separately approved remediation lane. Do not author C10A
-   source rows until R4A-R6 and independent R7 pass. Preserve roadmap order
-   `R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+3. Treat R1 through R4A as complete. R4A passed its forced-Unity build, all
+   seven focused tests, eleven affected regression filters, and both required
+   independent reviews.
+4. R4B is the next separately approved remediation lane. Do not author C10A
+   source rows until R4B-R6 and independent R7 pass. Preserve roadmap order
+   `R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.

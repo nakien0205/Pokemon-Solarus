@@ -399,6 +399,12 @@ namespace
 			else if (Name == FName(TEXT("BreaksProtection"))) Flag = EBattleMoveFlags::BreaksProtection;
 			else if (Name == FName(TEXT("BypassesSideProtection"))) Flag = EBattleMoveFlags::BypassesSideProtection;
 			else if (Name == FName(TEXT("ReducedByGrassyTerrain"))) Flag = EBattleMoveFlags::ReducedByGrassyTerrain;
+			else if (Name == FName(TEXT("RespectsTypeImmunity"))) Flag = EBattleMoveFlags::RespectsTypeImmunity;
+			else if (Name == FName(TEXT("Powder"))) Flag = EBattleMoveFlags::Powder;
+			else if (Name == FName(TEXT("PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy")))
+			{
+				Flag = EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy;
+			}
 			else return false;
 
 			if (EnumHasAnyFlags(OutFlags, Flag))

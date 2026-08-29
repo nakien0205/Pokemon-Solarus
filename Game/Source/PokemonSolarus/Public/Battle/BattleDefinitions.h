@@ -121,7 +121,13 @@ enum class EBattleMoveFlags : uint32
 	/** Bypasses side-owned protection such as Safeguard and Mist. */
 	BypassesSideProtection = 1U << 14,
 	/** Receives the Grassy Terrain reduction used by affected Ground-type moves. */
-	ReducedByGrassyTerrain = 1U << 15
+	ReducedByGrassyTerrain = 1U << 15,
+	/** Makes a status move respect ordinary move-type immunity before accuracy. */
+	RespectsTypeImmunity = 1U << 16,
+	/** Marks a Powder move that is ineffective against Grass-type targets. */
+	Powder = 1U << 17,
+	/** Lets a Poison-type user bypass semi-invulnerability and accuracy only. */
+	PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy = 1U << 18
 };
 ENUM_CLASS_FLAGS(EBattleMoveFlags);
 

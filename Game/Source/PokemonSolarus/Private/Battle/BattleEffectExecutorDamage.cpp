@@ -6,6 +6,7 @@
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleItem.h"
 #include "Battle/BattleMajorStatus.h"
+#include "Battle/BattleMoveHitRules.h"
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "Math/NumericLimits.h"
@@ -13,6 +14,22 @@
 namespace BattleEffectExecutorPrivate
 {
 	FDefinitionId MakeRuleId(const TCHAR* Name);
+
+	bool FStateExecutionContext::TryResolveMoveUserHitQualifiers(
+		const FBattleMoveDefinition& Move,
+		FBattleMoveUserHitQualifiers& OutQualifiers) const
+	{
+		const FBattleBattlerState* User = FindBattler(Request.UserBattlerId);
+		const FBattleSpeciesFormDefinition* UserSpecies = User != nullptr
+			? State.Catalog.FindSpeciesForm(User->SpeciesFormId)
+			: nullptr;
+		return UserSpecies != nullptr
+			&& FBattleMoveHitRules::TryResolveUserHitQualifiers(
+				Move,
+				UserSpecies->PrimaryType,
+				UserSpecies->SecondaryType,
+				OutQualifiers);
+	}
 
 	FBattleEffectHookResult FStateExecutionContext::CheckTryHit(
 		const FBattleMoveDefinition& Move,
@@ -91,9 +108,37 @@ namespace BattleEffectExecutorPrivate
 		const FBattleMoveDefinition& Move,
 		const FBattleResolvedTarget& Target)
 	{
-		(void)Move;
-		(void)Target;
-		return Applied();
+		const bool bHasMoveImmunityRule = EnumHasAllFlags(
+			Move.Flags,
+			EBattleMoveFlags::RespectsTypeImmunity)
+			|| EnumHasAllFlags(Move.Flags, EBattleMoveFlags::Powder);
+		if (!bHasMoveImmunityRule)
+		{
+			return Applied();
+		}
+		if (Target.GetKind() != EBattleResolvedTargetKind::Battler)
+		{
+			return Outcome(EBattleEffectExecutionOutcome::Failed);
+		}
+		const FBattleBattlerState* TargetBattler = FindBattler(
+			Target.GetBattler().BattlerId);
+		const FBattleSpeciesFormDefinition* TargetSpecies = TargetBattler != nullptr
+			? State.Catalog.FindSpeciesForm(TargetBattler->SpeciesFormId)
+			: nullptr;
+		FBattleMoveHitImmunityResult Immunity;
+		if (TargetSpecies == nullptr
+			|| !FBattleMoveHitRules::TryResolveMoveImmunity(
+				Move,
+				TargetSpecies->PrimaryType,
+				TargetSpecies->SecondaryType,
+				State.Catalog.GetTypeChart(),
+				Immunity))
+		{
+			return Outcome(EBattleEffectExecutionOutcome::Failed);
+		}
+		return Immunity.IsImmune()
+			? Outcome(EBattleEffectExecutionOutcome::Immune)
+			: Applied();
 	}
 
 	bool FStateExecutionContext::TryBuildAccuracyInput(
@@ -109,6 +154,21 @@ namespace BattleEffectExecutorPrivate
 		}
 		OutInput.bAlwaysHits = Move.bAlwaysHits;
 		OutInput.BaseAccuracy = Move.Accuracy;
+		if (EnumHasAllFlags(
+				Move.Flags,
+				EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy))
+		{
+			FBattleMoveUserHitQualifiers Qualifiers;
+			if (!TryResolveMoveUserHitQualifiers(Move, Qualifiers))
+			{
+				return false;
+			}
+			if (Qualifiers.bBypassAccuracy)
+			{
+				OutInput.bAlwaysHits = true;
+				OutInput.BaseAccuracy = 0;
+			}
+		}
 		OutInput.AttackerStages = User->Stages;
 		if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
 		{

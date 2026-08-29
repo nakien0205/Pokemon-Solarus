@@ -2,6 +2,8 @@
 
 #include "Battle/BattleEffectExecutor.h"
 
+struct FBattleMoveUserHitQualifiers;
+
 namespace BattleEffectExecutorPrivate
 {
 	class FStateExecutionContext final : public IBattleEffectExecutionContext
@@ -113,6 +115,10 @@ namespace BattleEffectExecutorPrivate
 		static FBattleEffectHookResult Outcome(const EBattleEffectExecutionOutcome Value);
 
 		const FBattleBattlerState* FindBattler(const FBattlerId Id) const;
+
+		bool TryResolveMoveUserHitQualifiers(
+			const FBattleMoveDefinition& Move,
+			FBattleMoveUserHitQualifiers& OutQualifiers) const;
 
 		FBattleBattlerState* FindMutableBattler(const FBattlerId Id);
 

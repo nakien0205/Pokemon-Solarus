@@ -1,4 +1,5 @@
 #include "Battle/BattleDefinitionCatalog.h"
+#include "Battle/BattleMoveHitRules.h"
 #include "BattleAllyActionPowerModifier.h"
 #include "BattleMoveRedirection.h"
 
@@ -20,7 +21,11 @@ namespace
 		| static_cast<uint32>(EBattleMoveFlags::DoublesPowerAgainstAirborneSemiInvulnerableTarget)
 		| static_cast<uint32>(EBattleMoveFlags::BreaksProtection)
 		| static_cast<uint32>(EBattleMoveFlags::BypassesSideProtection)
-		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain);
+		| static_cast<uint32>(EBattleMoveFlags::ReducedByGrassyTerrain)
+		| static_cast<uint32>(EBattleMoveFlags::RespectsTypeImmunity)
+		| static_cast<uint32>(EBattleMoveFlags::Powder)
+		| static_cast<uint32>(
+			EBattleMoveFlags::PoisonTypeUserBypassesSemiInvulnerabilityAndAccuracy);
 
 	constexpr uint32 KnownEffectFlags =
 		static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute)
@@ -537,6 +542,12 @@ namespace
 		}
 		if (EnumHasAllFlags(Move.Flags, EBattleMoveFlags::AlwaysCritical)
 			&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))
+		{
+			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
+		}
+		EBattleMoveHitRuleValidationError HitRuleError =
+			EBattleMoveHitRuleValidationError::None;
+		if (!FBattleMoveHitRules::TryValidateMoveDefinition(Move, HitRuleError))
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
 		}

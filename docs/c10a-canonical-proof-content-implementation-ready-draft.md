@@ -8,7 +8,7 @@ Primary verdict: **BLOCK**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1, R2, and R3 COMPLETE; R4A is next**
+Remediation status: **R1 through R4A COMPLETE; R4B is next**
 
 Direct C10A row authoring is not ready. The live catalog can represent most of
 the approved proof slice, but it cannot faithfully represent or execute every
@@ -92,11 +92,12 @@ Current remediation state:
 | R1 target vocabulary | COMPLETE | Published in `06d884e`; B02 and B03 resolved |
 | R2 action-scoped redirection | COMPLETE | Published in `cf8b3e6`; B04 resolved |
 | R3 ally action power modifier | COMPLETE | Fresh forced-Unity build, 11 focused successes, and 13 clean affected filters on 2026-08-29; B05 resolved |
-| Next lane | R4A | B06, B07, and B08 remain blocked |
+| R4A hit qualifiers | COMPLETE | Final code and test-evidence reviews PASS; forced-Unity build, 7 focused successes, and 11 clean affected filters on 2026-08-29; B06, B07, and B08 resolved |
+| Next lane | R4B | B09 and B10 remain blocked |
 
-C10A source-row authoring remains not started and blocked until R4A, R4B, R5,
-R6, and independent R7 complete. Required order:
-`R4A -> R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+C10A source-row authoring remains not started and blocked until R4B, R5, R6,
+and independent R7 complete. Required order:
+`R4B -> R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -672,11 +673,12 @@ Historical proposed maximum additional write set:
 
 ### R4A — Hit qualifiers
 
-Resolve B06, B07, and B08 together. R0 approved B08's behavior, but this lane
-must represent it as a typed user-condition hit rule rather than a move-ID
-branch.
+**COMPLETE — B06, B07, and B08 resolved.** R4A represents the approved behavior
+as reusable authored traits and a typed user-condition hit rule, without any
+move-ID, species-ID, Ability-ID, item-ID, condition-ID, or match-specific
+production branch.
 
-Proposed maximum hand-authored write set:
+Actual hand-authored implementation set:
 
 - new Game/Source/PokemonSolarus/Public/Battle/BattleMoveHitRules.h
 - new Game/Source/PokemonSolarus/Private/Battle/BattleMoveHitRules.cpp
@@ -684,11 +686,27 @@ Proposed maximum hand-authored write set:
 - Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp
 - Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp
 - Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorContext.h
+- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorConditions.cpp
 - Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorDamage.cpp
 - new Game/Source/PokemonSolarus/Private/Tests/BattleMoveHitRuleTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleMajorStatusTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleVolatileTests.cpp
+
+The public stateless `FBattleMoveHitRules` seam validates compatible authored
+traits, resolves immutable catalog-authoritative user and target types, and
+keeps hit qualification separate from state mutation. The executor preserves
+the established order of reachability, Protect, TryHit, damaging type immunity,
+move/Ability/item immunity, accuracy, protection breaking, and effects. The
+outer checkpoint remains the sole owner of the final identity recheck,
+transactional RNG commit or rollback, state application, and publication.
+
+The focused identity is `PokemonSolarus.Battle.C05B.C10HitRules` and contains
+exactly seven tests. Final post-review evidence is rooted at
+`Game/Saved/AutomationReports/R4A-HitRules-PostReview-20260829-160909`; the
+focused filter and eleven required affected filters passed 152/152 executions
+with zero aggregate or per-test issues. The matching forced-Unity build log is
+`Game/Saved/Logs/R4A-HitRules-PostReview-20260829-160909-Build.log`. Final
+`code-review` and `test-evidence-review` verdicts were PASS with no remaining
+validated finding.
 
 ### R4B — Weather move rules
 
