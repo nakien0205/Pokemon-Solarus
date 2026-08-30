@@ -22,6 +22,158 @@ namespace BattleEffectExecutorPrivate
 		EBattleEffectExecutionOutcome Outcome,
 		const TOptional<uint16>& HitIndex);
 
+	enum class EConditionPresence : uint8
+	{
+		Invalid,
+		Absent,
+		Present
+	};
+
+	EConditionPresence ResolveConditionPresence(
+		const FBattleConditionDefinition* Definition,
+		const FConditionId& ConditionId,
+		const FBattleResolvedTarget& Target,
+		const TArray<FBattleBattlerState>& Battlers,
+		const TArray<FBattleSideState>& Sides,
+		const FBattleFieldState& Field)
+	{
+		if (Definition == nullptr
+			|| !ConditionId.IsValid()
+			|| Definition->Id != ConditionId
+			|| !Target.IsValid())
+		{
+			return EConditionPresence::Invalid;
+		}
+
+		if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
+		{
+			const FBattleBattlerState* Battler = Battlers.FindByPredicate(
+				[&Target](const FBattleBattlerState& Entry)
+				{
+					return Entry.BattlerId == Target.GetBattler().BattlerId;
+				});
+			if (Battler == nullptr)
+			{
+				return EConditionPresence::Invalid;
+			}
+			const bool bMajorStatus = Battler->MajorStatusId == ConditionId;
+			const bool bVolatile = Battler->Volatiles.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Existing)
+				{
+					return Existing.ConditionId == ConditionId;
+				});
+			if (Definition->Kind == EBattleConditionKind::MajorStatus)
+			{
+				return bVolatile
+					? EConditionPresence::Invalid
+					: bMajorStatus
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			if (Definition->Kind == EBattleConditionKind::Volatile)
+			{
+				return bMajorStatus
+					? EConditionPresence::Invalid
+					: bVolatile
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			return EConditionPresence::Invalid;
+		}
+
+		if (Target.GetKind() == EBattleResolvedTargetKind::Side)
+		{
+			const FBattleSideState* Side = Sides.FindByPredicate(
+				[&Target](const FBattleSideState& Entry)
+				{
+					return Entry.Side == Target.GetSide();
+				});
+			if (Side == nullptr)
+			{
+				return EConditionPresence::Invalid;
+			}
+			const bool bHazard = Side->Hazards.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Existing)
+				{
+					return Existing.ConditionId == ConditionId;
+				});
+			const bool bSideCondition = Side->Conditions.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Existing)
+				{
+					return Existing.ConditionId == ConditionId;
+				});
+			if (Definition->Kind == EBattleConditionKind::Hazard)
+			{
+				return bSideCondition
+					? EConditionPresence::Invalid
+					: bHazard
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			if (Definition->Kind == EBattleConditionKind::Screen
+				|| Definition->Kind == EBattleConditionKind::SideCondition)
+			{
+				return bHazard
+					? EConditionPresence::Invalid
+					: bSideCondition
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			return EConditionPresence::Invalid;
+		}
+
+		if (Target.GetKind() == EBattleResolvedTargetKind::Field)
+		{
+			const bool bWeather = Field.Weather.IsSet()
+				&& Field.Weather.GetValue().ConditionId == ConditionId;
+			const bool bTerrain = Field.Terrain.IsSet()
+				&& Field.Terrain.GetValue().ConditionId == ConditionId;
+			const bool bRoom = Field.Rooms.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Existing)
+				{
+					return Existing.ConditionId == ConditionId;
+				});
+			const bool bOtherFieldEffect = Field.Effects.ContainsByPredicate(
+				[&ConditionId](const FBattleConditionState& Existing)
+				{
+					return Existing.ConditionId == ConditionId;
+				});
+			if (Definition->Kind == EBattleConditionKind::Weather)
+			{
+				return bTerrain || bRoom || bOtherFieldEffect
+					? EConditionPresence::Invalid
+					: bWeather
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			if (Definition->Kind == EBattleConditionKind::Terrain)
+			{
+				return bWeather || bRoom || bOtherFieldEffect
+					? EConditionPresence::Invalid
+					: bTerrain
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+			if (Definition->Kind == EBattleConditionKind::Room)
+			{
+				return bWeather || bTerrain || bOtherFieldEffect
+					? EConditionPresence::Invalid
+					: bRoom
+						? EConditionPresence::Present
+						: EConditionPresence::Absent;
+			}
+		}
+		return EConditionPresence::Invalid;
+	}
+
+	bool IsOptionalAbsentRemoval(const FBattleMoveEffectDescriptor& Effect)
+	{
+		return Effect.Kind == EBattleMoveEffectKind::RemoveCondition
+			&& EnumHasAllFlags(
+				Effect.Flags,
+				EBattleMoveEffectFlags::OptionalIfAbsent);
+	}
+
 	FBattleEffectHookResult FStateExecutionContext::CheckReachability(
 		const FBattleMoveDefinition& Move,
 		const FBattleResolvedTarget& Target)
@@ -451,16 +603,16 @@ namespace BattleEffectExecutorPrivate
 			{
 				const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(
 					Effect.ConditionId);
-				const bool bPresent = Definition != nullptr
-					&& ((Definition->Kind == EBattleConditionKind::MajorStatus
-							&& Battler->MajorStatusId == Effect.ConditionId)
-						|| (Definition->Kind == EBattleConditionKind::Volatile
-							&& Battler->Volatiles.ContainsByPredicate(
-								[&Effect](const FBattleConditionState& Existing)
-								{
-									return Existing.ConditionId == Effect.ConditionId;
-								})));
-				if (!bPresent)
+				const EConditionPresence Presence = ResolveConditionPresence(
+					Definition,
+					Effect.ConditionId,
+					Target,
+					Battlers,
+					Sides,
+					Field);
+				if (Presence == EConditionPresence::Invalid
+					|| (Presence == EConditionPresence::Absent
+						&& !IsOptionalAbsentRemoval(Effect)))
 				{
 					return Outcome(EBattleEffectExecutionOutcome::Failed);
 				}
@@ -525,10 +677,25 @@ namespace BattleEffectExecutorPrivate
 				{
 					return Existing.ConditionId == Effect.ConditionId;
 				});
-			if ((Effect.Kind == EBattleMoveEffectKind::SetSideCondition && bPresent)
-				|| (Effect.Kind == EBattleMoveEffectKind::RemoveCondition && !bPresent))
+			if (Effect.Kind == EBattleMoveEffectKind::SetSideCondition && bPresent)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Effect.Kind == EBattleMoveEffectKind::RemoveCondition)
+			{
+				const EConditionPresence Presence = ResolveConditionPresence(
+					State.Catalog.FindCondition(Effect.ConditionId),
+					Effect.ConditionId,
+					Target,
+					Battlers,
+					Sides,
+					Field);
+				if (Presence == EConditionPresence::Invalid
+					|| (Presence == EConditionPresence::Absent
+						&& !IsOptionalAbsentRemoval(Effect)))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 			}
 			return Applied();
 		}
@@ -592,10 +759,25 @@ namespace BattleEffectExecutorPrivate
 					{
 						return Existing.ConditionId == Effect.ConditionId;
 					});
-			if ((Effect.Kind == EBattleMoveEffectKind::SetFieldCondition && bPresent)
-				|| (Effect.Kind == EBattleMoveEffectKind::RemoveCondition && !bPresent))
+			if (Effect.Kind == EBattleMoveEffectKind::SetFieldCondition && bPresent)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Effect.Kind == EBattleMoveEffectKind::RemoveCondition)
+			{
+				const EConditionPresence Presence = ResolveConditionPresence(
+					State.Catalog.FindCondition(Effect.ConditionId),
+					Effect.ConditionId,
+					Target,
+					Battlers,
+					Sides,
+					Field);
+				if (Presence == EConditionPresence::Invalid
+					|| (Presence == EConditionPresence::Absent
+						&& !IsOptionalAbsentRemoval(Effect)))
+				{
+					return Outcome(EBattleEffectExecutionOutcome::Failed);
+				}
 			}
 			return Applied();
 		}
@@ -1725,11 +1907,26 @@ namespace BattleEffectExecutorPrivate
 		const FBattleMoveEffectDescriptor& Effect,
 		const FBattleResolvedTarget& Target)
 	{
-		const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(Effect.ConditionId);
-		if (Definition == nullptr)
+		const FBattleConditionDefinition* Definition = State.Catalog.FindCondition(
+			Effect.ConditionId);
+		const EConditionPresence Presence = ResolveConditionPresence(
+			Definition,
+			Effect.ConditionId,
+			Target,
+			Battlers,
+			Sides,
+			Field);
+		if (Presence == EConditionPresence::Invalid
+			|| (Presence == EConditionPresence::Absent
+				&& !IsOptionalAbsentRemoval(Effect)))
 		{
 			return Outcome(EBattleEffectExecutionOutcome::Failed);
 		}
+		if (Presence == EConditionPresence::Absent)
+		{
+			return Applied();
+		}
+
 		if (FBattleFieldSideConditionRules::IsCanonical(Effect.ConditionId))
 		{
 			TOptional<EBattleSide> SideOwner;
@@ -1749,7 +1946,7 @@ namespace BattleEffectExecutorPrivate
 		if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
 		{
 			FBattleBattlerState* Battler = FindMutableBattler(Target.GetBattler().BattlerId);
-			if (Battler == nullptr)
+			if (Battler == nullptr || Definition == nullptr)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
@@ -1786,15 +1983,15 @@ namespace BattleEffectExecutorPrivate
 		else if (Target.GetKind() == EBattleResolvedTargetKind::Side)
 		{
 			FBattleSideState* Side = FindMutableSide(Target.GetSide());
-			if (Side == nullptr)
+			if (Side == nullptr || Definition == nullptr)
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Failed);
 			}
-			const int32 Removed = Side->Conditions.RemoveAll(
-				[&Effect](const FBattleConditionState& Existing)
-				{
-					return Existing.ConditionId == Effect.ConditionId;
-				}) + Side->Hazards.RemoveAll(
+			TArray<FBattleConditionState>& Collection =
+				Definition->Kind == EBattleConditionKind::Hazard
+					? Side->Hazards
+					: Side->Conditions;
+			const int32 Removed = Collection.RemoveAll(
 				[&Effect](const FBattleConditionState& Existing)
 				{
 					return Existing.ConditionId == Effect.ConditionId;
@@ -1803,28 +2000,28 @@ namespace BattleEffectExecutorPrivate
 		}
 		else if (Target.GetKind() == EBattleResolvedTargetKind::Field)
 		{
-			if (Field.Weather.IsSet()
-				&& Field.Weather.GetValue().ConditionId == Effect.ConditionId)
+			if (Definition == nullptr)
+			{
+				return Outcome(EBattleEffectExecutionOutcome::Failed);
+			}
+			if (Definition->Kind == EBattleConditionKind::Weather)
 			{
 				Field.Weather.Reset();
 				bRemoved = true;
 			}
-			if (Field.Terrain.IsSet()
-				&& Field.Terrain.GetValue().ConditionId == Effect.ConditionId)
+			else if (Definition->Kind == EBattleConditionKind::Terrain)
 			{
 				Field.Terrain.Reset();
 				bRemoved = true;
 			}
-			bRemoved = Field.Rooms.RemoveAll(
-				[&Effect](const FBattleConditionState& Existing)
-				{
-					return Existing.ConditionId == Effect.ConditionId;
-				}) > 0 || bRemoved;
-			bRemoved = Field.Effects.RemoveAll(
-				[&Effect](const FBattleConditionState& Existing)
-				{
-					return Existing.ConditionId == Effect.ConditionId;
-				}) > 0 || bRemoved;
+			else if (Definition->Kind == EBattleConditionKind::Room)
+			{
+				bRemoved = Field.Rooms.RemoveAll(
+					[&Effect](const FBattleConditionState& Existing)
+					{
+						return Existing.ConditionId == Effect.ConditionId;
+					}) > 0;
+			}
 		}
 
 		if (!bRemoved)

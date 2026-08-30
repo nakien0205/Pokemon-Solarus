@@ -1,19 +1,29 @@
 # C10 — Canonical Proof Content
 
 Priority: P3  
-Status: C10A row authoring not started; R1-R5 remediation is complete and R6
+Status: C10A row authoring not started; R1-R6 remediation is complete and R7
 is next; ADR-0002 entry gate is satisfied
 
-Required order: R6, R7, C10A, C10B, C11A, then C11B
+Required order: R7, C10A, C10B, C11A, then C11B
 Entry gate: Satisfied — ADR-0002 implementation PASS at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0` with fresh affected-filter and
 full-Battle evidence
 
-R1-R5 resolved the generic target-vocabulary, redirection, ally action power,
+R1-R6 resolved the generic target-vocabulary, redirection, ally action power,
 hit-qualifier, weather-move, and held-item move-intent gaps for Swift, Fly,
 Follow Me, Helping Hand, Thunder Wave, Powder moves, Toxic, Solar Beam, Thunder,
 Knock Off, Trick, Thief, and Recycle. Those rows are now expressible but remain
-unauthored. C10A stays blocked until R6 and the independent R7 gate pass.
+unauthored. R6 also resolved B12 through typed optional condition-removal
+semantics, making Rapid Spin, Defog, and Brick Break expressible without
+move-specific runtime branches. C10A stays blocked until the independent R7
+gate passes.
+
+R6's final evidence root is
+`Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
+The focused removal filter passed 7/7; the seven serial affected filters passed
+`42, 9, 8, 9, 20, 39, 18`. All issue counters are zero, final `code-review` was
+APPROVED, and final `test-evidence-review` was ADEQUATE/COMPLETE. R7 has not
+been performed, no C10A row has been authored, and no Git action is authorized.
 
 ## Objective
 

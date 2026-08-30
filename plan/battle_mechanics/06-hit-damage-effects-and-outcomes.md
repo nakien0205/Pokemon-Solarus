@@ -342,3 +342,29 @@ existing ally-action priority 10 and terrain priority 6 modifiers. The final
 damage calculator and its rounding are unchanged. One staged context, the outer
 identity recheck, transactional RNG, state application, publication, replay
 schema, PP owner, and target-lock owner remain unchanged.
+
+## R6 optional condition-removal addendum — 2026-08-30
+
+R6 resolved B12 with the typed `OptionalIfAbsent` effect flag. The flag is
+accepted only on `RemoveCondition`; using it on another effect type is invalid.
+An optional removal still consumes its normally authored secondary-effect
+chance. If the named condition is absent, the descriptor succeeds silently,
+stages no mutation, emits no condition event or update, and continues to later
+effects. A legacy removal without the flag keeps the existing failure behavior.
+
+The executor determines presence from the catalog definition and the staged
+battler, side, or field collection for the descriptor's exact owner and
+condition family. A present condition is removed through its normal cleanup
+path exactly once. Primary removal descriptors ordered before `Damage` retain
+the existing pre-damage checkpoint used by Brick Break. Secondary removals
+retain the connected-hit gate, including hits routed into Substitute, used by
+Rapid Spin. Protect still blocks both routes unless an independently authored
+rule says otherwise; R6 did not reuse `BreaksProtection`.
+
+Final evidence is rooted at
+`Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
+The focused `PokemonSolarus.Battle.C05B.C10Removal` filter passed 7/7, followed
+serially by C05B, C07B, C07C, C07D, C08B, C08C, and ADR0002.3E6 with counts
+`42, 9, 8, 9, 20, 39, 18`. All aggregate and per-test issue counters are zero.
+Final `code-review` was APPROVED and `test-evidence-review` was
+ADEQUATE/COMPLETE after their validated findings were fixed.

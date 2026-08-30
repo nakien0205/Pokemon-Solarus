@@ -8,7 +8,7 @@ Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides
-Next remediation lane: R6 C10A optional condition removal
+Next remediation lane: R7 independent C10A blocker gate
 
 ## Current Truth
 
@@ -164,9 +164,9 @@ already existed, so it cannot explain or restore those missing files.
   still did not establish.
 - B00 through C09 package delivery is complete. The ADR-0002 implementation
   closeout passed, and the later behavior-preserving Battle Engine and executor
-  structural splits were validated and published. C10A remediation R1-R5 is
-  complete; R6 is next. C10A row authoring is not started and remains blocked
-  through R6 and independent R7. C11 remains blocked behind C10.
+  structural splits were validated and published. C10A remediation R1-R6 is
+  complete; independent R7 is next. C10A row authoring is not started and
+  remains blocked through R7. C11 remains blocked behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1161,6 +1161,44 @@ B00B accepted evidence:
 - Final `code-review` was APPROVED and final `test-evidence-review` was
   ADEQUATE/COMPLETE with no remaining finding. No Git action or independent R7
   was performed. R6 is the next separately approved lane.
+
+## C10A R6 Optional-Condition-Removal Remediation Status
+
+- R6 completed on 2026-08-30 and resolved B12. `OptionalIfAbsent` is a typed
+  `RemoveCondition`-only flag; absent optional conditions succeed without a
+  mutation, event, or condition update, while present conditions run their
+  normal cleanup exactly once. Legacy absence and malformed descriptors retain
+  their failure behavior.
+- Rapid Spin, Defog, and Brick Break are now expressible through generic
+  descriptors and remain unauthored until C10A. Their proof covers connected
+  Substitute damage, Protect gating, primary pre-damage screen removal,
+  secondary chance consumption, exact staged condition ownership, and ordered
+  follow-on effects.
+- The post-review forced-Unity compile log is
+  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-ReviewFix-20260830-161500/build-after-event-order-fix.log`,
+  SHA-256
+  `033D53201BD0A76865FE23C6C75AFDD5DF14A44E5BCF6B0508D5903CB808565D`.
+  The final evidence root is
+  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
+- The final focused filter passed 7/7. Required serial affected-filter counts
+  are `42, 9, 8, 9, 20, 39, 18`; all aggregate and per-test issue counters are
+  zero. The reports contain 152 overlapping successes and 145 unique paths.
+- The final build log and linked editor DLL SHA-256 values are
+  `C109E74D8779882DE66D89B0F96F07F649C8263F25376912B3597762E97DFCE7`
+  and `BD672C763990C59FB4B2FB27B0BA95ABFCB698028F9A335ED0EEB86EEAAAB562`.
+  Counter, exact-path, and source-hash manifest SHA-256 values are
+  `2DE268F32848921228918BE3CFB85C5E10B436A8412E22A6A91943D03F50CF19`,
+  `10910887422FBF1B26E201A1B45C9B652F6C5BA11FF5FE1A977036E52FA70090`,
+  and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
+- Final `code-review` was APPROVED and final `test-evidence-review` was
+  ADEQUATE/COMPLETE after all validated findings were fixed. Independent R7 is
+  next. No C10A source row, asset, or Git action was performed.
+- The code-file organization review kept the existing executor coordinator,
+  condition executor, executor-test, volatile-test, and field/side-test owners;
+  R6 added no responsibility to those files. The 1,034-line atomic test kept
+  its goal-required local catalog because extracting it would add an
+  unauthorized tenth code/test path. The 998-line catalog and 869-line adapter
+  stayed below the 1,000-line decision threshold.
 
 ## Goal
 

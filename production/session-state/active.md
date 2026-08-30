@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C10A reusable typed-remediation lanes
-Task: R1-R5 complete; R6 is next
+Task: R1-R6 complete; independent R7 is next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-30
@@ -58,7 +58,7 @@ Task: R1-R5 complete; R6 is next
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1 through R5 are complete. R1 added the two typed
+- C10A remediation lanes R1 through R6 are complete. R1 added the two typed
   target classes, R2 added private action-scoped redirection, R3 added the
   private typed ally action power modifier, and R4A added reusable authored hit
   qualifiers for status-move type immunity, Powder immunity, and Poison-type
@@ -70,8 +70,12 @@ Task: R1-R5 complete; R6 is next
   restore; atomic C08 ledger/mirror/hook/reveal updates; Knock Off's takeability
   power rule; and starting-Life-Orb recoil qualification. Knock Off, Trick,
   Thief, and Recycle are now expressible, but their C10A rows remain unauthored.
-- R6 is next. Preserve the order
-  `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+  R6 added typed optional-absence semantics for condition removal while
+  preserving legacy failure behavior, normal secondary chance consumption,
+  staged ownership, cleanup, and event ordering. Rapid Spin, Defog, and Brick
+  Break are now expressible, but their C10A rows remain unauthored.
+- Independent R7 is next. Preserve the order
+  `R7 -> C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -250,6 +254,41 @@ Task: R1-R5 complete; R6 is next
   have empty battle-consumption history and is not a Recycle candidate, while
   malformed or battle-generated history-less consumption remains invalid.
   Independent R7 has not been performed.
+- R6 started from clean tracked versions of its exact nine code/test paths at
+  HEAD and `origin/main`
+  `7686395d37e8c6b061d5ea19a75c4519122a77cd`. The only baseline worktree
+  inventory was the two preserved untracked ADR documents.
+- R6 resolved B12 with a typed `OptionalIfAbsent` flag accepted only for
+  `RemoveCondition`. An absent optional condition stays applied without a
+  mutation, event, or condition update; a present condition runs its normal
+  cleanup exactly once. Legacy absence, invalid owners, missing definitions,
+  and cleanup failures retain failure behavior. Primary pre-damage removal and
+  secondary connected-hit removal, including Substitute routing, retain their
+  existing checkpoints and transactional RNG behavior.
+- The post-review forced-Unity compile succeeded at
+  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-ReviewFix-20260830-161500/build-after-event-order-fix.log`,
+  SHA-256
+  `033D53201BD0A76865FE23C6C75AFDD5DF14A44E5BCF6B0508D5903CB808565D`.
+  The final evidence root is
+  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
+  Its build log and linked editor DLL SHA-256 values are
+  `C109E74D8779882DE66D89B0F96F07F649C8263F25376912B3597762E97DFCE7`
+  and `BD672C763990C59FB4B2FB27B0BA95ABFCB698028F9A335ED0EEB86EEAAAB562`.
+- R6's focused `PokemonSolarus.Battle.C05B.C10Removal` report passed all seven
+  tests. C05B, C07B, C07C, C07D, C08B, C08C, and ADR0002.3E6 then passed
+  serially with counts `42, 9, 8, 9, 20, 39, 18`. Across all eight reports,
+  152 overlapping executions and 145 unique full-test paths succeeded, with
+  every aggregate and per-test issue counter zero. The counter, exact-path,
+  and source-hash manifest SHA-256 values are
+  `2DE268F32848921228918BE3CFB85C5E10B436A8412E22A6A91943D03F50CF19`,
+  `10910887422FBF1B26E201A1B45C9B652F6C5BA11FF5FE1A977036E52FA70090`,
+  and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
+  The source manifest proves all nine code/test writes predate the final build
+  log.
+- Final R6 `code-review` was APPROVED and final `test-evidence-review` was
+  ADEQUATE/COMPLETE after all validated findings were fixed. The independent QA
+  testability audit found no acceptance blocker. R7 has not been performed, no
+  C10A row or asset was changed, and no Git action was authorized or performed.
 
 ## Working-tree scope to preserve
 
@@ -363,6 +402,26 @@ Task: R1-R5 complete; R6 is next
   `09-abilities-held-items-and-battle-items.md`, and
   `11-canonical-proof-content.md`. No R5 Git action is authorized or performed.
   Preserve both unrelated untracked ADRs.
+- R6's exact hand-authored code/test write set is `BattleDefinitions.h`,
+  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
+  `BattleEffectExecutor.cpp`, `BattleEffectExecutorConditions.cpp`,
+  `BattleEffectExecutorTests.cpp`, `BattleVolatileTests.cpp`,
+  `BattleFieldSideConditionTests.cpp`, and `BattleAtomicMoveEffectTests.cpp`.
+  Its exact current-document set is this file,
+  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`, and
+  `plan/battle_mechanics/00-roadmap-index.md`,
+  `06-hit-damage-effects-and-outcomes.md`,
+  `08-status-volatiles-field-and-side-conditions.md`, and
+  `11-canonical-proof-content.md`. Preserve the two untracked ADRs byte for
+  byte. R6 authorizes no other code, test, document, asset, C10A row, cleanup,
+  or Git action.
+- The R6 code-file organization decision keeps the existing executor
+  coordinator, condition executor, executor-test, volatile-test, and
+  field/side-test responsibilities. The field/side helper is fixture-local and
+  adds no production owner. The 1,034-line atomic test retains its required
+  local catalog because extraction would create a tenth code/test path. The
+  998-line catalog and 869-line adapter remain below the 1,000-line decision
+  threshold.
 
 ## Next
 
@@ -371,8 +430,9 @@ Task: R1-R5 complete; R6 is next
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Treat R1 through R5 as complete. R5 passed its forced-Unity build, all 12
-   focused tests, 12 affected regression filters, and both required reviews.
-4. R6 is the next separately approved remediation lane. Do not author C10A
-   source rows until R6 and independent R7 pass. Preserve roadmap order
-   `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+3. Treat R1 through R6 as complete. R6 passed its post-review forced-Unity
+   compile, all seven focused tests, seven affected regression filters, and
+   both required final reviews.
+4. Independent R7 is the next separate read-only gate. Do not author C10A
+   source rows until R7 passes. Preserve roadmap order
+   `R7 -> C10A -> C10B -> C11A -> C11B`.

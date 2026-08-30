@@ -46,6 +46,118 @@ namespace BattleAtomicMoveEffectTestsPrivate
 		return Event.GetType() != EBattleEventType::ActionCanceled;
 	}
 
+	const TCHAR* const C10RemovalAtomicMoveName =
+		TEXT("Move.C05B.C10Removal.AtomicLateFailure");
+
+	FBattleMoveDefinition MakeC10RemovalAtomicMove()
+	{
+		FBattleMoveDefinition Move;
+		Move.Id = MakeDefinitionId<FMoveId>(C10RemovalAtomicMoveName);
+		Move.Type = EPokemonType::Normal;
+		Move.Category = EBattleMoveCategory::Status;
+		Move.bAlwaysHits = true;
+		Move.BasePP = 20;
+		Move.TargetClass = EBattleTargetClass::SelectedOpponent;
+
+		FBattleMoveEffectDescriptor OptionalRemoval;
+		OptionalRemoval.Order = 0;
+		OptionalRemoval.Kind = EBattleMoveEffectKind::RemoveCondition;
+		OptionalRemoval.Target = EBattleEffectTarget::ResolvedTarget;
+		OptionalRemoval.ConditionId = FBattleVolatileRules::GetLeechSeedId();
+		OptionalRemoval.ChanceNumerator = 100;
+		OptionalRemoval.ChanceDenominator = 100;
+		OptionalRemoval.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		Move.Effects.Add(OptionalRemoval);
+
+		FBattleMoveEffectDescriptor LaterStatMutation;
+		LaterStatMutation.Order = 1;
+		LaterStatMutation.Kind = EBattleMoveEffectKind::ModifyStatStage;
+		LaterStatMutation.Target = EBattleEffectTarget::User;
+		LaterStatMutation.Stat = EBattleStat::Speed;
+		LaterStatMutation.MagnitudeNumerator = 1;
+		LaterStatMutation.MagnitudeDenominator = 1;
+		Move.Effects.Add(LaterStatMutation);
+		return Move;
+	}
+
+	FBattleDefinitionCatalog MakeC10RemovalAtomicCatalog(
+		const FAtomicWildScenario& Scenario)
+	{
+		FBattleDefinitionCatalogInput Input;
+		Input.TypeChartEntries = MakeNeutralTypeChart();
+		Input.Moves = {
+			MakeProbeMove(),
+			MakeTargetProbeMove(),
+			MakePivotProbeMove(),
+			MakeThawProbeMove(),
+			MakeChargeProbeMove(),
+			MakeRandomTargetProbeMove(),
+			MakeRandomExecutionProbeMove(),
+			MakeForcedEntryProbeMove(),
+			MakeC10RemovalAtomicMove()};
+		Input.Abilities = {
+			{FBattleAbilityRules::GetBlazeId()},
+			{FBattleAbilityRules::GetIntimidateId()},
+			{FBattleAbilityRules::GetMagicGuardId()}};
+		Input.Items = {
+			{FBattleBagItemRules::GetPokeBallId(), EBattleItemKind::Capture},
+			{FBattleItemRules::GetLeftoversId(), EBattleItemKind::Held},
+			{FBattleItemRules::GetSitrusBerryId(), EBattleItemKind::Held},
+			{FBattleItemRules::GetAirBalloonId(), EBattleItemKind::Held},
+			{FBattleItemRules::GetLumBerryId(), EBattleItemKind::Held},
+			{FBattleItemRules::GetChoiceBandId(), EBattleItemKind::Held},
+			{FBattleItemRules::GetHeavyDutyBootsId(), EBattleItemKind::Held},
+			{MakeDefinitionId<FItemId>(CaptureHeldItemName), EBattleItemKind::Held}};
+		Input.Conditions = {
+			{FBattleFieldSideConditionRules::GetMagicRoomId(), EBattleConditionKind::Room},
+			{FBattleFieldSideConditionRules::GetSpikesId(), EBattleConditionKind::Hazard},
+			{FBattleFieldSideConditionRules::GetStealthRockId(), EBattleConditionKind::Hazard}};
+		for (const FConditionId& VolatileId : FBattleVolatileRules::GetCanonicalIds())
+		{
+			Input.Conditions.Add({VolatileId, EBattleConditionKind::Volatile});
+		}
+		for (const FConditionId& StatusId : FBattleMajorStatusRules::GetCanonicalIds())
+		{
+			Input.Conditions.Add({StatusId, EBattleConditionKind::MajorStatus});
+		}
+		Input.SpeciesForms = {
+			MakeSpecies(PlayerSpeciesName),
+			MakeSpecies(WildSpeciesName, Scenario.CatchRate)};
+
+		FBattleDefinitionCatalog Catalog;
+		TArray<FBattleCatalogDiagnostic> Diagnostics;
+		const bool bCreated = FBattleDefinitionCatalog::TryCreate(
+			Input,
+			Catalog,
+			Diagnostics);
+		check(bCreated);
+		return Catalog;
+	}
+
+	bool TryMakeC10RemovalAtomicEngine(
+		const FAtomicWildScenario& Scenario,
+		TArray<FBattleExpectedRandomDraw> ExpectedDraws,
+		TUniquePtr<FBattleEngine>& OutEngine,
+		FStrictBattleRandom*& OutRandom)
+	{
+		FBattleSetup Setup;
+		EBattleSetupValidationError SetupError = EBattleSetupValidationError::None;
+		if (!FBattleSetup::TryCreate(MakeSetupInput(Scenario), Setup, SetupError))
+		{
+			return false;
+		}
+		TUniquePtr<FStrictBattleRandom> Strict =
+			MakeUnique<FStrictBattleRandom>(MoveTemp(ExpectedDraws));
+		OutRandom = Strict.Get();
+		FBattleRejection Rejection;
+		return FBattleEngine::TryCreate(
+			Setup,
+			MakeC10RemovalAtomicCatalog(Scenario),
+			MoveTemp(Strict),
+			OutEngine,
+			Rejection);
+	}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleADR00023E6DeterministicCompletedAtomicTest,
 	"PokemonSolarus.Battle.ADR0002.3E6.Effects.Success.DeterministicCompletedAtomic",
@@ -848,6 +960,72 @@ bool FBattleADR00023E6StaleIdentityFamilyTest::RunTest(const FString& Parameters
 			Engine->ExportRandomTrace().IsEmpty());
 		bValid &= bCase;
 	}
+	return bValid;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10RemovalAtomicLateFailureRollbackTest,
+	"PokemonSolarus.Battle.C05B.C10Removal.Atomic.LateFailureRollback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC10RemovalAtomicLateFailureRollbackTest::RunTest(
+	const FString& Parameters)
+{
+	(void)Parameters;
+	const FMoveId MoveId = MakeDefinitionId<FMoveId>(C10RemovalAtomicMoveName);
+	const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentLeftValue);
+	const FBattlerId UserId = MakeNumericId<FBattlerId>(PlayerLeftValue);
+	FAtomicWildScenario Scenario = MakePreMoveScenario(MoveId);
+	Scenario.PlayerExtraMoveId = MoveId;
+	TUniquePtr<FBattleEngine> Engine;
+	FStrictBattleRandom* Random = nullptr;
+	if (!TestTrue(TEXT("C10 removal atomic engine is created"),
+			TryMakeC10RemovalAtomicEngine(
+				Scenario,
+				{{0, 99, 0, FBattleEffectExecutor::GetSecondaryChanceRulePurpose()}},
+				Engine,
+				Random))
+		|| !TestTrue(TEXT("C10 removal move reaches effects"),
+			TryPrepareEffectsCheckpoint(*Engine, MoveId))
+		|| !TestTrue(TEXT("Leech Seed is present before optional removal"),
+			TrySeedActionStartVolatile(
+				*Engine,
+				TargetId,
+				FBattleVolatileRules::GetLeechSeedId())))
+	{
+		return false;
+	}
+
+	FBattleEngineState& Mutable =
+		FBattleC09BWildFlowEngineFixture::GetMutableState(*Engine);
+	Mutable.NextEventOrdinal = TNumericLimits<uint64>::Max() - 3;
+	const FTargetCheckpointObservation Before = ObserveTargetCheckpoint(*Engine);
+	const FBattleResolution Rejected = Engine->ExecuteCurrentMoveEffects();
+	bool bValid = VerifyRejectedTargetCheckpoint(
+		*this,
+		*Engine,
+		Before,
+		EBattleRejectionReason::CheckpointPreparationFailed,
+		Rejected);
+	const FBattleEngineState& After =
+		FBattleC09BWildFlowEngineFixture::GetState(*Engine);
+	const FBattleBattlerState* Target = After.FindBattler(TargetId);
+	const FBattleBattlerState* User = After.FindBattler(UserId);
+	int32 UserSpeedStage = INDEX_NONE;
+	bValid &= TestTrue(TEXT("Late plan failure restores the removed volatile"),
+		Target != nullptr && Target->Volatiles.ContainsByPredicate(
+			[](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == FBattleVolatileRules::GetLeechSeedId();
+			}));
+	bValid &= TestTrue(TEXT("Late plan failure restores the later stat mutation"),
+		User != nullptr
+			&& User->Stages.TryGetStage(EBattleStat::Speed, UserSpeedStage)
+			&& UserSpeedStage == 0);
+	bValid &= TestTrue(TEXT("Optional-removal chance draw remains transaction-local"),
+		Random != nullptr && Random->GetTrace().IsEmpty());
+	bValid &= TestEqual(TEXT("Rollback keeps replay schema 6"),
+		Engine->ExportReplayRecord().GetSchemaVersion(), static_cast<uint32>(6));
 	return bValid;
 }
 

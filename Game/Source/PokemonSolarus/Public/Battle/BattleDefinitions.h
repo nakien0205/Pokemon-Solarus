@@ -156,7 +156,8 @@ enum class EBattleMoveEffectFlags : uint32
 	UsesActualDamage = 1U << 1,
 	MinimumOne = 1U << 2,
 	StopOnFaint = 1U << 3,
-	PerHit = 1U << 4
+	PerHit = 1U << 4,
+	OptionalIfAbsent = 1U << 5
 };
 ENUM_CLASS_FLAGS(EBattleMoveEffectFlags);
 

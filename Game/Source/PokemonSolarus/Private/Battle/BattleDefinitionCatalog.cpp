@@ -37,7 +37,8 @@ namespace
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
 		| static_cast<uint32>(EBattleMoveEffectFlags::MinimumOne)
 		| static_cast<uint32>(EBattleMoveEffectFlags::StopOnFaint)
-		| static_cast<uint32>(EBattleMoveEffectFlags::PerHit);
+		| static_cast<uint32>(EBattleMoveEffectFlags::PerHit)
+		| static_cast<uint32>(EBattleMoveEffectFlags::OptionalIfAbsent);
 
 	template <typename IdType>
 	FDefinitionId GenericId(const IdType& Id)
@@ -356,6 +357,15 @@ namespace
 		if ((static_cast<uint32>(Effect.Flags) & ~KnownEffectFlags) != 0)
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidEnum, TEXT("Effects.Flags"));
+		}
+		if (EnumHasAllFlags(
+				Effect.Flags,
+				EBattleMoveEffectFlags::OptionalIfAbsent)
+			&& Effect.Kind != EBattleMoveEffectKind::RemoveCondition)
+		{
+			AddEffectDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.Flags"));
 		}
 
 		if (Effect.Kind == EBattleMoveEffectKind::Damage

@@ -45,7 +45,8 @@ namespace BattleEffectExecutorPrivate
 		| static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage)
 		| static_cast<uint32>(EBattleMoveEffectFlags::MinimumOne)
 		| static_cast<uint32>(EBattleMoveEffectFlags::StopOnFaint)
-		| static_cast<uint32>(EBattleMoveEffectFlags::PerHit);
+		| static_cast<uint32>(EBattleMoveEffectFlags::PerHit)
+		| static_cast<uint32>(EBattleMoveEffectFlags::OptionalIfAbsent);
 
 	FDefinitionId MakeRuleId(const TCHAR* Name)
 	{
@@ -599,6 +600,13 @@ namespace BattleEffectExecutorPrivate
 				|| Effect.DurationTurns < 0 || Effect.DurationTurns > 255
 				|| Effect.LayerCount < 0 || Effect.LayerCount > 3
 				|| (static_cast<uint32>(Effect.Flags) & ~KnownEffectFlags) != 0)
+			{
+				return false;
+			}
+			if (EnumHasAllFlags(
+					Effect.Flags,
+					EBattleMoveEffectFlags::OptionalIfAbsent)
+				&& Effect.Kind != EBattleMoveEffectKind::RemoveCondition)
 			{
 				return false;
 			}
@@ -1168,10 +1176,19 @@ namespace BattleEffectExecutorPrivate
 				}
 				continue;
 			}
-			if (!Applied.bStateMutated)
+			const bool bOptionalAbsentRemoval =
+				Effect.Kind == EBattleMoveEffectKind::RemoveCondition
+				&& EnumHasAllFlags(
+					Effect.Flags,
+					EBattleMoveEffectFlags::OptionalIfAbsent);
+			if (!Applied.bStateMutated && !bOptionalAbsentRemoval)
 			{
 				OutError = EBattleEffectExecutorError::InvalidHookResult;
 				return false;
+			}
+			if (!Applied.bStateMutated)
+			{
+				continue;
 			}
 			if (Applied.bDefersMove)
 			{

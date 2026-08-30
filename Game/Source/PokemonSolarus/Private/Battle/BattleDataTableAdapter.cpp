@@ -468,6 +468,7 @@ namespace
 			else if (Name == FName(TEXT("MinimumOne"))) Flag = EBattleMoveEffectFlags::MinimumOne;
 			else if (Name == FName(TEXT("StopOnFaint"))) Flag = EBattleMoveEffectFlags::StopOnFaint;
 			else if (Name == FName(TEXT("PerHit"))) Flag = EBattleMoveEffectFlags::PerHit;
+			else if (Name == FName(TEXT("OptionalIfAbsent"))) Flag = EBattleMoveEffectFlags::OptionalIfAbsent;
 			else return false;
 
 			if (EnumHasAnyFlags(OutFlags, Flag))

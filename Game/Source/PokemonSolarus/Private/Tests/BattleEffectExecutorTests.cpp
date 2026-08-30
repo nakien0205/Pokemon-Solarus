@@ -480,6 +480,10 @@ namespace BattleEffectExecutorTests
 			}
 
 			FBattleEffectHookResult Result = MakeHookResult();
+			if (NoMutationEffectOrders.Contains(Effect.Order))
+			{
+				return Result;
+			}
 			switch (Effect.Kind)
 			{
 			case EBattleMoveEffectKind::ApplyCondition:
@@ -571,6 +575,7 @@ namespace BattleEffectExecutorTests
 		TMap<uint64, EBattleEffectExecutionOutcome> ProtectionBreakingOutcomes;
 		TMap<int32, EBattleEffectExecutionOutcome> EligibilityOutcomes;
 		TMap<int32, EBattleEffectExecutionOutcome> ApplicationOutcomes;
+		TSet<int32> NoMutationEffectOrders;
 		TArray<FString> Calls;
 		TArray<int32> AppliedEffectOrders;
 		TArray<bool> DamageSpreadFlags;
@@ -692,7 +697,9 @@ namespace BattleEffectExecutorTests
 	bool TryBuildRemoveConditionAdapterCatalog(
 		FBattleDefinitionCatalog& OutCatalog,
 		TArray<FBattleCatalogDiagnostic>& OutDiagnostics,
-		const bool bIncludeTypelessDamageFlag = false)
+		const bool bIncludeTypelessDamageFlag = false,
+		const FName EffectFlag = NAME_None,
+		const bool bUseSetFieldCondition = false)
 	{
 		UDataTable* SpeciesForms = MakeTransientTable<FBattleSpeciesFormTableRow>();
 		UDataTable* Natures = MakeTransientTable<FBattleNatureTableRow>();
@@ -733,9 +740,15 @@ namespace BattleEffectExecutorTests
 			ClearWeather.Flags.Add(FName(TEXT("TypelessDamage")));
 		}
 		FBattleMoveEffectTableRow Removal;
-		Removal.Kind = FName(TEXT("RemoveCondition"));
+		Removal.Kind = bUseSetFieldCondition
+			? FName(TEXT("SetFieldCondition"))
+			: FName(TEXT("RemoveCondition"));
 		Removal.Target = FName(TEXT("Field"));
 		Removal.ConditionId = FName(WeatherConditionName);
+		if (!EffectFlag.IsNone())
+		{
+			Removal.Flags.Add(EffectFlag);
+		}
 		ClearWeather.Effects.Add(Removal);
 		Moves->AddRow(FName(TEXT("Move.C05B.ClearWeather")), ClearWeather);
 
@@ -793,6 +806,356 @@ namespace BattleEffectExecutorTests
 				}));
 		}
 		return Count;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC05BC10RemovalContractTest,
+		"PokemonSolarus.Battle.C05B.C10Removal.Contract.AdapterCatalogRuntimeAndLegacyValues",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC05BC10RemovalContractTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		bool bValid = true;
+		bValid &= TestEqual(
+			TEXT("BypassesSubstitute retains legacy bit zero"),
+			static_cast<uint32>(EBattleMoveEffectFlags::BypassesSubstitute),
+			static_cast<uint32>(1U << 0));
+		bValid &= TestEqual(
+			TEXT("UsesActualDamage retains legacy bit one"),
+			static_cast<uint32>(EBattleMoveEffectFlags::UsesActualDamage),
+			static_cast<uint32>(1U << 1));
+		bValid &= TestEqual(
+			TEXT("MinimumOne retains legacy bit two"),
+			static_cast<uint32>(EBattleMoveEffectFlags::MinimumOne),
+			static_cast<uint32>(1U << 2));
+		bValid &= TestEqual(
+			TEXT("StopOnFaint retains legacy bit three"),
+			static_cast<uint32>(EBattleMoveEffectFlags::StopOnFaint),
+			static_cast<uint32>(1U << 3));
+		bValid &= TestEqual(
+			TEXT("PerHit retains legacy bit four"),
+			static_cast<uint32>(EBattleMoveEffectFlags::PerHit),
+			static_cast<uint32>(1U << 4));
+		bValid &= TestEqual(
+			TEXT("OptionalIfAbsent appends bit five"),
+			static_cast<uint32>(EBattleMoveEffectFlags::OptionalIfAbsent),
+			static_cast<uint32>(1U << 5));
+
+		FBattleDefinitionCatalog Catalog;
+		TArray<FBattleCatalogDiagnostic> Diagnostics;
+		bValid &= TestTrue(
+			TEXT("The adapter and catalog accept exact OptionalIfAbsent removal"),
+			TryBuildRemoveConditionAdapterCatalog(
+				Catalog,
+				Diagnostics,
+				false,
+				FName(TEXT("OptionalIfAbsent"))));
+		const FBattleMoveDefinition* AdaptedRemoval = Catalog.FindMove(
+			MakeDefinitionId<FMoveId>(TEXT("Move.C05B.ClearWeather")));
+		bValid &= TestNotNull(
+			TEXT("The optional adapted removal move exists"),
+			AdaptedRemoval);
+		if (AdaptedRemoval != nullptr && AdaptedRemoval->Effects.Num() == 1)
+		{
+			bValid &= TestTrue(
+				TEXT("The adapter preserves OptionalIfAbsent on RemoveCondition"),
+				EnumHasAllFlags(
+					AdaptedRemoval->Effects[0].Flags,
+					EBattleMoveEffectFlags::OptionalIfAbsent));
+		}
+		else
+		{
+			bValid &= TestTrue(
+				TEXT("The optional adapted move has exactly one descriptor"),
+				false);
+		}
+
+		Diagnostics.Reset();
+		bValid &= TestFalse(
+			TEXT("The adapter rejects an unapproved optional-removal flag name"),
+			TryBuildRemoveConditionAdapterCatalog(
+				Catalog,
+				Diagnostics,
+				false,
+				FName(TEXT("OptionalWhenAbsent"))));
+		bValid &= TestTrue(
+			TEXT("The unknown authored flag is reported at Effects.Flags"),
+			Diagnostics.ContainsByPredicate(
+				[](const FBattleCatalogDiagnostic& Diagnostic)
+				{
+					return Diagnostic.Code
+							== EBattleCatalogDiagnosticCode::InvalidAuthoredValue
+						&& Diagnostic.Field == FName(TEXT("Effects.Flags"));
+				}));
+
+		FBattleMoveEffectDescriptor WrongCatalogEffect = MakeEffect(
+			0,
+			EBattleMoveEffectKind::SetFieldCondition,
+			EBattleEffectTarget::Field);
+		WrongCatalogEffect.ConditionId = MakeDefinitionId<FConditionId>(
+			WeatherConditionName);
+		WrongCatalogEffect.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		const FBattleMoveDefinition WrongCatalogMove = MakeStatusMove(
+			EBattleTargetClass::Field,
+			{WrongCatalogEffect});
+		Diagnostics.Reset();
+		bValid &= TestFalse(
+			TEXT("The catalog rejects OptionalIfAbsent on a non-removal descriptor"),
+			TryMakeCatalog(WrongCatalogMove, Catalog, Diagnostics));
+		bValid &= TestTrue(
+			TEXT("The catalog reports the wrong-kind optional flag as incompatible"),
+			Diagnostics.ContainsByPredicate(
+				[](const FBattleCatalogDiagnostic& Diagnostic)
+				{
+					return Diagnostic.Code
+							== EBattleCatalogDiagnosticCode::IncompatibleEffect
+						&& Diagnostic.Field == FName(TEXT("Effects.Flags"));
+				}));
+
+		FBattleMoveEffectDescriptor WrongRuntimeEffect = MakeEffect(
+			0,
+			EBattleMoveEffectKind::ModifyStatStage,
+			EBattleEffectTarget::User);
+		WrongRuntimeEffect.Stat = EBattleStat::Speed;
+		WrongRuntimeEffect.MagnitudeNumerator = 1;
+		WrongRuntimeEffect.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		const FBattleMoveDefinition WrongRuntimeMove = MakeStatusMove(
+			EBattleTargetClass::Self,
+			{WrongRuntimeEffect});
+		FMockExecutionContext RuntimeContext;
+		FStrictScriptedRandom RuntimeRandom({});
+		FBattleEffectExecutionResult RuntimeResult;
+		EBattleEffectExecutorError RuntimeError = EBattleEffectExecutorError::None;
+		bValid &= TestFalse(
+			TEXT("Direct runtime validation rejects OptionalIfAbsent on another kind"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(
+					WrongRuntimeMove,
+					{MakeBattlerTarget(
+						EBattleSide::Player,
+						EBattlePosition::Left,
+						PlayerLeftBattlerValue)},
+					6101),
+				RuntimeContext,
+				RuntimeRandom,
+				RuntimeResult,
+				RuntimeError));
+		bValid &= TestEqual(
+			TEXT("Wrong-kind OptionalIfAbsent is an invalid move definition"),
+			RuntimeError,
+			EBattleEffectExecutorError::InvalidMoveDefinition);
+		bValid &= TestTrue(
+			TEXT("Wrong-kind runtime rejection consumes no RNG"),
+			RuntimeRandom.IsExact());
+		bValid &= TestTrue(
+			TEXT("Wrong-kind runtime rejection reaches no hook"),
+			RuntimeContext.Calls.IsEmpty());
+		return bValid;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC05BC10RemovalExecutorTest,
+		"PokemonSolarus.Battle.C05B.C10Removal.Executor.ConditionFamiliesNoOpChanceAndContinuation",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+	bool FBattleC05BC10RemovalExecutorTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		auto MakeOptionalRemoval = [](
+			const int32 Order,
+			const EBattleEffectTarget Target,
+			const TCHAR* ConditionName)
+		{
+			FBattleMoveEffectDescriptor Effect = MakeEffect(
+				Order,
+				EBattleMoveEffectKind::RemoveCondition,
+				Target);
+			Effect.ConditionId = MakeDefinitionId<FConditionId>(ConditionName);
+			Effect.ChanceNumerator = 100;
+			Effect.ChanceDenominator = 100;
+			Effect.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+			return Effect;
+		};
+
+		FBattleMoveEffectDescriptor Continue = MakeEffect(
+			3,
+			EBattleMoveEffectKind::ModifyStatStage,
+			EBattleEffectTarget::User);
+		Continue.Stat = EBattleStat::Attack;
+		Continue.MagnitudeNumerator = 1;
+		const FBattleMoveDefinition OptionalMove = MakeStatusMove(
+			EBattleTargetClass::SelectedOpponent,
+			{
+				MakeOptionalRemoval(
+					0,
+					EBattleEffectTarget::User,
+					MajorConditionName),
+				MakeOptionalRemoval(
+					1,
+					EBattleEffectTarget::UserSide,
+					SideConditionName),
+				MakeOptionalRemoval(
+					2,
+					EBattleEffectTarget::Field,
+					WeatherConditionName),
+				Continue
+			});
+		FMockExecutionContext OptionalContext;
+		OptionalContext.NoMutationEffectOrders = {0, 1, 2};
+		FStrictScriptedRandom OptionalRandom(
+			{
+				{0, 99, 0, FBattleEffectExecutor::GetSecondaryChanceRulePurpose()},
+				{0, 99, 0, FBattleEffectExecutor::GetSecondaryChanceRulePurpose()},
+				{0, 99, 0, FBattleEffectExecutor::GetSecondaryChanceRulePurpose()}
+			});
+		FBattleEffectExecutionResult OptionalResult;
+		EBattleEffectExecutorError OptionalError = EBattleEffectExecutorError::None;
+		bool bValid = TestTrue(
+			TEXT("Absent battler, side, and field removals continue successfully"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(
+					OptionalMove,
+					{MakeBattlerTarget(
+						EBattleSide::Opponent,
+						EBattlePosition::Left,
+						OpponentLeftBattlerValue)},
+					6102),
+				OptionalContext,
+				OptionalRandom,
+				OptionalResult,
+				OptionalError));
+		bValid &= TestEqual(
+			TEXT("Optional absent removals leave no executor error"),
+			OptionalError,
+			EBattleEffectExecutorError::None);
+		bValid &= TestTrue(
+			TEXT("Every authored 100/100 optional removal consumes its normal draw"),
+			OptionalRandom.IsExact());
+		bValid &= TestTrue(
+			TEXT("All optional removals and the later descriptor execute in order"),
+			OptionalContext.AppliedEffectOrders == TArray<int32>({0, 1, 2, 3}));
+		bValid &= TestEqual(
+			TEXT("The later descriptor still mutates state"),
+			OptionalContext.AttackStage,
+			1);
+		bValid &= TestEqual(
+			TEXT("Only the later mutation runs an immediate update"),
+			OptionalContext.ImmediateUpdateCount,
+			1);
+		bValid &= TestEqual(
+			TEXT("The three optional removals emit only their chance facts"),
+			CountExecutionEvents(OptionalResult.Events, EBattleEventType::RandomCheck),
+			3);
+		bValid &= TestEqual(
+			TEXT("Optional absence emits no condition mutation event"),
+			CountExecutionEvents(OptionalResult.Events, EBattleEventType::StatusChanged)
+				+ CountExecutionEvents(
+					OptionalResult.Events,
+					EBattleEventType::FieldEffectChanged),
+			0);
+		bValid &= TestEqual(
+			TEXT("Continuation emits its one stat mutation"),
+			CountExecutionEvents(
+				OptionalResult.Events,
+				EBattleEventType::StatStageChanged),
+			1);
+		TArray<int32> OptionalChanceIndices;
+		for (int32 EventIndex = 0; EventIndex < OptionalResult.Events.Num(); ++EventIndex)
+		{
+			if (OptionalResult.Events[EventIndex].Type == EBattleEventType::RandomCheck)
+			{
+				OptionalChanceIndices.Add(EventIndex);
+			}
+		}
+		const int32 ContinuationIndex = OptionalResult.Events.IndexOfByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatStageChanged;
+			});
+		bValid &= TestTrue(
+			TEXT("Optional no-op chance facts precede the continuation mutation in order"),
+			OptionalChanceIndices.Num() == 3
+				&& OptionalChanceIndices[0] < OptionalChanceIndices[1]
+				&& OptionalChanceIndices[1] < OptionalChanceIndices[2]
+				&& ContinuationIndex > OptionalChanceIndices[2]);
+		bValid &= TestEqual(
+			TEXT("Optional absence emits no failure event"),
+			CountExecutionEvents(OptionalResult.Events, EBattleEventType::EffectFailed),
+			0);
+
+		FBattleMoveEffectDescriptor LegacyRemoval = MakeEffect(
+			0,
+			EBattleMoveEffectKind::RemoveCondition,
+			EBattleEffectTarget::User);
+		LegacyRemoval.ConditionId = MakeDefinitionId<FConditionId>(MajorConditionName);
+		const FBattleMoveDefinition LegacyMove = MakeStatusMove(
+			EBattleTargetClass::Self,
+			{LegacyRemoval});
+		FMockExecutionContext LegacyContext;
+		LegacyContext.EligibilityOutcomes.Add(
+			0,
+			EBattleEffectExecutionOutcome::Failed);
+		FStrictScriptedRandom LegacyRandom({});
+		FBattleEffectExecutionResult LegacyResult;
+		EBattleEffectExecutorError LegacyError = EBattleEffectExecutorError::None;
+		bValid &= TestTrue(
+			TEXT("Legacy absent removal remains a typed descriptor failure"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(
+					LegacyMove,
+					{MakeBattlerTarget(
+						EBattleSide::Player,
+						EBattlePosition::Left,
+						PlayerLeftBattlerValue)},
+					6103),
+				LegacyContext,
+				LegacyRandom,
+				LegacyResult,
+				LegacyError));
+		bValid &= TestTrue(
+			TEXT("Legacy absence consumes no chance draw and applies nothing"),
+			LegacyRandom.IsExact() && LegacyContext.AppliedEffectOrders.IsEmpty());
+		bValid &= TestEqual(
+			TEXT("Legacy absence keeps its failure event"),
+			CountExecutionEvents(LegacyResult.Events, EBattleEventType::EffectFailed),
+			1);
+
+		FBattleMoveEffectDescriptor OrdinaryEffect = MakeEffect(
+			0,
+			EBattleMoveEffectKind::ApplyCondition,
+			EBattleEffectTarget::ResolvedTarget);
+		OrdinaryEffect.ConditionId = MakeDefinitionId<FConditionId>(MajorConditionName);
+		const FBattleMoveDefinition OrdinaryMove = MakeStatusMove(
+			EBattleTargetClass::SelectedOpponent,
+			{OrdinaryEffect});
+		FMockExecutionContext OrdinaryContext;
+		OrdinaryContext.NoMutationEffectOrders.Add(0);
+		FStrictScriptedRandom OrdinaryRandom({});
+		FBattleEffectExecutionResult OrdinaryResult;
+		EBattleEffectExecutorError OrdinaryError = EBattleEffectExecutorError::None;
+		bValid &= TestFalse(
+			TEXT("Applied no-mutation remains invalid for every other non-HP effect"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(
+					OrdinaryMove,
+					{MakeBattlerTarget(
+						EBattleSide::Opponent,
+						EBattlePosition::Left,
+						OpponentLeftBattlerValue)},
+					6104),
+				OrdinaryContext,
+				OrdinaryRandom,
+				OrdinaryResult,
+				OrdinaryError));
+		bValid &= TestEqual(
+			TEXT("Other applied no-mutation hooks keep InvalidHookResult"),
+			OrdinaryError,
+			EBattleEffectExecutorError::InvalidHookResult);
+		bValid &= TestTrue(
+			TEXT("The ordinary invalid hook consumes no RNG"),
+			OrdinaryRandom.IsExact());
+		return bValid;
 	}
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(

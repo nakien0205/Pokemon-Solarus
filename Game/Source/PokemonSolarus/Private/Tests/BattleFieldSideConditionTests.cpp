@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Algo/Count.h"
 #include "Battle/BattleActionQueue.h"
 #include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleEffectExecutor.h"
@@ -7,6 +8,7 @@
 #include "Battle/BattleFieldSideConditions.h"
 #include "Battle/BattleMajorStatus.h"
 #include "Battle/BattleState.h"
+#include "Battle/BattleVolatile.h"
 #include "BattleTestFactories.h"
 #include "Math/NumericLimits.h"
 #include "Misc/AutomationTest.h"
@@ -14,6 +16,15 @@
 class FBattleC07DEngineFixture
 {
 public:
+	static const FBattleMoveDefinition* FindMove(
+		const FBattleEngine& Engine,
+		const FMoveId MoveId)
+	{
+		return Engine.State.IsValid()
+			? Engine.State->Catalog.FindMove(MoveId)
+			: nullptr;
+	}
+
 	static bool SeedCondition(
 		FBattleEngine& Engine,
 		const FConditionId ConditionId,
@@ -105,6 +116,96 @@ public:
 		TArray<FBattleTriggerLifecycleFact> Ignored;
 		Engine.State->TriggerFramework.DrainLifecycleFacts(Ignored);
 		return true;
+	}
+
+	static bool SeedVolatile(
+		FBattleEngine& Engine,
+		const FBattlerId TargetBattlerId,
+		const FConditionId VolatileId,
+		const FBattlerId SourceBattlerId,
+		const int32 Layers)
+	{
+		if (!Engine.State.IsValid()
+			|| !FBattleVolatileRules::IsCanonical(VolatileId)
+			|| Layers <= 0)
+		{
+			return false;
+		}
+		FBattleBattlerState* Battler = Engine.State->FindMutableBattler(TargetBattlerId);
+		if (Battler == nullptr
+			|| Battler->Volatiles.ContainsByPredicate(
+				[VolatileId](const FBattleConditionState& Condition)
+				{
+					return Condition.ConditionId == VolatileId;
+				}))
+		{
+			return false;
+		}
+
+		FBattleTriggerSubject Owner;
+		FBattleTriggerSubject Source;
+		if (!FBattleTriggerSubject::TryCreateBattler(TargetBattlerId, Owner)
+			|| !FBattleTriggerSubject::TryCreateBattler(SourceBattlerId, Source))
+		{
+			return false;
+		}
+		FBattleVolatileTriggerRegistrationFacts TriggerFacts;
+		TriggerFacts.VolatileId = VolatileId;
+		TriggerFacts.PayloadId = VolatileId.GetDefinitionId();
+		TriggerFacts.Owner = Owner;
+		TriggerFacts.Source = Source;
+		TriggerFacts.Layers = Layers;
+		EBattleTriggerError TriggerError = EBattleTriggerError::None;
+		if (!FBattleVolatileRules::TryRegisterTriggers(
+				Engine.State->TriggerFramework,
+				TriggerFacts,
+				TriggerError))
+		{
+			return false;
+		}
+
+		FBattleConditionState Condition;
+		Condition.ConditionId = VolatileId;
+		Condition.LayerCount = Layers;
+		Condition.CreationOrdinal = Engine.State->NextConditionCreationOrdinal++;
+		Condition.SourceBattlerId = SourceBattlerId;
+		Battler->Volatiles.Add(MoveTemp(Condition));
+		TArray<FBattleTriggerLifecycleFact> Ignored;
+		Engine.State->TriggerFramework.DrainLifecycleFacts(Ignored);
+		return true;
+	}
+
+	static bool HasVolatile(
+		const FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const FConditionId VolatileId)
+	{
+		const FBattleBattlerState* Battler = Engine.State.IsValid()
+			? Engine.State->FindBattler(BattlerId)
+			: nullptr;
+		return Battler != nullptr && Battler->Volatiles.ContainsByPredicate(
+			[VolatileId](const FBattleConditionState& Condition)
+			{
+				return Condition.ConditionId == VolatileId;
+			});
+	}
+
+	static int32 GetVolatileLayers(
+		const FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const FConditionId VolatileId)
+	{
+		const FBattleBattlerState* Battler = Engine.State.IsValid()
+			? Engine.State->FindBattler(BattlerId)
+			: nullptr;
+		const FBattleConditionState* Condition = Battler != nullptr
+			? Battler->Volatiles.FindByPredicate(
+				[VolatileId](const FBattleConditionState& Candidate)
+				{
+					return Candidate.ConditionId == VolatileId;
+				})
+			: nullptr;
+		return Condition != nullptr ? Condition->LayerCount : INDEX_NONE;
 	}
 
 	static bool SetCurrentHP(
@@ -486,6 +587,9 @@ namespace BattleFieldSideConditionTests
 	const TCHAR* ForcedSwitchMoveName = TEXT("Move.C07D.ForcedSwitch");
 	const TCHAR* PivotSwitchMoveName = TEXT("Move.C07D.PivotSwitch");
 	const TCHAR* FireDamageMoveName = TEXT("Move.C07D.FireDamage");
+	const TCHAR* RapidSpinRemovalMoveName = TEXT("Move.C05B.RapidSpinRemoval");
+	const TCHAR* DefogRemovalMoveName = TEXT("Move.C05B.DefogRemoval");
+	const TCHAR* BrickBreakRemovalMoveName = TEXT("Move.C05B.BrickBreakRemoval");
 	const TCHAR* GenericWeatherConditionName = TEXT("Condition.C07D.GenericWeather");
 	const TCHAR* SpeciesName = TEXT("Species.C07D.Test");
 	const TCHAR* AbilityName = TEXT("Ability.C07D.Test");
@@ -580,6 +684,130 @@ namespace BattleFieldSideConditionTests
 		return Move;
 	}
 
+	FBattleMoveEffectDescriptor MakeOptionalRemoval(
+		const EBattleEffectTarget Target,
+		const FConditionId ConditionId)
+	{
+		FBattleMoveEffectDescriptor Effect;
+		Effect.Kind = EBattleMoveEffectKind::RemoveCondition;
+		Effect.Target = Target;
+		Effect.ConditionId = ConditionId;
+		Effect.ChanceNumerator = 1;
+		Effect.ChanceDenominator = 1;
+		Effect.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		return Effect;
+	}
+
+	FBattleMoveDefinition MakeC10RemovalMove(
+		const TCHAR* Name,
+		const EBattleTargetClass TargetClass,
+		const EBattleMoveCategory Category,
+		const bool bDamageFirst,
+		const bool bDamageLast)
+	{
+		FBattleMoveDefinition Move;
+		Move.Id = MakeDefinitionId<FMoveId>(Name);
+		Move.Type = EPokemonType::Normal;
+		Move.Category = Category;
+		Move.Power = Category == EBattleMoveCategory::Status ? 0 : 40;
+		Move.bAlwaysHits = true;
+		Move.bUsesPP = true;
+		Move.BasePP = 20;
+		Move.bAllowsPPBoosts = true;
+		Move.TargetClass = TargetClass;
+		Move.Flags = EBattleMoveFlags::NeverCritical | EBattleMoveFlags::BlockedByProtect;
+		if (FString(Name) == DefogRemovalMoveName)
+		{
+			Move.Flags |= EBattleMoveFlags::BypassesSideProtection;
+		}
+		if (bDamageFirst)
+		{
+			FBattleMoveEffectDescriptor Damage;
+			Damage.Kind = EBattleMoveEffectKind::Damage;
+			Damage.Target = EBattleEffectTarget::ResolvedTarget;
+			Move.Effects.Add(Damage);
+		}
+		if (FString(Name) == RapidSpinRemovalMoveName)
+		{
+			for (const FConditionId& ConditionId : {
+				FBattleFieldSideConditionRules::GetSpikesId(),
+				FBattleFieldSideConditionRules::GetToxicSpikesId(),
+				FBattleFieldSideConditionRules::GetStealthRockId(),
+				FBattleFieldSideConditionRules::GetStickyWebId()})
+			{
+				Move.Effects.Add(MakeOptionalRemoval(EBattleEffectTarget::UserSide, ConditionId));
+			}
+			FBattleMoveEffectDescriptor Speed;
+			Speed.Kind = EBattleMoveEffectKind::ModifyStatStage;
+			Speed.Target = EBattleEffectTarget::User;
+			Speed.Stat = EBattleStat::Speed;
+			Speed.MagnitudeNumerator = 1;
+			Speed.ChanceNumerator = 100;
+			Speed.ChanceDenominator = 100;
+			Move.Effects.Add(Speed);
+		}
+		else if (FString(Name) == DefogRemovalMoveName)
+		{
+			FBattleMoveEffectDescriptor Evasion;
+			Evasion.Kind = EBattleMoveEffectKind::ModifyStatStage;
+			Evasion.Target = EBattleEffectTarget::ResolvedTarget;
+			Evasion.Stat = EBattleStat::Evasion;
+			Evasion.MagnitudeNumerator = -1;
+			Move.Effects.Add(Evasion);
+			for (const FConditionId& ConditionId : {
+				FBattleFieldSideConditionRules::GetReflectId(),
+				FBattleFieldSideConditionRules::GetLightScreenId(),
+				FBattleFieldSideConditionRules::GetAuroraVeilId(),
+				FBattleFieldSideConditionRules::GetSafeguardId(),
+				FBattleFieldSideConditionRules::GetMistId()})
+			{
+				Move.Effects.Add(MakeOptionalRemoval(EBattleEffectTarget::TargetSide, ConditionId));
+			}
+			for (const EBattleEffectTarget SideTarget : {EBattleEffectTarget::UserSide,
+				EBattleEffectTarget::TargetSide})
+			{
+				for (const FConditionId& ConditionId : {
+					FBattleFieldSideConditionRules::GetSpikesId(),
+					FBattleFieldSideConditionRules::GetToxicSpikesId(),
+					FBattleFieldSideConditionRules::GetStealthRockId(),
+					FBattleFieldSideConditionRules::GetStickyWebId()})
+				{
+					Move.Effects.Add(MakeOptionalRemoval(SideTarget, ConditionId));
+				}
+			}
+			for (const FConditionId& ConditionId : {
+				FBattleFieldSideConditionRules::GetElectricTerrainId(),
+				FBattleFieldSideConditionRules::GetGrassyTerrainId(),
+				FBattleFieldSideConditionRules::GetMistyTerrainId(),
+				FBattleFieldSideConditionRules::GetPsychicTerrainId()})
+			{
+				Move.Effects.Add(MakeOptionalRemoval(EBattleEffectTarget::Field, ConditionId));
+			}
+		}
+		else
+		{
+			for (const FConditionId& ConditionId : {
+				FBattleFieldSideConditionRules::GetReflectId(),
+				FBattleFieldSideConditionRules::GetLightScreenId(),
+				FBattleFieldSideConditionRules::GetAuroraVeilId()})
+			{
+				Move.Effects.Add(MakeOptionalRemoval(EBattleEffectTarget::TargetSide, ConditionId));
+			}
+		}
+		if (bDamageLast)
+		{
+			FBattleMoveEffectDescriptor Damage;
+			Damage.Kind = EBattleMoveEffectKind::Damage;
+			Damage.Target = EBattleEffectTarget::ResolvedTarget;
+			Move.Effects.Add(Damage);
+		}
+		for (int32 EffectIndex = 0; EffectIndex < Move.Effects.Num(); ++EffectIndex)
+		{
+			Move.Effects[EffectIndex].Order = EffectIndex;
+		}
+		return Move;
+	}
+
 	FBattleMoveDefinition MakeForcedSwitchMove()
 	{
 		FBattleMoveDefinition Move;
@@ -624,6 +852,15 @@ namespace BattleFieldSideConditionTests
 		Input.TypeChartEntries = MakeNeutralTypeChart();
 		Input.Moves.Add(MakeMove());
 		Input.Moves.Add(MakeFireDamageMove());
+		Input.Moves.Add(MakeC10RemovalMove(
+			RapidSpinRemovalMoveName, EBattleTargetClass::SelectedOpponent,
+			EBattleMoveCategory::Physical, true, false));
+		Input.Moves.Add(MakeC10RemovalMove(
+			DefogRemovalMoveName, EBattleTargetClass::SelectedOpponent,
+			EBattleMoveCategory::Status, false, false));
+		Input.Moves.Add(MakeC10RemovalMove(
+			BrickBreakRemovalMoveName, EBattleTargetClass::SelectedOpponent,
+			EBattleMoveCategory::Physical, false, true));
 		Input.Moves.Add(MakeConditionOperationMove(
 			SetSunMoveName,
 			EBattleMoveEffectKind::SetFieldCondition,
@@ -695,6 +932,10 @@ namespace BattleFieldSideConditionTests
 		{
 			Input.Conditions.Add({StatusId, EBattleConditionKind::MajorStatus});
 		}
+		Input.Conditions.Add(
+			{FBattleVolatileRules::GetSubstituteId(), EBattleConditionKind::Volatile});
+		Input.Conditions.Add(
+			{FBattleVolatileRules::GetProtectId(), EBattleConditionKind::Volatile});
 		FBattleDefinitionCatalog Catalog;
 		TArray<FBattleCatalogDiagnostic> Diagnostics;
 		const bool bCreated = FBattleDefinitionCatalog::TryCreate(Input, Catalog, Diagnostics);
@@ -2788,6 +3029,415 @@ bool FBattleC07DSideConditionsOrderStatusStagePreventionTest::RunTest(
 	TestEqual(TEXT("An active side condition is not refreshed"),
 		DuplicateResult.Outcome,
 		EBattleFieldSideApplicationOutcome::AlreadyActive);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC05BRapidSpinUserSideHazardsConnectedSubstituteTest,
+	"PokemonSolarus.Battle.C05B.C10Removal.RapidSpin.UserSideHazardsConnectedSubstitute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC05BRapidSpinUserSideHazardsConnectedSubstituteTest::RunTest(
+	const FString& Parameters)
+{
+	using namespace BattleFieldSideConditionTests;
+	(void)Parameters;
+	TUniquePtr<FBattleEngine> Engine;
+	TestTrue(TEXT("The Rapid Spin removal engine is created"), TryCreateEngine(90501, Engine));
+	if (!Engine.IsValid()) return false;
+	const FBattlerId UserId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+	const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentBattlerValue);
+	for (const FConditionId& HazardId : {
+		FBattleFieldSideConditionRules::GetSpikesId(),
+		FBattleFieldSideConditionRules::GetToxicSpikesId(),
+		FBattleFieldSideConditionRules::GetStealthRockId(),
+		FBattleFieldSideConditionRules::GetStickyWebId()})
+	{
+		TestTrue(TEXT("Each approved user-side Rapid Spin hazard is seeded"),
+			FBattleC07DEngineFixture::SeedCondition(
+				*Engine, HazardId, EBattleSide::Player, TargetId, TOptional<int32>(), 1));
+	}
+	TestTrue(TEXT("The Rapid Spin target starts behind a forty-HP Substitute"),
+		FBattleC07DEngineFixture::SeedVolatile(
+			*Engine,
+			TargetId,
+			FBattleVolatileRules::GetSubstituteId(),
+			TargetId,
+			40));
+	FBattleResolvedTarget Target;
+	TestTrue(TEXT("The Rapid Spin target resolves"),
+		FBattleC07DEngineFixture::TryMakeBattlerTarget(*Engine, TargetId, Target));
+	const int32 TargetHPBefore = FBattleC07DEngineFixture::GetCurrentHP(*Engine, TargetId);
+	FBattleEffectExecutionResult Result;
+	TestTrue(TEXT("Rapid Spin executes after a connected synthetic hit"),
+		FBattleC07DEngineFixture::ExecuteCatalogMove(*Engine, UserId,
+			MakeDefinitionId<FMoveId>(RapidSpinRemovalMoveName), Target, Result, 905010));
+	const FBattleSnapshot Snapshot = Engine->GetSnapshot();
+	const FBattleObservedSide* UserSide = Snapshot.GetObservedSides().FindByPredicate(
+		[](const FBattleObservedSide& Side) { return Side.Side == EBattleSide::Player; });
+	TestTrue(TEXT("Rapid Spin removes exactly the four user-side hazards"),
+		UserSide != nullptr && UserSide->Hazards.IsEmpty());
+	TestEqual(TEXT("Rapid Spin continues to its Speed increase"),
+		FBattleC07DEngineFixture::GetStage(*Engine, UserId, EBattleStat::Speed), 1);
+	TestEqual(TEXT("Rapid Spin damage is routed away from target HP by Substitute"),
+		FBattleC07DEngineFixture::GetCurrentHP(*Engine, TargetId), TargetHPBefore);
+	TestTrue(TEXT("Rapid Spin damages but does not break the target Substitute"),
+		FBattleC07DEngineFixture::HasVolatile(
+			*Engine, TargetId, FBattleVolatileRules::GetSubstituteId())
+			&& FBattleC07DEngineFixture::GetVolatileLayers(
+				*Engine, TargetId, FBattleVolatileRules::GetSubstituteId()) > 0
+			&& FBattleC07DEngineFixture::GetVolatileLayers(
+				*Engine, TargetId, FBattleVolatileRules::GetSubstituteId()) < 40);
+	TestEqual(TEXT("Each user-side hazard cleanup emits exactly one mutation"),
+		static_cast<int32>(Algo::CountIf(
+			Result.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+		{
+				return Event.Type == EBattleEventType::FieldEffectChanged;
+			})),
+		4);
+	TestEqual(TEXT("Rapid Spin keeps exactly one connected damage effect"),
+		static_cast<int32>(Algo::CountIf(
+			Result.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Damage
+					&& Event.NumericBefore.IsSet()
+					&& Event.NumericBefore.GetValue() == 40
+					&& Event.NumericAfter.IsSet()
+					&& Event.NumericAfter.GetValue() < 40;
+			})),
+		1);
+	TestEqual(TEXT("Only the Speed +1 descriptor consumes a secondary chance draw"),
+		static_cast<int32>(Algo::CountIf(
+			Result.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::RandomCheck
+					&& Event.NumericBefore.IsSet()
+					&& Event.NumericBefore.GetValue() == 0
+					&& Event.NumericDelta.IsSet()
+					&& Event.NumericDelta.GetValue() == 99;
+			})),
+		1);
+	const int32 DamageIndex = Result.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::Damage;
+		});
+	const int32 FirstCleanupIndex = Result.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::FieldEffectChanged;
+		});
+	const int32 SpeedIndex = Result.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::StatStageChanged;
+		});
+	int32 LastCleanupIndex = INDEX_NONE;
+	for (int32 EventIndex = 0; EventIndex < Result.Events.Num(); ++EventIndex)
+	{
+		if (Result.Events[EventIndex].Type == EBattleEventType::FieldEffectChanged)
+		{
+			LastCleanupIndex = EventIndex;
+		}
+	}
+	TestTrue(TEXT("Rapid Spin orders Damage, all cleanup, then Speed +1"),
+		DamageIndex >= 0
+			&& FirstCleanupIndex > DamageIndex
+			&& LastCleanupIndex >= FirstCleanupIndex
+			&& SpeedIndex > LastCleanupIndex);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC05BDefogTargetBothSidesTerrainAndAbsentSilenceTest,
+	"PokemonSolarus.Battle.C05B.C10Removal.Defog.TargetBothSidesTerrainAndAbsentSilence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC05BDefogTargetBothSidesTerrainAndAbsentSilenceTest::RunTest(
+	const FString& Parameters)
+{
+	using namespace BattleFieldSideConditionTests;
+	(void)Parameters;
+	const TArray<FConditionId> TerrainIds = {
+		FBattleFieldSideConditionRules::GetElectricTerrainId(),
+		FBattleFieldSideConditionRules::GetGrassyTerrainId(),
+		FBattleFieldSideConditionRules::GetMistyTerrainId(),
+		FBattleFieldSideConditionRules::GetPsychicTerrainId()};
+	for (int32 Index = 0; Index < TerrainIds.Num(); ++Index)
+	{
+		TUniquePtr<FBattleEngine> Engine;
+		TestTrue(TEXT("The Defog removal engine is created"),
+			TryCreateEngine(90510 + Index, Engine));
+		if (!Engine.IsValid()) return false;
+		const FBattlerId UserId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+		const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentBattlerValue);
+		for (const EBattleSide Side : {EBattleSide::Player, EBattleSide::Opponent})
+		{
+			for (const FConditionId& HazardId : {
+				FBattleFieldSideConditionRules::GetSpikesId(),
+				FBattleFieldSideConditionRules::GetToxicSpikesId(),
+				FBattleFieldSideConditionRules::GetStealthRockId(),
+				FBattleFieldSideConditionRules::GetStickyWebId()})
+			{
+				TestTrue(TEXT("Each Defog hazard is seeded on both sides"),
+					FBattleC07DEngineFixture::SeedCondition(
+						*Engine, HazardId, Side, UserId, TOptional<int32>(), 1));
+			}
+		}
+		for (const FConditionId& ConditionId : {
+			FBattleFieldSideConditionRules::GetReflectId(),
+			FBattleFieldSideConditionRules::GetLightScreenId(),
+			FBattleFieldSideConditionRules::GetAuroraVeilId(),
+			FBattleFieldSideConditionRules::GetSafeguardId(),
+			FBattleFieldSideConditionRules::GetMistId()})
+		{
+			TestTrue(TEXT("Each target-side Defog condition is seeded"),
+				FBattleC07DEngineFixture::SeedCondition(
+					*Engine, ConditionId, EBattleSide::Opponent, TargetId, TOptional<int32>(5)));
+		}
+		TestTrue(TEXT("The Defog terrain is seeded"),
+			FBattleC07DEngineFixture::SeedCondition(
+				*Engine, TerrainIds[Index], EBattleSide::Player, UserId, TOptional<int32>(5)));
+		FBattleResolvedTarget Target;
+		TestTrue(TEXT("The Defog target resolves"),
+			FBattleC07DEngineFixture::TryMakeBattlerTarget(*Engine, TargetId, Target));
+		FBattleEffectExecutionResult Result;
+		TestTrue(TEXT("Defog executes with optional removal descriptors"),
+			FBattleC07DEngineFixture::ExecuteCatalogMove(*Engine, UserId,
+				MakeDefinitionId<FMoveId>(DefogRemovalMoveName), Target, Result, 905100 + Index));
+		TestEqual(TEXT("Defog lowers target Evasion before its cleanup descriptors"),
+			FBattleC07DEngineFixture::GetStage(*Engine, TargetId, EBattleStat::Evasion), -1);
+		TestEqual(TEXT("Each present Defog cleanup emits exactly one mutation"),
+			static_cast<int32>(Algo::CountIf(
+				Result.Events,
+				[](const FBattleEffectExecutionEvent& Event)
+				{
+					return Event.Type == EBattleEventType::FieldEffectChanged;
+				})),
+			14);
+		const int32 EvasionIndex = Result.Events.IndexOfByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatStageChanged;
+			});
+		const int32 FirstCleanupIndex = Result.Events.IndexOfByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::FieldEffectChanged;
+			});
+		TestTrue(TEXT("Defog emits its Evasion mutation before every cleanup mutation"),
+			EvasionIndex >= 0 && FirstCleanupIndex > EvasionIndex);
+		TestFalse(TEXT("Defog clears the active terrain"), Engine->GetSnapshot().GetTerrain().IsSet());
+		for (const FBattleObservedSide& Side : Engine->GetSnapshot().GetObservedSides())
+		{
+			TestTrue(TEXT("Defog clears all hazards from both sides"), Side.Hazards.IsEmpty());
+			if (Side.Side == EBattleSide::Opponent)
+			{
+				TestTrue(TEXT("Defog clears all target screens and side conditions"),
+					Side.Conditions.IsEmpty());
+			}
+		}
+	}
+	TUniquePtr<FBattleEngine> Absent;
+	TestTrue(TEXT("The absent Defog engine is created"), TryCreateEngine(90519, Absent));
+	if (!Absent.IsValid()) return false;
+	FBattleResolvedTarget AbsentTarget;
+	const FBattlerId UserId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+	const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentBattlerValue);
+	TestTrue(TEXT("The absent Defog target resolves"),
+		FBattleC07DEngineFixture::TryMakeBattlerTarget(*Absent, TargetId, AbsentTarget));
+	FBattleEffectExecutionResult AbsentResult;
+	TestTrue(TEXT("Defog treats every absent cleanup target as a silent success"),
+		FBattleC07DEngineFixture::ExecuteCatalogMove(*Absent, UserId,
+			MakeDefinitionId<FMoveId>(DefogRemovalMoveName), AbsentTarget, AbsentResult, 905190));
+	TestEqual(TEXT("Primary absent Defog removals consume no chance draws"),
+		static_cast<int32>(Algo::CountIf(
+			AbsentResult.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::RandomCheck;
+			})),
+		0);
+	TestEqual(TEXT("Absent Defog still emits its one Evasion mutation"),
+		static_cast<int32>(Algo::CountIf(
+			AbsentResult.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatStageChanged;
+			})),
+		1);
+	TestFalse(TEXT("Absent optional removals emit no condition mutation or failure"),
+		AbsentResult.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatusChanged
+					|| Event.Type == EBattleEventType::FieldEffectChanged
+					|| Event.Type == EBattleEventType::EffectFailed;
+			}));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC05BBrickBreakPreDamageSubstituteAndProtectTest,
+	"PokemonSolarus.Battle.C05B.C10Removal.BrickBreak.PreDamageSubstituteAndProtect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC05BBrickBreakPreDamageSubstituteAndProtectTest::RunTest(
+	const FString& Parameters)
+{
+	using namespace BattleFieldSideConditionTests;
+	(void)Parameters;
+	const FBattlerId UserId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+	const FBattlerId TargetId = MakeNumericId<FBattlerId>(OpponentBattlerValue);
+	auto SeedScreens = [TargetId](FBattleEngine& Engine)
+	{
+		for (const FConditionId& ScreenId : {
+			FBattleFieldSideConditionRules::GetReflectId(),
+			FBattleFieldSideConditionRules::GetLightScreenId(),
+			FBattleFieldSideConditionRules::GetAuroraVeilId()})
+		{
+			if (!FBattleC07DEngineFixture::SeedCondition(
+					Engine,
+					ScreenId,
+					EBattleSide::Opponent,
+					TargetId,
+					TOptional<int32>(5)))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	TUniquePtr<FBattleEngine> SubstituteEngine;
+	TestTrue(TEXT("The Brick Break Substitute engine is created"),
+		TryCreateEngine(90520, SubstituteEngine));
+	if (!SubstituteEngine.IsValid()) return false;
+	TestTrue(TEXT("Every Brick Break target screen is seeded for Substitute"),
+		SeedScreens(*SubstituteEngine));
+	TestTrue(TEXT("The Brick Break target starts behind a forty-HP Substitute"),
+		FBattleC07DEngineFixture::SeedVolatile(
+			*SubstituteEngine,
+			TargetId,
+			FBattleVolatileRules::GetSubstituteId(),
+			TargetId,
+			40));
+	FBattleResolvedTarget SubstituteTarget;
+	TestTrue(TEXT("The Brick Break Substitute target resolves"),
+		FBattleC07DEngineFixture::TryMakeBattlerTarget(
+			*SubstituteEngine, TargetId, SubstituteTarget));
+	const FBattleMoveDefinition* BrickBreak = FBattleC07DEngineFixture::FindMove(
+		*SubstituteEngine,
+		MakeDefinitionId<FMoveId>(BrickBreakRemovalMoveName));
+	TestTrue(TEXT("Brick Break does not opt into BreaksProtection"),
+		BrickBreak != nullptr && !EnumHasAnyFlags(BrickBreak->Flags, EBattleMoveFlags::BreaksProtection));
+	const int32 SubstituteHPBefore = FBattleC07DEngineFixture::GetCurrentHP(
+		*SubstituteEngine, TargetId);
+	FBattleEffectExecutionResult SubstituteResult;
+	TestTrue(TEXT("Brick Break clears screens and then damages Substitute"),
+		FBattleC07DEngineFixture::ExecuteCatalogMove(
+			*SubstituteEngine,
+			UserId,
+			MakeDefinitionId<FMoveId>(BrickBreakRemovalMoveName),
+			SubstituteTarget,
+			SubstituteResult,
+			905200));
+	const FBattleSnapshot SubstituteSnapshot = SubstituteEngine->GetSnapshot();
+	const FBattleObservedSide* SubstituteTargetSide =
+		SubstituteSnapshot.GetObservedSides().FindByPredicate(
+		[](const FBattleObservedSide& Side) { return Side.Side == EBattleSide::Opponent; });
+	TestTrue(TEXT("Brick Break clears every target screen through Substitute"),
+		SubstituteTargetSide != nullptr && SubstituteTargetSide->Conditions.IsEmpty());
+	TestEqual(TEXT("Substitute absorbs Brick Break without changing target HP"),
+		FBattleC07DEngineFixture::GetCurrentHP(*SubstituteEngine, TargetId),
+		SubstituteHPBefore);
+	TestTrue(TEXT("Brick Break damages but does not break Substitute"),
+		FBattleC07DEngineFixture::HasVolatile(
+			*SubstituteEngine, TargetId, FBattleVolatileRules::GetSubstituteId())
+			&& FBattleC07DEngineFixture::GetVolatileLayers(
+				*SubstituteEngine, TargetId, FBattleVolatileRules::GetSubstituteId()) > 0
+			&& FBattleC07DEngineFixture::GetVolatileLayers(
+				*SubstituteEngine, TargetId, FBattleVolatileRules::GetSubstituteId()) < 40);
+	TestEqual(TEXT("Each Brick Break screen cleanup emits exactly one mutation"),
+		static_cast<int32>(Algo::CountIf(
+			SubstituteResult.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::FieldEffectChanged;
+			})),
+		3);
+	const int32 DamageIndex = SubstituteResult.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::Damage;
+		});
+	int32 LastScreenRemovalIndex = INDEX_NONE;
+	for (int32 EventIndex = 0; EventIndex < SubstituteResult.Events.Num(); ++EventIndex)
+	{
+		if (SubstituteResult.Events[EventIndex].Type
+			== EBattleEventType::FieldEffectChanged)
+		{
+			LastScreenRemovalIndex = EventIndex;
+		}
+	}
+	TestTrue(TEXT("All Brick Break screen mutations precede its Damage event"),
+		LastScreenRemovalIndex >= 0 && DamageIndex > LastScreenRemovalIndex);
+
+	TUniquePtr<FBattleEngine> ProtectEngine;
+	TestTrue(TEXT("The Brick Break Protect engine is created"),
+		TryCreateEngine(90521, ProtectEngine));
+	if (!ProtectEngine.IsValid()) return false;
+	TestTrue(TEXT("Every Brick Break target screen is seeded for Protect"),
+		SeedScreens(*ProtectEngine));
+	TestTrue(TEXT("The Brick Break target starts protected"),
+		FBattleC07DEngineFixture::SeedVolatile(
+			*ProtectEngine,
+			TargetId,
+			FBattleVolatileRules::GetProtectId(),
+			TargetId,
+			3));
+	FBattleResolvedTarget ProtectTarget;
+	TestTrue(TEXT("The Brick Break Protect target resolves"),
+		FBattleC07DEngineFixture::TryMakeBattlerTarget(
+			*ProtectEngine, TargetId, ProtectTarget));
+	const int32 ProtectedHPBefore = FBattleC07DEngineFixture::GetCurrentHP(
+		*ProtectEngine, TargetId);
+	FBattleEffectExecutionResult ProtectResult;
+	TestTrue(TEXT("Brick Break resolves as blocked by Protect"),
+		FBattleC07DEngineFixture::ExecuteCatalogMove(
+			*ProtectEngine,
+			UserId,
+			MakeDefinitionId<FMoveId>(BrickBreakRemovalMoveName),
+			ProtectTarget,
+			ProtectResult,
+			905210));
+	TestTrue(TEXT("Protected Brick Break emits the typed protection event"),
+		ProtectResult.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Protected;
+			}));
+	const FBattleSnapshot ProtectSnapshot = ProtectEngine->GetSnapshot();
+	const FBattleObservedSide* ProtectedTargetSide =
+		ProtectSnapshot.GetObservedSides().FindByPredicate(
+		[](const FBattleObservedSide& Side) { return Side.Side == EBattleSide::Opponent; });
+	TestTrue(TEXT("Protect preserves all three Brick Break target screens"),
+		ProtectedTargetSide != nullptr && ProtectedTargetSide->Conditions.Num() == 3);
+	TestEqual(TEXT("Protect preserves target HP from Brick Break"),
+		FBattleC07DEngineFixture::GetCurrentHP(*ProtectEngine, TargetId),
+		ProtectedHPBefore);
+	TestEqual(TEXT("Protected Brick Break emits no cleanup or Damage mutation"),
+		static_cast<int32>(Algo::CountIf(
+			ProtectResult.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::FieldEffectChanged
+					|| Event.Type == EBattleEventType::Damage;
+			})),
+		0);
 	return true;
 }
 

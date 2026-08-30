@@ -8,11 +8,12 @@ Primary verdict: **BLOCK**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1 through R5 COMPLETE; R6 is next**
+Remediation status: **R1 through R6 COMPLETE; independent R7 is next**
 
-Direct C10A row authoring is not ready. The live catalog can represent most of
-the approved proof slice, but it cannot faithfully represent or execute every
-required row. The safe form of Option A is therefore:
+Direct C10A row authoring is not ready. R1 through R6 now provide reusable
+typed implementations for B02 through B12, but this remediation session cannot
+independently accept its own live-source result. The safe form of Option A is
+therefore:
 
 1. preserve the completed R0 source/scope decisions in this document and the
    dated B00B amendment;
@@ -96,11 +97,11 @@ Current remediation state:
 | R4A hit qualifiers | COMPLETE | Final code and test-evidence reviews PASS; forced-Unity build, 7 focused successes, and 11 clean affected filters on 2026-08-29; B06, B07, and B08 resolved |
 | R4B weather move rules | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 8 focused successes, and 11 clean affected filters on 2026-08-29; B09 and B10 resolved |
 | R5 held-item move intents | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 12 focused successes, and 12 clean affected filters on 2026-08-30; B11 resolved |
-| Next lane | R6 | B12 remains blocked |
+| R6 optional condition removal | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 7 focused successes, and 7 clean affected filters on 2026-08-30; B12 resolved |
+| Next lane | R7 | Independent blocker gate remains required |
 
-C10A source-row authoring remains not started and blocked until R6 and
-independent R7 complete. Required order:
-`R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+C10A source-row authoring remains not started and blocked until independent R7
+completes. Required order: `R7 -> C10A -> C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -220,9 +221,9 @@ Status meanings:
 | 36 | Trick | Exchange the users' current held items, including one-empty cases | READY | — |
 | 37 | Thief | Damage, then conditionally transfer target item to an empty user | READY | — |
 | 38 | Recycle | Restore the user's most recently consumed eligible item instance | READY | — |
-| 39 | Rapid Spin | Damage, optional user/user-side removals, then Speed +1 | BLOCKED | B12 |
-| 40 | Defog | Evasion -1 plus optional target-side, both-side, and field removals | BLOCKED | B12 |
-| 41 | Brick Break | Optional target-side screen removals before Damage | BLOCKED | B12 |
+| 39 | Rapid Spin | Damage, optional user/user-side removals, then Speed +1 | READY | — |
+| 40 | Defog | Evasion -1 plus optional target-side, both-side, and field removals | READY | — |
+| 41 | Brick Break | Optional target-side screen removals before Damage | READY | — |
 | 42 | Sunny Day | Set Sun field condition | READY | — |
 | 43 | Rain Dance | Set Rain field condition | READY | — |
 | 44 | Sandstorm | Set Sandstorm field condition | READY | — |
@@ -442,17 +443,16 @@ Data Tables. That is C10B work.
 
 ### B12 — Canonical removal moves need optional absence semantics
 
-- Classification: **ADDITIVE GAP**
-- Gate: blocks Rapid Spin, Defog, and Brick Break.
+- Classification: **RESOLVED ADDITIVE GAP — R6 COMPLETE 2026-08-30**
+- Gate: resolved; Rapid Spin, Defog, and Brick Break are now expressible but
+  remain unauthored until C10A.
 - Owner: C05 descriptor/executor with C07 condition cleanup.
 - Existing reusable base: ordered RemoveCondition descriptors can target a
   battler, user side, target side, both sides, or field; primary descriptors
   ordered before Damage already run at the pre-damage checkpoint.
-- Missing rule: an absent condition currently produces a failed effect event.
-  Canonical multi-removal moves need absence to be a silent no-op while other
-  removals and effects continue.
-- Required capability: append an OptionalIfAbsent effect flag or an equivalent
-  typed removal policy. Present conditions still run their normal cleanup once.
+- Resolved rule: an absent condition still fails for legacy removals, but an
+  authored `OptionalIfAbsent` removal succeeds silently while later effects
+  continue. Present conditions still run their normal cleanup exactly once.
 - Rapid Spin proof: only after a connected hit, including Substitute damage;
   remove the approved user volatiles and user-side hazards, then apply Speed
   +1.
@@ -879,9 +879,16 @@ authored.
 
 ### R6 — Optional condition removal
 
-Resolve B12 without introducing move-specific group code.
+Status: **COMPLETE — implementation and validation accepted 2026-08-30**.
 
-Proposed maximum hand-authored write set:
+R6 resolved B12 without introducing move-specific group code. The new
+`OptionalIfAbsent` bit is accepted only for `RemoveCondition`. Runtime presence
+is derived from the catalog condition family and the exact staged battler,
+side, or field owner. Present conditions use their normal cleanup exactly once;
+optional absence remains applied but stages no mutation and emits no condition
+event or update. Legacy absence and malformed descriptors still fail.
+
+The exact hand-authored code/test write set was:
 
 - Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h
 - Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp
@@ -892,6 +899,44 @@ Proposed maximum hand-authored write set:
 - Game/Source/PokemonSolarus/Private/Tests/BattleVolatileTests.cpp
 - Game/Source/PokemonSolarus/Private/Tests/BattleFieldSideConditionTests.cpp
 - Game/Source/PokemonSolarus/Private/Tests/BattleAtomicMoveEffectTests.cpp
+
+Exactly seven focused `PokemonSolarus.Battle.C05B.C10Removal` identities cover
+the generic executor contract, adapter/catalog validation, Rapid Spin, Defog,
+Brick Break, and atomic rollback. Rapid Spin proves connected Substitute damage
+before cleanup and Speed +1; Defog proves Evasion ordering and exactly 14
+present removals; Brick Break proves three pre-damage screen removals through
+Substitute while Protect preserves screens and HP.
+
+The code-file organization review kept the existing executor coordinator,
+condition executor, executor-test, volatile-test, and field/side-test
+responsibilities; R6 added no new owner. The field/side helper remains local to
+its fixture. The 1,034-line atomic test kept its required local catalog because
+extracting it would create a tenth code/test path outside the approved set. The
+998-line catalog and 869-line adapter stayed below the 1,000-line decision
+threshold.
+
+The post-review forced-Unity compile succeeded at
+`Game/Saved/AutomationReports/R6-OptionalConditionRemoval-ReviewFix-20260830-161500/build-after-event-order-fix.log`,
+SHA-256
+`033D53201BD0A76865FE23C6C75AFDD5DF14A44E5BCF6B0508D5903CB808565D`.
+The final evidence root is
+`Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
+The focused filter passed 7/7; C05B, C07B, C07C, C07D, C08B, C08C, and
+ADR0002.3E6 passed serially with counts `42, 9, 8, 9, 20, 39, 18`. Across all
+eight reports, 152 overlapping executions and 145 unique full-test paths
+succeeded, with zero aggregate or per-test issue counters.
+
+The final build log, linked editor DLL, counter manifest, exact-path manifest,
+and source-hash manifest SHA-256 values are
+`C109E74D8779882DE66D89B0F96F07F649C8263F25376912B3597762E97DFCE7`,
+`BD672C763990C59FB4B2FB27B0BA95ABFCB698028F9A335ED0EEB86EEAAAB562`,
+`2DE268F32848921228918BE3CFB85C5E10B436A8412E22A6A91943D03F50CF19`,
+`10910887422FBF1B26E201A1B45C9B652F6C5BA11FF5FE1A977036E52FA70090`,
+and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
+The source manifest proves all nine source/test writes precede the final build
+log. Final `code-review` was APPROVED and final `test-evidence-review` was
+ADEQUATE/COMPLETE after all validated findings were fixed. This is not
+independent R7; no C10A row, asset, or Git action was performed.
 
 ### R7 — Independent blocker gate
 

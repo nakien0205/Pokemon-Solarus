@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Algo/Count.h"
 #include "Battle/BattleActionQueue.h"
 #include "Battle/BattleDefinitionCatalog.h"
 #include "Battle/BattleEffectExecutor.h"
@@ -136,6 +137,20 @@ public:
 			? Engine.State->FindBattler(BattlerId)
 			: nullptr;
 		return Battler != nullptr ? Battler->CurrentHP : INDEX_NONE;
+	}
+
+	static int32 GetStage(
+		const FBattleEngine& Engine,
+		const FBattlerId BattlerId,
+		const EBattleStat Stat)
+	{
+		const FBattleBattlerState* Battler = Engine.State.IsValid()
+			? Engine.State->FindBattler(BattlerId)
+			: nullptr;
+		int32 Stage = INDEX_NONE;
+		return Battler != nullptr && Battler->Stages.TryGetStage(Stat, Stage)
+			? Stage
+			: INDEX_NONE;
 	}
 
 	static bool SetCurrentHP(
@@ -546,6 +561,8 @@ namespace BattleVolatileTests
 	const TCHAR* RechargeMoveName = TEXT("Move.C07C.Recharge");
 	const TCHAR* ReachMoveName = TEXT("Move.C07C.ReachFly");
 	const TCHAR* BreakProtectMoveName = TEXT("Move.C07C.BreakProtect");
+	const TCHAR* RapidSpinMoveName = TEXT("Move.C10Removal.RapidSpin");
+	const TCHAR* RapidSpinMissMoveName = TEXT("Move.C10Removal.RapidSpinMiss");
 
 	using FExpectedDraw = BattleTest::FBattleExpectedRandomDraw;
 	using FScriptedVolatileRandom = BattleTest::FStrictBattleRandom;
@@ -682,6 +699,45 @@ namespace BattleVolatileTests
 		return Move;
 	}
 
+	FBattleMoveDefinition MakeRapidSpinMove(const TCHAR* Name, const bool bAlwaysHits = true)
+	{
+		FBattleMoveDefinition Move = MakeDamageMove(Name, 40);
+		Move.bAlwaysHits = bAlwaysHits;
+		Move.Accuracy = bAlwaysHits ? 0 : 1;
+		Move.Effects[0].Order = 0;
+
+		FBattleMoveEffectDescriptor RemoveLeechSeed;
+		RemoveLeechSeed.Order = 1;
+		RemoveLeechSeed.Kind = EBattleMoveEffectKind::RemoveCondition;
+		RemoveLeechSeed.Target = EBattleEffectTarget::User;
+		RemoveLeechSeed.ConditionId = FBattleVolatileRules::GetLeechSeedId();
+		RemoveLeechSeed.ChanceNumerator = 1;
+		RemoveLeechSeed.ChanceDenominator = 1;
+		RemoveLeechSeed.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		Move.Effects.Add(RemoveLeechSeed);
+
+		FBattleMoveEffectDescriptor RemovePartialTrap;
+		RemovePartialTrap.Order = 2;
+		RemovePartialTrap.Kind = EBattleMoveEffectKind::RemoveCondition;
+		RemovePartialTrap.Target = EBattleEffectTarget::User;
+		RemovePartialTrap.ConditionId = FBattleVolatileRules::GetPartialTrapId();
+		RemovePartialTrap.ChanceNumerator = 1;
+		RemovePartialTrap.ChanceDenominator = 1;
+		RemovePartialTrap.Flags = EBattleMoveEffectFlags::OptionalIfAbsent;
+		Move.Effects.Add(RemovePartialTrap);
+
+		FBattleMoveEffectDescriptor Speed;
+		Speed.Order = 3;
+		Speed.Kind = EBattleMoveEffectKind::ModifyStatStage;
+		Speed.Target = EBattleEffectTarget::User;
+		Speed.Stat = EBattleStat::Speed;
+		Speed.MagnitudeNumerator = 1;
+		Speed.ChanceNumerator = 100;
+		Speed.ChanceDenominator = 100;
+		Move.Effects.Add(Speed);
+		return Move;
+	}
+
 	FBattleDefinitionCatalogInput MakeCatalogInput()
 	{
 		FBattleDefinitionCatalogInput Input;
@@ -693,6 +749,8 @@ namespace BattleVolatileTests
 			MakeSubstituteMove(),
 			MakeChargeMove(),
 			MakeRechargeMove(),
+			MakeRapidSpinMove(RapidSpinMoveName),
+			MakeRapidSpinMove(RapidSpinMissMoveName, false),
 			MakeDamageMove(
 				BreakProtectMoveName,
 				40,
@@ -1644,6 +1702,263 @@ bool FBattleC07CSubstituteTest::RunTest(const FString& Parameters)
 		FBattleC07CEngineFixture::GetCurrentHP(*Engine, PlayerId), 120);
 	TestFalse(TEXT("Depleted Substitute is removed"), FBattleC07CEngineFixture::HasVolatile(
 		*Engine, PlayerId, FBattleVolatileRules::GetSubstituteId()));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10RemovalRapidSpinVolatilesTest,
+	"PokemonSolarus.Battle.C05B.C10Removal.RapidSpin.VolatilesConnectedSubstituteMissProtect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBattleC10RemovalRapidSpinVolatilesTest::RunTest(const FString& Parameters)
+{
+	using namespace BattleVolatileTests;
+	(void)Parameters;
+	const FBattlerId PlayerId = MakeNumericId<FBattlerId>(PlayerBattlerValue);
+	const FBattlerId OpponentId = MakeNumericId<FBattlerId>(OpponentBattlerValue);
+	const FMoveId RapidSpinId = MakeDefinitionId<FMoveId>(RapidSpinMoveName);
+	const FMoveId RapidSpinMissId = MakeDefinitionId<FMoveId>(RapidSpinMissMoveName);
+
+	auto SeedRemovableVolatiles = [PlayerId, OpponentId](FBattleEngine& Engine)
+	{
+		return FBattleC07CEngineFixture::ApplyVolatile(
+			Engine,
+			PlayerId,
+			FBattleVolatileRules::GetLeechSeedId(),
+			OpponentId)
+			&& FBattleC07CEngineFixture::ApplyVolatile(
+				Engine,
+				PlayerId,
+				FBattleVolatileRules::GetPartialTrapId(),
+				OpponentId,
+				5);
+	};
+
+	TUniquePtr<FBattleEngine> ConnectedEngine;
+	TestTrue(TEXT("Rapid Spin connected-hit engine is created"),
+		TryCreateEngine(7111, 51, ConnectedEngine));
+	if (!ConnectedEngine.IsValid())
+	{
+		return false;
+	}
+	TestTrue(TEXT("Rapid Spin seeds Leech Seed and Partial Trap on the user"),
+		SeedRemovableVolatiles(*ConnectedEngine));
+	TestTrue(TEXT("Rapid Spin target starts behind Substitute"),
+		FBattleC07CEngineFixture::ApplyVolatile(
+			*ConnectedEngine,
+			OpponentId,
+			FBattleVolatileRules::GetSubstituteId(),
+			OpponentId,
+			TOptional<int32>(),
+			40));
+	const int32 ConnectedTargetHPBefore = FBattleC07CEngineFixture::GetCurrentHP(
+		*ConnectedEngine, OpponentId);
+	FBattleEffectExecutionResult Execution;
+	TestTrue(TEXT("Rapid Spin connects through Substitute"),
+		FBattleC07CEngineFixture::ExecuteMove(
+			*ConnectedEngine, PlayerId, OpponentId, RapidSpinId, Execution));
+	TestTrue(TEXT("Connected Rapid Spin execution is valid"), Execution.bValid);
+	TestFalse(TEXT("Connected Rapid Spin removes Leech Seed from its user"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*ConnectedEngine, PlayerId, FBattleVolatileRules::GetLeechSeedId()));
+	TestFalse(TEXT("Connected Rapid Spin removes Partial Trap from its user"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*ConnectedEngine, PlayerId, FBattleVolatileRules::GetPartialTrapId()));
+	TestEqual(TEXT("Connected Rapid Spin routes damage away from target HP"),
+		FBattleC07CEngineFixture::GetCurrentHP(*ConnectedEngine, OpponentId),
+		ConnectedTargetHPBefore);
+	TestTrue(TEXT("Connected Rapid Spin visibly damages Substitute"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*ConnectedEngine, OpponentId, FBattleVolatileRules::GetSubstituteId())
+			&& FBattleC07CEngineFixture::GetVolatileLayers(
+				*ConnectedEngine,
+				OpponentId,
+				FBattleVolatileRules::GetSubstituteId()) > 0
+			&& FBattleC07CEngineFixture::GetVolatileLayers(
+				*ConnectedEngine,
+				OpponentId,
+				FBattleVolatileRules::GetSubstituteId()) < 40);
+	TestEqual(TEXT("Rapid Spin emits one Damage event against Substitute"),
+		static_cast<int32>(Algo::CountIf(
+			Execution.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Damage
+					&& Event.NumericBefore.IsSet()
+					&& Event.NumericBefore.GetValue() == 40
+					&& Event.NumericAfter.IsSet()
+					&& Event.NumericAfter.GetValue() < 40;
+			})),
+		1);
+	TestEqual(TEXT("Each present battler cleanup emits exactly one mutation"),
+		static_cast<int32>(Algo::CountIf(
+			Execution.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatusChanged;
+			})),
+		2);
+	TestEqual(TEXT("Connected Rapid Spin applies Speed +1 after cleanup"),
+		FBattleC07CEngineFixture::GetStage(
+			*ConnectedEngine, PlayerId, EBattleStat::Speed),
+		1);
+	TestEqual(TEXT("Only Rapid Spin's Speed +1 consumes a secondary chance draw"),
+		static_cast<int32>(Algo::CountIf(
+			Execution.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::RandomCheck
+					&& Event.NumericBefore.IsSet()
+					&& Event.NumericBefore.GetValue() == 0
+					&& Event.NumericDelta.IsSet()
+					&& Event.NumericDelta.GetValue() == 99;
+			})),
+		1);
+	const int32 ConnectedDamageIndex = Execution.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::Damage;
+		});
+	const int32 FirstCleanupIndex = Execution.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::StatusChanged;
+		});
+	const int32 SpeedIndex = Execution.Events.IndexOfByPredicate(
+		[](const FBattleEffectExecutionEvent& Event)
+		{
+			return Event.Type == EBattleEventType::StatStageChanged;
+		});
+	int32 LastCleanupIndex = INDEX_NONE;
+	for (int32 EventIndex = 0; EventIndex < Execution.Events.Num(); ++EventIndex)
+	{
+		if (Execution.Events[EventIndex].Type == EBattleEventType::StatusChanged)
+		{
+			LastCleanupIndex = EventIndex;
+		}
+	}
+	TestTrue(TEXT("Rapid Spin orders Damage, cleanup, then Speed +1"),
+		ConnectedDamageIndex >= 0
+			&& FirstCleanupIndex > ConnectedDamageIndex
+			&& LastCleanupIndex >= FirstCleanupIndex
+			&& SpeedIndex > LastCleanupIndex);
+
+	TUniquePtr<FBattleEngine> MissEngine;
+	TestTrue(TEXT("Rapid Spin miss engine is created"), TryCreateEngine(7112, 52, MissEngine));
+	if (!MissEngine.IsValid())
+	{
+		return false;
+	}
+	TestTrue(TEXT("Rapid Spin miss seeds removable volatiles"),
+		SeedRemovableVolatiles(*MissEngine));
+	TestTrue(TEXT("One-percent-accuracy Rapid Spin misses"),
+		FBattleC07CEngineFixture::ExecuteMove(
+			*MissEngine, PlayerId, OpponentId, RapidSpinMissId, Execution));
+	TestTrue(TEXT("Missed Rapid Spin emits the typed miss event"),
+		Execution.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Missed;
+			}));
+	TestTrue(TEXT("Missed Rapid Spin preserves Leech Seed"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*MissEngine, PlayerId, FBattleVolatileRules::GetLeechSeedId()));
+	TestTrue(TEXT("Missed Rapid Spin preserves Partial Trap"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*MissEngine, PlayerId, FBattleVolatileRules::GetPartialTrapId()));
+	TestEqual(TEXT("Missed Rapid Spin does not apply Speed +1"),
+		FBattleC07CEngineFixture::GetStage(*MissEngine, PlayerId, EBattleStat::Speed),
+		0);
+	TestFalse(TEXT("Missed Rapid Spin emits no Damage or cleanup mutation"),
+		Execution.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Damage
+					|| Event.Type == EBattleEventType::StatusChanged
+					|| Event.Type == EBattleEventType::StatStageChanged;
+			}));
+
+	TUniquePtr<FBattleEngine> ProtectEngine;
+	TestTrue(TEXT("Rapid Spin Protect engine is created"),
+		TryCreateEngine(7113, 53, ProtectEngine));
+	if (!ProtectEngine.IsValid())
+	{
+		return false;
+	}
+	TestTrue(TEXT("Rapid Spin Protect seeds removable volatiles"),
+		SeedRemovableVolatiles(*ProtectEngine));
+	TestTrue(TEXT("Rapid Spin target starts protected"),
+		FBattleC07CEngineFixture::ApplyVolatile(
+			*ProtectEngine,
+			OpponentId,
+			FBattleVolatileRules::GetProtectId(),
+			OpponentId,
+			TOptional<int32>(),
+			3));
+	TestTrue(TEXT("Rapid Spin is blocked by Protect"),
+		FBattleC07CEngineFixture::ExecuteMove(
+			*ProtectEngine, PlayerId, OpponentId, RapidSpinId, Execution));
+	TestTrue(TEXT("Protected Rapid Spin emits the typed protection event"),
+		Execution.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Protected;
+			}));
+	TestTrue(TEXT("Protected Rapid Spin preserves Leech Seed"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*ProtectEngine, PlayerId, FBattleVolatileRules::GetLeechSeedId()));
+	TestTrue(TEXT("Protected Rapid Spin preserves Partial Trap"),
+		FBattleC07CEngineFixture::HasVolatile(
+			*ProtectEngine, PlayerId, FBattleVolatileRules::GetPartialTrapId()));
+	TestEqual(TEXT("Protected Rapid Spin does not apply Speed +1"),
+		FBattleC07CEngineFixture::GetStage(
+			*ProtectEngine, PlayerId, EBattleStat::Speed),
+		0);
+	TestFalse(TEXT("Protected Rapid Spin emits no Damage or cleanup mutation"),
+		Execution.Events.ContainsByPredicate(
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::Damage
+					|| Event.Type == EBattleEventType::StatusChanged
+					|| Event.Type == EBattleEventType::StatStageChanged;
+			}));
+
+	TUniquePtr<FBattleEngine> AbsentEngine;
+	TestTrue(TEXT("Rapid Spin actual-absence engine is created"),
+		TryCreateEngine(7114, 54, AbsentEngine));
+	if (!AbsentEngine.IsValid())
+	{
+		return false;
+	}
+	TestTrue(TEXT("Rapid Spin succeeds when both user volatiles are actually absent"),
+		FBattleC07CEngineFixture::ExecuteMove(
+			*AbsentEngine, PlayerId, OpponentId, RapidSpinId, Execution));
+	TestTrue(TEXT("Actual-absence Rapid Spin execution is valid"), Execution.bValid);
+	TestEqual(TEXT("Actual battler absence still continues to Speed +1"),
+		FBattleC07CEngineFixture::GetStage(
+			*AbsentEngine, PlayerId, EBattleStat::Speed),
+		1);
+	TestEqual(TEXT("Actual battler absence emits no cleanup mutation or failure"),
+		static_cast<int32>(Algo::CountIf(
+			Execution.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::StatusChanged
+					|| Event.Type == EBattleEventType::EffectFailed;
+			})),
+		0);
+	TestEqual(TEXT("Actual battler absence keeps the one Speed chance draw"),
+		static_cast<int32>(Algo::CountIf(
+			Execution.Events,
+			[](const FBattleEffectExecutionEvent& Event)
+			{
+				return Event.Type == EBattleEventType::RandomCheck
+					&& Event.NumericBefore.IsSet()
+					&& Event.NumericBefore.GetValue() == 0
+					&& Event.NumericDelta.IsSet()
+					&& Event.NumericDelta.GetValue() == 99;
+			})),
+		1);
 	return true;
 }
 

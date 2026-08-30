@@ -285,3 +285,25 @@ owner. R4B added no new trigger phase: it registers Sun at `BeforeHit`,
 `BeforeDamage`, then expiry. The existing C07D contract identity now asserts
 those exact ordered phase sets. Dispatch uses the current canonical weather;
 inactive, suppressed, or unsupported weather remains neutral.
+
+## R6 optional condition-removal addendum — 2026-08-30
+
+R6 did not add a new condition owner or move-specific cleanup group. The C05
+executor now resolves the exact catalog condition family and checks its staged
+battler, side, or field owner before removal. A present condition uses the
+existing C07 cleanup path exactly once. An absent condition is silent only when
+the descriptor carries the typed `OptionalIfAbsent` flag; legacy absence,
+missing definitions, invalid targets, and cleanup failures remain failures.
+
+The seven focused R6 identities prove the generic executor contract plus Rapid
+Spin, Defog, Brick Break, adapter/catalog validation, and atomic rollback.
+Rapid Spin proves connected Substitute damage before the approved user
+volatile and user-side hazard removals, followed by Speed +1. Defog proves the
+target Evasion drop before exactly 14 present side/field removals and a silent
+all-absent pass. Brick Break proves its three screen removals before Damage
+through Substitute while Protect preserves the screens and HP.
+
+The final serial C07B, C07C, and C07D reports under
+`Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`
+passed 9/9, 8/8, and 9/9 with zero aggregate or per-test warnings, errors,
+failures, not-run, or in-process results.
