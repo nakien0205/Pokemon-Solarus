@@ -1,7 +1,7 @@
 # C08 — Abilities, Held Items, and Battle Items
 
 Priority: P2  
-Status: C08A/B/C complete
+Status: C08A/B/C complete; C10A R5 held-item move extension complete
 
 Required order: C08A; then C08B/C
 
@@ -37,6 +37,11 @@ Held-item ownership:
   ownership after battle.
 - A captured wild Pokemon keeps its original held item.
 - Battle-generated items disappear after battle.
+- A successful in-battle consumption records the consumer Trainer/battler and
+  its monotonic fact ordinal. Recycle selects the greatest matching ordinal
+  among items that are still consumed.
+- A persistent item already consumed before setup has no battle-consumption
+  history and is not eligible for Recycle.
 - Core emits final item-state facts; it does not write inventory.
 
 Bag ownership:
@@ -220,6 +225,46 @@ boss permission. Partner Trainers cannot capture.
   older battle filter, full battle suite, or project-wide test run was used.
 - C08 is complete under the approved focused-validation scope. C09A is now
   dependency-clear; C09B and later packages remain dependency-blocked.
+
+### C10A R5 Held-Item Move Extension Completion Record
+
+- R5 completed on 2026-08-30 without authoring any C10A source row. The generic
+  authored operations are `RemoveCurrent`, `ExchangeCurrent`,
+  `TransferCurrent`, and `RestoreLastConsumed`; no move, item, species, or match
+  ID controls generic behavior.
+- `BattleHeldItemMoveEffects` owns stateless operation validation and the
+  data-driven takeability rule. Knock Off receives Q12 `6144` only when the
+  current target item can be taken by a move; item suppression does not change
+  takeability.
+- `BattleEffectExecutorItemMoves` resolves live item instances and stages the
+  existing ledger operations together with battler mirrors, hook ownership,
+  direct reveal state, and Choice-lock cleanup. Item intents run after generic
+  effects and before forced switches and starting-Life-Orb recoil in the one
+  existing staged execution plan.
+- The ledger records last-consumer Trainer/battler identity plus the successful
+  consumption fact ordinal. Recycle restores the greatest matching ordinal.
+  Persistent items consumed before setup may have empty history and are
+  excluded from lookup; incomplete, generated, or restored history-less states
+  remain invalid.
+- Public `ItemRestored = 55` and `ItemTransferred = 56` events append to the
+  existing event vocabulary. Their item/source/target/numeric/visibility shapes
+  and deterministic bytes are validated under unchanged replay schema `6`.
+- The final forced-Unity build and all reports are rooted at
+  `Game/Saved/AutomationReports/R5-HeldItemMoves-Final-20260830-091817`.
+  The focused `PokemonSolarus.Battle.C08C.C10HeldItemMoves` filter passed 12/12.
+  The required affected filters passed serially with counts
+  `7, 34, 35, 7, 8, 8, 9, 7, 20, 39, 6, 18`; all issue counters are zero.
+  There are 210 overlapping successful executions and 198 unique paths.
+- Build-log and linked-DLL SHA-256 values are
+  `DE3D70FB5EB3C7C9D01DD1E5FEE376655E5EAEE85CA7F1953B158B9AA58A103C`
+  and `37E73305CA4E5CD9D9881BF12E565B2C5E7B2AD49AB4319C77BA3B726E165ED1`.
+  Counter, exact-path, and source-hash manifest SHA-256 values are
+  `55412CA9E40EDAB0440403DD9C46E6DDC32CD41817C8F6456537F77A201AC165`,
+  `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
+  and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
+- Final `code-review` was APPROVED and final `test-evidence-review` was
+  ADEQUATE/COMPLETE with no remaining finding. No Git action, persistent
+  inventory write, visual asset change, or independent R7 was performed.
 
 ## Safe Session Split
 

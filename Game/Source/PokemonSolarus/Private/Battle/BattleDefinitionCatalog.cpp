@@ -2,6 +2,7 @@
 #include "Battle/BattleMoveHitRules.h"
 #include "Battle/BattleMoveWeatherRules.h"
 #include "BattleAllyActionPowerModifier.h"
+#include "BattleHeldItemMoveEffects.h"
 #include "BattleMoveRedirection.h"
 
 namespace
@@ -329,6 +330,12 @@ namespace
 		{
 			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::InvalidEnum, TEXT("Effects.Target"));
 		}
+		if (!FBattleHeldItemMoveEffects::IsKnownOperation(Effect.HeldItemOperation))
+		{
+			AddEffectDiagnostic(
+				EBattleCatalogDiagnosticCode::InvalidEnum,
+				TEXT("Effects.HeldItemOperation"));
+		}
 		const bool bPrimaryChance = Effect.ChanceNumerator == 1
 			&& Effect.ChanceDenominator == 1;
 		const bool bIndependentPercentageChance = Effect.ChanceNumerator >= 1
@@ -448,14 +455,11 @@ namespace
 
 		if (Effect.Kind == EBattleMoveEffectKind::ChangeItem)
 		{
-			if (!Effect.ItemId.IsValid() || FindDefinition(Items, Effect.ItemId) == nullptr)
+			if (Effect.ItemId.IsValid()
+				&& FindDefinition(Items, Effect.ItemId) == nullptr)
 			{
 				AddEffectDiagnostic(EBattleCatalogDiagnosticCode::MissingReference, TEXT("Effects.ItemId"));
 			}
-		}
-		else if (Effect.ItemId.IsValid())
-		{
-			AddEffectDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Effects.ItemId"));
 		}
 
 		if (Effect.Kind == EBattleMoveEffectKind::ModifyStatStage)
@@ -560,6 +564,12 @@ namespace
 		if (!FBattleMoveWeatherRules::TryValidateMoveDefinition(Move, WeatherRuleError))
 		{
 			AddMoveDiagnostic(EBattleCatalogDiagnosticCode::IncompatibleEffect, TEXT("Flags"));
+		}
+		if (!FBattleHeldItemMoveEffects::TryValidateMoveDefinition(Move))
+		{
+			AddMoveDiagnostic(
+				EBattleCatalogDiagnosticCode::IncompatibleEffect,
+				TEXT("Effects.HeldItemOperation"));
 		}
 
 		if (Move.Category == EBattleMoveCategory::Status)

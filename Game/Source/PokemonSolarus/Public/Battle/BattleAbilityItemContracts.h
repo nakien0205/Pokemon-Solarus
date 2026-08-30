@@ -199,6 +199,13 @@ public:
 		const FBattleTriggerSourceDefinition& SourceDefinition,
 		const FBattleTriggerSubject& Owner) const;
 
+	/** Records a validated public reveal without manufacturing an activation fact. */
+	[[nodiscard]] bool TryRecordPublicReveal(
+		const FBattleTriggerSourceDefinition& SourceDefinition,
+		const FBattleTriggerSubject& Owner,
+		bool& bOutFirstPublicReveal,
+		EBattleAbilityItemHookError& OutError);
+
 private:
 	TArray<FBattleAbilityItemRevealKey> RevealedKeys;
 };
@@ -260,6 +267,9 @@ struct POKEMONSOLARUS_API FBattleHeldItemInstanceState
 	FTrainerId CurrentHolderTrainerId;
 	FBattlerId CurrentHolderBattlerId;
 	FItemId CurrentItemId;
+	FTrainerId LastConsumerTrainerId;
+	FBattlerId LastConsumerBattlerId;
+	uint64 LastConsumptionFactOrdinal = 0;
 	bool bConsumed = false;
 	bool bSuppressed = false;
 	bool bRevealed = false;
@@ -279,6 +289,9 @@ struct POKEMONSOLARUS_API FBattleHeldItemInstanceState
 			&& Left.CurrentHolderTrainerId == Right.CurrentHolderTrainerId
 			&& Left.CurrentHolderBattlerId == Right.CurrentHolderBattlerId
 			&& Left.CurrentItemId == Right.CurrentItemId
+			&& Left.LastConsumerTrainerId == Right.LastConsumerTrainerId
+			&& Left.LastConsumerBattlerId == Right.LastConsumerBattlerId
+			&& Left.LastConsumptionFactOrdinal == Right.LastConsumptionFactOrdinal
 			&& Left.bConsumed == Right.bConsumed
 			&& Left.bSuppressed == Right.bSuppressed
 			&& Left.bRevealed == Right.bRevealed
@@ -358,6 +371,11 @@ public:
 	/** Finds one immutable item-instance state, or null. */
 	[[nodiscard]] const FBattleHeldItemInstanceState* FindState(
 		FBattleHeldItemInstanceId InstanceId) const;
+
+	/** Finds the currently consumed item most recently consumed by this battler. */
+	[[nodiscard]] const FBattleHeldItemInstanceState* FindMostRecentlyConsumedBy(
+		FTrainerId TrainerId,
+		FBattlerId BattlerId) const;
 
 private:
 	TArray<FBattleHeldItemInstanceState> States;

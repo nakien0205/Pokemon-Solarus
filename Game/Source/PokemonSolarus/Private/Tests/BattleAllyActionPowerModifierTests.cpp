@@ -604,6 +604,9 @@ bool FBattleC10R3ActionModifierContractTest::RunTest(const FString& Parameters)
 		{TEXT("item payload"), [](FBattleMoveDefinition& Move) {
 			Move.Effects[0].ItemId = MakeDefinitionId<FItemId>(
 				TEXT("Item.C10R3.Unused")); }},
+		{TEXT("held-item operation payload"), [](FBattleMoveDefinition& Move) {
+			Move.Effects[0].HeldItemOperation =
+				EBattleMoveHeldItemOperation::RemoveCurrent; }},
 		{TEXT("stat payload"), [](FBattleMoveDefinition& Move) {
 			Move.Effects[0].Stat = EBattleStat::Speed; }},
 		{TEXT("zero numerator"), [](FBattleMoveDefinition& Move) {

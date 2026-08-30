@@ -560,6 +560,7 @@ namespace BattleMoveRedirectionTests
 			{TEXT("Effect.ChanceDenominator"), [](FBattleMoveDefinition& Move) { Move.Effects[0].ChanceDenominator = 2; }},
 			{TEXT("Effect.ConditionId"), [](FBattleMoveDefinition& Move) { Move.Effects[0].ConditionId = MakeDefinitionId<FConditionId>(TEXT("Condition.C10R2.Unused")); }},
 			{TEXT("Effect.ItemId"), [](FBattleMoveDefinition& Move) { Move.Effects[0].ItemId = MakeDefinitionId<FItemId>(TEXT("Item.C10R2.Unused")); }},
+			{TEXT("Effect.HeldItemOperation"), [](FBattleMoveDefinition& Move) { Move.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::RemoveCurrent; }},
 			{TEXT("Effect.Stat"), [](FBattleMoveDefinition& Move) { Move.Effects[0].Stat = EBattleStat::Speed; }},
 			{TEXT("Effect.MagnitudeNumerator"), [](FBattleMoveDefinition& Move) { Move.Effects[0].MagnitudeNumerator = 1; }},
 			{TEXT("Effect.MagnitudeDenominator"), [](FBattleMoveDefinition& Move) { Move.Effects[0].MagnitudeDenominator = 2; }},

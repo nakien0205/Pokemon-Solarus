@@ -83,6 +83,14 @@ struct FBattleSwitchEffectIntent
 	FBattleEventTarget IncomingTarget;
 };
 
+/** Stable bridge from one reached R5 descriptor to staged held-item resolution. */
+struct FBattleHeldItemMoveEffectIntent
+{
+	EBattleMoveHeldItemOperation Operation = EBattleMoveHeldItemOperation::Invalid;
+	int32 EffectEventIndex = INDEX_NONE;
+	FBattleResolvedTarget Target;
+};
+
 /** Immutable input for one already committed and targeted Fight action. */
 struct FBattleEffectExecutionRequest
 {
@@ -104,6 +112,7 @@ struct FBattleEffectExecutionResult
 	TArray<int32> CompletedHitsPerDamageTarget;
 	TArray<FBattleEffectExecutionEvent> Events;
 	TArray<FBattleSwitchEffectIntent> SwitchIntents;
+	TArray<FBattleHeldItemMoveEffectIntent> HeldItemMoveIntents;
 	/** True when a first-turn charge was stored and the remaining move effects must wait. */
 	bool bMoveDeferred = false;
 };

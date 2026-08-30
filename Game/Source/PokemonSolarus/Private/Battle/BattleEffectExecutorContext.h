@@ -22,6 +22,10 @@ namespace BattleEffectExecutorPrivate
 			FBattleEffectExecutionResult& Result,
 			EBattleEffectExecutorError& OutError);
 
+		bool TryResolveHeldItemMoveIntents(
+			FBattleEffectExecutionResult& Result,
+			EBattleEffectExecutorError& OutError);
+
 		bool TryApplyPostMoveLifeOrbRecoil(
 			FBattleEffectExecutionResult& Result,
 			EBattleEffectExecutorError& OutError);
@@ -439,6 +443,7 @@ namespace BattleEffectExecutorPrivate
 		TOptional<bool> CachedFirstTurnChargeSkip;
 		bool bApplyingDirectMoveDamageHit = false;
 		bool bMoveAffectedDifferentBattler = false;
+		bool bLifeOrbBoostAppliedThisMove = false;
 		bool bRuntimeValid = true;
 		EBattleEffectExecutorError RuntimeError = EBattleEffectExecutorError::InvalidHookResult;
 		uint64 NextConditionCreationOrdinal = 1;

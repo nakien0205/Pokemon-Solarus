@@ -1,10 +1,10 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C10A reusable typed-remediation lanes
-Task: R1-R4B complete; R5 is next
+Task: R1-R5 complete; R6 is next
 <!-- /STATUS -->
 
-# Active Project State — 2026-08-29
+# Active Project State — 2026-08-30
 
 ## Current work
 
@@ -58,16 +58,20 @@ Task: R1-R4B complete; R5 is next
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1 through R4B are complete. R1 added the two typed
+- C10A remediation lanes R1 through R5 are complete. R1 added the two typed
   target classes, R2 added private action-scoped redirection, R3 added the
   private typed ally action power modifier, and R4A added reusable authored hit
   qualifiers for status-move type immunity, Powder immunity, and Poison-type
   user reachability and accuracy behavior. R4B added reusable authored weather
   charge, accuracy, and power rules for Solar Beam and Thunder. Swift, Fly,
   Follow Me, Helping Hand, Toxic, Powder moves, Solar Beam, and Thunder are now
-  expressible, but their C10A rows remain unauthored.
-- R5 is next. Preserve the order
-  `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+  expressible, but their C10A rows remain unauthored. R5 added reusable,
+  data-driven held-item move operations for remove, exchange, transfer, and
+  restore; atomic C08 ledger/mirror/hook/reveal updates; Knock Off's takeability
+  power rule; and starting-Life-Orb recoil qualification. Knock Off, Trick,
+  Thief, and Recycle are now expressible, but their C10A rows remain unauthored.
+- R6 is next. Preserve the order
+  `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -222,6 +226,30 @@ Task: R1-R4B complete; R5 is next
   Final `code-review` was APPROVED and `test-evidence-review` was
   ADEQUATE/COMPLETE, with no blocking or advisory gap. Independent R7 has not
   been performed.
+- R5's final forced-Unity `PokemonSolarusEditor Win64 Development` build passed
+  with `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and
+  `-NoUBA`. The final evidence root is
+  `Game/Saved/AutomationReports/R5-HeldItemMoves-Final-20260830-091817`.
+  The build log SHA-256 is
+  `DE3D70FB5EB3C7C9D01DD1E5FEE376655E5EAEE85CA7F1953B158B9AA58A103C`,
+  and the linked editor DLL SHA-256 is
+  `37E73305CA4E5CD9D9881BF12E565B2C5E7B2AD49AB4319C77BA3B726E165ED1`.
+- R5's focused `PokemonSolarus.Battle.C08C.C10HeldItemMoves` report passed all
+  12 tests. The 12 required affected filters passed serially with counts
+  `7, 34, 35, 7, 8, 8, 9, 7, 20, 39, 6, 18`. Across all 13 reports, 210
+  overlapping executions and 198 unique full-test paths succeeded, with zero
+  aggregate or per-test warnings, errors, failures, not-run, or in-process
+  results. The counter, exact-path, and source-hash manifests have SHA-256
+  `55412CA9E40EDAB0440403DD9C46E6DDC32CD41817C8F6456537F77A201AC165`,
+  `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
+  and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
+  The source manifest proves all 29 live code/test writes predate the build.
+- Final R5 `code-review` was APPROVED and `test-evidence-review` was
+  ADEQUATE/COMPLETE. Review remediation added missing power/replay/reveal proof
+  and fixed one setup regression: a persistent item consumed before setup may
+  have empty battle-consumption history and is not a Recycle candidate, while
+  malformed or battle-generated history-less consumption remains invalid.
+  Independent R7 has not been performed.
 
 ## Working-tree scope to preserve
 
@@ -312,6 +340,29 @@ Task: R1-R4B complete; R5 is next
   `plan/battle_mechanics/08-status-volatiles-field-and-side-conditions.md`, and
   `docs/battle-engine-structural-split-handoff.md`. No R4B Git action is
   authorized or performed. Preserve both unrelated untracked ADRs.
+- R5's exact hand-authored source set is 22 production files and seven test
+  files. The new production files are `BattleHeldItemMoveEffects.h/.cpp` and
+  `BattleEffectExecutorItemMoves.cpp`. Modified production owners are
+  `BattleAbilityItemContracts.h/.cpp`, `BattleAllyActionPowerModifier.cpp`,
+  `BattleDataTableRows.h`, `BattleDefinitions.h`, `BattleDataTableAdapter.cpp`,
+  `BattleDefinitionCatalog.cpp`, `BattleEffectExecutor.h/.cpp`,
+  `BattleEffectExecutorContext.h`, `BattleEffectExecutorState.cpp`,
+  `BattleEffectExecutorConditions.cpp`, `BattleEffectExecutorDamage.cpp`,
+  `BattleEffectExecutorAbilityItems.cpp`, `BattleEngineEvents.h`,
+  `BattleEngineMoveEffects.cpp`, `BattleEvent.h/.cpp`, and
+  `BattleMoveRedirection.cpp`. The new test is
+  `BattleHeldItemMoveEffectTests.cpp`; modified tests are
+  `BattleAbilityItemContractTests.cpp`, `BattleAllyActionPowerModifierTests.cpp`,
+  `BattleDataTableAdapterTests.cpp`, `BattleEffectExecutorTests.cpp`,
+  `BattleItemRuleTests.cpp`, and `BattleMoveRedirectionTests.cpp`.
+  R5's current-document set is this file,
+  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`,
+  `docs/battle-engine-structural-split-handoff.md`, and
+  `plan/battle_mechanics/00-roadmap-index.md`,
+  `06-hit-damage-effects-and-outcomes.md`,
+  `09-abilities-held-items-and-battle-items.md`, and
+  `11-canonical-proof-content.md`. No R5 Git action is authorized or performed.
+  Preserve both unrelated untracked ADRs.
 
 ## Next
 
@@ -320,9 +371,8 @@ Task: R1-R4B complete; R5 is next
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Treat R1 through R4B as complete. R4B passed its forced-Unity build, all
-   eight focused tests, eleven affected regression filters, and both required
-   reviews.
-4. R5 is the next separately approved remediation lane. Do not author C10A
-   source rows until R5, R6, and independent R7 pass. Preserve roadmap order
-   `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+3. Treat R1 through R5 as complete. R5 passed its forced-Unity build, all 12
+   focused tests, 12 affected regression filters, and both required reviews.
+4. R6 is the next separately approved remediation lane. Do not author C10A
+   source rows until R6 and independent R7 pass. Preserve roadmap order
+   `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.

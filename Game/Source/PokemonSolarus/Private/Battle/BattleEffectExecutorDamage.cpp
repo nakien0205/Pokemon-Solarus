@@ -1,6 +1,7 @@
 #include "BattleEffectExecutorContext.h"
 
 #include "BattleAllyActionPowerModifier.h"
+#include "BattleHeldItemMoveEffects.h"
 #include "Battle/BattleAbility.h"
 #include "BattleEntryHazardPrevention.h"
 #include "Battle/BattleFieldSideConditions.h"
@@ -439,6 +440,10 @@ namespace BattleEffectExecutorPrivate
 					{
 						return false;
 					}
+					if (ItemKind == EBattleHeldItemRuleKind::LifeOrb)
+					{
+						bLifeOrbBoostAppliedThisMove = true;
+					}
 				}
 			}
 		}
@@ -646,6 +651,31 @@ namespace BattleEffectExecutorPrivate
 					PowerModifier.ModifierQ12,
 					false});
 			}
+		}
+
+		const bool bTargetHasCurrentItem =
+			TargetBattler->HeldItem.CurrentItemId.IsValid();
+		const FBattleItemDefinition* TargetItemDefinition = bTargetHasCurrentItem
+			? State.Catalog.FindItem(TargetBattler->HeldItem.CurrentItemId)
+			: nullptr;
+		FBattleHeldItemMovePowerModifierResult HeldItemMovePowerModifier;
+		if (!FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+				Move,
+				bTargetHasCurrentItem,
+				TargetBattler->HeldItem.bConsumed,
+				TargetBattler->HeldItem.bTemporarilyRemoved,
+				TargetItemDefinition,
+				HeldItemMovePowerModifier)
+			|| !HeldItemMovePowerModifier.bValid)
+		{
+			return false;
+		}
+		if (HeldItemMovePowerModifier.bApplies)
+		{
+			OutInput.PowerModifiers.Add({
+				HeldItemMovePowerModifier.RuleId,
+				HeldItemMovePowerModifier.ModifierQ12,
+				false});
 		}
 
 		int32 ScreenModifierQ12 = FBattleFinalDamageCalculator::Q12Neutral;

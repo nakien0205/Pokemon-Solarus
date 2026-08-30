@@ -558,6 +558,195 @@ bool FBattleC08AVisibilityTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10HeldItemMoveLedgerContractTest,
+	"PokemonSolarus.Battle.C08C.C10HeldItemMoves.Contract.LedgerHistoryAndDirectReveal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10HeldItemMoveLedgerContractTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	const FTrainerId ConsumerTrainer = MakeC08ANumericId<FTrainerId>(1);
+	const FBattlerId ConsumerBattler = MakeC08ANumericId<FBattlerId>(101);
+	const FBattleHeldItemInstanceState First = MakePersistentItem(
+		1, ConsumerTrainer.GetValue(), ConsumerBattler.GetValue(), TEXT("Item.C10R5.First"));
+	const FBattleHeldItemInstanceState Second = MakePersistentItem(
+		2, 2, 202, TEXT("Item.C10R5.Second"));
+	FBattleHeldItemLedger Ledger;
+	EBattleHeldItemContractError Error = EBattleHeldItemContractError::InvalidState;
+	const TArray<FBattleHeldItemInstanceState> InitialStates{First, Second};
+	TestTrue(TEXT("The R5 history ledger starts valid"),
+		FBattleHeldItemLedger::TryCreate(InitialStates, Ledger, Error));
+
+	auto Apply = [&Ledger, &Error](const FBattleHeldItemOperationRequest& Request,
+		FBattleHeldItemOperationFact& OutFact)
+	{
+		return Ledger.TryApplyOperation(Request, OutFact, Error);
+	};
+	FBattleHeldItemOperationFact Fact;
+	FBattleHeldItemOperationRequest ConsumeFirst;
+	ConsumeFirst.Kind = EBattleHeldItemOperationKind::Consume;
+	ConsumeFirst.PrimaryInstanceId = First.InstanceId;
+	TestTrue(TEXT("The first item consumption succeeds"), Apply(ConsumeFirst, Fact));
+	TestEqual(TEXT("Consumption history uses the same fact ordinal"),
+		Fact.PrimaryAfter.LastConsumptionFactOrdinal, Fact.FactOrdinal);
+	TestTrue(TEXT("Consumption history captures the pre-consumption holder"),
+		Fact.PrimaryAfter.LastConsumerTrainerId == ConsumerTrainer
+			&& Fact.PrimaryAfter.LastConsumerBattlerId == ConsumerBattler);
+
+	FBattleHeldItemOperationRequest RestoreFirst;
+	RestoreFirst.Kind = EBattleHeldItemOperationKind::Restore;
+	RestoreFirst.PrimaryInstanceId = First.InstanceId;
+	RestoreFirst.TargetHolderTrainerId = ConsumerTrainer;
+	RestoreFirst.TargetHolderBattlerId = ConsumerBattler;
+	TestTrue(TEXT("The first item restores to its last consumer"), Apply(RestoreFirst, Fact));
+	TestTrue(TEXT("A repeated consumption succeeds"), Apply(ConsumeFirst, Fact));
+	const uint64 RepeatedFirstOrdinal = Fact.FactOrdinal;
+
+	FBattleHeldItemOperationRequest TransferSecond;
+	TransferSecond.Kind = EBattleHeldItemOperationKind::TemporarilySteal;
+	TransferSecond.PrimaryInstanceId = Second.InstanceId;
+	TransferSecond.TargetHolderTrainerId = ConsumerTrainer;
+	TransferSecond.TargetHolderBattlerId = ConsumerBattler;
+	TestTrue(TEXT("The empty consumer can receive the second item"), Apply(TransferSecond, Fact));
+	FBattleHeldItemOperationRequest ConsumeSecond;
+	ConsumeSecond.Kind = EBattleHeldItemOperationKind::Consume;
+	ConsumeSecond.PrimaryInstanceId = Second.InstanceId;
+	TestTrue(TEXT("The second item can be consumed by the same battler"), Apply(ConsumeSecond, Fact));
+	TestTrue(TEXT("The later consumption ordinal is greater"),
+		Fact.FactOrdinal > RepeatedFirstOrdinal);
+	const FBattleHeldItemInstanceState* MostRecent = Ledger.FindMostRecentlyConsumedBy(
+		ConsumerTrainer, ConsumerBattler);
+	TestTrue(TEXT("Recycle lookup selects the greatest matching consumption ordinal"),
+		MostRecent != nullptr && MostRecent->InstanceId == Second.InstanceId
+			&& MostRecent->LastConsumptionFactOrdinal == Fact.FactOrdinal);
+	TestNull(TEXT("A battler with no consumption history has no Recycle candidate"),
+		Ledger.FindMostRecentlyConsumedBy(
+			MakeC08ANumericId<FTrainerId>(9), MakeC08ANumericId<FBattlerId>(909)));
+
+	const FBattleHeldItemOperationRequest Rejected = ConsumeFirst;
+	const uint64 OrdinalBeforeFailure = Fact.FactOrdinal;
+	TestFalse(TEXT("Consuming an already consumed item is rejected without a fact"),
+		Apply(Rejected, Fact));
+	FBattleHeldItemOperationRequest RestoreSecond = RestoreFirst;
+	RestoreSecond.PrimaryInstanceId = Second.InstanceId;
+	TestTrue(TEXT("A later valid restore still succeeds"), Apply(RestoreSecond, Fact));
+	TestEqual(TEXT("A rejected operation consumes no fact ordinal"),
+		Fact.FactOrdinal, OrdinalBeforeFailure + 1);
+
+	FBattleHeldItemInstanceState SeededOld = MakePersistentItem(
+		10, 10, 1001, TEXT("Item.C10R5.SeededOld"));
+	SeededOld.LastConsumerTrainerId = SeededOld.CurrentHolderTrainerId;
+	SeededOld.LastConsumerBattlerId = SeededOld.CurrentHolderBattlerId;
+	SeededOld.LastConsumptionFactOrdinal = 5;
+	SeededOld.CurrentHolderTrainerId = FTrainerId();
+	SeededOld.CurrentHolderBattlerId = FBattlerId();
+	SeededOld.CurrentItemId = FItemId();
+	SeededOld.bConsumed = true;
+	FBattleHeldItemInstanceState SeededNew = MakePersistentItem(
+		11, 11, 1101, TEXT("Item.C10R5.SeededNew"));
+	SeededNew.LastConsumerTrainerId = SeededNew.CurrentHolderTrainerId;
+	SeededNew.LastConsumerBattlerId = SeededNew.CurrentHolderBattlerId;
+	SeededNew.LastConsumptionFactOrdinal = 12;
+	SeededNew.CurrentHolderTrainerId = FTrainerId();
+	SeededNew.CurrentHolderBattlerId = FBattlerId();
+	SeededNew.CurrentItemId = FItemId();
+	SeededNew.bConsumed = true;
+	FBattleHeldItemLedger SeededLedger;
+	const TArray<FBattleHeldItemInstanceState> SeededStates{SeededOld, SeededNew};
+	TestTrue(TEXT("A complete seeded consumption history is accepted"),
+		FBattleHeldItemLedger::TryCreate(SeededStates, SeededLedger, Error));
+	FBattleHeldItemOperationRequest SeededRestore;
+	SeededRestore.Kind = EBattleHeldItemOperationKind::Restore;
+	SeededRestore.PrimaryInstanceId = SeededNew.InstanceId;
+	SeededRestore.TargetHolderTrainerId = SeededNew.LastConsumerTrainerId;
+	SeededRestore.TargetHolderBattlerId = SeededNew.LastConsumerBattlerId;
+	TestTrue(TEXT("An operation after seeded history succeeds"),
+		SeededLedger.TryApplyOperation(SeededRestore, Fact, Error));
+	TestEqual(TEXT("The next fact ordinal starts after the greatest seeded history"),
+		Fact.FactOrdinal, static_cast<uint64>(13));
+
+	FBattleHeldItemInstanceState Partial = SeededOld;
+	Partial.LastConsumerBattlerId = FBattlerId();
+	FBattleHeldItemLedger RejectedLedger;
+	const TArray<FBattleHeldItemInstanceState> PartialStates{Partial};
+	TestFalse(TEXT("Partial consumption history is rejected"),
+		FBattleHeldItemLedger::TryCreate(PartialStates, RejectedLedger, Error));
+	FBattleHeldItemInstanceState Duplicate = SeededNew;
+	Duplicate.LastConsumptionFactOrdinal = SeededOld.LastConsumptionFactOrdinal;
+	const TArray<FBattleHeldItemInstanceState> DuplicateStates{SeededOld, Duplicate};
+	TestFalse(TEXT("Duplicate nonzero consumption ordinals are rejected"),
+		FBattleHeldItemLedger::TryCreate(DuplicateStates, RejectedLedger, Error));
+
+	FBattleHeldItemInstanceState InitialConsumed = MakePersistentItem(
+		20, 20, 2001, TEXT("Item.C10R5.InitialConsumed"));
+	InitialConsumed.CurrentHolderTrainerId = FTrainerId();
+	InitialConsumed.CurrentHolderBattlerId = FBattlerId();
+	InitialConsumed.CurrentItemId = FItemId();
+	InitialConsumed.bConsumed = true;
+	FBattleHeldItemLedger InitialConsumedLedger;
+	const TArray<FBattleHeldItemInstanceState> InitialConsumedStates{
+		InitialConsumed};
+	TestTrue(TEXT("A persistent item consumed before setup is accepted without battle history"),
+		FBattleHeldItemLedger::TryCreate(
+			InitialConsumedStates,
+			InitialConsumedLedger,
+			Error));
+	TestNull(TEXT("A pre-setup consumption is not a Recycle history candidate"),
+		InitialConsumedLedger.FindMostRecentlyConsumedBy(
+			InitialConsumed.OriginalOwnerTrainerId,
+			InitialConsumed.OriginalOwnerBattlerId));
+
+	FBattleHeldItemInstanceState GeneratedWithoutHistory = MakeGeneratedItem(
+		21, 21, 2101, TEXT("Item.C10R5.GeneratedWithoutHistory"));
+	GeneratedWithoutHistory.CurrentHolderTrainerId = FTrainerId();
+	GeneratedWithoutHistory.CurrentHolderBattlerId = FBattlerId();
+	GeneratedWithoutHistory.CurrentItemId = FItemId();
+	GeneratedWithoutHistory.bConsumed = true;
+	const TArray<FBattleHeldItemInstanceState> GeneratedWithoutHistoryStates{
+		GeneratedWithoutHistory};
+	TestFalse(TEXT("A generated consumed item still requires battle history"),
+		FBattleHeldItemLedger::TryCreate(
+			GeneratedWithoutHistoryStates,
+			RejectedLedger,
+			Error));
+	FBattleHeldItemInstanceState NonzeroHistoryWithoutConsumer = InitialConsumed;
+	NonzeroHistoryWithoutConsumer.LastConsumptionFactOrdinal = 1;
+	const TArray<FBattleHeldItemInstanceState> NonzeroHistoryWithoutConsumerStates{
+		NonzeroHistoryWithoutConsumer};
+	TestFalse(TEXT("A nonzero consumption ordinal still requires a consumer pair"),
+		FBattleHeldItemLedger::TryCreate(
+			NonzeroHistoryWithoutConsumerStates,
+			RejectedLedger,
+			Error));
+	FBattleHeldItemInstanceState RestoredWithoutHistory = InitialConsumed;
+	RestoredWithoutHistory.bRestoredAfterConsumption = true;
+	const TArray<FBattleHeldItemInstanceState> RestoredWithoutHistoryStates{
+		RestoredWithoutHistory};
+	TestFalse(TEXT("A restored item still requires battle consumption history"),
+		FBattleHeldItemLedger::TryCreate(
+			RestoredWithoutHistoryStates,
+			RejectedLedger,
+			Error));
+
+	FBattleAbilityItemRevealTracker Tracker;
+	FBattleTriggerSourceDefinition Source;
+	TestTrue(TEXT("The direct reveal source is a typed item"),
+		FBattleTriggerSourceDefinition::TryCreateItem(First.DefinitionItemId, Source));
+	const FBattleTriggerSubject Owner = MakeBattlerSubject(ConsumerBattler.GetValue());
+	bool bFirstReveal = false;
+	EBattleAbilityItemHookError RevealError = EBattleAbilityItemHookError::InvalidDefinition;
+	TestTrue(TEXT("A direct public reveal is accepted"),
+		Tracker.TryRecordPublicReveal(Source, Owner, bFirstReveal, RevealError));
+	TestTrue(TEXT("The first direct public reveal is identified"), bFirstReveal);
+	TestTrue(TEXT("The direct reveal synchronizes the tracker key"),
+		Tracker.HasBeenRevealed(Source, Owner));
+	TestTrue(TEXT("A repeat direct public reveal remains valid"),
+		Tracker.TryRecordPublicReveal(Source, Owner, bFirstReveal, RevealError));
+	TestFalse(TEXT("A repeat direct public reveal is not first"), bFirstReveal);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC08AHeldItemOperationsTest,
 	"PokemonSolarus.Battle.C08A.HeldItems.TypedOwnershipOperations",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

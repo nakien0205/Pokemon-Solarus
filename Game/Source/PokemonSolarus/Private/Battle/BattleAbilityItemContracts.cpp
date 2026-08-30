@@ -126,6 +126,24 @@ namespace BattleAbilityItemContractsPrivate
 			return false;
 		}
 
+		const bool bHasLastConsumer = HasValidOwnerPair(
+			State.LastConsumerTrainerId,
+			State.LastConsumerBattlerId);
+		const bool bHasNoLastConsumer = HasEmptyOwnerPair(
+			State.LastConsumerTrainerId,
+			State.LastConsumerBattlerId);
+		if ((!bHasLastConsumer && !bHasNoLastConsumer)
+			|| (bHasLastConsumer && State.LastConsumptionFactOrdinal == 0)
+			|| (bHasNoLastConsumer && State.LastConsumptionFactOrdinal != 0)
+			|| State.LastConsumptionFactOrdinal == MAX_uint64
+			|| (State.bConsumed
+				&& !bHasLastConsumer
+				&& State.Origin != EBattleHeldItemOrigin::Persistent)
+			|| (State.bRestoredAfterConsumption && !bHasLastConsumer))
+		{
+			return false;
+		}
+
 		if (State.bConsumed)
 		{
 			return !State.CurrentItemId.IsValid()
@@ -171,6 +189,13 @@ namespace BattleAbilityItemContractsPrivate
 				if (Left.InstanceId == Right.InstanceId)
 				{
 					OutError = EBattleHeldItemContractError::DuplicateInstance;
+					return false;
+				}
+				if (Left.LastConsumptionFactOrdinal != 0
+					&& Left.LastConsumptionFactOrdinal
+						== Right.LastConsumptionFactOrdinal)
+				{
+					OutError = EBattleHeldItemContractError::InvalidState;
 					return false;
 				}
 				if (Left.Origin == EBattleHeldItemOrigin::Persistent
@@ -440,6 +465,34 @@ bool FBattleAbilityItemRevealTracker::HasBeenRevealed(
 	return RevealedKeys.Contains(Key);
 }
 
+bool FBattleAbilityItemRevealTracker::TryRecordPublicReveal(
+	const FBattleTriggerSourceDefinition& SourceDefinition,
+	const FBattleTriggerSubject& Owner,
+	bool& bOutFirstPublicReveal,
+	EBattleAbilityItemHookError& OutError)
+{
+	bOutFirstPublicReveal = false;
+	if (!BattleAbilityItemContractsPrivate::IsAbilityOrItemSource(SourceDefinition))
+	{
+		OutError = EBattleAbilityItemHookError::InvalidSourceDefinition;
+		return false;
+	}
+	if (!Owner.IsValid())
+	{
+		OutError = EBattleAbilityItemHookError::InvalidDefinition;
+		return false;
+	}
+
+	const FBattleAbilityItemRevealKey Key{SourceDefinition, Owner};
+	bOutFirstPublicReveal = !RevealedKeys.Contains(Key);
+	if (bOutFirstPublicReveal)
+	{
+		RevealedKeys.Add(Key);
+	}
+	OutError = EBattleAbilityItemHookError::None;
+	return true;
+}
+
 bool FBattleHeldItemLedger::TryCreate(
 	const TConstArrayView<FBattleHeldItemInstanceState> InitialStates,
 	FBattleHeldItemLedger& OutLedger,
@@ -461,6 +514,12 @@ bool FBattleHeldItemLedger::TryCreate(
 			return Left.InstanceId < Right.InstanceId;
 		});
 	OutLedger.States = MoveTemp(CandidateStates);
+	for (const FBattleHeldItemInstanceState& State : OutLedger.States)
+	{
+		OutLedger.NextFactOrdinal = FMath::Max(
+			OutLedger.NextFactOrdinal,
+			State.LastConsumptionFactOrdinal + 1);
+	}
 	OutError = EBattleHeldItemContractError::None;
 	return true;
 }
@@ -472,7 +531,8 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 {
 	OutFact = FBattleHeldItemOperationFact();
 	if (!BattleAbilityItemContractsPrivate::IsKnownItemOperation(Request.Kind)
-		|| !Request.PrimaryInstanceId.IsValid())
+		|| !Request.PrimaryInstanceId.IsValid()
+		|| NextFactOrdinal == MAX_uint64)
 	{
 		OutError = EBattleHeldItemContractError::InvalidOperation;
 		return false;
@@ -481,6 +541,9 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 	const bool bSwap = Request.Kind == EBattleHeldItemOperationKind::Swap;
 	const bool bNeedsTarget = Request.Kind == EBattleHeldItemOperationKind::Restore
 		|| Request.Kind == EBattleHeldItemOperationKind::TemporarilySteal;
+	const bool bSupportsSuppressedPayload =
+		Request.Kind == EBattleHeldItemOperationKind::Suppress
+		|| Request.Kind == EBattleHeldItemOperationKind::Restore;
 	if ((bSwap
 			&& (!Request.SecondaryInstanceId.IsValid()
 				|| Request.SecondaryInstanceId == Request.PrimaryInstanceId
@@ -495,7 +558,8 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 		|| (!bNeedsTarget && !bSwap
 			&& !BattleAbilityItemContractsPrivate::HasEmptyOwnerPair(
 				Request.TargetHolderTrainerId,
-				Request.TargetHolderBattlerId)))
+				Request.TargetHolderBattlerId))
+		|| (!bSupportsSuppressedPayload && Request.bSuppressed))
 	{
 		OutError = EBattleHeldItemContractError::InvalidOperation;
 		return false;
@@ -539,6 +603,9 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 			OutError = EBattleHeldItemContractError::InvalidOperation;
 			return false;
 		}
+		Primary.LastConsumerTrainerId = Primary.CurrentHolderTrainerId;
+		Primary.LastConsumerBattlerId = Primary.CurrentHolderBattlerId;
+		Primary.LastConsumptionFactOrdinal = NextFactOrdinal;
 		Primary.CurrentItemId = FItemId();
 		Primary.CurrentHolderTrainerId = FTrainerId();
 		Primary.CurrentHolderBattlerId = FBattlerId();
@@ -565,7 +632,8 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 		Primary.CurrentHolderTrainerId = Request.TargetHolderTrainerId;
 		Primary.CurrentHolderBattlerId = Request.TargetHolderBattlerId;
 		Primary.bConsumed = false;
-		Primary.bSuppressed = false;
+		Primary.bSuppressed = Request.bSuppressed;
+		Primary.bRevealed = true;
 		Primary.bTemporarilyRemoved = false;
 		Primary.bRestoredAfterConsumption = true;
 		break;
@@ -578,6 +646,7 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 		Primary.CurrentHolderTrainerId = FTrainerId();
 		Primary.CurrentHolderBattlerId = FBattlerId();
 		Primary.bSuppressed = false;
+		Primary.bRevealed = true;
 		Primary.bTemporarilyRemoved = true;
 		break;
 	case EBattleHeldItemOperationKind::Swap:
@@ -602,6 +671,8 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 		Swap(
 			Primary.CurrentHolderBattlerId,
 			CandidateStates[SecondaryIndex].CurrentHolderBattlerId);
+		Primary.bRevealed = true;
+		CandidateStates[SecondaryIndex].bRevealed = true;
 		break;
 	case EBattleHeldItemOperationKind::TemporarilySteal:
 		if (!BattleAbilityItemContractsPrivate::IsHeld(Primary)
@@ -622,6 +693,7 @@ bool FBattleHeldItemLedger::TryApplyOperation(
 		}
 		Primary.CurrentHolderTrainerId = Request.TargetHolderTrainerId;
 		Primary.CurrentHolderBattlerId = Request.TargetHolderBattlerId;
+		Primary.bRevealed = true;
 		break;
 	default:
 		OutError = EBattleHeldItemContractError::InvalidOperation;
@@ -719,6 +791,31 @@ const FBattleHeldItemInstanceState* FBattleHeldItemLedger::FindState(
 		{
 			return State.InstanceId == InstanceId;
 		});
+}
+
+const FBattleHeldItemInstanceState* FBattleHeldItemLedger::FindMostRecentlyConsumedBy(
+	const FTrainerId TrainerId,
+	const FBattlerId BattlerId) const
+{
+	if (!TrainerId.IsValid() || !BattlerId.IsValid())
+	{
+		return nullptr;
+	}
+
+	const FBattleHeldItemInstanceState* Best = nullptr;
+	for (const FBattleHeldItemInstanceState& State : States)
+	{
+		if (State.bConsumed
+			&& State.LastConsumerTrainerId == TrainerId
+			&& State.LastConsumerBattlerId == BattlerId
+			&& (Best == nullptr
+				|| State.LastConsumptionFactOrdinal
+					> Best->LastConsumptionFactOrdinal))
+		{
+			Best = &State;
+		}
+	}
+	return Best;
 }
 
 bool FBattleBagOwnershipContract::TryCreate(

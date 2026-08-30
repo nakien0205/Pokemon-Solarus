@@ -21,14 +21,12 @@ namespace BattleEffectExecutorPrivate
 			OutError = EBattleEffectExecutorError::InvalidTarget;
 			return false;
 		}
-		const FItemId ItemId = User->HeldItem.CurrentItemId;
+		const FItemId ItemId = FBattleItemRules::GetLifeOrbId();
 		if (User->CurrentHP <= 0
 			|| User->bFainted
 			|| User->bCaptured
 			|| User->bRemoved
-			|| User->HeldItem.bConsumed
-			|| User->HeldItem.bTemporarilyRemoved
-			|| ItemId != FBattleItemRules::GetLifeOrbId())
+			|| !bLifeOrbBoostAppliedThisMove)
 		{
 			return true;
 		}
@@ -45,7 +43,7 @@ namespace BattleEffectExecutorPrivate
 			{
 				return Intent.Kind == EBattleSwitchKind::Forced && Intent.bApplied;
 			});
-		Facts.bSuppressed = User->HeldItem.bSuppressed;
+		Facts.bSuppressed = false;
 		FBattleLifeOrbRecoilResult Recoil;
 		if (!FBattleItemRules::TryEvaluateLifeOrbRecoil(Facts, Recoil)
 			|| !Recoil.bValid)
@@ -342,44 +340,6 @@ namespace BattleEffectExecutorPrivate
 				return;
 			}
 		}
-	}
-
-	bool FStateExecutionContext::TryApplyHeldItemOperation(
-		FBattleBattlerState& Battler,
-		const EBattleHeldItemOperationKind Kind,
-		const bool bSuppressed,
-		FBattleHeldItemOperationFact& OutFact)
-	{
-		if (!Battler.HeldItem.InstanceId.IsValid())
-		{
-			return false;
-		}
-		FBattleHeldItemOperationRequest Operation;
-		Operation.Kind = Kind;
-		Operation.PrimaryInstanceId = Battler.HeldItem.InstanceId;
-		Operation.bSuppressed = bSuppressed;
-		EBattleHeldItemContractError Error = EBattleHeldItemContractError::None;
-		if (!HeldItemLedger.TryApplyOperation(Operation, OutFact, Error))
-		{
-			return false;
-		}
-		Battler.HeldItem.CurrentItemId = OutFact.PrimaryAfter.CurrentItemId;
-		Battler.HeldItem.bConsumed = OutFact.PrimaryAfter.bConsumed;
-		Battler.HeldItem.bSuppressed = OutFact.PrimaryAfter.bSuppressed;
-		Battler.HeldItem.bRevealed = OutFact.PrimaryAfter.bRevealed;
-		Battler.HeldItem.bTemporarilyRemoved =
-			OutFact.PrimaryAfter.bTemporarilyRemoved;
-		const bool bItemLost = !Battler.HeldItem.CurrentItemId.IsValid()
-			|| Battler.HeldItem.bConsumed
-			|| Battler.HeldItem.bTemporarilyRemoved;
-		if (FBattleItemRules::ShouldClearChoiceBandMoveLock(
-			false,
-			bItemLost,
-			Battler.HeldItem.bSuppressed))
-		{
-			Battler.HeldItem.ChoiceLockedMoveId = FMoveId();
-		}
-		return true;
 	}
 
 	bool FStateExecutionContext::TryGetItemEffectRequest(

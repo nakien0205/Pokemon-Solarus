@@ -26,6 +26,9 @@ struct POKEMONSOLARUS_API FBattleMoveEffectTableRow
 	FName ItemId = NAME_None;
 
 	UPROPERTY(EditAnywhere, Category = "Battle")
+	FName HeldItemOperation = NAME_None;
+
+	UPROPERTY(EditAnywhere, Category = "Battle")
 	FName Stat = NAME_None;
 
 	UPROPERTY(EditAnywhere, Category = "Battle")
@@ -164,6 +167,9 @@ struct POKEMONSOLARUS_API FBattleItemTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, Category = "Battle")
 	FName Kind = NAME_None;
+
+	UPROPERTY(EditAnywhere, Category = "Battle")
+	bool bCanBeTakenByMove = true;
 };
 
 /** Reflected condition row; the Data Table row Name supplies the stable ID. */

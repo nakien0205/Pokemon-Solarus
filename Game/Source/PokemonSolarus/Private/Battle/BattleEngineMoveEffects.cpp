@@ -69,6 +69,7 @@ namespace BattleEngineMoveEffectsPrivate
 			&& Left.Target == Right.Target
 			&& Left.ConditionId == Right.ConditionId
 			&& Left.ItemId == Right.ItemId
+			&& Left.HeldItemOperation == Right.HeldItemOperation
 			&& Left.Stat == Right.Stat
 			&& Left.ChanceNumerator == Right.ChanceNumerator
 			&& Left.ChanceDenominator == Right.ChanceDenominator

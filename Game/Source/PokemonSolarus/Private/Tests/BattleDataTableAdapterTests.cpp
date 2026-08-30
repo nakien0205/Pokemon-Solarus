@@ -356,6 +356,133 @@ bool FBattleC10TargetAdapterNamesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10HeldItemMoveAdapterContractTest,
+	"PokemonSolarus.Battle.C08C.C10HeldItemMoves.Contract.AdapterNamesPolicyAndUnknownRejection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10HeldItemMoveAdapterContractTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	struct FOperationMapping
+	{
+		FName Name;
+		EBattleMoveHeldItemOperation Operation;
+		bool bDamaging;
+		bool bRestore;
+	};
+	const FOperationMapping Mappings[] =
+	{
+		{FName(TEXT("RemoveCurrent")), EBattleMoveHeldItemOperation::RemoveCurrent, true, false},
+		{FName(TEXT("ExchangeCurrent")), EBattleMoveHeldItemOperation::ExchangeCurrent, false, false},
+		{FName(TEXT("TransferCurrent")), EBattleMoveHeldItemOperation::TransferCurrent, true, false},
+		{FName(TEXT("RestoreLastConsumed")), EBattleMoveHeldItemOperation::RestoreLastConsumed, false, true}
+	};
+
+	for (const FOperationMapping& Mapping : Mappings)
+	{
+		TArray<FString> NatureImportProblems;
+		const FTransientBattleTables Tables = MakeValidTransientTables(NatureImportProblems);
+		FBattleMoveTableRow* MoveRow = Tables.Moves->FindRow<FBattleMoveTableRow>(
+			FName(TEXT("Move.Flamethrower")), TEXT("R5 operation mapping"), false);
+		if (!TestNotNull(TEXT("The R5 mapping source move exists"), MoveRow))
+		{
+			return false;
+		}
+		MoveRow->Type = FName(TEXT("Normal"));
+		MoveRow->Category = FName(Mapping.bDamaging ? TEXT("Physical") : TEXT("Status"));
+		MoveRow->Power = Mapping.bDamaging ? 40 : 0;
+		MoveRow->bAlwaysHits = !Mapping.bDamaging;
+		MoveRow->Accuracy = Mapping.bDamaging ? 100 : 0;
+		MoveRow->TargetClass = FName(Mapping.bRestore ? TEXT("Self") : TEXT("SelectedOpponent"));
+		MoveRow->Flags.Reset();
+		MoveRow->Effects.Reset();
+		if (Mapping.bDamaging)
+		{
+			FBattleMoveEffectTableRow Damage;
+			Damage.Order = 0;
+			Damage.Kind = FName(TEXT("Damage"));
+			Damage.Target = FName(TEXT("ResolvedTarget"));
+			MoveRow->Effects.Add(Damage);
+		}
+		FBattleMoveEffectTableRow ChangeItem;
+		ChangeItem.Order = MoveRow->Effects.Num();
+		ChangeItem.Kind = FName(TEXT("ChangeItem"));
+		ChangeItem.Target = FName(Mapping.bRestore ? TEXT("User") : TEXT("ResolvedTarget"));
+		ChangeItem.HeldItemOperation = Mapping.Name;
+		MoveRow->Effects.Add(ChangeItem);
+
+		FBattleDefinitionCatalog Catalog;
+		TArray<FBattleCatalogDiagnostic> Diagnostics;
+		TestTrue(
+			FString::Printf(TEXT("The adapter accepts exact operation name %s"), *Mapping.Name.ToString()),
+			FBattleDataTableAdapter::BuildCatalog(Tables.AsInput(), Catalog, Diagnostics));
+		const FBattleMoveDefinition* Move = Catalog.FindMove(
+			MakeDefinitionId<FMoveId>(TEXT("Move.Flamethrower")));
+		TestTrue(
+			FString::Printf(TEXT("The adapter freezes operation %s exactly"), *Mapping.Name.ToString()),
+			Move != nullptr
+				&& Move->Effects.Last().HeldItemOperation == Mapping.Operation
+				&& !Move->Effects.Last().ItemId.IsValid());
+		TestTrue(TEXT("A known R5 operation adds no diagnostics"), Diagnostics.IsEmpty());
+	}
+
+	TArray<FString> NatureImportProblems;
+	const FTransientBattleTables UnknownTables = MakeValidTransientTables(NatureImportProblems);
+	FBattleMoveTableRow* UnknownMove = UnknownTables.Moves->FindRow<FBattleMoveTableRow>(
+		FName(TEXT("Move.Flamethrower")), TEXT("R5 unknown operation"), false);
+	if (!TestNotNull(TEXT("The unknown-operation source move exists"), UnknownMove))
+	{
+		return false;
+	}
+	UnknownMove->Effects[1].Kind = FName(TEXT("ChangeItem"));
+	UnknownMove->Effects[1].ConditionId = NAME_None;
+	UnknownMove->Effects[1].ChanceNumerator = 1;
+	UnknownMove->Effects[1].ChanceDenominator = 1;
+	UnknownMove->Effects[1].HeldItemOperation = FName(TEXT("UnknownHeldItemOperation"));
+	FBattleDefinitionCatalog RejectedCatalog;
+	TArray<FBattleCatalogDiagnostic> Diagnostics;
+	TestFalse(
+		TEXT("An unknown held-item operation rejects the adapter build"),
+		FBattleDataTableAdapter::BuildCatalog(
+			UnknownTables.AsInput(), RejectedCatalog, Diagnostics));
+	TestFalse(TEXT("Unknown operation returns no partial catalog"), RejectedCatalog.IsValid());
+	TestTrue(
+		TEXT("Unknown operation produces an authored-value diagnostic"),
+		ContainsDiagnosticCode(Diagnostics, EBattleCatalogDiagnosticCode::InvalidAuthoredValue));
+	TestTrue(
+		TEXT("Unknown operation identifies the authored operation field"),
+		Diagnostics.ContainsByPredicate([](const FBattleCatalogDiagnostic& Diagnostic)
+		{
+			return Diagnostic.Field == FName(TEXT("Effects.HeldItemOperation"));
+		}));
+
+	TArray<FString> PolicyImportProblems;
+	const FTransientBattleTables PolicyTables = MakeValidTransientTables(PolicyImportProblems);
+	FBattleItemTableRow* ItemRow = PolicyTables.Items->FindRow<FBattleItemTableRow>(
+		FName(TEXT("Item.PokeBall")), TEXT("R5 item policy"), false);
+	if (!TestNotNull(TEXT("The item-policy source row exists"), ItemRow))
+	{
+		return false;
+	}
+	ItemRow->bCanBeTakenByMove = false;
+	FBattleDefinitionCatalog PolicyCatalog;
+	Diagnostics.Reset();
+	TestTrue(
+		TEXT("The adapter copies an explicit unremovable item policy"),
+		FBattleDataTableAdapter::BuildCatalog(
+			PolicyTables.AsInput(), PolicyCatalog, Diagnostics));
+	const FBattleItemDefinition* Item = PolicyCatalog.FindItem(
+		MakeDefinitionId<FItemId>(TEXT("Item.PokeBall")));
+	TestTrue(TEXT("The frozen item retains its authored takeability policy"),
+		Item != nullptr && !Item->bCanBeTakenByMove);
+	ItemRow->bCanBeTakenByMove = true;
+	Item = PolicyCatalog.FindItem(MakeDefinitionId<FItemId>(TEXT("Item.PokeBall")));
+	TestTrue(TEXT("Later source mutation cannot change the frozen item policy"),
+		Item != nullptr && !Item->bCanBeTakenByMove);
+	return true;
+}
+
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

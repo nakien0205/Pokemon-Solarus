@@ -119,6 +119,7 @@ bool FBattleMoveRedirection::IsRegistrationMoveDefinitionValid(
 		&& Effect.ChanceDenominator == 1
 		&& !Effect.ConditionId.IsValid()
 		&& !Effect.ItemId.IsValid()
+		&& Effect.HeldItemOperation == EBattleMoveHeldItemOperation::None
 		&& Effect.Stat == static_cast<EBattleStat>(255)
 		&& Effect.MagnitudeNumerator == 0
 		&& Effect.MagnitudeDenominator == 1

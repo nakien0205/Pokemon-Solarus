@@ -115,6 +115,8 @@ public:
 
 namespace BattleEffectExecutorTests
 {
+	// Organization decision: R5 descriptor and intent checks extend this file's
+	// existing executor-contract responsibility; no new test responsibility is added.
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
@@ -2799,6 +2801,163 @@ namespace BattleEffectExecutorTests
 				&& SideRandom.IsExact()
 				&& BothSidesRandom.IsExact()
 				&& SingleSideReachedRandom.IsExact());
+		return true;
+	}
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FBattleC10HeldItemMoveExecutorContractTest,
+		"PokemonSolarus.Battle.C08C.C10HeldItemMoves.Contract.LegacyR5ShapesTargetsAndIntents",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+	bool FBattleC10HeldItemMoveExecutorContractTest::RunTest(const FString& Parameters)
+	{
+		(void)Parameters;
+		const FBattleResolvedTarget UserTarget = MakeBattlerTarget(
+			EBattleSide::Player, EBattlePosition::Left, PlayerLeftBattlerValue);
+		const FBattleResolvedTarget OpponentTarget = MakeBattlerTarget(
+			EBattleSide::Opponent, EBattlePosition::Left, OpponentLeftBattlerValue);
+
+		FBattleMoveEffectDescriptor Legacy = MakeEffect(
+			0, EBattleMoveEffectKind::ChangeItem, EBattleEffectTarget::ResolvedTarget);
+		Legacy.ItemId = MakeDefinitionId<FItemId>(ItemName);
+		const FBattleMoveDefinition LegacyMove = MakeStatusMove(
+			EBattleTargetClass::SelectedOpponent, {Legacy});
+		FMockExecutionContext LegacyContext;
+		FStrictScriptedRandom LegacyRandom({});
+		FBattleEffectExecutionResult LegacyResult;
+		EBattleEffectExecutorError Error = EBattleEffectExecutorError::None;
+		TestTrue(TEXT("Legacy fixed-item ChangeItem remains accepted and deferred"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(LegacyMove, {OpponentTarget}),
+				LegacyContext, LegacyRandom, LegacyResult, Error));
+		TestEqual(TEXT("Legacy ChangeItem emits one deferred outcome"),
+			CountExecutionEvents(LegacyResult.Events, EBattleEventType::EffectDeferred), 1);
+		TestTrue(TEXT("Legacy ChangeItem creates no R5 intent"),
+			LegacyResult.HeldItemMoveIntents.IsEmpty());
+		TestTrue(TEXT("Legacy ChangeItem consumes no RNG"), LegacyRandom.IsExact());
+
+		FBattleMoveEffectDescriptor Exchange = MakeEffect(
+			0, EBattleMoveEffectKind::ChangeItem, EBattleEffectTarget::ResolvedTarget);
+		Exchange.HeldItemOperation = EBattleMoveHeldItemOperation::ExchangeCurrent;
+		const FBattleMoveDefinition ExchangeMove = MakeStatusMove(
+			EBattleTargetClass::SelectedOpponent, {Exchange});
+		FMockExecutionContext ExchangeContext;
+		FStrictScriptedRandom ExchangeRandom({});
+		FBattleEffectExecutionResult ExchangeResult;
+		Error = EBattleEffectExecutorError::None;
+		TestTrue(TEXT("A valid R5 exchange remains deferred through the generic hook"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(ExchangeMove, {OpponentTarget}, 2),
+				ExchangeContext, ExchangeRandom, ExchangeResult, Error));
+		TestEqual(TEXT("The R5 exchange creates one stable intent"),
+			ExchangeResult.HeldItemMoveIntents.Num(), 1);
+		if (ExchangeResult.HeldItemMoveIntents.Num() == 1)
+		{
+			const FBattleHeldItemMoveEffectIntent& Intent =
+				ExchangeResult.HeldItemMoveIntents[0];
+			TestEqual(TEXT("The intent freezes the authored operation"),
+				Intent.Operation, EBattleMoveHeldItemOperation::ExchangeCurrent);
+			TestTrue(TEXT("The intent points at the preserved deferred event"),
+				ExchangeResult.Events.IsValidIndex(Intent.EffectEventIndex)
+					&& ExchangeResult.Events[Intent.EffectEventIndex].Type
+						== EBattleEventType::EffectDeferred);
+			TestTrue(TEXT("The intent freezes the resolved battler target"),
+				Intent.Target.GetKind() == EBattleResolvedTargetKind::Battler
+					&& Intent.Target.GetBattler().BattlerId
+						== OpponentTarget.GetBattler().BattlerId);
+		}
+		TestEqual(TEXT("The deferred event is preserved until state resolution"),
+			CountExecutionEvents(ExchangeResult.Events, EBattleEventType::EffectDeferred), 1);
+		TestTrue(TEXT("An R5 exchange consumes no RNG"), ExchangeRandom.IsExact());
+
+		FBattleMoveEffectDescriptor Restore = MakeEffect(
+			0, EBattleMoveEffectKind::ChangeItem, EBattleEffectTarget::User);
+		Restore.HeldItemOperation = EBattleMoveHeldItemOperation::RestoreLastConsumed;
+		const FBattleMoveDefinition RestoreMove = MakeStatusMove(
+			EBattleTargetClass::Self, {Restore});
+		FMockExecutionContext RestoreContext;
+		FStrictScriptedRandom RestoreRandom({});
+		FBattleEffectExecutionResult RestoreResult;
+		Error = EBattleEffectExecutorError::None;
+		TestTrue(TEXT("A valid self-targeted restore creates one R5 intent"),
+			FBattleEffectExecutor::TryExecute(
+				MakeRequest(RestoreMove, {UserTarget}, 3),
+				RestoreContext, RestoreRandom, RestoreResult, Error)
+				&& RestoreResult.HeldItemMoveIntents.Num() == 1);
+
+		TArray<FBattleMoveDefinition> InvalidMoves;
+		FBattleMoveDefinition Mixed = ExchangeMove;
+		Mixed.Effects[0].ItemId = MakeDefinitionId<FItemId>(ItemName);
+		InvalidMoves.Add(Mixed);
+		FBattleMoveDefinition Missing = ExchangeMove;
+		Missing.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::None;
+		InvalidMoves.Add(Missing);
+		FBattleMoveDefinition InvalidEnum = ExchangeMove;
+		InvalidEnum.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::Invalid;
+		InvalidMoves.Add(InvalidEnum);
+		FBattleMoveDefinition Hidden = MakeDamagingMove();
+		Hidden.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::RemoveCurrent;
+		InvalidMoves.Add(Hidden);
+		FBattleMoveDefinition NonFinal = ExchangeMove;
+		FBattleMoveEffectDescriptor Recharge = MakeEffect(
+			1, EBattleMoveEffectKind::Recharge, EBattleEffectTarget::User);
+		Recharge.ConditionId = FBattleVolatileRules::GetRechargeId();
+		NonFinal.Effects.Add(Recharge);
+		InvalidMoves.Add(NonFinal);
+		FBattleMoveDefinition Duplicate = ExchangeMove;
+		FBattleMoveEffectDescriptor SecondExchange = Exchange;
+		SecondExchange.Order = 1;
+		Duplicate.Effects.Add(SecondExchange);
+		InvalidMoves.Add(Duplicate);
+		FBattleMoveDefinition StatusRemove = ExchangeMove;
+		StatusRemove.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::RemoveCurrent;
+		InvalidMoves.Add(StatusRemove);
+		FBattleMoveDefinition DamagingExchange = MakeDamagingMove();
+		FBattleMoveEffectDescriptor DamagingExchangeEffect = Exchange;
+		DamagingExchangeEffect.Order = 1;
+		DamagingExchange.Effects.Add(DamagingExchangeEffect);
+		InvalidMoves.Add(DamagingExchange);
+		FBattleMoveDefinition WrongRestoreTarget = RestoreMove;
+		WrongRestoreTarget.TargetClass = EBattleTargetClass::SelectedOpponent;
+		WrongRestoreTarget.Effects[0].Target = EBattleEffectTarget::ResolvedTarget;
+		InvalidMoves.Add(WrongRestoreTarget);
+		FBattleMoveDefinition StatusTransfer = ExchangeMove;
+		StatusTransfer.Effects[0].HeldItemOperation = EBattleMoveHeldItemOperation::TransferCurrent;
+		InvalidMoves.Add(StatusTransfer);
+
+		for (int32 Index = 0; Index < InvalidMoves.Num(); ++Index)
+		{
+			FBattleDefinitionCatalog RejectedCatalog;
+			TArray<FBattleCatalogDiagnostic> Diagnostics;
+			TestFalse(
+				FString::Printf(TEXT("Invalid R5 shape %d is rejected by the catalog"), Index),
+				TryMakeCatalog(InvalidMoves[Index], RejectedCatalog, Diagnostics));
+			TestTrue(
+				FString::Printf(TEXT("Invalid R5 shape %d is diagnosed"), Index),
+				!Diagnostics.IsEmpty());
+
+			FMockExecutionContext Context;
+			FStrictScriptedRandom NoRandom({});
+			FBattleEffectExecutionResult Result;
+			Error = EBattleEffectExecutorError::None;
+			const FBattleResolvedTarget Target =
+				InvalidMoves[Index].TargetClass == EBattleTargetClass::Self
+					? UserTarget
+					: OpponentTarget;
+			TestFalse(
+				FString::Printf(TEXT("Invalid R5 shape %d is rejected by the executor"), Index),
+				FBattleEffectExecutor::TryExecute(
+					MakeRequest(InvalidMoves[Index], {Target}, 100 + Index),
+					Context, NoRandom, Result, Error));
+			TestEqual(
+				FString::Printf(TEXT("Invalid R5 shape %d has a typed runtime rejection"), Index),
+				Error, EBattleEffectExecutorError::InvalidMoveDefinition);
+			TestTrue(
+				FString::Printf(TEXT("Invalid R5 shape %d is rejected before events or RNG"), Index),
+				Result.Events.IsEmpty()
+					&& Result.HeldItemMoveIntents.IsEmpty()
+					&& NoRandom.IsExact());
+		}
 		return true;
 	}
 

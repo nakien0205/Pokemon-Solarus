@@ -1,6 +1,6 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-29
+Status date: 2026-08-30
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
 complete under focused validation; C10 and C11 remain
@@ -8,7 +8,7 @@ Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides
-Next remediation lane: R5 C10A Held-item move intents
+Next remediation lane: R6 C10A optional condition removal
 
 ## Current Truth
 
@@ -103,7 +103,12 @@ The live battle source now contains:
   C08A/C07A hooks, live damage/recovery/status/hazard/order/switch/faint and
   reveal integration, exact Bag item/target pairings, stale-action
   revalidation, separate Trainer counts/quotas, frozen Poke Ball handoff, and
-  twenty-six `PokemonSolarus.Battle.C08C.*` Automation tests.
+  thirty-nine current `PokemonSolarus.Battle.C08C.*` Automation tests.
+- C10A remediation R5's data-driven held-item move operations for remove,
+  exchange, transfer, and restore; item takeability and Knock Off power policy;
+  atomic existing-ledger/mirror/hook/reveal integration; append-only
+  `ItemRestored` and `ItemTransferred` events under replay schema 6; and twelve
+  `PokemonSolarus.Battle.C08C.C10HeldItemMoves.*` Automation tests.
 - C09A's deterministic setup-to-policy compiler for all five encounter kinds
   and three supported formats, per-Trainer Bag/Revive/Run/capture and selector
   routing, wild-only command/flee constraints, multi-active wild reinforcement,
@@ -159,9 +164,9 @@ already existed, so it cannot explain or restore those missing files.
   still did not establish.
 - B00 through C09 package delivery is complete. The ADR-0002 implementation
   closeout passed, and the later behavior-preserving Battle Engine and executor
-  structural splits were validated and published. C10A remediation R1-R4B is
-  complete; R5 is next. C10A row authoring is not started and remains blocked
-  through R5, R6, and independent R7. C11 remains blocked behind C10.
+  structural splits were validated and published. C10A remediation R1-R5 is
+  complete; R6 is next. C10A row authoring is not started and remains blocked
+  through R6 and independent R7. C11 remains blocked behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1126,6 +1131,36 @@ B00B accepted evidence:
 - Cry for Help/reinforcement, C10, UI/assets, persistent writes, reward
   calculation, configuration, module rules, `.uproject`, older package filters,
   the full Battle suite, and Git writes were not changed or run for C09C.
+
+## C10A R5 Held-Item Move Remediation Status
+
+- R5 completed on 2026-08-30. Knock Off, Trick, Thief, and Recycle are now
+  expressible through generic authored operation values and remain unauthored
+  until C10A. Generic code contains no move, item, species, or match ID branch.
+- `BattleHeldItemMoveEffects` owns pure operation/takeability policy;
+  `BattleEffectExecutorItemMoves` resolves live instance IDs and stages the
+  existing ledger, battler mirrors, hooks, reveal tracker, Choice locks, and
+  item events in the one existing action transaction.
+- Recycle uses the greatest successful consumption-fact ordinal for the acting
+  Trainer/battler. A persistent item already consumed before setup has no
+  in-battle history and is excluded; malformed and battle-generated
+  history-less consumption remains invalid.
+- The final forced-Unity build and 13 exported reports are rooted at
+  `Game/Saved/AutomationReports/R5-HeldItemMoves-Final-20260830-091817`.
+  The focused filter passed 12/12. Required serial affected-filter counts are
+  `7, 34, 35, 7, 8, 8, 9, 7, 20, 39, 6, 18`; all aggregate and per-test issue
+  counters are zero. The reports contain 210 overlapping successes and 198
+  unique paths.
+- The build log and linked DLL SHA-256 values are
+  `DE3D70FB5EB3C7C9D01DD1E5FEE376655E5EAEE85CA7F1953B158B9AA58A103C`
+  and `37E73305CA4E5CD9D9881BF12E565B2C5E7B2AD49AB4319C77BA3B726E165ED1`.
+  Counter, exact-path, and source-hash manifest SHA-256 values are
+  `55412CA9E40EDAB0440403DD9C46E6DDC32CD41817C8F6456537F77A201AC165`,
+  `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
+  and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
+- Final `code-review` was APPROVED and final `test-evidence-review` was
+  ADEQUATE/COMPLETE with no remaining finding. No Git action or independent R7
+  was performed. R6 is the next separately approved lane.
 
 ## Goal
 

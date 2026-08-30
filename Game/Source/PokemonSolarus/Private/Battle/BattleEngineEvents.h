@@ -127,7 +127,9 @@ namespace BattleEngineEventsPrivate
 		Spec.Visibility.bRevealSourceDefinition =
 			Record.Type == EBattleEventType::AbilityActivated
 			|| Record.Type == EBattleEventType::ItemActivated
-			|| Record.Type == EBattleEventType::ItemRemoved;
+			|| Record.Type == EBattleEventType::ItemRemoved
+			|| Record.Type == EBattleEventType::ItemRestored
+			|| Record.Type == EBattleEventType::ItemTransferred;
 
 		FBattleEvent Event;
 		const bool bCreated = FBattleEvent::TryCreate(Spec, Event);

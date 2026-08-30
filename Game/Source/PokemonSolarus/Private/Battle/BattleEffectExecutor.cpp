@@ -10,6 +10,7 @@
 #include "Battle/BattleState.h"
 #include "Battle/BattleVolatile.h"
 #include "BattleAllyActionPowerModifier.h"
+#include "BattleHeldItemMoveEffects.h"
 #include "BattleMoveRedirection.h"
 #include "Math/NumericLimits.h"
 
@@ -95,6 +96,7 @@ namespace BattleEffectExecutorPrivate
 			&& Left.Target == Right.Target
 			&& Left.ConditionId == Right.ConditionId
 			&& Left.ItemId == Right.ItemId
+			&& Left.HeldItemOperation == Right.HeldItemOperation
 			&& Left.Stat == Right.Stat
 			&& Left.ChanceNumerator == Right.ChanceNumerator
 			&& Left.ChanceDenominator == Right.ChanceDenominator
@@ -558,6 +560,7 @@ namespace BattleEffectExecutorPrivate
 				&& EnumHasAllFlags(Move.Flags, EBattleMoveFlags::NeverCritical))
 			|| !FBattleMoveHitRules::TryValidateMoveDefinition(Move, HitRuleError)
 			|| !FBattleMoveWeatherRules::TryValidateMoveDefinition(Move, WeatherRuleError)
+			|| !FBattleHeldItemMoveEffects::TryValidateMoveDefinition(Move)
 			|| (!bTypeless && !FBattleTypeChart::IsKnownType(Move.Type))
 			|| (bTypeless && Move.Type != EPokemonType::Invalid)
 			|| (bDamaging && (Move.Power < 1 || Move.Power > 1000))
@@ -601,8 +604,6 @@ namespace BattleEffectExecutorPrivate
 			}
 			const bool bRequiresCondition = RequiresConditionReference(Effect.Kind);
 			if (bRequiresCondition != Effect.ConditionId.IsValid()
-				|| ((Effect.Kind == EBattleMoveEffectKind::ChangeItem)
-					!= Effect.ItemId.IsValid())
 				|| (Effect.Kind != EBattleMoveEffectKind::ModifyStatStage
 					&& IsKnownStat(Effect.Stat))
 				|| !IsEffectTargetShapeCompatible(Move.TargetClass, Effect.Kind, Effect.Target))
@@ -1153,6 +1154,17 @@ namespace BattleEffectExecutorPrivate
 					Intent.EffectEventIndex = OutcomeEventIndex;
 					Intent.Target = Target;
 					Result.SwitchIntents.Add(MoveTemp(Intent));
+				}
+				if (Effect.Kind == EBattleMoveEffectKind::ChangeItem
+					&& Effect.HeldItemOperation
+						!= EBattleMoveHeldItemOperation::None
+					&& Applied.Outcome == EBattleEffectExecutionOutcome::Deferred)
+				{
+					FBattleHeldItemMoveEffectIntent Intent;
+					Intent.Operation = Effect.HeldItemOperation;
+					Intent.EffectEventIndex = OutcomeEventIndex;
+					Intent.Target = Target;
+					Result.HeldItemMoveIntents.Add(MoveTemp(Intent));
 				}
 				continue;
 			}

@@ -204,7 +204,9 @@ Frozen implementation boundaries:
   and is rejected by the authored catalog and Data Table adapter.
 - Generic status, volatile, stat, field, side, and removal operations mutate
   only after an applied hook. Protect/charge/recharge/semi-invulnerability,
-  switching, and item operations remain typed deferred hooks for later owners.
+  switching, and legacy fixed-`ItemId` item changes remain typed deferred hooks
+  for later owners. R5's authored held-item operation variants instead produce
+  staged C08 ledger intents for remove, exchange, transfer, and restore.
 - `FBattleEngine::ExecuteCurrentMoveEffects()` accepts only the current
   committed and successfully targeted Fight action and enforces
   `Pending -> Executing -> Completed` exactly once. Rejected duplicate,

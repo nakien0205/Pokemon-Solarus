@@ -234,11 +234,19 @@ namespace BattleEffectExecutorPrivate
 		if (Target.GetKind() == EBattleResolvedTargetKind::Battler)
 		{
 			const FBattleBattlerState* Battler = FindBattler(Target.GetBattler().BattlerId);
+			const bool bReachedPostHitItemRemoval =
+				Effect.Kind == EBattleMoveEffectKind::ChangeItem
+				&& (Effect.HeldItemOperation
+						== EBattleMoveHeldItemOperation::RemoveCurrent
+					|| Effect.HeldItemOperation
+						== EBattleMoveHeldItemOperation::TransferCurrent)
+				&& (Request.Move->Category == EBattleMoveCategory::Physical
+					|| Request.Move->Category == EBattleMoveCategory::Special);
 			if (Battler == nullptr
-				|| Battler->CurrentHP <= 0
-				|| Battler->bFainted
 				|| Battler->bCaptured
-				|| Battler->bRemoved)
+				|| Battler->bRemoved
+				|| ((Battler->CurrentHP <= 0 || Battler->bFainted)
+					&& !bReachedPostHitItemRemoval))
 			{
 				return Outcome(EBattleEffectExecutionOutcome::Prevented);
 			}

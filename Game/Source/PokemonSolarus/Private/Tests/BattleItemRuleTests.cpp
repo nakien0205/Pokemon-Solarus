@@ -1,12 +1,16 @@
 #include "Misc/AutomationTest.h"
 
+#include "Battle/BattleEvent.h"
 #include "Battle/BattleItem.h"
+#include "Battle/BattleHeldItemMoveEffects.h"
 #include "BattleTestFactories.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace BattleItemRuleTests
 {
+	// Organization decision: R5 adds pure held-item rule coverage to the existing
+	// cohesive held-item rule family; it does not add a second responsibility.
 	using BattleTest::MakeDefinitionId;
 	using BattleTest::MakeNumericId;
 
@@ -98,6 +102,106 @@ namespace BattleItemRuleTests
 
 namespace BattleItemRuleTests
 {
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FBattleC10HeldItemMovePolicyTest,
+	"PokemonSolarus.Battle.C08C.C10HeldItemMoves.Rules.TakeabilityAndPowerQ12",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBattleC10HeldItemMovePolicyTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TestEqual(TEXT("None retains its frozen ordinal"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::None), static_cast<uint8>(0));
+	TestEqual(TEXT("RemoveCurrent retains its frozen ordinal"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::RemoveCurrent), static_cast<uint8>(1));
+	TestEqual(TEXT("ExchangeCurrent retains its frozen ordinal"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::ExchangeCurrent), static_cast<uint8>(2));
+	TestEqual(TEXT("TransferCurrent retains its frozen ordinal"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::TransferCurrent), static_cast<uint8>(3));
+	TestEqual(TEXT("RestoreLastConsumed retains its frozen ordinal"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::RestoreLastConsumed), static_cast<uint8>(4));
+	TestEqual(TEXT("Invalid retains its frozen sentinel"),
+		static_cast<uint8>(EBattleMoveHeldItemOperation::Invalid), static_cast<uint8>(255));
+	TestEqual(TEXT("ItemRestored retains public event ordinal 55"),
+		static_cast<uint8>(EBattleEventType::ItemRestored), static_cast<uint8>(55));
+	TestEqual(TEXT("ItemTransferred retains public event ordinal 56"),
+		static_cast<uint8>(EBattleEventType::ItemTransferred), static_cast<uint8>(56));
+
+	FBattleMoveDefinition Move;
+	Move.Id = MakeDefinitionId<FMoveId>(TEXT("Move.C10R5.Remove"));
+	Move.Type = EPokemonType::Dark;
+	Move.Category = EBattleMoveCategory::Physical;
+	Move.Power = 65;
+	Move.bAlwaysHits = true;
+	Move.TargetClass = EBattleTargetClass::SelectedOpponent;
+	FBattleMoveEffectDescriptor Damage;
+	Damage.Order = 0;
+	Damage.Kind = EBattleMoveEffectKind::Damage;
+	Damage.Target = EBattleEffectTarget::ResolvedTarget;
+	Move.Effects.Add(Damage);
+	FBattleMoveEffectDescriptor Remove;
+	Remove.Order = 1;
+	Remove.Kind = EBattleMoveEffectKind::ChangeItem;
+	Remove.Target = EBattleEffectTarget::ResolvedTarget;
+	Remove.HeldItemOperation = EBattleMoveHeldItemOperation::RemoveCurrent;
+	Move.Effects.Add(Remove);
+
+	TestTrue(TEXT("The final damaging RemoveCurrent descriptor is valid"),
+		FBattleHeldItemMoveEffects::IsOperationDescriptorValid(
+			Move.Category, Move.TargetClass, Remove, true, true));
+	TestFalse(TEXT("A non-final RemoveCurrent descriptor is invalid"),
+		FBattleHeldItemMoveEffects::IsOperationDescriptorValid(
+			Move.Category, Move.TargetClass, Remove, false, true));
+	TestFalse(TEXT("RemoveCurrent without earlier damage is invalid"),
+		FBattleHeldItemMoveEffects::IsOperationDescriptorValid(
+			Move.Category, Move.TargetClass, Remove, true, false));
+
+	FBattleItemDefinition Item;
+	Item.Id = MakeDefinitionId<FItemId>(TEXT("Item.C10R5.Takeable"));
+	Item.Kind = EBattleItemKind::Held;
+	Item.bCanBeTakenByMove = true;
+	FBattleHeldItemMovePowerModifierResult Result;
+	TestTrue(TEXT("The pure RemoveCurrent power policy evaluates"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Move, true, false, false, &Item, Result));
+	TestTrue(TEXT("A held takeable item applies the modifier"),
+		Result.bValid && Result.bApplies);
+	TestEqual(TEXT("Knock Off uses exact 1.5x Q12"),
+		Result.ModifierQ12, static_cast<int32>(6144));
+	TestTrue(TEXT("The power rule has a stable identity"), Result.RuleId.IsValid());
+
+	Item.bCanBeTakenByMove = false;
+	TestTrue(TEXT("An authored unremovable item is a valid no-op policy"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Move, true, false, false, &Item, Result));
+	TestFalse(TEXT("An unremovable item gets no power boost"), Result.bApplies);
+	Item.bCanBeTakenByMove = true;
+	TestTrue(TEXT("An empty target is a valid no-op policy"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Move, false, false, false, &Item, Result));
+	TestFalse(TEXT("An empty target gets no power boost"), Result.bApplies);
+	TestTrue(TEXT("A consumed target item is a valid no-op policy"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Move, true, true, false, &Item, Result));
+	TestFalse(TEXT("A consumed item gets no power boost"), Result.bApplies);
+	TestTrue(TEXT("A temporarily removed item is a valid no-op policy"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Move, true, false, true, &Item, Result));
+	TestFalse(TEXT("A temporarily removed item gets no power boost"), Result.bApplies);
+	TestFalse(TEXT("A missing item definition is not takeable"),
+		FBattleHeldItemMoveEffects::IsHeldItemTakeable(
+			true, false, false, nullptr));
+
+	FBattleMoveDefinition Duplicate = Move;
+	FBattleMoveEffectDescriptor DuplicateRemove = Remove;
+	DuplicateRemove.Order = 2;
+	Duplicate.Effects.Add(DuplicateRemove);
+	TestFalse(TEXT("Duplicate RemoveCurrent payloads reject the pure power policy"),
+		FBattleHeldItemMoveEffects::TryResolvePowerModifier(
+			Duplicate, true, false, false, &Item, Result));
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC08CHeldItemRuleHooksTest,

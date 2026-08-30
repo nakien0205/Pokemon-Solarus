@@ -317,6 +317,35 @@ namespace
 		return false;
 	}
 
+	bool TryParseHeldItemOperation(
+		const FName Name,
+		EBattleMoveHeldItemOperation& OutOperation)
+	{
+		OutOperation = EBattleMoveHeldItemOperation::Invalid;
+		static const struct
+		{
+			FName Name;
+			EBattleMoveHeldItemOperation Operation;
+		} Mappings[] =
+		{
+			{FName(TEXT("None")), EBattleMoveHeldItemOperation::None},
+			{FName(TEXT("RemoveCurrent")), EBattleMoveHeldItemOperation::RemoveCurrent},
+			{FName(TEXT("ExchangeCurrent")), EBattleMoveHeldItemOperation::ExchangeCurrent},
+			{FName(TEXT("TransferCurrent")), EBattleMoveHeldItemOperation::TransferCurrent},
+			{FName(TEXT("RestoreLastConsumed")),
+				EBattleMoveHeldItemOperation::RestoreLastConsumed}
+		};
+		for (const auto& Mapping : Mappings)
+		{
+			if (Name == Mapping.Name)
+			{
+				OutOperation = Mapping.Operation;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	bool TryParseEffectTarget(const FName Name, EBattleEffectTarget& OutTarget)
 	{
 		OutTarget = EBattleEffectTarget::Invalid;
@@ -569,6 +598,7 @@ bool FBattleDataTableAdapter::BuildCatalog(
 					OwnerId,
 					FName(TEXT("Kind")));
 			}
+			Definition.bCanBeTakenByMove = Row.bCanBeTakenByMove;
 			Input.Items.Add(MoveTemp(Definition));
 		});
 
@@ -771,6 +801,18 @@ bool FBattleDataTableAdapter::BuildCatalog(
 					TryCreateTypedId(SourceEffect.ItemId, Effect.ItemId,
 						EBattleDefinitionFamily::Move, OwnerId, FName(TEXT("Effects.ItemId")),
 						OutDiagnostics, EffectIndex);
+				}
+				if (!TryParseHeldItemOperation(
+						SourceEffect.HeldItemOperation,
+						Effect.HeldItemOperation))
+				{
+					AddAdapterDiagnostic(
+						OutDiagnostics,
+						EBattleCatalogDiagnosticCode::InvalidAuthoredValue,
+						EBattleDefinitionFamily::Move,
+						OwnerId,
+						FName(TEXT("Effects.HeldItemOperation")),
+						EffectIndex);
 				}
 				if (!SourceEffect.Stat.IsNone() && !TryParseBattleStat(SourceEffect.Stat, Effect.Stat))
 				{

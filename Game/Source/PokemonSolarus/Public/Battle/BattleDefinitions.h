@@ -83,6 +83,17 @@ enum class EBattleMoveEffectKind : uint8
 	Invalid = 255
 };
 
+/** Data-driven held-item mutation requested by a ChangeItem descriptor. */
+enum class EBattleMoveHeldItemOperation : uint8
+{
+	None = 0,
+	RemoveCurrent = 1,
+	ExchangeCurrent = 2,
+	TransferCurrent = 3,
+	RestoreLastConsumed = 4,
+	Invalid = 255
+};
+
 /** Effect-local selector resolved relative to the move user and resolved targets. */
 enum class EBattleEffectTarget : uint8
 {
@@ -157,6 +168,7 @@ struct POKEMONSOLARUS_API FBattleMoveEffectDescriptor
 	EBattleEffectTarget Target = EBattleEffectTarget::Invalid;
 	FConditionId ConditionId;
 	FItemId ItemId;
+	EBattleMoveHeldItemOperation HeldItemOperation = EBattleMoveHeldItemOperation::None;
 	EBattleStat Stat = static_cast<EBattleStat>(255);
 	int32 ChanceNumerator = 1;
 	int32 ChanceDenominator = 1;
@@ -216,6 +228,7 @@ struct POKEMONSOLARUS_API FBattleItemDefinition
 {
 	FItemId Id;
 	EBattleItemKind Kind = EBattleItemKind::Invalid;
+	bool bCanBeTakenByMove = true;
 };
 
 /** Condition identity and family record used by generic move effects. */

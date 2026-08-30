@@ -2,13 +2,13 @@
 
 Status: **CURRENT BLOCKER REGISTER — C10A ROW IMPLEMENTATION IS NOT APPROVED**
 
-Date: 2026-08-29
+Date: 2026-08-30
 
 Primary verdict: **BLOCK**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1 through R4B COMPLETE; R5 is next**
+Remediation status: **R1 through R5 COMPLETE; R6 is next**
 
 Direct C10A row authoring is not ready. The live catalog can represent most of
 the approved proof slice, but it cannot faithfully represent or execute every
@@ -95,11 +95,12 @@ Current remediation state:
 | R3 ally action power modifier | COMPLETE | Fresh forced-Unity build, 11 focused successes, and 13 clean affected filters on 2026-08-29; B05 resolved |
 | R4A hit qualifiers | COMPLETE | Final code and test-evidence reviews PASS; forced-Unity build, 7 focused successes, and 11 clean affected filters on 2026-08-29; B06, B07, and B08 resolved |
 | R4B weather move rules | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 8 focused successes, and 11 clean affected filters on 2026-08-29; B09 and B10 resolved |
-| Next lane | R5 | B11 remains blocked |
+| R5 held-item move intents | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 12 focused successes, and 12 clean affected filters on 2026-08-30; B11 resolved |
+| Next lane | R6 | B12 remains blocked |
 
-C10A source-row authoring remains not started and blocked until R5, R6, and
+C10A source-row authoring remains not started and blocked until R6 and
 independent R7 complete. Required order:
-`R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
+`R6 -> R7 -> C10A -> C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -166,7 +167,7 @@ Every non-ready finding uses one of these labels:
 | Powder moves must respect powder immunity | R4A implemented and validated the authored Powder trait and Grass-target gate before accuracy | RESOLVED | Author the rows only in C10A |
 | Toxic's Poison-user hit rule must be exact | R4A implemented and validated the typed Poison-user reachability and accuracy bypass while preserving later gates | RESOLVED | Author the row only in C10A; never inspect Toxic's ID |
 | Solar Beam and Thunder weather behavior must be exact | R4B implemented and validated reusable authored weather charge, power, and accuracy rules | RESOLVED | Author the rows only in C10A; never inspect either move ID |
-| Item-changing moves must reach the held-item ledger | The ledger already models consume, restore, remove, swap, and temporary steal; ChangeItem only defers and emits no item intent | SEQUENCING OVERLAP | Add a generic move-to-ledger intent bridge with atomic state, hook, and event updates |
+| Item-changing moves must reach the held-item ledger | R5 implemented and validated generic remove-current, exchange-current, transfer-current, and restore-last-consumed intents through the existing ledger, staged mirrors, hooks, reveal tracker, and public events | RESOLVED | Author the rows only in C10A; never inspect move or item IDs |
 | Removal moves must tolerate absent conditions | RemoveCondition requires one fixed ID and reports failure when it is absent | ADDITIVE GAP | Add optional-if-absent removal semantics and prove pre/post-damage ordering |
 | C10B must validate before asset mutation | The importer checks JSON array shape, non-empty Name, and duplicates, then mutates all nine tables; semantic catalog validation is later | SEQUENCING OVERLAP | Add pure preflight and an explicit family allowlist before the C10B import |
 | Later Ability/item/condition rows should scale | Their definitions contain only identity or family; approved behavior is currently mapped through exact canonical IDs | ADDITIVE GAP | Accept that new mechanics need owning-package work, or separately approve typed behavior payloads later |
@@ -215,10 +216,10 @@ Status meanings:
 | 32 | Recover | User Heal for one-half base Max HP | READY | — |
 | 33 | U-turn | Damage, then deferred user pivot Switch | READY | — |
 | 34 | Roar | Deferred forced target Switch with authored priority | READY | — |
-| 35 | Knock Off | Damage, conditional power, then remove current target item | BLOCKED | B11 |
-| 36 | Trick | Exchange the users' current held items, including one-empty cases | BLOCKED | B11 |
-| 37 | Thief | Damage, then conditionally transfer target item to an empty user | BLOCKED | B11 |
-| 38 | Recycle | Restore the user's eligible consumed item instance | BLOCKED | B11 |
+| 35 | Knock Off | Damage, typed takeability power rule, then remove current target item | READY | — |
+| 36 | Trick | Exchange the users' current held items, including one-empty cases | READY | — |
+| 37 | Thief | Damage, then conditionally transfer target item to an empty user | READY | — |
+| 38 | Recycle | Restore the user's most recently consumed eligible item instance | READY | — |
 | 39 | Rapid Spin | Damage, optional user/user-side removals, then Speed +1 | BLOCKED | B12 |
 | 40 | Defog | Evasion -1 plus optional target-side, both-side, and field removals | BLOCKED | B12 |
 | 41 | Brick Break | Optional target-side screen removals before Damage | BLOCKED | B12 |
@@ -244,7 +245,7 @@ Status meanings:
 | 61 | Safeguard | Set user-side condition | READY | — |
 | 62 | Mist | Set user-side condition | READY | — |
 
-Totals: 55 READY and 7 BLOCKED, with no unresolved decision rows. The 7
+Totals: 59 READY and 3 BLOCKED, with no unresolved decision rows. The 3
 non-ready rows account for every selected move.
 
 The READY label does not claim that a row is already tested through imported
@@ -258,7 +259,7 @@ Data Tables. That is C10B work.
 | Natures | Current modifier supports neutral and boost/reduction forms | No schema blocker found |
 | Types/type chart | Complete 18 types and 324 pairs already exist | Validate-only; any byte change is out of scope for C10A |
 | Abilities | All eight selected IDs already have live canonical behavior | New future Ability IDs are not behavior-data-only |
-| Held items | All nine selected IDs already have live canonical behavior and ledger identity | The four selected item-changing moves do not yet bridge into that ledger |
+| Held items | All nine selected IDs have live canonical behavior and ledger identity; R5's four typed move operations bridge into that ledger | No remaining held-item move blocker; rows remain unauthored until C10A |
 | Bag/capture items | All five selected IDs have live rule owners | New future item kinds require owning-package extensions |
 | Conditions | All 40 selected IDs correspond to the existing major, volatile, field, hazard, screen, room, and side-condition families | New future condition behavior is not created by adding an identity row |
 | WildFlee | Engine action and encounter policy already own it | C10 uses a synthetic configured fixture, not a species default or normal move row |
@@ -412,31 +413,32 @@ Data Tables. That is C10B work.
   ordinary accuracy draws, Fly reachability before accuracy, secondary RNG
   only after a hit, exact events/replay, and rollback.
 
-### B11 — Authored item moves do not reach the existing ledger
+### B11 — Authored item moves reach the existing ledger — RESOLVED
 
-- Classification: **SEQUENCING OVERLAP**
-- Gate: blocks Knock Off, Trick, Thief, and Recycle.
+- Classification: **RESOLVED by R5 on 2026-08-30**.
+- Gate: Knock Off, Trick, Thief, and Recycle are now expressible; their source
+  rows remain unauthored until C10A.
 - Owner: C05 descriptor/executor intent plus C08 held-item ownership and hook
-  lifecycle.
-- Existing reusable base: the held-item ledger already supports Remove,
-  Restore, Swap, and TemporarilySteal atomically. A consumed item instance is
-  retained and can be found for Recycle.
-- Missing bridge: ChangeItem requires a fixed ItemId, returns Deferred, and
-  creates no item intent. Only deferred Switch effects currently create an
-  engine-consumable intent.
-- Required capability: an appended move-item operation enum for remove current,
-  exchange current, transfer current, and restore eligible consumed item. The
-  engine resolves live instance IDs, stages ledger and battler mirrors
-  together, updates hooks, and publishes typed item facts once.
-- Trick must support two-held and one-empty exchanges. Existing Swap handles
-  two-held; existing TemporarilySteal can support a one-item transfer when the
-  generic resolver chooses the correct direction.
-- Knock Off also needs a generic pre-damage power modifier when the target has
-  a removable item.
-- Required proof: Protect/immunity/miss/substitute/faint boundaries, empty
-  holders, suppressed items, unremovable-policy hook, hook cleanup and
-  registration, choice-lock cleanup, event order, final ownership facts,
-  transactional RNG, and rollback after every fallible checkpoint.
+  lifecycle. R5 added no second ledger, state owner, RNG owner, commit seam, or
+  publication path.
+- Implemented capability: the appended authored operation values
+  `RemoveCurrent`, `ExchangeCurrent`, `TransferCurrent`, and
+  `RestoreLastConsumed` create typed intents. The staged executor resolves live
+  instance IDs and applies the existing Remove, Restore, Swap, and
+  TemporarilySteal ledger operations together with battler mirrors, hook
+  ownership, reveal state, Choice-lock cleanup, and public events.
+- Knock Off uses the item definition's data-driven `bCanBeTakenByMove` policy
+  and a Q12 `6144` power modifier. Suppression does not make a takeable item
+  unremovable. Recycle selects the currently consumed item with the greatest
+  matching consumption-fact ordinal for the acting Trainer/battler.
+- Persistent items already consumed before setup may carry no battle-consumer
+  history and are deliberately excluded from Recycle lookup. Partial history,
+  nonzero ordinals without a consumer, restored items without history, and
+  battle-generated consumed items without history remain invalid.
+- Proof covers Protect, immunity, miss, Substitute, faint, empty holders,
+  suppression, takeability, hook/reveal/mirror synchronization, Choice locks,
+  event order and schema-6 serialization, final ownership facts, transactional
+  RNG, and late rollback boundaries.
 
 ### B12 — Canonical removal moves need optional absence semantics
 
@@ -782,40 +784,98 @@ Every aggregate and per-test issue counter is zero. Final `code-review` was
 APPROVED and `test-evidence-review` was ADEQUATE/COMPLETE with no blocking or
 advisory gap. This is not R7, and no C10A row was authored.
 
-### R5 — Held-item move intents
+### R5 — Held-item move intents — COMPLETE
 
-Resolve B11 by adapting authored move operations to the existing C08 ledger.
-Do not create a second ledger or item owner.
+R5 resolved B11 by adapting authored move operations to the existing C08
+ledger. It added no second ledger or item owner.
 
-Proposed maximum hand-authored write set:
+Implemented surface:
 
-- new Game/Source/PokemonSolarus/Private/Battle/BattleHeldItemMoveEffects.h
-- new Game/Source/PokemonSolarus/Private/Battle/BattleHeldItemMoveEffects.cpp
-- Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h
-- Game/Source/PokemonSolarus/Public/Battle/BattleDataTableRows.h
-- Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.h
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorContext.h
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorConditions.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorDamage.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorAbilityItems.cpp
-- new Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorItemMoves.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleEngineMoveEffects.cpp
-- Game/Source/PokemonSolarus/Private/Battle/BattleState.h
-- Game/Source/PokemonSolarus/Private/Battle/BattleState.cpp
-- Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h
-- Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp
-- new Game/Source/PokemonSolarus/Private/Tests/BattleHeldItemMoveEffectTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleItemRuleTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleAbilityItemContractTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleAtomicMoveEffectTests.cpp
+- `BattleHeldItemMoveEffects.h/.cpp` owns stateless authored-operation and
+  takeability/power policy.
+- `BattleEffectExecutorItemMoves.cpp` owns the typed intent bridge and atomic
+  ledger/mirror/hook/reveal mutation workflow.
+- `BattleAbilityItemContracts` records last consumer Trainer/battler and the
+  successful consumption fact ordinal, supports deterministic latest-history
+  lookup, and exposes direct public reveal synchronization.
+- `ItemRestored = 55` and `ItemTransferred = 56` are append-only public event
+  values. Replay schema remains `6`.
+- Held-item intents resolve after generic effects and before forced switches and
+  starting-Life-Orb recoil within the one staged execution plan. Life Orb
+  recoil uses a per-move snapshot that proves its boost actually applied.
 
-BattleAbilityItemContracts.h/.cpp are validate-only unless the approved R5
-draft proves that an existing ledger operation is insufficient. The current
-audit did not prove that a new ledger operation is required.
+Final hand-authored production set:
+
+- new `Game/Source/PokemonSolarus/Private/Battle/BattleHeldItemMoveEffects.h`
+- new `Game/Source/PokemonSolarus/Private/Battle/BattleHeldItemMoveEffects.cpp`
+- new `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorItemMoves.cpp`
+- modified `Game/Source/PokemonSolarus/Public/Battle/BattleAbilityItemContracts.h`
+- modified `Game/Source/PokemonSolarus/Public/Battle/BattleDataTableRows.h`
+- modified `Game/Source/PokemonSolarus/Public/Battle/BattleDefinitions.h`
+- modified `Game/Source/PokemonSolarus/Public/Battle/BattleEvent.h`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleAbilityItemContracts.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleAllyActionPowerModifier.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleDataTableAdapter.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleDefinitionCatalog.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.h`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutor.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorAbilityItems.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorConditions.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorContext.h`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorDamage.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEffectExecutorState.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEngineEvents.h`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEngineMoveEffects.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleEvent.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Battle/BattleMoveRedirection.cpp`
+
+Final hand-authored test set:
+
+- new `Game/Source/PokemonSolarus/Private/Tests/BattleHeldItemMoveEffectTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleAbilityItemContractTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleAllyActionPowerModifierTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleDataTableAdapterTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleEffectExecutorTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleItemRuleTests.cpp`
+- modified `Game/Source/PokemonSolarus/Private/Tests/BattleMoveRedirectionTests.cpp`
+
+Organization decisions for changed files at or above 1,000 physical lines:
+
+- `BattleEffectExecutor.cpp` remains the one generic descriptor/execution
+  coordinator. R5 added validation and intent capture only; the independent
+  item-mutation workflow was placed in `BattleEffectExecutorItemMoves.cpp`.
+- `BattleEffectExecutorConditions.cpp` remains the condition/effect gate owner;
+  R5 only permits a reached post-hit remove/transfer effect to survive the
+  existing faint gate. `BattleEngineMoveEffects.cpp` remains the outer atomic
+  move checkpoint and gained only descriptor-identity comparison.
+- `BattleEffectExecutorTests.cpp`, `BattleItemRuleTests.cpp`, and
+  `BattleAbilityItemContractTests.cpp` retain their existing executor, item-rule,
+  and shared-contract test families. The new
+  `BattleHeldItemMoveEffectTests.cpp` remains one cohesive R5 integration family
+  across the shared catalog, engine, ledger, hook, reveal, event, and rollback
+  fixtures.
+- The 656-line `BattleEffectExecutorItemMoves.cpp` was reviewed at the 500-line
+  trigger. Its one atomic resolver intentionally remains cohesive; splitting
+  the ledger, mirror, hook, reveal, and event steps would fragment the single
+  staged mutation workflow. Final code review accepted this as non-actionable.
+
+Final evidence is rooted at
+`Game/Saved/AutomationReports/R5-HeldItemMoves-Final-20260830-091817`.
+The exact forced-Unity build passed; its build log SHA-256 is
+`DE3D70FB5EB3C7C9D01DD1E5FEE376655E5EAEE85CA7F1953B158B9AA58A103C`,
+and the linked DLL SHA-256 is
+`37E73305CA4E5CD9D9881BF12E565B2C5E7B2AD49AB4319C77BA3B726E165ED1`.
+The 12-test focused report and all 12 required affected filters contain 210
+successful overlapping executions over 198 unique paths. Every aggregate and
+per-test issue counter is zero. Counter, exact-path, and source-hash manifest
+SHA-256 values are
+`55412CA9E40EDAB0440403DD9C46E6DDC32CD41817C8F6456537F77A201AC165`,
+`45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
+and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
+Final `code-review` was APPROVED and `test-evidence-review` was
+ADEQUATE/COMPLETE after all validated findings were fixed. No Git action was
+authorized or performed. This is not independent R7, and no C10A row was
+authored.
 
 ### R6 — Optional condition removal
 
@@ -944,7 +1004,7 @@ Per-lane affected older filters:
 | R1 | C02B, C04A, C04B, C05B, C06A, C06B, ADR0002.3E5 |
 | R2/R3 | C04A, C04B, C05B, C06A, C06B, C07A, C07C, C07D, C08B, C08C, ADR0002.3E5, ADR0002.3E6 |
 | R4A/R4B | C03A, C03B, C05A, C05B, C05C, C07B, C07C, C07D, C08B, C08C, ADR0002.3E6 |
-| R5 | C05B, C06A, C06B, C07C, C07D, C08A, C08B, C08C, C09C, ADR0002.3E6 |
+| R5 | C02B, C04B, C05B, C06A, C06B, C07C, C07D, C08A, C08B, C08C, C09C, ADR0002.3E6 |
 | R6 | C05B, C07B, C07C, C07D, C08B, C08C, ADR0002.3E6 |
 
 Because the combined remediation changes shared target, engine, and executor
@@ -1037,6 +1097,6 @@ This R0 session updates this document and the B00B rules snapshot only. It does
 not implement, build, run Automation, import, stage, commit, or approve any
 remediation or C10 content.
 
-Current continuation: R1 through R4B are complete, R5 is next, and the required
-order is `R5 -> R6 -> R7 -> C10A -> C10B -> C11A -> C11B`. Independent R7 and
+Current continuation: R1 through R5 are complete, R6 is next, and the required
+order is `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`. Independent R7 and
 C10A row-authoring approval are still required later.

@@ -466,6 +466,16 @@ boolean charge hook with
 identity recheck, RNG owner, commit, or publication path. Current source and the
 C10A blocker register override the split-era measurements below.
 
+**2026-08-30 R5 live-surface note:** the separately approved held-item move lane
+changed the established header, context, state, conditions, damage, and
+Ability/item owners within their existing responsibilities and added the
+focused `BattleEffectExecutorItemMoves.cpp` owner. The typed item-intent bridge,
+live instance resolution, and atomic ledger/mirror/hook/reveal updates now live
+there; `TryApplyHeldItemOperation` moved out of the Ability/item source without
+changing its contract. R5 added no second execution context, staged state, RNG
+owner, identity recheck, commit, or publication path. The split-era hashes,
+counts, and responsibility table below remain historical evidence.
+
 The user approved the bounded implementation guide at
 `docs/battle-effect-executor-split-implementation-ready-draft.md` on
 2026-08-28. The approved split is implemented and freshly validated. This

@@ -185,6 +185,7 @@ namespace BattleEffectExecutorPrivate
 				return false;
 			}
 			if (Effect.Kind == EBattleMoveEffectKind::ChangeItem
+				&& Effect.HeldItemOperation == EBattleMoveHeldItemOperation::None
 				&& State.Catalog.FindItem(Effect.ItemId) == nullptr)
 			{
 				return false;
@@ -462,6 +463,7 @@ bool FBattleEffectExecutor::TryPrepareAgainstState(
 	BattleEffectExecutorPrivate::FStateExecutionContext Context(Request, State, Random);
 	Context.BindExecutionResult(OutPlan.Result);
 	if (!TryExecute(Request, Context, Random, OutPlan.Result, OutError)
+		|| !Context.TryResolveHeldItemMoveIntents(OutPlan.Result, OutError)
 		|| !Context.TryResolveForcedSwitches(OutPlan.Result, OutError)
 		|| !Context.TryApplyPostMoveLifeOrbRecoil(OutPlan.Result, OutError))
 	{

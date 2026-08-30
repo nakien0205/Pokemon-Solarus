@@ -5,7 +5,7 @@ namespace
 	bool IsKnownEventType(const EBattleEventType Value)
 	{
 		return static_cast<uint8>(Value)
-			<= static_cast<uint8>(EBattleEventType::ActionPowerModifierRegistered);
+			<= static_cast<uint8>(EBattleEventType::ItemTransferred);
 	}
 
 	bool IsKnownEventCause(const EBattleEventCause Value)
@@ -101,6 +101,62 @@ namespace
 			&& Target.ActiveSlotId.IsValid()
 			&& !Target.bHasSide
 			&& !Target.bField;
+	}
+
+	bool IsSameBattlerIdentity(
+		const FBattleEventSource& Source,
+		const FBattleEventTarget& Target)
+	{
+		return IsBattleEventBattlerTarget(Target)
+			&& Target.TrainerId == Source.TrainerId
+			&& Target.BattlerId == Source.BattlerId
+			&& Target.ActiveSlotId == Source.ActiveSlotId;
+	}
+
+	bool IsHeldItemMutationEventShapeValid(const FBattleEventSpec& Spec)
+	{
+		if (Spec.Cause != EBattleEventCause::Item
+			|| !Spec.Source.TrainerId.IsValid()
+			|| !Spec.Source.BattlerId.IsValid()
+			|| !Spec.Source.ActiveSlotId.IsValid()
+			|| !Spec.Source.DefinitionId.IsValid()
+			|| Spec.Targets.Num() != 1
+			|| !IsBattleEventBattlerTarget(Spec.Targets[0])
+			|| Spec.Visibility.Level != EBattleVisibilityLevel::Public
+			|| !Spec.Visibility.bRevealSourceDefinition
+			|| Spec.HitIndex.IsSet()
+			|| Spec.HitCount.IsSet())
+		{
+			return false;
+		}
+
+		switch (Spec.Type)
+		{
+		case EBattleEventType::ItemRemoved:
+			return IsSameBattlerIdentity(Spec.Source, Spec.Targets[0])
+				&& Spec.NumericBefore == TOptional<int64>(1)
+				&& Spec.NumericAfter == TOptional<int64>(0)
+				&& Spec.NumericDelta == TOptional<int64>(-1);
+		case EBattleEventType::ItemRestored:
+			return Spec.ActionId.IsValid()
+				&& Spec.CauseActionKind == EBattleActionKind::Fight
+				&& Spec.OutcomeCause == EBattleOutcomeCause::None
+				&& IsSameBattlerIdentity(Spec.Source, Spec.Targets[0])
+				&& Spec.NumericBefore == TOptional<int64>(0)
+				&& Spec.NumericAfter == TOptional<int64>(1)
+				&& Spec.NumericDelta == TOptional<int64>(1);
+		case EBattleEventType::ItemTransferred:
+			return Spec.ActionId.IsValid()
+				&& Spec.CauseActionKind == EBattleActionKind::Fight
+				&& Spec.OutcomeCause == EBattleOutcomeCause::None
+				&& (Spec.Targets[0].TrainerId != Spec.Source.TrainerId
+					|| Spec.Targets[0].BattlerId != Spec.Source.BattlerId)
+				&& Spec.NumericBefore == TOptional<int64>(1)
+				&& Spec.NumericAfter == TOptional<int64>(1)
+				&& Spec.NumericDelta == TOptional<int64>(0);
+		default:
+			return false;
+		}
 	}
 
 	bool IsBattleEventTargetResolutionShapeValid(const FBattleEventSpec& Spec)
@@ -265,14 +321,20 @@ bool FBattleEvent::TryCreate(const FBattleEventSpec& Spec, FBattleEvent& OutEven
 			return false;
 		}
 	}
-	if ((Spec.Type == EBattleEventType::ItemActivated
-			|| Spec.Type == EBattleEventType::ItemRemoved)
+	if (Spec.Type == EBattleEventType::ItemActivated
 		&& (Spec.Cause != EBattleEventCause::Item
 			|| !Spec.Source.TrainerId.IsValid()
 			|| !Spec.Source.BattlerId.IsValid()
 			|| !Spec.Source.DefinitionId.IsValid()
 			|| Spec.Visibility.Level != EBattleVisibilityLevel::Public
 			|| !Spec.Visibility.bRevealSourceDefinition))
+	{
+		return false;
+	}
+	if ((Spec.Type == EBattleEventType::ItemRemoved
+			|| Spec.Type == EBattleEventType::ItemRestored
+			|| Spec.Type == EBattleEventType::ItemTransferred)
+		&& !IsHeldItemMutationEventShapeValid(Spec))
 	{
 		return false;
 	}
