@@ -368,3 +368,25 @@ serially by C05B, C07B, C07C, C07D, C08B, C08C, and ADR0002.3E6 with counts
 `42, 9, 8, 9, 20, 39, 18`. All aggregate and per-test issue counters are zero.
 Final `code-review` was APPROVED and `test-evidence-review` was
 ADEQUATE/COMPLETE after their validated findings were fixed.
+
+## Consolidated C10A effect-pipeline record — 2026-08-30
+
+The C05 pipeline owns the runtime side of every R1–R6 remediation lane:
+
+| Lane | C05-owned behavior |
+|---|---|
+| R1 | Accepts the two appended target shapes without changing existing target or faint behavior. |
+| R2 | Executes one typed redirection registration through staged action state. |
+| R3 | Registers an exact rational ally modifier and applies it at `BeforeDamage` before terrain. |
+| R4A | Evaluates typed status-type-immunity, Powder, and Poison-user reach/accuracy qualifiers in the established hit order. |
+| R4B | Applies authored weather charge, accuracy, and power rules without move-ID branches. |
+| R5 | Converts final typed item descriptors into staged C08 ledger intents after a connected hit and before later switch/recoil work. |
+| R6 | Treats only authored optional absent removals as silent success while preserving normal chance and effect ordering. |
+
+All lanes preserve one staged executor context and the outer
+`BattleEngineMoveEffects.cpp` identity recheck, RNG commit/rollback, state
+application, and event publication. The focused prefixes are
+`C10Redirection`, `C10ActionModifiers`, `C10HitRules`,
+`C10WeatherMoveRules`, `C10HeldItemMoves`, and `C10Removal` under their recorded
+C04B/C05B/C08C owners. Independent R7 accepted the combined code and evidence;
+C10A then authored rows only and changed no executor source.

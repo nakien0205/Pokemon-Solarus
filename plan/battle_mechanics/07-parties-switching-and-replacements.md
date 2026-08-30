@@ -279,3 +279,16 @@ Protected files retained their pre-write SHA-256 hashes:
 Existing tests remained unchanged. No subagent, Git commit, or other Git write
 was used. C06 is complete; C07A is the next sequential package and its C06B
 dependency is clear.
+
+## C10A remediation switch/faint cleanup addendum — 2026-08-30
+
+R1 (`06d884e`) carried the two appended target classes through faint/outcome
+validation without changing replacement ownership. R2 (`cf8b3e6`) and R3
+(`1294c7c`) integrated redirection and ally-modifier cleanup into the existing
+voluntary-switch, faint, replacement, and occupant-identity boundaries.
+
+Neither lane created a second switch pipeline or replacement owner. A
+registration tied to a switched, fainted, captured, removed, or replaced
+occupant cannot affect a later action. The C06A/C06B public behavior and event
+order remain owned by this package; R7 later revalidated both filters as part
+of the combined Battle matrix.

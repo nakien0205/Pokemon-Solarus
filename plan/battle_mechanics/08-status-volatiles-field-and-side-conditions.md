@@ -307,3 +307,15 @@ The final serial C07B, C07C, and C07D reports under
 `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`
 passed 9/9, 8/8, and 9/9 with zero aggregate or per-test warnings, errors,
 failures, not-run, or in-process results.
+
+## C10A remediation lifecycle summary — 2026-08-30
+
+R2 and R3 deliberately did not model Follow Me or Helping Hand as conditions.
+They reuse C07's turn/action cleanup boundaries only to expire their private
+registrations deterministically. R4B reused the existing field trigger owner
+for current-weather dispatch. R6 reused the existing volatile, side, hazard,
+screen, room, terrain, and weather cleanup paths for present conditions.
+
+Therefore C07 still has one condition owner and one duration/cleanup model.
+The C10A condition JSON adds only the approved identities and families; it
+does not create another lifecycle system.

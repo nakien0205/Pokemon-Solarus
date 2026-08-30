@@ -364,3 +364,23 @@ duplicate flags. `BattleDefinitionCatalog.cpp` and direct executor validation
 both call the public stateless `FBattleMoveWeatherRules` definition validator,
 so invalid flag/definition combinations fail before mutation. No Data Table row
 schema, importer, source JSON, or C10A row changed in R4B.
+
+## C10A remediation definition/adaptor record — 2026-08-30
+
+R1 through R6 later extended C02B's definition and adapter vocabulary for the
+bounded C10 catalog. They did not reopen C02 or weaken its fail-closed rules:
+
+| Lane | C02B-owned addition |
+|---|---|
+| R1 (`06d884e`) | Appended `FixedOpponentSpreadSet` and `SelectedOtherBattler`; adapter and catalog validation recognize both without renumbering existing targets. |
+| R2 (`cf8b3e6`) | Appended the typed target-redirection effect and validated its exact self-targeted descriptor shape. |
+| R3 (`1294c7c`) | Appended the ally-action power-modifier effect and retained its authored rational magnitude for later damage conversion. |
+| R4A (`0f8664b`) | Added typed hit-rule flags for status-move type immunity, Powder, and Poison-user Toxic reach/accuracy behavior. |
+| R4B (`ef93d5d`) | Added the three weather flags described above and their shared definition validator. |
+| R5 (`7686395`) | Added typed held-item operations, adapter parsing, and catalog validation for remove, exchange, transfer, and restore. |
+| R6 (`74b1c1b`) | Added `OptionalIfAbsent`, valid only for `RemoveCondition`. |
+
+The accepted C10A JSON uses these append-only values. Unknown names,
+incompatible flag/effect combinations, bad references, and malformed ranges
+remain catalog errors. C10B must prove the imported reflected rows produce the
+same immutable definitions; it must not add another definition owner.

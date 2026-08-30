@@ -3,5 +3,125 @@
     "Name": "Nature.Hardy",
     "BoostedStat": "None",
     "ReducedStat": "None"
+  },
+  {
+    "Name": "Nature.Lonely",
+    "BoostedStat": "Attack",
+    "ReducedStat": "Defense"
+  },
+  {
+    "Name": "Nature.Brave",
+    "BoostedStat": "Attack",
+    "ReducedStat": "Speed"
+  },
+  {
+    "Name": "Nature.Adamant",
+    "BoostedStat": "Attack",
+    "ReducedStat": "SpecialAttack"
+  },
+  {
+    "Name": "Nature.Naughty",
+    "BoostedStat": "Attack",
+    "ReducedStat": "SpecialDefense"
+  },
+  {
+    "Name": "Nature.Bold",
+    "BoostedStat": "Defense",
+    "ReducedStat": "Attack"
+  },
+  {
+    "Name": "Nature.Docile",
+    "BoostedStat": "None",
+    "ReducedStat": "None"
+  },
+  {
+    "Name": "Nature.Relaxed",
+    "BoostedStat": "Defense",
+    "ReducedStat": "Speed"
+  },
+  {
+    "Name": "Nature.Impish",
+    "BoostedStat": "Defense",
+    "ReducedStat": "SpecialAttack"
+  },
+  {
+    "Name": "Nature.Lax",
+    "BoostedStat": "Defense",
+    "ReducedStat": "SpecialDefense"
+  },
+  {
+    "Name": "Nature.Timid",
+    "BoostedStat": "Speed",
+    "ReducedStat": "Attack"
+  },
+  {
+    "Name": "Nature.Hasty",
+    "BoostedStat": "Speed",
+    "ReducedStat": "Defense"
+  },
+  {
+    "Name": "Nature.Serious",
+    "BoostedStat": "None",
+    "ReducedStat": "None"
+  },
+  {
+    "Name": "Nature.Jolly",
+    "BoostedStat": "Speed",
+    "ReducedStat": "SpecialAttack"
+  },
+  {
+    "Name": "Nature.Naive",
+    "BoostedStat": "Speed",
+    "ReducedStat": "SpecialDefense"
+  },
+  {
+    "Name": "Nature.Modest",
+    "BoostedStat": "SpecialAttack",
+    "ReducedStat": "Attack"
+  },
+  {
+    "Name": "Nature.Mild",
+    "BoostedStat": "SpecialAttack",
+    "ReducedStat": "Defense"
+  },
+  {
+    "Name": "Nature.Quiet",
+    "BoostedStat": "SpecialAttack",
+    "ReducedStat": "Speed"
+  },
+  {
+    "Name": "Nature.Bashful",
+    "BoostedStat": "None",
+    "ReducedStat": "None"
+  },
+  {
+    "Name": "Nature.Rash",
+    "BoostedStat": "SpecialAttack",
+    "ReducedStat": "SpecialDefense"
+  },
+  {
+    "Name": "Nature.Calm",
+    "BoostedStat": "SpecialDefense",
+    "ReducedStat": "Attack"
+  },
+  {
+    "Name": "Nature.Gentle",
+    "BoostedStat": "SpecialDefense",
+    "ReducedStat": "Defense"
+  },
+  {
+    "Name": "Nature.Sassy",
+    "BoostedStat": "SpecialDefense",
+    "ReducedStat": "Speed"
+  },
+  {
+    "Name": "Nature.Careful",
+    "BoostedStat": "SpecialDefense",
+    "ReducedStat": "SpecialAttack"
+  },
+  {
+    "Name": "Nature.Quirky",
+    "BoostedStat": "None",
+    "ReducedStat": "None"
   }
 ]

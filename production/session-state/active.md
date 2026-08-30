@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: C10A reusable typed-remediation lanes
-Task: R1-R6 complete; independent R7 is next
+Feature: C10A canonical proof content
+Task: R1-C10A planning consolidated; exact C10B implementation approval is next
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-30
@@ -58,24 +58,38 @@ Task: R1-R6 complete; independent R7 is next
   `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
   files are intentionally ignored local tooling. Dated package evidence and
   ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1 through R6 are complete. R1 added the two typed
+- C10A remediation lanes R1 through R7 are complete. R1 added the two typed
   target classes, R2 added private action-scoped redirection, R3 added the
   private typed ally action power modifier, and R4A added reusable authored hit
   qualifiers for status-move type immunity, Powder immunity, and Poison-type
   user reachability and accuracy behavior. R4B added reusable authored weather
   charge, accuracy, and power rules for Solar Beam and Thunder. Swift, Fly,
   Follow Me, Helping Hand, Toxic, Powder moves, Solar Beam, and Thunder are now
-  expressible, but their C10A rows remain unauthored. R5 added reusable,
+  expressible. R5 added reusable,
   data-driven held-item move operations for remove, exchange, transfer, and
   restore; atomic C08 ledger/mirror/hook/reveal updates; Knock Off's takeability
   power rule; and starting-Life-Orb recoil qualification. Knock Off, Trick,
-  Thief, and Recycle are now expressible, but their C10A rows remain unauthored.
+  Thief, and Recycle are now expressible.
   R6 added typed optional-absence semantics for condition removal while
   preserving legacy failure behavior, normal secondary chance consumption,
   staged ownership, cleanup, and event ordering. Rapid Spin, Defog, and Brick
-  Break are now expressible, but their C10A rows remain unauthored.
-- Independent R7 is next. Preserve the order
-  `R7 -> C10A -> C10B -> C11A -> C11B`.
+  Break are now expressible. Independent
+  R7 passed against the live source and exported evidence. The reproducible
+  pinned-source manifest also passed exact source hashes and counts for all six
+  C10A JSON families. The approved C10A write then populated exactly those six
+  source files. Static validation passed at
+  `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323` with exact
+  counts of 8 species/forms, 25 natures, 62 moves, 8 Abilities, 14 items, and
+  40 conditions, plus zero source-fact, reference, or descriptor errors.
+- C10B import and integration is next. Preserve the order
+  `C10B -> C11A -> C11B`. C10A changed no Unreal asset and ran no Automation.
+- Current package documentation now records R1–R6 under the C01–C09 owners
+  they actually extended, keeps R7 as C10-wide acceptance, and makes C10B,
+  C11A, and C11B implementation-ready without implementing them. Live runtime
+  inspection found that all eight catalog species require display names;
+  therefore future C10B approval must include the six missing display-name rows
+  and `DT_InitialBattleDisplayNames` alongside the six C10A Data Tables. The
+  type chart and runtime scenario remain validate-only.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
   until call by user**. Existing related setup, state, snapshot,
   encounter-policy, replay, and test code remains unchanged.
@@ -228,8 +242,8 @@ Task: R1-R6 complete; independent R7 is next
   and
   `D9E3A0FB661D272AA13F382AAC334988B498D0737CC4728F7C9EC68974D7C1CF`.
   Final `code-review` was APPROVED and `test-evidence-review` was
-  ADEQUATE/COMPLETE, with no blocking or advisory gap. Independent R7 has not
-  been performed.
+  ADEQUATE/COMPLETE, with no blocking or advisory gap. At R4B closeout,
+  independent R7 had not yet been performed.
 - R5's final forced-Unity `PokemonSolarusEditor Win64 Development` build passed
   with `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and
   `-NoUBA`. The final evidence root is
@@ -253,7 +267,7 @@ Task: R1-R6 complete; independent R7 is next
   and fixed one setup regression: a persistent item consumed before setup may
   have empty battle-consumption history and is not a Recycle candidate, while
   malformed or battle-generated history-less consumption remains invalid.
-  Independent R7 has not been performed.
+  At R5 closeout, independent R7 had not yet been performed.
 - R6 started from clean tracked versions of its exact nine code/test paths at
   HEAD and `origin/main`
   `7686395d37e8c6b061d5ea19a75c4519122a77cd`. The only baseline worktree
@@ -287,8 +301,23 @@ Task: R1-R6 complete; independent R7 is next
   log.
 - Final R6 `code-review` was APPROVED and final `test-evidence-review` was
   ADEQUATE/COMPLETE after all validated findings were fixed. The independent QA
-  testability audit found no acceptance blocker. R7 has not been performed, no
-  C10A row or asset was changed, and no Git action was authorized or performed.
+  testability audit found no acceptance blocker. At R6 closeout, R7 had not yet
+  been performed and no C10A row or asset had been changed.
+- Independent R7 evidence is rooted at
+  `Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`. HEAD and
+  `origin/main` matched at `74b1c1b2d20b75e465c49d45dc193a0a74ecbcbd`.
+  The 75-file source manifest had zero mismatches, the linked editor DLL matched
+  R6, and 22 serial reports contained 746 successful overlapping executions
+  over 390 unique full-Battle paths. Full Battle passed 390/390 with every
+  aggregate and per-test issue counter zero. The requested forced-Unity target
+  was up to date, so R7 does not claim a fresh compiler action.
+- The reproducible C10A source evidence is rooted at
+  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`. Its recipe
+  fetched eight immutable pinned files, verified all previously frozen raw-byte
+  hashes, and produced exact source manifests for 8 species/forms, 25 natures,
+  62 moves, 8 Abilities, 14 items, and 40 conditions. The canonical manifest
+  SHA-256 is
+  `721EE44EF5D0EF6B9522D4BA1A94546D7032D1F17E1CAE812D52C4EC8D986629`.
 
 ## Working-tree scope to preserve
 
@@ -377,8 +406,9 @@ Task: R1-R6 complete; independent R7 is next
   `plan/battle_mechanics/03-stats-types-moves-and-data-adapters.md`,
   `plan/battle_mechanics/06-hit-damage-effects-and-outcomes.md`,
   `plan/battle_mechanics/08-status-volatiles-field-and-side-conditions.md`, and
-  `docs/battle-engine-structural-split-handoff.md`. No R4B Git action is
-  authorized or performed. Preserve both unrelated untracked ADRs.
+  `docs/battle-engine-structural-split-handoff.md`. The final R4B review session
+  performed no Git action; the accepted implementation was later published in
+  `ef93d5d`. Preserve both unrelated untracked ADRs.
 - R5's exact hand-authored source set is 22 production files and seven test
   files. The new production files are `BattleHeldItemMoveEffects.h/.cpp` and
   `BattleEffectExecutorItemMoves.cpp`. Modified production owners are
@@ -400,7 +430,8 @@ Task: R1-R6 complete; independent R7 is next
   `plan/battle_mechanics/00-roadmap-index.md`,
   `06-hit-damage-effects-and-outcomes.md`,
   `09-abilities-held-items-and-battle-items.md`, and
-  `11-canonical-proof-content.md`. No R5 Git action is authorized or performed.
+  `11-canonical-proof-content.md`. The final R5 review session performed no Git
+  action; the accepted implementation was later published in `7686395`.
   Preserve both unrelated untracked ADRs.
 - R6's exact hand-authored code/test write set is `BattleDefinitions.h`,
   `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
@@ -430,9 +461,11 @@ Task: R1-R6 complete; independent R7 is next
 2. Keep the six-helper cross-translation-unit declaration seam recorded as a
    non-runtime source follow-up. Do not claim it has been remediated without a
    separately approved source change and validation.
-3. Treat R1 through R6 as complete. R6 passed its post-review forced-Unity
-   compile, all seven focused tests, seven affected regression filters, and
-   both required final reviews.
-4. Independent R7 is the next separate read-only gate. Do not author C10A
-   source rows until R7 passes. Preserve roadmap order
-   `R7 -> C10A -> C10B -> C11A -> C11B`.
+3. Treat R1 through R7 and the reproducible pinned-source extraction as
+   complete. R7 accepted the live source and all 390 full-Battle paths; the
+   source manifest passed every frozen hash and exact content-family count.
+4. Obtain exact C10B implementation approval before modifying the importer,
+   adding its pure validator and focused tests, filling the six missing species
+   display-name rows, or mutating the seven approved Data Tables. Keep the type
+   chart and runtime scenario validate-only. Do not begin C11A or C11B under
+   that approval. Preserve roadmap order `C10B -> C11A -> C11B`.

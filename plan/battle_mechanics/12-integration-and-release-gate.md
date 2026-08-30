@@ -1,8 +1,8 @@
 # C11 — Full Integration and Release Gate
 
 Priority: Mandatory completion gate  
-Status: Not started; blocked by C10A and C10B; the ADR-0002 implementation
-closeout is already PASS
+Status: Planned; C10A is complete and C11 remains blocked only by C10B; the
+ADR-0002 implementation closeout is already PASS
 
 Required order: C11A, then C11B
 
@@ -13,6 +13,55 @@ not merely as passing isolated calculators. Produce evidence tied to exact live
 source and data hashes.
 
 ## C11A — Deterministic Integration Matrix
+
+Status: **PLANNED — NOT IMPLEMENTED OR APPROVED**.
+
+### Planned file map and ownership
+
+C11A is expected to be test-only. It must use the production imported catalog
+accepted by C10B and the public Battle API; it must not add synthetic
+production definitions or private state mutation hooks.
+
+| Planned path | One responsibility |
+|---|---|
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalIntegrationTestSupport.h` | Shared declarations for loading the production catalog, deterministic scenario builders, scripted decisions/RNG, replay comparison, and invariant assertions. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalIntegrationTestSupport.cpp` | The matching shared implementation; no test registration and no production ownership. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalSingleIntegrationTests.cpp` | Single-Battle baseline, status, switching, Bag, item/Ability, faint, replacement, and terminal flows. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalDoubleIntegrationTests.cpp` | Double targeting, order, redirection, ally support, spread/friendly-fire, simultaneous faint, and modifier combinations. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalWildPartnerIntegrationTests.cpp` | Run, Capture, configured WildFlee, and Partner Double ownership/visibility/continuation flows. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalReplayInvariantTests.cpp` | Deterministic replay, serialization, snapshot/event/RNG equality, bounds, terminal immutability, and hidden-information invariants. |
+
+The support pair is justified because four focused test families need the same
+production-catalog loader and deterministic assertion machinery. Each test
+source owns one scenario family. If any file reaches the 500-line review
+trigger, split only along the named behavior boundary; do not create one C11A
+test monolith.
+
+No production C++, source JSON, Data Table, runtime scenario, display name,
+configuration, `.uproject`, UI, or visual asset change is expected. A discovered
+runtime capability gap must stop C11A and return to its owning package under a
+new implementation approval.
+
+### Execution sequence
+
+1. Freeze HEAD, dirty inventory, production/test/data/asset hashes, linked DLL,
+   imported catalog summary hash, and the exact C10B evidence root.
+2. Load the production catalog through the accepted C10B path; do not rebuild
+   canonical rows in test code.
+3. Implement and run one scenario family at a time under its exact C11A prefix.
+4. For each representative scenario, execute twice from the same catalog,
+   setup, decisions, stat-refresh inputs, and scripted RNG.
+5. Compare typed events, RNG trace, final snapshots, outcome, capture and item
+   facts, and versioned replay bytes.
+6. Run the full `PokemonSolarus.Battle.C11A` prefix only after all four focused
+   families pass serially.
+
+Planned prefixes:
+
+- `PokemonSolarus.Battle.C11A.Single`
+- `PokemonSolarus.Battle.C11A.Double`
+- `PokemonSolarus.Battle.C11A.WildPartner`
+- `PokemonSolarus.Battle.C11A.ReplayInvariants`
 
 ### Baseline regression
 
@@ -109,6 +158,9 @@ Global invariants:
 
 ## C11B — Build, Automation, and Evidence Gate
 
+Status: **PLANNED — NOT STARTED**. C11B writes no battle behavior. It begins
+only after C11A is accepted against the imported C10B catalog.
+
 Before running Unreal:
 
 - Record source, test, JSON, Data Table/catalog summary, `.uproject`, and
@@ -118,14 +170,56 @@ Before running Unreal:
 
 Verification order:
 
-1. Run the most focused failing subsystem prefix during development.
-2. Run each completed package prefix.
-3. Build `PokemonSolarusEditor Win64 Development`.
-4. Run the complete `PokemonSolarus.Battle` Automation prefix.
-5. Inspect exported `index.json`, not only process exit code or console text.
-6. Classify test failures/warnings/not-run separately from unrelated optional
+1. Build `PokemonSolarusEditor Win64 Development` normally.
+2. Run the forced-Unity Editor build with the required self-contained-source
+   flags.
+3. Record the final linked DLL hash and discover/freeze the exact live test
+   path manifest.
+4. Run every completed package prefix serially from that final binary.
+5. Run the complete `PokemonSolarus.Battle` Automation prefix.
+6. Inspect exported `index.json`, not only process exit code or console text.
+7. Classify test failures/warnings/not-run separately from unrelated optional
    engine/plugin startup warnings.
-7. Compare all protected hashes after Unreal.
+8. Compare all protected hashes after Unreal.
+
+The package filters must run serially from the rebuilt live binary. At minimum:
+
+- `PokemonSolarus.Battle.DamageCalculator`
+- `PokemonSolarus.Battle.CoreContracts`
+- `PokemonSolarus.Battle.C01B`
+- `PokemonSolarus.Battle.C02A`
+- `PokemonSolarus.Battle.C02B`
+- `PokemonSolarus.Battle.C03A`
+- `PokemonSolarus.Battle.C03B`
+- `PokemonSolarus.Battle.C04A`
+- `PokemonSolarus.Battle.C04B`
+- `PokemonSolarus.Battle.C05A`
+- `PokemonSolarus.Battle.C05B`
+- `PokemonSolarus.Battle.C05C`
+- `PokemonSolarus.Battle.C06A`
+- `PokemonSolarus.Battle.C06B`
+- `PokemonSolarus.Battle.C07A`
+- `PokemonSolarus.Battle.C07B`
+- `PokemonSolarus.Battle.C07C`
+- `PokemonSolarus.Battle.C07D`
+- `PokemonSolarus.Battle.C08A`
+- `PokemonSolarus.Battle.C08B`
+- `PokemonSolarus.Battle.C08C`
+- `PokemonSolarus.Battle.C09A`
+- `PokemonSolarus.Battle.C09B`
+- `PokemonSolarus.Battle.C09C`
+- `PokemonSolarus.Battle.Runtime`
+- `PokemonSolarus.Battle.ADR0002`
+- `PokemonSolarus.Battle.C10B`
+- `PokemonSolarus.Battle.C11A`
+- `PokemonSolarus.Battle`
+
+Discover the rebuilt test set first and freeze an exact expected-path manifest;
+historical counts must not be copied forward. For every exported `index.json`,
+require discovered and performed counts to match that manifest, paths to belong
+to the requested prefix, every path exactly once, succeeded equal performed,
+and every aggregate/per-test warning, failure, error, not-run, and in-process
+counter to be zero.
 
 Completion requires:
 
@@ -136,6 +230,14 @@ Completion requires:
 - No stale generated source/object provides an absent implementation.
 - No unapproved `.uproject` or configuration change.
 - Evidence paths and source/data hashes recorded in this plan and the index.
+- A normal Editor build and a forced-Unity Editor build with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA`; the latter
+  proves the new test files have self-contained includes and Unity-safe private
+  names.
+- The linked editor DLL hash recorded after the final build and unchanged for
+  every accepted Automation report.
+- Exact pre/post hashes for source JSON, all nine Data Tables, `.uproject`,
+  `DefaultEngine.ini`, module rules, and preserved unrelated dirty files.
 
 Do not delete old reports. Do not remove or rewrite the existing Android File
 Server block without explicit approval. If Unreal changes protected files, stop
@@ -155,6 +257,11 @@ Perform an independent read-only review against:
 The reviewer must report missing mechanics, untested branches, stale evidence,
 hidden coupling, nondeterminism, content-specific branches, and scope creep.
 
+Run `code-review` and `test-evidence-review` in a fresh read-only session after
+the final build/reports exist. Fix every validated in-scope finding, then
+regenerate affected build and Automation evidence before acceptance. This
+review is not replaced by green counters.
+
 ## Definition of Complete
 
 The reusable Global Battle core is complete only when:
@@ -165,3 +272,7 @@ The reusable Global Battle core is complete only when:
 - The independent review has no unresolved Critical or High findings.
 - Remaining omissions are explicitly outside the approved bounded catalog, not
   silently unimplemented parts of an approved mechanic.
+
+After acceptance, update only current roadmap/status documents with the final
+evidence identities. Publication, commit, and push remain separate user-owned
+Git decisions; passing C11B does not authorize them.

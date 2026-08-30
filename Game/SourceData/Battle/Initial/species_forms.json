@@ -28,5 +28,95 @@
     "AbilityIds": [
       "Ability.Overgrow"
     ]
+  },
+  {
+    "Name": "Species.Gyarados",
+    "PrimaryType": "Water",
+    "SecondaryType": "Flying",
+    "BaseHP": 95,
+    "BaseAttack": 125,
+    "BaseDefense": 79,
+    "BaseSpecialAttack": 60,
+    "BaseSpecialDefense": 100,
+    "BaseSpeed": 81,
+    "CatchRate": 45,
+    "AbilityIds": [
+      "Ability.Intimidate"
+    ]
+  },
+  {
+    "Name": "Species.Rotom",
+    "PrimaryType": "Electric",
+    "SecondaryType": "Ghost",
+    "BaseHP": 50,
+    "BaseAttack": 50,
+    "BaseDefense": 77,
+    "BaseSpecialAttack": 95,
+    "BaseSpecialDefense": 77,
+    "BaseSpeed": 91,
+    "CatchRate": 45,
+    "AbilityIds": [
+      "Ability.Levitate"
+    ]
+  },
+  {
+    "Name": "Species.Pelipper",
+    "PrimaryType": "Water",
+    "SecondaryType": "Flying",
+    "BaseHP": 60,
+    "BaseAttack": 50,
+    "BaseDefense": 100,
+    "BaseSpecialAttack": 95,
+    "BaseSpecialDefense": 70,
+    "BaseSpeed": 65,
+    "CatchRate": 45,
+    "AbilityIds": [
+      "Ability.Drizzle"
+    ]
+  },
+  {
+    "Name": "Species.Espathra",
+    "PrimaryType": "Psychic",
+    "SecondaryType": "None",
+    "BaseHP": 95,
+    "BaseAttack": 60,
+    "BaseDefense": 60,
+    "BaseSpecialAttack": 101,
+    "BaseSpecialDefense": 60,
+    "BaseSpeed": 105,
+    "CatchRate": 60,
+    "AbilityIds": [
+      "Ability.SpeedBoost"
+    ]
+  },
+  {
+    "Name": "Species.Clefable",
+    "PrimaryType": "Fairy",
+    "SecondaryType": "None",
+    "BaseHP": 95,
+    "BaseAttack": 70,
+    "BaseDefense": 73,
+    "BaseSpecialAttack": 95,
+    "BaseSpecialDefense": 90,
+    "BaseSpeed": 60,
+    "CatchRate": 25,
+    "AbilityIds": [
+      "Ability.MagicGuard"
+    ]
+  },
+  {
+    "Name": "Species.Excadrill",
+    "PrimaryType": "Ground",
+    "SecondaryType": "Steel",
+    "BaseHP": 110,
+    "BaseAttack": 135,
+    "BaseDefense": 60,
+    "BaseSpecialAttack": 50,
+    "BaseSpecialDefense": 65,
+    "BaseSpeed": 88,
+    "CatchRate": 60,
+    "AbilityIds": [
+      "Ability.MoldBreaker"
+    ]
   }
 ]

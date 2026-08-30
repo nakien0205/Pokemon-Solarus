@@ -3,12 +3,14 @@
 Status date: 2026-08-30
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
-complete under focused validation; C10 and C11 remain
+complete under focused validation; C10A source-row authoring is complete, while
+C10B and C11 remain.
 Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
-helper-declaration follow-up is documented in the structural guides
-Next remediation lane: R7 independent C10A blocker gate
+helper-declaration follow-up is documented in the structural guides.
+Next lane: exact C10B implementation approval for preflight, seven-table
+import, catalog/runtime validation, and focused evidence
 
 ## Current Truth
 
@@ -164,9 +166,10 @@ already existed, so it cannot explain or restore those missing files.
   still did not establish.
 - B00 through C09 package delivery is complete. The ADR-0002 implementation
   closeout passed, and the later behavior-preserving Battle Engine and executor
-  structural splits were validated and published. C10A remediation R1-R6 is
-  complete; independent R7 is next. C10A row authoring is not started and
-  remains blocked through R7. C11 remains blocked behind C10.
+  structural splits were validated and published. C10A remediation R1-R7 and
+  reproducible pinned-source extraction are complete. C10A populated the exact
+  six approved source JSON files and passed bounded static validation. C10B is
+  next. C11 remains blocked behind C10.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1134,9 +1137,10 @@ B00B accepted evidence:
 
 ## C10A R5 Held-Item Move Remediation Status
 
-- R5 completed on 2026-08-30. Knock Off, Trick, Thief, and Recycle are now
-  expressible through generic authored operation values and remain unauthored
-  until C10A. Generic code contains no move, item, species, or match ID branch.
+- R5 completed on 2026-08-30. At R5 closeout, Knock Off, Trick, Thief, and
+  Recycle were expressible through generic authored operation values but
+  remained unauthored; C10A later authored their rows. Generic code contains no
+  move, item, species, or match ID branch.
 - `BattleHeldItemMoveEffects` owns pure operation/takeability policy;
   `BattleEffectExecutorItemMoves` resolves live instance IDs and stages the
   existing ledger, battler mirrors, hooks, reveal tracker, Choice locks, and
@@ -1159,8 +1163,9 @@ B00B accepted evidence:
   `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
   and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
 - Final `code-review` was APPROVED and final `test-evidence-review` was
-  ADEQUATE/COMPLETE with no remaining finding. No Git action or independent R7
-  was performed. R6 is the next separately approved lane.
+  ADEQUATE/COMPLETE with no remaining finding. At R5 closeout, no Git action or
+  independent R7 had been performed, and R6 was the next separately approved
+  lane.
 
 ## C10A R6 Optional-Condition-Removal Remediation Status
 
@@ -1169,11 +1174,11 @@ B00B accepted evidence:
   mutation, event, or condition update, while present conditions run their
   normal cleanup exactly once. Legacy absence and malformed descriptors retain
   their failure behavior.
-- Rapid Spin, Defog, and Brick Break are now expressible through generic
-  descriptors and remain unauthored until C10A. Their proof covers connected
-  Substitute damage, Protect gating, primary pre-damage screen removal,
-  secondary chance consumption, exact staged condition ownership, and ordered
-  follow-on effects.
+- At R6 closeout, Rapid Spin, Defog, and Brick Break were expressible through
+  generic descriptors but remained unauthored. C10A later authored their rows.
+  Their R6 proof covers connected Substitute damage, Protect gating, primary
+  pre-damage screen removal, secondary chance consumption, exact staged
+  condition ownership, and ordered follow-on effects.
 - The post-review forced-Unity compile log is
   `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-ReviewFix-20260830-161500/build-after-event-order-fix.log`,
   SHA-256
@@ -1191,14 +1196,42 @@ B00B accepted evidence:
   `10910887422FBF1B26E201A1B45C9B652F6C5BA11FF5FE1A977036E52FA70090`,
   and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
 - Final `code-review` was APPROVED and final `test-evidence-review` was
-  ADEQUATE/COMPLETE after all validated findings were fixed. Independent R7 is
-  next. No C10A source row, asset, or Git action was performed.
+  ADEQUATE/COMPLETE after all validated findings were fixed. At R6 closeout,
+  independent R7 was next, and no C10A source row, asset, or Git action had
+  been performed.
 - The code-file organization review kept the existing executor coordinator,
   condition executor, executor-test, volatile-test, and field/side-test owners;
   R6 added no responsibility to those files. The 1,034-line atomic test kept
   its goal-required local catalog because extracting it would add an
   unauthorized tenth code/test path. The 998-line catalog and 869-line adapter
   stayed below the 1,000-line decision threshold.
+
+## C10A R7 and Source-Extraction Status
+
+- Independent R7 passed on 2026-08-30. Its evidence root is
+  `Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`.
+- The live 75-file source manifest had zero mismatches. All 22 serial reports
+  were clean, with 746 overlapping successes over 390 unique full-Battle paths
+  and full Battle at 390/390. The requested forced-Unity target was up to date,
+  so R7 does not claim a fresh compiler action.
+- Reproducible pinned-source extraction passed at
+  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`. All frozen
+  raw-byte hashes matched, and the canonical manifest contains exactly 8
+  species/forms, 25 natures, 62 moves, 8 Abilities, 14 items, and 40
+  conditions. Its SHA-256 is
+  `721EE44EF5D0EF6B9522D4BA1A94546D7032D1F17E1CAE812D52C4EC8D986629`.
+- The approved C10A write populated exactly the six source JSON files. Bounded
+  validation passed at
+  `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323` with exact
+  family counts and zero source-fact, reference, or descriptor errors. No
+  Unreal asset, C++, automated test, or visual change was included. Git
+  publication remains separate. C10B import and integration is the next gate.
+- The canonical package plans now carry the later R1–R6 implementation records
+  under their actual C01–C09 owners. R7 remains a C10-wide independent gate,
+  not an earlier-package implementation. Live C10B planning also records the
+  required display-name dependency: eight imported species require eight
+  display names, so the narrow future import boundary is seven changed Data
+  Tables; type chart and runtime scenario remain validate-only.
 
 ## Goal
 

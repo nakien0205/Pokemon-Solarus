@@ -4,5 +4,23 @@
   },
   {
     "Name": "Ability.Overgrow"
+  },
+  {
+    "Name": "Ability.Intimidate"
+  },
+  {
+    "Name": "Ability.Levitate"
+  },
+  {
+    "Name": "Ability.Drizzle"
+  },
+  {
+    "Name": "Ability.SpeedBoost"
+  },
+  {
+    "Name": "Ability.MagicGuard"
+  },
+  {
+    "Name": "Ability.MoldBreaker"
   }
 ]

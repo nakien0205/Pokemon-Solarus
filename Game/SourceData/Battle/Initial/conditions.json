@@ -2,5 +2,161 @@
   {
     "Name": "Condition.Burn",
     "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Paralysis",
+    "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Sleep",
+    "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Freeze",
+    "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Poison",
+    "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Toxic",
+    "Kind": "MajorStatus"
+  },
+  {
+    "Name": "Condition.Confusion",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Flinch",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Protect",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.LeechSeed",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.PartialTrap",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Trap",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Taunt",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Encore",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Disable",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Substitute",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Charging",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Recharge",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.FlySemiInvulnerable",
+    "Kind": "Volatile"
+  },
+  {
+    "Name": "Condition.Sun",
+    "Kind": "Weather"
+  },
+  {
+    "Name": "Condition.Rain",
+    "Kind": "Weather"
+  },
+  {
+    "Name": "Condition.Sandstorm",
+    "Kind": "Weather"
+  },
+  {
+    "Name": "Condition.Snow",
+    "Kind": "Weather"
+  },
+  {
+    "Name": "Condition.ElectricTerrain",
+    "Kind": "Terrain"
+  },
+  {
+    "Name": "Condition.GrassyTerrain",
+    "Kind": "Terrain"
+  },
+  {
+    "Name": "Condition.MistyTerrain",
+    "Kind": "Terrain"
+  },
+  {
+    "Name": "Condition.PsychicTerrain",
+    "Kind": "Terrain"
+  },
+  {
+    "Name": "Condition.Spikes",
+    "Kind": "Hazard"
+  },
+  {
+    "Name": "Condition.ToxicSpikes",
+    "Kind": "Hazard"
+  },
+  {
+    "Name": "Condition.StealthRock",
+    "Kind": "Hazard"
+  },
+  {
+    "Name": "Condition.StickyWeb",
+    "Kind": "Hazard"
+  },
+  {
+    "Name": "Condition.Reflect",
+    "Kind": "Screen"
+  },
+  {
+    "Name": "Condition.LightScreen",
+    "Kind": "Screen"
+  },
+  {
+    "Name": "Condition.AuroraVeil",
+    "Kind": "Screen"
+  },
+  {
+    "Name": "Condition.TrickRoom",
+    "Kind": "Room"
+  },
+  {
+    "Name": "Condition.MagicRoom",
+    "Kind": "Room"
+  },
+  {
+    "Name": "Condition.WonderRoom",
+    "Kind": "Room"
+  },
+  {
+    "Name": "Condition.Tailwind",
+    "Kind": "SideCondition"
+  },
+  {
+    "Name": "Condition.Safeguard",
+    "Kind": "SideCondition"
+  },
+  {
+    "Name": "Condition.Mist",
+    "Kind": "SideCondition"
   }
 ]

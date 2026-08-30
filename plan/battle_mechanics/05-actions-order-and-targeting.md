@@ -313,3 +313,20 @@ Protected files matched their pre-run hashes after final C04B validation:
 
 C04 is complete under the approved focused-validation scope. C05A is
 dependency-clear and is the next sequential package.
+
+## C10A remediation targeting addendum — 2026-08-30
+
+- R1 (`06d884e`) appended `FixedOpponentSpreadSet` for Swift and
+  `SelectedOtherBattler` for Fly. The former is a stable foe-only spread; the
+  latter requires an explicit living non-self battler. Existing target enum
+  ordinals and `FixedSpreadSet` ally-inclusive behavior remain unchanged.
+- R2 (`cf8b3e6`) connected a typed Follow Me registration to the existing
+  ordered redirection-proposal resolver. Registrations are private,
+  action-scoped, filtered through ordinary legality, and consume no target RNG.
+- R3 (`1294c7c`) binds Helping Hand to one eligible locked ally action. It does
+  not redirect the action or create a persistent condition.
+
+Focused identities are `PokemonSolarus.Battle.C04B.C10Targets`,
+`PokemonSolarus.Battle.C04B.C10Redirection`, and the cross-owned
+`PokemonSolarus.Battle.C05B.C10ActionModifiers`. R7 later revalidated C04A,
+C04B, and the full Battle prefix against the combined live source.

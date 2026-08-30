@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "Name": "Item.Leftovers",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.SitrusBerry",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.LumBerry",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.FocusSash",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.LifeOrb",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.ChoiceBand",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.HeavyDutyBoots",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.AirBalloon",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.QuickClaw",
+    "Kind": "Held",
+    "bCanBeTakenByMove": true
+  },
+  {
+    "Name": "Item.PokeBall",
+    "Kind": "Capture",
+    "bCanBeTakenByMove": false
+  },
+  {
+    "Name": "Item.HyperPotion",
+    "Kind": "Battle",
+    "bCanBeTakenByMove": false
+  },
+  {
+    "Name": "Item.Revive",
+    "Kind": "Battle",
+    "bCanBeTakenByMove": false
+  },
+  {
+    "Name": "Item.FullHeal",
+    "Kind": "Battle",
+    "bCanBeTakenByMove": false
+  },
+  {
+    "Name": "Item.XAttack",
+    "Kind": "Battle",
+    "bCanBeTakenByMove": false
+  }
+]

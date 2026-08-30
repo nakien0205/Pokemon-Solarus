@@ -373,3 +373,21 @@ Final C01B source/test hashes:
 | `Game/Source/PokemonSolarus/Private/Tests/BattleSetupContractTests.cpp` | `7b6c7536f4448dfd90606cdf62d2345b2d6b9be05a18d7a21e99f30c6959bb1c` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleEngineContractTests.cpp` | `23482323ab5e5d33c1497393432c15d38680beccc953f3111ae3486245547fda` |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleReplayContractTests.cpp` | `6e5eca79c9bc07042dc57b8fb8fce1a48773f38d270c648c332bfd956c87e498` |
+
+## C10A remediation core-contract addendum — 2026-08-30
+
+R1 through R6 reused C01's stable identity, event, deterministic RNG, and replay
+contracts. Their only public-event vocabulary additions were append-only:
+
+| Lane | C01-owned effect |
+|---|---|
+| R1 (`06d884e`) | Extended target-resolution event validation for `SelectedOtherBattler` and `FixedOpponentSpreadSet`; no existing target value or event type changed. |
+| R2 (`cf8b3e6`) | Appended `TargetRedirectionRegistered = 53` and retained exact action/occupant identity, event order, and no-target-RNG behavior. |
+| R3 (`1294c7c`) | Appended `ActionPowerModifierRegistered = 54` with validated source, ally, action identity, and public registration counts; the private C03/C05 registration retains the exact rational magnitude. |
+| R4A/R4B (`0f8664b`/`ef93d5d`) | Reused existing hit, effect, RNG, and publication events; authored always-hit branches consume no accuracy draw and ordinary/chance branches retain their existing draws. |
+| R5 (`7686395`) | Appended `ItemRestored = 55` and `ItemTransferred = 56`, and tightened the existing `ItemRemoved` mutation-event shape without changing its ordinal. |
+| R6 (`74b1c1b`) | Reused existing condition events and chance RNG; an authored optional absent removal emits no condition mutation event, while a present removal follows the normal event order. |
+
+Replay schema 6 remains the current schema. These lanes added no global RNG,
+raw-memory serialization, display text, or second publication path. Independent
+R7 later accepted the combined source and the 390/390 full-Battle report.

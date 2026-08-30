@@ -228,8 +228,9 @@ boss permission. Partner Trainers cannot capture.
 
 ### C10A R5 Held-Item Move Extension Completion Record
 
-- R5 completed on 2026-08-30 without authoring any C10A source row. The generic
-  authored operations are `RemoveCurrent`, `ExchangeCurrent`,
+- At R5 closeout on 2026-08-30, no C10A source row had been authored. C10A later
+  authored the approved item and move rows. The generic operations are
+  `RemoveCurrent`, `ExchangeCurrent`,
   `TransferCurrent`, and `RestoreLastConsumed`; no move, item, species, or match
   ID controls generic behavior.
 - `BattleHeldItemMoveEffects` owns stateless operation validation and the
@@ -263,8 +264,9 @@ boss permission. Partner Trainers cannot capture.
   `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
   and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
 - Final `code-review` was APPROVED and final `test-evidence-review` was
-  ADEQUATE/COMPLETE with no remaining finding. No Git action, persistent
-  inventory write, visual asset change, or independent R7 was performed.
+  ADEQUATE/COMPLETE with no remaining finding. At R5 closeout, no Git action,
+  persistent inventory write, visual asset change, or independent R7 had been
+  performed.
 
 ## Safe Session Split
 

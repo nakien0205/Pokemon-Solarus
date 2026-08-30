@@ -1,32 +1,37 @@
-# C10A Canonical Proof Content — Implementation-Ready Draft and Blocker Register
+# C10A Canonical Proof Content — Historical Draft and Gate Register
 
-Status: **CURRENT BLOCKER REGISTER — C10A ROW IMPLEMENTATION IS NOT APPROVED**
+Status: **C10A SOURCE JSON COMPLETE; STATIC VALIDATION PASS**
+
+Current planning authority: `plan/battle_mechanics/11-canonical-proof-content.md`.
+This document preserves the detailed R0–R7/C10A implementation and evidence
+history; it no longer owns the live C10B boundary.
 
 Date: 2026-08-30
 
-Primary verdict: **BLOCK**
+Primary verdict: **C10A COMPLETE; C10B IS NEXT**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1 through R6 COMPLETE; independent R7 is next**
+Remediation status: **R1 through R7 and C10A COMPLETE; C10B is next**
 
-Direct C10A row authoring is not ready. R1 through R6 now provide reusable
-typed implementations for B02 through B12, but this remediation session cannot
-independently accept its own live-source result. The safe form of Option A is
-therefore:
+Direct C10A row authoring is complete. R1 through
+R6 provide reusable typed implementations for B02 through B12. A separate
+read-only R7 session accepted the live source and evidence, and the pinned-source
+extraction manifest now exists. The completed sequence was:
 
 1. preserve the completed R0 source/scope decisions in this document and the
    dated B00B amendment;
 2. add only the missing reusable mechanics in their owning packages, in
    separately approved sessions;
-3. run an independent blocker gate;
-4. author the complete C10A source-JSON slice;
-5. perform C10B import and integration in its own later session.
+3. preserve the completed independent blocker gate and source manifest;
+4. obtain exact approval for the six-file C10A data-only write;
+5. author and statically validate the complete C10A source-JSON slice; and
+6. perform C10B import and integration in its own later session.
 
 The original R0 session authorized documentation changes only in this document
-and the accepted B00B modern-rules snapshot. Later remediation lanes required
-their own approval; none authorizes C10A source JSON, Unreal assets, or Git
-changes.
+and the accepted B00B modern-rules snapshot. Each later remediation lane had its
+own approval. R7 and the source manifest prove readiness; they do not expand the
+six-file C10A boundary or authorize Unreal assets or Git changes.
 
 ## 1. What this audit can and cannot prove
 
@@ -98,10 +103,13 @@ Current remediation state:
 | R4B weather move rules | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 8 focused successes, and 11 clean affected filters on 2026-08-29; B09 and B10 resolved |
 | R5 held-item move intents | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 12 focused successes, and 12 clean affected filters on 2026-08-30; B11 resolved |
 | R6 optional condition removal | COMPLETE | Final code review APPROVED and test-evidence review ADEQUATE/COMPLETE; forced-Unity build, 7 focused successes, and 7 clean affected filters on 2026-08-30; B12 resolved |
-| Next lane | R7 | Independent blocker gate remains required |
+| R7 independent blocker gate | COMPLETE | Independent code review APPROVED and test-evidence review ADEQUATE/COMPLETE; 22 clean serial reports, 390/390 full-Battle successes, and no source-hash mismatch on 2026-08-30 |
+| C10A source extraction | COMPLETE | Reproducible pinned-source recipe and manifest passed exact counts and source hashes on 2026-08-30 |
+| C10A source rows | COMPLETE | Six approved JSON files passed bounded static validation on 2026-08-30 |
+| Next lane | C10B | Import, asset mutation, and integration require their own approval |
 
-C10A source-row authoring remains not started and blocked until independent R7
-completes. Required order: `R7 -> C10A -> C10B -> C11A -> C11B`.
+C10A source-row authoring is complete. R7, source extraction, and bounded static
+validation passed. Required continuation: `C10B -> C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -111,9 +119,9 @@ Pre-existing dirty inventory that every later session must preserve:
 Both paths are untracked. No tracked dirty path was present before this
 document was created.
 
-## 3. Current content baseline
+## 3. Pre-C10A content baseline and completed target
 
-| Family | Current rows | C10A target | Change later required |
+| Family | Pre-C10A rows | Completed C10A target | Change later required |
 |---|---:|---:|---:|
 | Species/forms | 2 | 8 | +6 |
 | Natures | 1 | 25 | +24 |
@@ -124,7 +132,7 @@ document was created.
 | Types | 18 | 18 | 0 |
 | Type pairs | 324 | 324 | 0 |
 
-Current rows are Charizard, Venusaur, Hardy, Flamethrower, Vine Whip, Blaze,
+Pre-C10A rows were Charizard, Venusaur, Hardy, Flamethrower, Vine Whip, Blaze,
 Overgrow, and Burn. items.json is an empty array. The type chart is already
 complete and is validate-only for C10A.
 
@@ -158,7 +166,7 @@ Every non-ready finding uses one of these labels:
 
 | Contract | Live evidence | Classification | Required disposition |
 |---|---|---|---|
-| C10A must provide the complete bounded row set | Current JSON contains only the baseline rows in section 3 | ADDITIVE GAP | Add all rows only after every required mechanic is expressible |
+| C10A must provide the complete bounded row set | The baseline JSON contained only the rows in section 3; C10A now contains the complete target | RESOLVED | Preserve the complete rows for C10B import |
 | No move-ID branches | BattleDefinitions.h provides typed target, flag, and effect vocabularies | — | Extend append-only typed vocabularies; never inspect MoveId for behavior |
 | Swift must hit the opposing spread only | `FixedOpponentSpreadSet` is implemented and validated | RESOLVED | Author the row only in C10A |
 | Fly must target any other active battler | `SelectedOtherBattler` is implemented and validated | RESOLVED | Author the row only in C10A |
@@ -169,7 +177,7 @@ Every non-ready finding uses one of these labels:
 | Toxic's Poison-user hit rule must be exact | R4A implemented and validated the typed Poison-user reachability and accuracy bypass while preserving later gates | RESOLVED | Author the row only in C10A; never inspect Toxic's ID |
 | Solar Beam and Thunder weather behavior must be exact | R4B implemented and validated reusable authored weather charge, power, and accuracy rules | RESOLVED | Author the rows only in C10A; never inspect either move ID |
 | Item-changing moves must reach the held-item ledger | R5 implemented and validated generic remove-current, exchange-current, transfer-current, and restore-last-consumed intents through the existing ledger, staged mirrors, hooks, reveal tracker, and public events | RESOLVED | Author the rows only in C10A; never inspect move or item IDs |
-| Removal moves must tolerate absent conditions | RemoveCondition requires one fixed ID and reports failure when it is absent | ADDITIVE GAP | Add optional-if-absent removal semantics and prove pre/post-damage ordering |
+| Removal moves must tolerate absent conditions | R6 implemented and validated typed `OptionalIfAbsent` removal while preserving legacy absence failure and effect ordering | RESOLVED | Author the rows only in C10A; never inspect a move or condition ID for optional behavior |
 | C10B must validate before asset mutation | The importer checks JSON array shape, non-empty Name, and duplicates, then mutates all nine tables; semantic catalog validation is later | SEQUENCING OVERLAP | Add pure preflight and an explicit family allowlist before the C10B import |
 | Later Ability/item/condition rows should scale | Their definitions contain only identity or family; approved behavior is currently mapped through exact canonical IDs | ADDITIVE GAP | Accept that new mechanics need owning-package work, or separately approve typed behavior payloads later |
 
@@ -246,8 +254,7 @@ Status meanings:
 | 61 | Safeguard | Set user-side condition | READY | — |
 | 62 | Mist | Set user-side condition | READY | — |
 
-Totals: 59 READY and 3 BLOCKED, with no unresolved decision rows. The 3
-non-ready rows account for every selected move.
+Totals: 62 READY and 0 BLOCKED, with no unresolved decision rows.
 
 The READY label does not claim that a row is already tested through imported
 Data Tables. That is C10B work.
@@ -260,7 +267,7 @@ Data Tables. That is C10B work.
 | Natures | Current modifier supports neutral and boost/reduction forms | No schema blocker found |
 | Types/type chart | Complete 18 types and 324 pairs already exist | Validate-only; any byte change is out of scope for C10A |
 | Abilities | All eight selected IDs already have live canonical behavior | New future Ability IDs are not behavior-data-only |
-| Held items | All nine selected IDs have live canonical behavior and ledger identity; R5's four typed move operations bridge into that ledger | No remaining held-item move blocker; rows remain unauthored until C10A |
+| Held items | All nine selected IDs have live canonical behavior and ledger identity; R5's four typed move operations bridge into that ledger | No remaining held-item move blocker; C10A authored all selected rows |
 | Bag/capture items | All five selected IDs have live rule owners | New future item kinds require owning-package extensions |
 | Conditions | All 40 selected IDs correspond to the existing major, volatile, field, hazard, screen, room, and side-condition families | New future condition behavior is not created by adding an identity row |
 | WildFlee | Engine action and encounter policy already own it | C10 uses a synthetic configured fixture, not a species default or normal move row |
@@ -286,7 +293,7 @@ Data Tables. That is C10B work.
 ### B02 — Foe-only fixed spread target resolved
 
 - Classification: **RESOLVED by R1**
-- Gate: Swift is expressible; its row remains unauthored.
+- Gate: Swift is expressible; C10A authored its row.
 - Owner: C02B definition vocabulary plus C04B target resolution.
 - Required capability: append a target class such as FixedOpponentSpreadSet.
 - Stable-contract rule: do not renumber or broaden FixedSpreadSet; Earthquake
@@ -298,7 +305,7 @@ Data Tables. That is C10B work.
 ### B03 — Selected-other-battler target resolved
 
 - Classification: **RESOLVED by R1**
-- Gate: Fly is expressible; its row remains unauthored.
+- Gate: Fly is expressible; C10A authored its row.
 - Owner: C02B/C04B.
 - Required capability: append a target class such as SelectedOtherBattler.
 - Stable-contract rule: do not change AnySelectedBattler, which currently and
@@ -310,7 +317,7 @@ Data Tables. That is C10B work.
 ### B04 — Typed redirection producer resolved
 
 - Classification: **RESOLVED by R2**
-- Gate: Follow Me is expressible; its row remains unauthored.
+- Gate: Follow Me is expressible; C10A authored its row.
 - Owner: C04B target resolution with C05/C07 action-scoped state and trigger
   integration.
 - Evidence: FBattleTargetResolutionSpec already accepts ordered
@@ -325,7 +332,7 @@ Data Tables. That is C10B work.
 ### B05 — Action-scoped ally power modifier resolved
 
 - Classification: **RESOLVED by R3**
-- Gate: Helping Hand is expressible; its row remains unauthored.
+- Gate: Helping Hand is expressible; C10A authored its row.
 - Owner: C05 effect execution and damage input, with turn/action lifecycle
   state.
 - Required capability: an appended typed effect that registers a rational
@@ -339,7 +346,7 @@ Data Tables. That is C10B work.
 
 - Implementation status: **RESOLVED IN CODE by R4A**.
 - Original classification: **ADDITIVE GAP**.
-- Current gate: closed; the C10A row remains unauthored.
+- Current gate: closed; C10A authored the row.
 - Owner: C05 hit pipeline.
 - Original evidence: before R4A, damaging moves obtained pre-accuracy type
   no-effect resolution from damage input while status moves had no authored
@@ -354,7 +361,7 @@ Data Tables. That is C10B work.
 
 - Implementation status: **RESOLVED IN CODE by R4A**.
 - Original classification: **ADDITIVE GAP**.
-- Current gate: closed; the C10A rows remain unauthored.
+- Current gate: closed; C10A authored the rows.
 - Owner: C05 hit/immunity rules, with existing Ability/item immunity hooks
   available for later extensions.
 - Implemented capability: an authored Powder move trait; Grass targets block it
@@ -368,7 +375,7 @@ Data Tables. That is C10B work.
 - R0 status: **RESOLVED**.
 - Implementation status: **RESOLVED IN CODE by R4A**.
 - Classification after R0: **ADDITIVE GAP**, now closed.
-- Current gate: closed; the final Toxic row remains unauthored.
+- Current gate: closed; C10A authored the final Toxic row.
 - Evidence: pinned Showdown bypasses both its invulnerability event and its
   accuracy roll for a Generation 8+ Poison-type Toxic user.
 - Approved behavior: a Poison-type user bypasses semi-invulnerability and
@@ -387,7 +394,7 @@ Data Tables. That is C10B work.
 - R0 status: **RESOLVED** by a narrow B00B amendment.
 - Implementation status: **RESOLVED IN CODE by R4B**.
 - Classification after R0: **ADDITIVE GAP**, now closed.
-- Current gate: closed; the Solar Beam row remains unauthored.
+- Current gate: closed; C10A authored the Solar Beam row.
 - Approved behavior: Sun skips the charging turn. Rain, Sandstorm, and Snow
   halve move power at the damage execution checkpoint. Other approved weather
   leaves power unchanged. Without Sun, Solar Beam remains a two-turn charge
@@ -404,7 +411,7 @@ Data Tables. That is C10B work.
 - R0 status: **RESOLVED** by a narrow B00B amendment.
 - Implementation status: **RESOLVED IN CODE by R4B**.
 - Classification after R0: **ADDITIVE GAP**, now closed.
-- Current gate: closed; the Thunder row remains unauthored.
+- Current gate: closed; C10A authored the Thunder row.
 - Approved behavior: base accuracy is `70`; Rain changes it to literal
   always-hit with no accuracy RNG; Sun changes it to `50`; other approved
   weather leaves it at `70`. Existing Fly reach and `30%` Paralysis remain.
@@ -417,8 +424,8 @@ Data Tables. That is C10B work.
 ### B11 — Authored item moves reach the existing ledger — RESOLVED
 
 - Classification: **RESOLVED by R5 on 2026-08-30**.
-- Gate: Knock Off, Trick, Thief, and Recycle are now expressible; their source
-  rows remain unauthored until C10A.
+- Gate: Knock Off, Trick, Thief, and Recycle are expressible; C10A authored
+  their source rows.
 - Owner: C05 descriptor/executor intent plus C08 held-item ownership and hook
   lifecycle. R5 added no second ledger, state owner, RNG owner, commit seam, or
   publication path.
@@ -444,8 +451,8 @@ Data Tables. That is C10B work.
 ### B12 — Canonical removal moves need optional absence semantics
 
 - Classification: **RESOLVED ADDITIVE GAP — R6 COMPLETE 2026-08-30**
-- Gate: resolved; Rapid Spin, Defog, and Brick Break are now expressible but
-  remain unauthored until C10A.
+- Gate: resolved; Rapid Spin, Defog, and Brick Break are expressible and C10A
+  authored their rows.
 - Owner: C05 descriptor/executor with C07 condition cleanup.
 - Existing reusable base: ordered RemoveCondition descriptors can target a
   battler, user side, target side, both sides, or field; primary descriptors
@@ -470,10 +477,12 @@ Data Tables. That is C10B work.
   imports and saves all nine tables, including display names and runtime
   scenario. It does not perform complete schema/cross-reference/catalog
   validation before asset mutation.
-- Required capability: a pure preflight path and explicit family allowlist.
-  The C10B run may touch only the approved six changed Data Tables. The type
-  chart, display names, and runtime scenario must be validate-only unless a
-  later approved draft expands scope.
+- Historical required capability: a pure preflight path and explicit family
+  allowlist. At the time, the draft expected only six changed Data Tables. Live
+  inspection later proved that the runtime resolver also needs six missing
+  species display names, so section 12 and the canonical C10 plan supersede
+  that boundary with seven changed Data Tables. Type chart and runtime scenario
+  remain validate-only.
 - Required proof: any syntax, reflected-row, missing reference, wrong family,
   duplicate ID, bad range, or incomplete catalog error leaves all loaded
   assets and the already-frozen catalog unchanged.
@@ -516,19 +525,31 @@ Data Tables. That is C10B work.
 - Disposition: those systems need approved packages and typed generic
   extensions. They must not be smuggled into C10A.
 
-### B17 — Manual transcription is not reproducible evidence
+### B17 — Reproducible pinned-source extraction
 
-- Classification: **UNKNOWN**
-- Gate: blocks acceptance if source values are entered without a traceable
-  extraction/review record.
+- Classification: **RESOLVED FOR C10A SOURCE FACTS**
+- Gate: the pre-implementation extraction gate is closed. C10A acceptance must
+  still compare the authored rows against this independent manifest.
 - Required source order: the explicit dated R0 decisions, other unchanged
   Solarus decisions, pinned Showdown commit
   34caa98811fd6ed5d2f173ec1fc29dd9bd4bc91d, the other B00B sources, and the
   approved PokeAPI supplement for `capture_rate` only.
-- Required process: extract stable values from pinned revisions, record source
-  paths and hashes, apply explicit Solarus overrides separately, and compare
-  the final rows against an independently generated manifest. Do not rely on a
-  hand-copied table alone.
+- Evidence root:
+  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`.
+- The rerunnable `extract-c10a-source-manifest.mjs` recipe fetched eight raw
+  pinned files, verified every previously frozen raw-byte hash, retained each
+  selected source block, and generated exact manifests for 8 species/forms,
+  25 natures, 62 moves, 8 Abilities, 14 items, and 40 conditions.
+- The canonical source manifest SHA-256 is
+  `721EE44EF5D0EF6B9522D4BA1A94546D7032D1F17E1CAE812D52C4EC8D986629`;
+  the selected-source-block manifest SHA-256 is
+  `261D9F4F42E97BE4DA8A4F076931D6405A185ED8F7DE8FDCA0005FE744FE2047`.
+- External source facts and explicit Solarus decisions are separate. Showdown
+  target and flag names are evidence rather than direct Solarus enum mappings;
+  ordered Solarus effects remain governed by this contract and the accepted
+  R0 through R6 rules. PokeAPI remains limited to `capture_rate`.
+- C10A must compare final rows against the generated source facts and must not
+  rely on a hand-copied table alone.
 
 ## 9. Reusable design rules for later add-ons
 
@@ -559,7 +580,7 @@ cycle. No lane inherits write approval from this document.
 
 ### R0 — Source and scope decisions
 
-Status: **COMPLETE — implementation published in `06d884e` and validated**.
+Status: **COMPLETE — documentation decisions accepted 2026-08-28**.
 
 - Catch rates use the pinned PokeAPI CSV for `capture_rate` only.
 - Poison-user Toxic bypasses semi-invulnerability and accuracy without an
@@ -569,9 +590,9 @@ Status: **COMPLETE — implementation published in `06d884e` and validated**.
 - Raw committed bytes are the canonical cross-platform extraction hashes;
   the verified Windows CRLF hashes remain historical checkout evidence.
 
-R0 authorized no implementation. At that point B08 through B10 remained
-blocked. R4A later resolved B08, and R4B later resolved B09 and B10, under
-separate implementation approvals and focused evidence.
+R0 authorized no implementation. R1 was later published in `06d884e`. At R0,
+B08 through B10 remained blocked. R4A later resolved B08, and R4B later resolved
+B09 and B10, under separate implementation approvals and focused evidence.
 
 ### R1 — Target vocabulary
 
@@ -873,8 +894,9 @@ SHA-256 values are
 `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
 and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
 Final `code-review` was APPROVED and `test-evidence-review` was
-ADEQUATE/COMPLETE after all validated findings were fixed. No Git action was
-authorized or performed. This is not independent R7, and no C10A row was
+ADEQUATE/COMPLETE after all validated findings were fixed. The final R5 review
+session performed no Git action; the accepted implementation was later
+published in `7686395`. This was not independent R7, and no C10A row was
 authored.
 
 ### R6 — Optional condition removal
@@ -935,20 +957,40 @@ and source-hash manifest SHA-256 values are
 and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
 The source manifest proves all nine source/test writes precede the final build
 log. Final `code-review` was APPROVED and final `test-evidence-review` was
-ADEQUATE/COMPLETE after all validated findings were fixed. This is not
-independent R7; no C10A row, asset, or Git action was performed.
+ADEQUATE/COMPLETE after all validated findings were fixed. The final R6 review
+session did not itself perform a Git action; the accepted implementation was
+later published in `74b1c1b`. This was not independent R7 at the time, and no
+C10A row or asset was authored.
 
 ### R7 — Independent blocker gate
 
-A fresh read-only session must compare live code after R1 through R6 against
-all 62 rows and issue a new verdict. A remediation session cannot accept its
-own source changes.
+Status: **PASS — independent review accepted 2026-08-30**.
 
-Only a clean independent result may unlock C10A.
+The independent session compared live code after R1 through R6 against all 62
+rows using both `code-review` and `test-evidence-review`. Code review was
+APPROVED, and test evidence was ADEQUATE/COMPLETE. The only blocking finding was
+this document's stale self-contradictory status text; the live code and exported
+test evidence had no blocker.
 
-## 11. Exact future C10A write boundary
+Fresh evidence is rooted at
+`Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`. HEAD and
+`origin/main` were both
+`74b1c1b2d20b75e465c49d45dc193a0a74ecbcbd`. The requested forced-Unity build
+configuration succeeded but was up to date, so it performed zero compiler
+actions and is not represented as a fresh compilation. The 75-file source
+manifest had zero mismatches, and the linked editor DLL matched the accepted R6
+DLL at SHA-256
+`BD672C763990C59FB4B2FB27B0BA95ABFCB698028F9A335ED0EEB86EEAAAB562`.
 
-After R7 passes, the C10A implementation session may modify only:
+All 22 serial Automation reports were valid. They contained 746 overlapping
+executions over 390 unique full-test paths; the full Battle filter succeeded
+390/390. Aggregate and per-test issue counters were zero, and every expected
+path was present exactly once in its requested report.
+
+## 11. Completed C10A write boundary
+
+The user granted exact C10A implementation approval. That session modified
+only:
 
 - Game/SourceData/Battle/Initial/species_forms.json
 - Game/SourceData/Battle/Initial/natures.json
@@ -964,9 +1006,8 @@ Validate-only:
 - all existing Unreal Data Table assets
 - both untracked ADR files
 
-C10A must stop instead of expanding scope if any row is still not expressible.
-It must not author only the 49 currently READY moves and call that C10A
-complete.
+C10A stopped without expanding production scope and authored all 62 selected
+moves.
 
 C10A exclusions:
 
@@ -983,44 +1024,23 @@ C10A exclusions:
 - roadmap/status documents before acceptance
 - Git stage, commit, push, branch, reset, checkout, or history changes
 
-## 12. Exact future C10B boundary
+## 12. C10B boundary moved to the canonical package plan
 
-C10B is a later package. Its draft is not approved here.
-
-Expected hand-authored paths:
-
-- new Game/SourceData/Battle/battle_source_validation.py
-- Game/SourceData/Battle/import_initial_battle_data.py
-- new Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalContentTests.cpp
-- Game/Source/PokemonSolarus/Private/Tests/BattleRuntimeDataSourceTests.cpp only
-  if the approved integration cases cannot stay in the new focused file
-
-Expected approved Data Table asset writes after complete preflight:
-
-- Game/Content/Data/Battle/Initial/DT_InitialBattleSpeciesForms.uasset
-- Game/Content/Data/Battle/Initial/DT_InitialBattleNatures.uasset
-- Game/Content/Data/Battle/Initial/DT_InitialBattleMoves.uasset
-- Game/Content/Data/Battle/Initial/DT_InitialBattleAbilities.uasset
-- Game/Content/Data/Battle/Initial/DT_InitialBattleItems.uasset
-- Game/Content/Data/Battle/Initial/DT_InitialBattleConditions.uasset
-
-Validate-only unless separately approved:
-
-- DT_InitialBattleTypeChart.uasset
-- DT_InitialBattleDisplayNames.uasset
-- DT_BattleRuntimeScenario.uasset
-
-If C10B discovers another production capability gap, it must stop and return
-to the owning package. It may not patch generic runtime behavior under an
-import task.
-
-Status documents may be updated only after successful C10B acceptance:
-
-- plan/battle_mechanics/11-canonical-proof-content.md
-- plan/battle_mechanics/00-roadmap-index.md
-- production/session-state/active.md
+The current implementation-ready C10B plan is now maintained only in
+`plan/battle_mechanics/11-canonical-proof-content.md`. Live inspection after
+C10A found that the runtime display-name resolver requires a name for every
+catalog species. Because the existing display-name source and asset contain
+only Charizard and Venusaur, future C10B approval must narrowly include the six
+missing display-name rows and the display-name Data Table as a seventh asset.
+The older six-asset expectation in this draft is superseded. The type chart and
+runtime scenario remain validate-only in the current plan.
 
 ## 13. Validation contract for future implementation
+
+This section preserves the remediation-era validation contract. The live C10B
+and C11A/C11B validation plans in `plan/battle_mechanics/11-canonical-proof-content.md`
+and `plan/battle_mechanics/12-integration-and-release-gate.md` supersede any
+future-lane wording below.
 
 No build or Automation run belongs to this documentation-only session.
 
@@ -1052,8 +1072,8 @@ Per-lane affected older filters:
 | R5 | C02B, C04B, C05B, C06A, C06B, C07C, C07D, C08A, C08B, C08C, C09C, ADR0002.3E6 |
 | R6 | C05B, C07B, C07C, C07D, C08B, C08C, ADR0002.3E6 |
 
-Because the combined remediation changes shared target, engine, and executor
-surfaces, the final R7 gate must use a forced-Unity
+Because the combined remediation changed shared target, engine, and executor
+surfaces, the final R7 gate requested a forced-Unity
 PokemonSolarusEditor Win64 Development build with:
 
 - -ForceUnity
@@ -1061,8 +1081,7 @@ PokemonSolarusEditor Win64 Development build with:
 - -BytesPerUnityCPP=1
 - -NoUBA
 
-After the build passes, run the current shared-Battle matrix serially, one
-filter at a time:
+R7 then ran the current shared-Battle matrix serially, one filter at a time:
 
 - PokemonSolarus.Battle.ADR0002
 - PokemonSolarus.Battle.C03A
@@ -1119,9 +1138,9 @@ and Data Table behavior require Editor/Automation evidence. Blueprint lifecycle
 or visual acceptance belongs only to a later package that explicitly claims
 it, with the user's visual ownership preserved.
 
-## 14. Definition of ready for C10A
+## 14. C10A completion and C10B boundary
 
-C10A becomes ready only when all of the following are true:
+The technical preconditions for C10A are now satisfied:
 
 - the accepted R0 decisions for B01, B08, B09, and B10 remain recorded and
   unchanged;
@@ -1131,10 +1150,15 @@ C10A becomes ready only when all of the following are true:
 - the source extraction manifest is reproducible from approved pinned inputs;
 - the only dirty paths are the preserved inventory plus explicitly approved
   remediation changes;
-- the exact C10A six-file write boundary is rechecked; and
-- the user gives new implementation approval for C10A.
+- the exact C10A six-file write boundary is rechecked.
 
-Until then, direct C10A implementation must remain stopped.
+The user granted the exact six-file write approval. The completed source slice
+passed the validation defined in section 13 at
+`Game/Saved/AutomationReports/C10A-Implementation-20260830-172323`: exact family
+counts, pinned-source comparisons, unique IDs, references, ordered descriptors,
+and the selected complex effect sequences all passed with zero errors. This is
+source-data acceptance only; it does not claim imported Data Tables, Automation,
+PIE, Blueprint lifecycle, or visual acceptance. Those remain C10B work.
 
 ## 15. Historical R0 session stop line
 
@@ -1142,6 +1166,7 @@ This R0 session updates this document and the B00B rules snapshot only. It does
 not implement, build, run Automation, import, stage, commit, or approve any
 remediation or C10 content.
 
-Current continuation: R1 through R5 are complete, R6 is next, and the required
-order is `R6 -> R7 -> C10A -> C10B -> C11A -> C11B`. Independent R7 and
-C10A row-authoring approval are still required later.
+This section records only the historical R0 stop boundary. It is superseded for
+current status by sections 2, 10, and 14. R1 through R7 and the source extraction
+gate and C10A source-row authoring are complete. Current continuation is
+`C10B -> C11A -> C11B`, with C10B requiring separate approval.

@@ -247,3 +247,17 @@ Protected files matched their pre-run hashes after the final Unreal run:
 
 C03 is complete under the approved focused-validation scope. C04A is now
 dependency-clear, but it was not drafted or implemented in this session.
+
+## C10A remediation state-lifecycle addendum — 2026-08-30
+
+R2 (`cf8b3e6`) and R3 (`1294c7c`) later added private action-scoped state for
+Follow Me redirection registrations and Helping Hand ally-action modifiers.
+The registrations bind to the frozen turn/action and exact active occupant;
+they are not public condition rows and do not leak through observer snapshots.
+
+The existing state, checkpoint, resolution-commit, replay, and publication
+owners remain authoritative. Action completion, cancellation, faint, switch,
+capture, wild action, occupant replacement, and turn cleanup remove stale
+registrations through the existing lifecycle boundaries. Failed late
+checkpoints roll back staged state and transactional RNG together. R1 and
+R4–R6 added no second state or snapshot owner.

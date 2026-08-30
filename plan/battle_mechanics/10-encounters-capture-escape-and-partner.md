@@ -353,3 +353,15 @@ C09C:
 - Core emits all external persistence/reward facts but performs no write or
   reward computation.
 - C09 is complete after the ordered C09A, C09B, and C09C focused validations.
+
+## C10A remediation wild/capture cleanup addendum — 2026-08-30
+
+R2 (`cf8b3e6`) and R3 (`1294c7c`) extended the existing Wild-action and
+capture/cancellation boundaries only to remove stale action-scoped redirection
+and ally-power registrations. They did not change encounter policy, capture
+math, selector visibility, configured WildFlee, Partner Double ownership, or
+the frozen Cry for Help decision.
+
+This is cross-package cleanup, not a reopened C09 feature. The existing C09A,
+C09B, and C09C behavior remains authoritative and was included in R7's serial
+combined-source acceptance matrix.
