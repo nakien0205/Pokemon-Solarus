@@ -1,66 +1,77 @@
-# Claude Code Game Studios -- Game Studio Agent Architecture
+# Pokémon Solarus — Repository Instructions
 
-Indie game development managed through 49 coordinated Claude Code subagents.
-Each agent owns a specific domain, enforcing separation of concerns and quality.
+Pokémon Solarus is an Unreal Engine battle project. The authoritative project is
+`Game/PokemonSolarus.uproject`.
 
-## Technology Stack
+## Technology stack
 
-- **Engine**: Unreal Engine 5.8.1 (changelist 56057345)
-- **Language**: C++ (primary), Blueprint (gameplay prototyping)
-- **Version Control**: Not initialized; do not initialize Git or commit without user instruction
-- **Build System**: Unreal Build Tool (UBT)
-- **Asset Pipeline**: Unreal Content Pipeline
+- **Engine:** Unreal Engine 5.8.1, changelist 56057345
+- **Primary language:** C++
+- **Editor integration:** Unreal assets and Blueprint
+- **Build system:** Unreal Build Tool
+- **Version control:** Existing Git repository. Do not stage, unstage, commit,
+  push, create branches, or alter history without explicit task-specific user
+  instruction.
 
-> **Note**: Engine-specialist agents exist for Godot, Unity, and Unreal with
-> dedicated sub-specialists. Use the set matching your engine.
+## Project structure
 
-## Project Structure
+- `Game/Source/PokemonSolarus/` — production C++ and native Automation tests.
+- `Game/SourceData/Battle/` — authored battle source data and import tooling.
+- `Game/Content/` — Unreal assets and user-owned visual content.
+- `plan/battle_mechanics/` — canonical battle roadmap and package contracts.
+- `docs/registry/architecture/` — current architecture decisions.
+- `production/session-state/active.md` — current work and protected scope.
 
-@.codex/docs/directory-structure.md
+Read `production/session-state/active.md` before continuing ongoing work.
+Live source, the active roadmap package, the worktree, and exported Unreal
+Automation reports override historical status notes.
 
-## Engine Version Reference
+## Engine and technical references
 
 @docs/engine-reference/unreal/VERSION.md
 
-## Technical Preferences
-
 @.codex/docs/technical-preferences.md
-
-## Coordination Rules
 
 @.codex/docs/coordination-rules.md
 
-## Collaboration Protocol
-
-**User-driven collaboration, not autonomous execution.**
-Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
-
-- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
-- Agents MUST show drafts or summaries before requesting approval
-- Multi-file changes require explicit approval for the full changeset
-- No commits without user instruction
-
-See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
-
-> **First session?** If the project has no engine configured and no game concept,
-> run `/start` to begin the guided onboarding flow.
-
-## Coding Standards
-
 @.codex/docs/coding-standards.md
 
-## Mandatory Code File Organization
+## Collaboration protocol
+
+Work is user-driven. Meaningful edits follow:
+**Question -> Options -> Decision -> Draft -> Approval**.
+
+- Identify the exact write set, exclusions, and validation before editing.
+- Show the draft or proposed change and obtain explicit approval.
+- Preserve unrelated dirty and untracked work.
+- A completed review, build, or test run does not grant implementation or Git
+  authorization.
+
+## Mandatory code-file organization
 
 Before planning, creating, or modifying hand-authored code or automated tests,
-read and follow this project-wide guide:
+read and follow:
 
 @docs/code-file-organization.md
 
-## Context Management
+## External assets
+
+Before importing or using third-party assets, read
+`docs/registry/external-assets.yaml`. A `deferred` entry is provenance-only and
+does not approve import, repository inclusion, use, or distribution.
+
+## Context management
 
 @.codex/docs/context-management.md
 
-## User preference
+## Ownership
 
-1. The user own frontend and UI/UX visual design and visual assets, including layout, styling, art, materials, textures, widget or scene composition, and the appearance of motion. Codex owns backend mechanics and code-behind, including state machines, input routing, data contracts, adapters, validation, and automated tests. Codex may expose bindings and events or inspect and review frontend work, but must not create or modify frontend visual decisions or assets unless I explicitly grant a task-specific exception. A broad implementation request does not override this rule.
-2. After completing a task, you must tell me what is the next step and do not leave me hanging, guessing what the next step is.
+- The user owns frontend and UI/UX visual design and assets, including layout,
+  styling, art, materials, textures, widget or scene composition, and motion
+  appearance.
+- Codex owns mechanics and code-behind, including state, input routing, data
+  contracts, adapters, validation, and automated tests.
+- Codex may expose bindings and events or inspect frontend work, but must not
+  create or modify visual decisions or assets without a task-specific
+  exception.
+- After completing a task, state the concrete next step.

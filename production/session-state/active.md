@@ -1,471 +1,104 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: C10A canonical proof content
-Task: R1-C10A planning consolidated; exact C10B implementation approval is next
+Feature: C10 canonical proof content
+Task: Obtain exact C10B implementation approval
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-30
 
-## Current work
+## Current state
 
-- B00 through C09 package delivery is complete under focused validation. C10
-  and C11 are the only remaining roadmap packages.
+- B00 through C09 are complete under focused validation. C10A source-row
+  authoring is complete. The required continuation is
+  `C10B -> C11A -> C11B`.
 - ADR-0002 is Accepted and its bounded implementation gate is **PASS** at
   `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`.
-- The stale accepted Bag-cancellation blocker is closed. The live path now
-  prepares its state delta, queue boundary, replacement requests, events, and
-  resolution before the final identity recheck and one commit. Six focused ADR
-  tests cover Bag and Capture cancellation routes, recoverable preparation
-  failures, mandatory replacement, and final stale identity.
-- The bounded post-ADR structural delta review and Guide Wave G1B are complete.
-  G1B refreshed this file, `docs/battle-engine-structural-split-handoff.md`, and
-  a dated ADR-0004 prerequisite amendment.
-- Atomic-test Wave T1 is complete. The 84 exact ADR-0002 test paths moved from
-  `BattleAtomicCheckpointTests.cpp` into eight focused test sources and four
-  private support pairs. The monolith was removed only after an exact path-set
-  comparison. T1 changed no production C++, public contract, Bag test, or test
-  harness.
-- Private-production-seam Wave P0 is approved and complete. Its exact six
-  private support pairs now own the shared helper families while all 28
-  `FBattleEngine` member definitions remain in `BattleEngine.cpp`.
-- Non-checkpoint member-relocation Wave P1 is approved and complete. The five
-  focused production sources now own snapshots, decision flow, end turn,
-  between-actions stat refresh, and replay export.
-- Checkpoint member-relocation Wave P2 is approved and complete. The seven
-  focused production sources now own action start, Wild actions, Bag and
-  Capture, voluntary Switch, pre-move, target resolution, and move effects.
-  G2's documentation-only evidence capture and guide updates are complete. The
-  user approved the final diff and evidence on 2026-08-28, so the structural
-  split is accepted.
-- The separately approved `BattleEffectExecutor` structural split is
-  implemented and freshly validated. Its completed map uses one private context
-  header plus six focused sources while preserving one staged context, one
-  staged state, the ordered `TryExecute` coordinator, and the existing outer
-  commit/publication path. The user separately authorized one bounded commit and
-  push, and the implementation was published to `origin/main` as
-  `504f036858bae310de8ad03ae450903ebedc2779`.
-- An independent post-migration review found no changed battle logic, public
-  contract, state ownership, RNG behavior, event ordering, commit/publication
-  order, compile result, or link result. It found one non-runtime executor
-  dependency concern: three focused sources manually redeclare six helpers whose
-  definitions remain in `BattleEffectExecutor.cpp`. The declarations currently
-  match and link. This documentation-only reconciliation records that concern;
-  it does not claim the source seam has been remediated.
-- The documentation reconciliation updated this file, both structural guides,
-  the global roadmap, C10, C11, and 76 canonical architecture-directory
-  references across 20 local project skills. Only
-  `.codex/skills/architecture-decision/SKILL.md` and
-  `.codex/skills/create-architecture/SKILL.md` are tracked; the other 18 skill
-  files are intentionally ignored local tooling. Dated package evidence and
-  ADR-0002 gate reports remain unchanged.
-- C10A remediation lanes R1 through R7 are complete. R1 added the two typed
-  target classes, R2 added private action-scoped redirection, R3 added the
-  private typed ally action power modifier, and R4A added reusable authored hit
-  qualifiers for status-move type immunity, Powder immunity, and Poison-type
-  user reachability and accuracy behavior. R4B added reusable authored weather
-  charge, accuracy, and power rules for Solar Beam and Thunder. Swift, Fly,
-  Follow Me, Helping Hand, Toxic, Powder moves, Solar Beam, and Thunder are now
-  expressible. R5 added reusable,
-  data-driven held-item move operations for remove, exchange, transfer, and
-  restore; atomic C08 ledger/mirror/hook/reveal updates; Knock Off's takeability
-  power rule; and starting-Life-Orb recoil qualification. Knock Off, Trick,
-  Thief, and Recycle are now expressible.
-  R6 added typed optional-absence semantics for condition removal while
-  preserving legacy failure behavior, normal secondary chance consumption,
-  staged ownership, cleanup, and event ordering. Rapid Spin, Defog, and Brick
-  Break are now expressible. Independent
-  R7 passed against the live source and exported evidence. The reproducible
-  pinned-source manifest also passed exact source hashes and counts for all six
-  C10A JSON families. The approved C10A write then populated exactly those six
-  source files. Static validation passed at
-  `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323` with exact
-  counts of 8 species/forms, 25 natures, 62 moves, 8 Abilities, 14 items, and
-  40 conditions, plus zero source-fact, reference, or descriptor errors.
-- C10B import and integration is next. Preserve the order
-  `C10B -> C11A -> C11B`. C10A changed no Unreal asset and ran no Automation.
-- Current package documentation now records R1–R6 under the C01–C09 owners
-  they actually extended, keeps R7 as C10-wide acceptance, and makes C10B,
-  C11A, and C11B implementation-ready without implementing them. Live runtime
-  inspection found that all eight catalog species require display names;
-  therefore future C10B approval must include the six missing display-name rows
-  and `DT_InitialBattleDisplayNames` alongside the six C10A Data Tables. The
-  type chart and runtime scenario remain validate-only.
+- The BattleEngine and BattleEffectExecutor structural splits are complete.
+  `docs/battle-engine-structural-split-handoff.md` records their current source
+  map, invariants, accepted evidence, and one remaining non-runtime concern:
+  three focused executor sources manually redeclare six helpers whose
+  definitions remain in `BattleEffectExecutor.cpp`.
+- R1 through R6 supplied the reusable typed mechanics required by C10A. The
+  independent R7 gate passed against live source and exported evidence.
+- The completed C10A source slice contains exactly 8 species/forms, 25 natures,
+  62 moves, 8 Abilities, 14 items, and 40 conditions. Static validation passed
+  with zero source-fact, reference, or descriptor errors. C10A changed no Unreal
+  asset and ran no Automation.
+- C10B is planned but is not implemented or approved. C11 remains blocked until
+  C10B is accepted.
+
+## Current C10B boundary
+
+C10B converts the accepted source rows into production Data Tables and proves
+that the reflected rows build the same immutable catalog. It must not add a new
+battle mechanic.
+
+The planned hand-authored paths are:
+
+- new `Game/SourceData/Battle/battle_source_validation.py`;
+- `Game/SourceData/Battle/import_initial_battle_data.py`;
+- `Game/SourceData/Battle/Initial/display_names.json`, adding only Gyarados,
+  Rotom, Pelipper, Espathra, Clefable, and Excadrill;
+- new
+  `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalContentTests.cpp`;
+  and
+- `Game/Source/PokemonSolarus/Private/Tests/BattleRuntimeDataSourceTests.cpp`.
+
+After complete preflight, the planned asset write allowlist is:
+
+- `DT_InitialBattleSpeciesForms.uasset`;
+- `DT_InitialBattleNatures.uasset`;
+- `DT_InitialBattleMoves.uasset`;
+- `DT_InitialBattleAbilities.uasset`;
+- `DT_InitialBattleItems.uasset`;
+- `DT_InitialBattleConditions.uasset`; and
+- `DT_InitialBattleDisplayNames.uasset`.
+
+`DT_InitialBattleTypeChart.uasset` and `DT_BattleRuntimeScenario.uasset` remain
+validate-only. No production C++ change is expected. If the existing source,
+reflection, adapter, catalog, or runtime path cannot support the approved rows,
+C10B must stop and return to the owning package under a new implementation
+draft. A C10B approval does not authorize C11A or C11B.
+
+## Current evidence
+
+- ADR-0002 implementation gate:
+  `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md`.
+- Structural record:
+  `docs/battle-engine-structural-split-handoff.md`.
+- Executor split evidence:
+  `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`.
+- Independent R7 evidence:
+  `Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`.
+- Reproducible C10A source evidence:
+  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`.
+- C10A implementation evidence:
+  `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323`.
+- Live C10 and C11 contracts:
+  `plan/battle_mechanics/11-canonical-proof-content.md` and
+  `plan/battle_mechanics/12-integration-and-release-gate.md`.
+
+## Invariants and protected scope
+
+- Preserve the pre-existing untracked ADR-0003 and ADR-0004 documents byte for
+  byte. Do not stage, commit, or otherwise change them without separate
+  approval.
+- No Git stage, unstage, commit, push, branch, reset, checkout, or history
+  change is authorized by this state document.
+- Preserve one authoritative battle state, transactional RNG ownership, event
+  and replay ordering, stale-identity checks, and exact-once publication.
+- Do not claim the executor six-helper declaration seam is remediated without a
+  separately approved source change and fresh validation.
 - Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
-  until call by user**. Existing related setup, state, snapshot,
-  encounter-policy, replay, and test code remains unchanged.
+  until call by user**.
 - Battle HUD visuals and Blueprint assets remain user-owned. Do not change
   layout, styling, art, materials, textures, composition, or motion appearance.
-
-## Verified evidence
-
-- The pre-P0 baseline HEAD and `origin/main` were
-  `89663923ef0d101868aa3e016847901c69db4924`. That checkout contains the
-  validated T1 test split. P0 changed production only by relocating shared
-  private helpers out of `BattleEngine.cpp`; it does not change the public
-  facade, member-method locations, or behavior contracts.
-- The final evidence root is
-  `Game/Saved/AutomationReports/ADR0002-StaleBag-Final-20260827-164919`.
-  Its 22 exported `index.json` files report 606 test executions in total, with
-  zero succeeded-with-warnings, failures, not-run, or in-process tests.
-- The 21 ADR/affected-filter reports before the full suite total 286 executions:
-  110 ADR-0002 tests and 176 affected package/runtime tests. The full
-  `PokemonSolarus.Battle` report passed 320 tests.
-- The forced-Unity editor build passed with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Every report
-  discovered tests, contained only exact-prefix unique paths, and had zero
-  per-test warnings or errors.
-- The gate report is
-  `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md`. The
-  earlier `implementation-fail.md` remains a truthful historical record for
-  the superseded checkout and 594-success baseline.
-- T1's forced-Unity editor build passed with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. The fresh
-  evidence root is
-  `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852`.
-  `PokemonSolarus.Battle.ADR0002` passed 110 tests and full
-  `PokemonSolarus.Battle` passed 320 tests. All exported aggregate and per-test
-  warning/error counters are zero.
-- The full sorted test-path set exactly matches the accepted 320-test report.
-  Its SHA-256 is
-  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
-- P0's corrected forced-Unity editor build passed with all four required flags.
-  Its build log is
-  `Game/Saved/Logs/BattleStructural-P0-20260827-200221-ForcedUnityBuild.log`.
-- P0's exact serial 22-filter evidence root is
-  `Game/Saved/AutomationReports/BattleStructural-P0-20260827-200412`. The
-  exported reports contain 606 executions in aggregate, including 320 for full
-  `PokemonSolarus.Battle`; every aggregate and per-test issue counter is zero.
-- `BattleEngine.cpp` is 13,035 lines after P0. The 12 exact private support
-  files exist, no `.cpp` includes another `.cpp`, and no P1 or P2 production
-  source has been created.
-- P1's corrected forced-Unity editor build passed with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
-  `Game/Saved/Logs/BattleStructural-P1-20260827-212714-ForcedUnityBuild.log`.
-- P1's exact serial 22-filter evidence root is
-  `Game/Saved/AutomationReports/BattleStructural-P1-20260827-212839`. The 22
-  readable exported reports contain 606 executions in aggregate, including 320
-  for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
-  are zero. Every report contains exact-prefix unique paths, and every path set
-  exactly matches P0's accepted matrix.
-- `BattleEngine.cpp` is 8,990 lines after P1 and retains 12 member definitions:
-  construction, creation, test-fixture creation, and the seven P2 checkpoint
-  methods. The five P1 sources contain the other 16 definitions. All 28 P0
-  definitions were reconstructed exactly once without changing their logical
-  source lines. No `.cpp` includes another `.cpp`, and no P2 source exists.
-- P2's forced-Unity editor build passed on its first run with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
-  `Game/Saved/Logs/BattleStructural-P2-20260827-225012-ForcedUnityBuild.log`.
-- P2's exact serial 22-filter evidence root is
-  `Game/Saved/AutomationReports/BattleStructural-P2-20260827-225953`. The 22
-  readable exported reports contain 606 executions in aggregate, including 320
-  for full `PokemonSolarus.Battle`; all aggregate and per-test issue counters
-  are zero. Every report contains exact-prefix unique paths, and every path set
-  exactly matches P1's accepted matrix. The full sorted path-set SHA-256 remains
-  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
-- `BattleEngine.cpp` is 129 lines after P2 and retains only five construction
-  and creation definitions. The seven P2 sources own one checkpoint definition
-  each, while the five P1 sources retain their 16 definitions. All 28 P0
-  definitions still exist exactly once. Every P2 source has self-contained
-  includes and a unique named private namespace, and no `.cpp` includes another
-  `.cpp`.
-- G2 re-read the final live structural layout on 2026-08-28. All 25 expected
-  files from P0, P1, and P2 are present with the recorded line counts. The 13
-  facade-member sources still contain all 28 `FBattleEngine` definitions
-  exactly once: five in `BattleEngine.cpp`, 16 across P1, and seven across P2.
-  A fresh source scan found no `.cpp` include of another `.cpp`. This was a
-  direct filesystem inspection; G2 ran no Git status or diff and makes no
-  clean-worktree claim.
-- G2 re-opened all 68 preserved exported `index.json` files under
-  `Game/Saved/AutomationReports/BattleStructural-T1-20260827-185852`,
-  `BattleStructural-P0-20260827-200412`,
-  `BattleStructural-P1-20260827-212839`, and
-  `BattleStructural-P2-20260827-225953`. T1's two reports contain 430
-  executions. P0, P1, and P2 each contain 22 reports and 606 executions,
-  including 320 in full `PokemonSolarus.Battle`. Every aggregate issue counter
-  and per-test warning/error counter is zero, every test state is `Success`,
-  and no report has a duplicate path. All 22 P2 path sets exactly match P1.
-- G2 also re-read the P2 build log. It records all four required forced-Unity
-  flags and `Result: Succeeded`. No new build or Automation run was required or
-  authorized for this documentation-only closeout. This VERIFY is not a fresh
-  build or test run and does not prove byte-for-byte source identity.
-- The `BattleEffectExecutor` split's fresh forced-Unity editor build passed with
-  `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`.
-  Its build log is
-  `Game/Saved/Logs/BattleEffectExecutorSplit-20260828-091241-ForcedUnityBuild.log`.
-- Its fresh serial 22-filter evidence root is
-  `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`.
-  The 22 exported reports contain 606 executions: 286 focused and 320 full
-  Battle, representing 320 unique full-Battle paths because the focused filters
-  overlap the full suite. All aggregate issue counters and per-test warning or
-  error counters are zero, all states are `Success`, every report has unique
-  exact-prefix paths, and the full sorted path-set SHA-256 remains
-  `693e6aff39767ae1e8c771ba9b896836fd360db1f127128e24e82ded2c58e25d`.
-- The final executor source audit found the 102 context definitions exactly once
-  in the approved `22 / 8 / 27 / 16 / 3 / 26` file split and all nine executor
-  definitions exactly once. `BattleEffectExecutor.h` is byte-for-byte unchanged
-  at its recorded SHA-256, and `BattleEngineMoveEffects.cpp` remains unchanged.
-  The implementation retains one context construction, one staged state, the
-  ordered coordinator, and the existing single outer commit/publication path.
-- A later independent post-migration search found that the global roadmap, C10,
-  C11, and one current-source paragraph in the structural handoff had not been
-  refreshed after the accepted ADR-0002 and executor work. It also found local
-  project skills still using the removed `docs/architecture/` directory. This
-  documentation reconciliation corrected those live authorities and skill
-  paths while preserving dated package hashes, completion snapshots, and gate
-  reports as historical evidence.
-- R4A's post-review forced-Unity editor build passed with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. Its build log is
-  `Game/Saved/Logs/R4A-HitRules-PostReview-20260829-160909-Build.log`.
-- R4A's fresh serial evidence root is
-  `Game/Saved/AutomationReports/R4A-HitRules-PostReview-20260829-160909`.
-  The focused `PokemonSolarus.Battle.C05B.C10HitRules` report passed exactly
-  seven tests. The eleven required affected filters also passed, for 152/152
-  total executions with zero aggregate or per-test warnings, errors, failures,
-  not-run, or in-process results. Both final reviews returned PASS with no
-  remaining validated finding.
-- R4B's final forced-Unity editor build passed with `-ForceUnity`,
-  `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and `-NoUBA`. The final build
-  log is
-  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-PostReview-20260829-201311/build.log`
-  at SHA-256
-  `2A3BE861A4AC4BA0C07BFEA9176F7B21608BB10749D2E4D22D3AA1B179FFC595`.
-- R4B's final evidence combines the post-review focused and C05B reports with
-  the ten unchanged accepted affected-filter reports under
-  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-Acceptance-20260829-195514`.
-  All 12 selected reports contain 161 successful overlapping executions over
-  153 unique full-test paths, with zero aggregate or per-test warnings, errors,
-  failures, not-run, in-process, or issue entries. The counter and exact-path
-  manifests are under
-  `Game/Saved/AutomationReports/R4B-WeatherMoveRules-PostReview-20260829-201311`
-  at SHA-256
-  `1690F7F612585A631FE205993C0F62A15A1993C8449DE8DDBF6E14ECCF51A8C0`
-  and
-  `D9E3A0FB661D272AA13F382AAC334988B498D0737CC4728F7C9EC68974D7C1CF`.
-  Final `code-review` was APPROVED and `test-evidence-review` was
-  ADEQUATE/COMPLETE, with no blocking or advisory gap. At R4B closeout,
-  independent R7 had not yet been performed.
-- R5's final forced-Unity `PokemonSolarusEditor Win64 Development` build passed
-  with `-ForceUnity`, `-DisableAdaptiveUnity`, `-BytesPerUnityCPP=1`, and
-  `-NoUBA`. The final evidence root is
-  `Game/Saved/AutomationReports/R5-HeldItemMoves-Final-20260830-091817`.
-  The build log SHA-256 is
-  `DE3D70FB5EB3C7C9D01DD1E5FEE376655E5EAEE85CA7F1953B158B9AA58A103C`,
-  and the linked editor DLL SHA-256 is
-  `37E73305CA4E5CD9D9881BF12E565B2C5E7B2AD49AB4319C77BA3B726E165ED1`.
-- R5's focused `PokemonSolarus.Battle.C08C.C10HeldItemMoves` report passed all
-  12 tests. The 12 required affected filters passed serially with counts
-  `7, 34, 35, 7, 8, 8, 9, 7, 20, 39, 6, 18`. Across all 13 reports, 210
-  overlapping executions and 198 unique full-test paths succeeded, with zero
-  aggregate or per-test warnings, errors, failures, not-run, or in-process
-  results. The counter, exact-path, and source-hash manifests have SHA-256
-  `55412CA9E40EDAB0440403DD9C46E6DDC32CD41817C8F6456537F77A201AC165`,
-  `45090B742F815CA44431B0F96FEB4774C605330C7F840C252E87150C1AAC15BC`,
-  and `E2AFED5A8C2A8161FA11B65A5843641CED4D1F68E68354442744669331B2110A`.
-  The source manifest proves all 29 live code/test writes predate the build.
-- Final R5 `code-review` was APPROVED and `test-evidence-review` was
-  ADEQUATE/COMPLETE. Review remediation added missing power/replay/reveal proof
-  and fixed one setup regression: a persistent item consumed before setup may
-  have empty battle-consumption history and is not a Recycle candidate, while
-  malformed or battle-generated history-less consumption remains invalid.
-  At R5 closeout, independent R7 had not yet been performed.
-- R6 started from clean tracked versions of its exact nine code/test paths at
-  HEAD and `origin/main`
-  `7686395d37e8c6b061d5ea19a75c4519122a77cd`. The only baseline worktree
-  inventory was the two preserved untracked ADR documents.
-- R6 resolved B12 with a typed `OptionalIfAbsent` flag accepted only for
-  `RemoveCondition`. An absent optional condition stays applied without a
-  mutation, event, or condition update; a present condition runs its normal
-  cleanup exactly once. Legacy absence, invalid owners, missing definitions,
-  and cleanup failures retain failure behavior. Primary pre-damage removal and
-  secondary connected-hit removal, including Substitute routing, retain their
-  existing checkpoints and transactional RNG behavior.
-- The post-review forced-Unity compile succeeded at
-  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-ReviewFix-20260830-161500/build-after-event-order-fix.log`,
-  SHA-256
-  `033D53201BD0A76865FE23C6C75AFDD5DF14A44E5BCF6B0508D5903CB808565D`.
-  The final evidence root is
-  `Game/Saved/AutomationReports/R6-OptionalConditionRemoval-Final-20260830-160508`.
-  Its build log and linked editor DLL SHA-256 values are
-  `C109E74D8779882DE66D89B0F96F07F649C8263F25376912B3597762E97DFCE7`
-  and `BD672C763990C59FB4B2FB27B0BA95ABFCB698028F9A335ED0EEB86EEAAAB562`.
-- R6's focused `PokemonSolarus.Battle.C05B.C10Removal` report passed all seven
-  tests. C05B, C07B, C07C, C07D, C08B, C08C, and ADR0002.3E6 then passed
-  serially with counts `42, 9, 8, 9, 20, 39, 18`. Across all eight reports,
-  152 overlapping executions and 145 unique full-test paths succeeded, with
-  every aggregate and per-test issue counter zero. The counter, exact-path,
-  and source-hash manifest SHA-256 values are
-  `2DE268F32848921228918BE3CFB85C5E10B436A8412E22A6A91943D03F50CF19`,
-  `10910887422FBF1B26E201A1B45C9B652F6C5BA11FF5FE1A977036E52FA70090`,
-  and `0A81A479400A85E1B4F8C99C19386722D2311447593C5813D8D6AB68BD8D8A80`.
-  The source manifest proves all nine code/test writes predate the final build
-  log.
-- Final R6 `code-review` was APPROVED and final `test-evidence-review` was
-  ADEQUATE/COMPLETE after all validated findings were fixed. The independent QA
-  testability audit found no acceptance blocker. At R6 closeout, R7 had not yet
-  been performed and no C10A row or asset had been changed.
-- Independent R7 evidence is rooted at
-  `Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`. HEAD and
-  `origin/main` matched at `74b1c1b2d20b75e465c49d45dc193a0a74ecbcbd`.
-  The 75-file source manifest had zero mismatches, the linked editor DLL matched
-  R6, and 22 serial reports contained 746 successful overlapping executions
-  over 390 unique full-Battle paths. Full Battle passed 390/390 with every
-  aggregate and per-test issue counter zero. The requested forced-Unity target
-  was up to date, so R7 does not claim a fresh compiler action.
-- The reproducible C10A source evidence is rooted at
-  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`. Its recipe
-  fetched eight immutable pinned files, verified all previously frozen raw-byte
-  hashes, and produced exact source manifests for 8 species/forms, 25 natures,
-  62 moves, 8 Abilities, 14 items, and 40 conditions. The canonical manifest
-  SHA-256 is
-  `721EE44EF5D0EF6B9522D4BA1A94546D7032D1F17E1CAE812D52C4EC8D986629`.
-
-## Working-tree scope to preserve
-
-- The canonical architecture-document directory is now
-  `docs/registry/architecture/`. References under current guides, registries,
-  examples, package documents, and local project skills use that path. The old
-  `docs/architecture/` path remains only in dated historical gate reports and
-  in current statements that explicitly identify it as the retired path.
-- Do not modify `docs/registry/architecture.yaml`; it is outside this task.
-- Preserve the pre-existing ADR-0003 and ADR-0004 documents. Neither is in
-  G2's write set.
-- ADR-0003 and ADR-0004 remain untracked local documents and therefore are not
-  present in the published `origin/main` checkout. The tracked registry links
-  to those local paths. This documentation pass does not authorize staging,
-  committing, or changing either ADR or the registry.
-- The exact G1B write set is this file,
-  `docs/battle-engine-structural-split-handoff.md`, and
-  `docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md`.
-- T1's exact code layout and validation evidence are recorded in
-  `docs/battle-engine-structural-split-handoff.md`. Its later task-specific
-  documentation and Git approval covered only the T1 source changes, this file,
-  and that handoff; it excluded the architecture registry, ADR-0003, and
-  ADR-0004.
-- P0's task-specific commit write set was `BattleEngine.cpp`, the exact six
-  private support `.h`/`.cpp` pairs, this file, and
-  `docs/battle-engine-structural-split-handoff.md`. It excluded the architecture
-  registry, ADR-0003, and ADR-0004.
-- P1's exact hand-edited write set is `BattleEngine.cpp`,
-  `BattleEngineSnapshots.cpp`, `BattleEngineDecisionFlow.cpp`,
-  `BattleEngineEndTurn.cpp`, `BattleEngineBetweenActions.cpp`,
-  `BattleEngineReplay.cpp`, this file, and
-  `docs/battle-engine-structural-split-handoff.md`. Its only other writes are
-  ordinary generated build and Automation output under `Game/Saved`.
-- P2 completed the exact seven-file map, exclusions, forced-Unity build, and
-  serial 22-filter matrix in `docs/battle-engine-structural-split-handoff.md`.
-  Its hand-edited implementation set is `BattleEngine.cpp`, the seven named P2
-  sources, and that handoff. Its only other writes are ordinary generated build
-  and Automation output under `Game/Saved`.
-- G2's exact hand-edited write set is this file and
-  `docs/battle-engine-structural-split-handoff.md`. It authorizes no production
-  source, test, generated-output, C10A, or cleanup change.
-- The `BattleEffectExecutor` implementation's exact hand-edited write set is
-  `BattleEffectExecutor.cpp`, `BattleEffectExecutorContext.h`, the six focused
-  `BattleEffectExecutor*.cpp` sources recorded in the handoff, this file, and
-  `docs/battle-engine-structural-split-handoff.md`. Its only other writes are
-  ordinary generated build and Automation output under `Game/Saved`. The
-  implementation approval itself authorized no Git action.
-- After the implementation and validation report, the user separately
-  authorized one commit and push containing that exact code set plus this file,
-  `docs/battle-engine-structural-split-handoff.md`, and
-  `docs/battle-effect-executor-split-implementation-ready-draft.md`. Preserve
-  the unrelated untracked ADR-0003 and ADR-0004 files and every other exclusion.
-- Do not change any other production source, tests, visual assets, Blueprints,
-  maps, configuration, `.uproject` data, module rules, or C10 content data
-  without a new task-specific approval.
-- Unreal validation may update its normal generated files under
-  `Game/Saved/Config/**` and `Game/Saved/Logs/**`; final exported evidence must
-  still use a fresh unique `Game/Saved/AutomationReports/**` root.
-- Preserve replay schema `6`, existing enum ordinals, and frozen
-  Cry/reinforcement behavior.
-- After approving the final G2 diff, the user authorized one task-specific
-  commit and push containing exactly this file and
-  `docs/battle-engine-structural-split-handoff.md`. No branch or Git-history
-  rewrite is authorized.
-- R4A's exact hand-authored implementation set is the new
-  `BattleMoveHitRules.h`, `BattleMoveHitRules.cpp`, and
-  `BattleMoveHitRuleTests.cpp`; the modified `BattleDefinitions.h`,
-  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
-  `BattleEffectExecutor.cpp`, `BattleEffectExecutorContext.h`,
-  `BattleEffectExecutorConditions.cpp`, and `BattleEffectExecutorDamage.cpp`;
-  this file; and `docs/c10a-canonical-proof-content-implementation-ready-draft.md`.
-  The user approved one bounded commit and push for that exact set. Preserve the
-  unrelated untracked ADR-0003 and ADR-0004 files and all generated evidence.
-- R4B's exact hand-authored production/test set is the new
-  `BattleMoveWeatherRules.h`, `BattleMoveWeatherRules.cpp`, and
-  `BattleMoveWeatherRuleTests.cpp`; the modified `BattleDefinitions.h`,
-  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
-  `BattleEffectExecutor.h`, `BattleEffectExecutorContext.h`,
-  `BattleEffectExecutor.cpp`, `BattleEffectExecutorConditions.cpp`,
-  `BattleEffectExecutorDamage.cpp`, `BattleFieldSideConditions.cpp`, and
-  `BattleFieldSideConditionTests.cpp`. Its exact current-document set is this
-  file, `plan/battle_mechanics/00-roadmap-index.md`,
-  `plan/battle_mechanics/11-canonical-proof-content.md`,
-  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`,
-  `plan/battle_mechanics/reference/modern-rules-snapshot.md`,
-  `plan/battle_mechanics/03-stats-types-moves-and-data-adapters.md`,
-  `plan/battle_mechanics/06-hit-damage-effects-and-outcomes.md`,
-  `plan/battle_mechanics/08-status-volatiles-field-and-side-conditions.md`, and
-  `docs/battle-engine-structural-split-handoff.md`. The final R4B review session
-  performed no Git action; the accepted implementation was later published in
-  `ef93d5d`. Preserve both unrelated untracked ADRs.
-- R5's exact hand-authored source set is 22 production files and seven test
-  files. The new production files are `BattleHeldItemMoveEffects.h/.cpp` and
-  `BattleEffectExecutorItemMoves.cpp`. Modified production owners are
-  `BattleAbilityItemContracts.h/.cpp`, `BattleAllyActionPowerModifier.cpp`,
-  `BattleDataTableRows.h`, `BattleDefinitions.h`, `BattleDataTableAdapter.cpp`,
-  `BattleDefinitionCatalog.cpp`, `BattleEffectExecutor.h/.cpp`,
-  `BattleEffectExecutorContext.h`, `BattleEffectExecutorState.cpp`,
-  `BattleEffectExecutorConditions.cpp`, `BattleEffectExecutorDamage.cpp`,
-  `BattleEffectExecutorAbilityItems.cpp`, `BattleEngineEvents.h`,
-  `BattleEngineMoveEffects.cpp`, `BattleEvent.h/.cpp`, and
-  `BattleMoveRedirection.cpp`. The new test is
-  `BattleHeldItemMoveEffectTests.cpp`; modified tests are
-  `BattleAbilityItemContractTests.cpp`, `BattleAllyActionPowerModifierTests.cpp`,
-  `BattleDataTableAdapterTests.cpp`, `BattleEffectExecutorTests.cpp`,
-  `BattleItemRuleTests.cpp`, and `BattleMoveRedirectionTests.cpp`.
-  R5's current-document set is this file,
-  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`,
-  `docs/battle-engine-structural-split-handoff.md`, and
-  `plan/battle_mechanics/00-roadmap-index.md`,
-  `06-hit-damage-effects-and-outcomes.md`,
-  `09-abilities-held-items-and-battle-items.md`, and
-  `11-canonical-proof-content.md`. The final R5 review session performed no Git
-  action; the accepted implementation was later published in `7686395`.
-  Preserve both unrelated untracked ADRs.
-- R6's exact hand-authored code/test write set is `BattleDefinitions.h`,
-  `BattleDataTableAdapter.cpp`, `BattleDefinitionCatalog.cpp`,
-  `BattleEffectExecutor.cpp`, `BattleEffectExecutorConditions.cpp`,
-  `BattleEffectExecutorTests.cpp`, `BattleVolatileTests.cpp`,
-  `BattleFieldSideConditionTests.cpp`, and `BattleAtomicMoveEffectTests.cpp`.
-  Its exact current-document set is this file,
-  `docs/c10a-canonical-proof-content-implementation-ready-draft.md`, and
-  `plan/battle_mechanics/00-roadmap-index.md`,
-  `06-hit-damage-effects-and-outcomes.md`,
-  `08-status-volatiles-field-and-side-conditions.md`, and
-  `11-canonical-proof-content.md`. Preserve the two untracked ADRs byte for
-  byte. R6 authorizes no other code, test, document, asset, C10A row, cleanup,
-  or Git action.
-- The R6 code-file organization decision keeps the existing executor
-  coordinator, condition executor, executor-test, volatile-test, and
-  field/side-test responsibilities. The field/side helper is fixture-local and
-  adds no production owner. The 1,034-line atomic test retains its required
-  local catalog because extraction would create a tenth code/test path. The
-  998-line catalog and 869-line adapter remain below the 1,000-line decision
-  threshold.
+- Do not modify production source, tests, source data, assets, Blueprints,
+  configuration, `.uproject` data, modules, or generated Unreal output without
+  a new task-specific approval.
 
 ## Next
 
-1. Treat the `BattleEffectExecutor` structural split as implemented, freshly
-   validated, and published at `504f036858bae310de8ad03ae450903ebedc2779`.
-2. Keep the six-helper cross-translation-unit declaration seam recorded as a
-   non-runtime source follow-up. Do not claim it has been remediated without a
-   separately approved source change and validation.
-3. Treat R1 through R7 and the reproducible pinned-source extraction as
-   complete. R7 accepted the live source and all 390 full-Battle paths; the
-   source manifest passed every frozen hash and exact content-family count.
-4. Obtain exact C10B implementation approval before modifying the importer,
-   adding its pure validator and focused tests, filling the six missing species
-   display-name rows, or mutating the seven approved Data Tables. Keep the type
-   chart and runtime scenario validate-only. Do not begin C11A or C11B under
-   that approval. Preserve roadmap order `C10B -> C11A -> C11B`.
+1. Obtain exact C10B implementation approval against the live C10 plan.
+2. Complete and independently accept C10B before starting C11A.
+3. Preserve the required order `C10B -> C11A -> C11B`.

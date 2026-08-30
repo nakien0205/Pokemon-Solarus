@@ -46,9 +46,9 @@ quests, procedural worlds, or a production content pipeline.
 ## Reference Layout
 
 The active files under `docs/engine-reference/unreal/` are lean, project-scoped
-UE 5.8.1 references. The former generic UE 5.7 material is preserved under
-`docs/engine-reference/unreal/legacy-generic-5.7/` for historical context only.
-Do not treat the legacy folder as active guidance.
+UE 5.8.1 references. Earlier generic engine notes have been removed from the
+live tree and remain recoverable through Git history if historical context is
+ever required.
 
 This file remains the project-specific entry point. If active guidance is
 unclear, verify the issue against the pinned build and Epic's UE 5.8 sources.

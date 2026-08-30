@@ -4,9 +4,9 @@
 
 `Game/PokemonSolarus.uproject` and live C++ project code now exist. This file
 records only verified UE 5.8 changes that may affect the approved prototype; it
-does not claim that an engine migration is currently required. The broad
-generic UE 5.7 migration notes are preserved under `legacy-generic-5.7/` and
-are not active guidance.
+does not claim that an engine migration is currently required. Earlier generic
+version notes are not active project guidance and remain recoverable through
+Git history.
 
 ## Input Changes Relevant to This Project
 

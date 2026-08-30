@@ -36,9 +36,6 @@ Before giving Unreal-specific implementation advice:
 4. Verify uncertain or version-sensitive details against Epic's UE 5.8
    documentation and release notes.
 
-The files under `legacy-generic-5.7/` are historical material, not active
-instructions.
-
 ## First-Battle Boundary
 
 The approved milestone is one polished, single-player battle between two
