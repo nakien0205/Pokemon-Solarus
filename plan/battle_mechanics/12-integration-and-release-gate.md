@@ -1,11 +1,14 @@
 # C11 — Full Integration and Release Gate
 
 Priority: Mandatory completion gate  
-Status: Planned; C10A and C10B are complete and accepted; C11A is next but is
-not implemented or approved; the ADR-0002 implementation closeout is already
-PASS
+Status: In progress; C10A and C10B are complete and accepted. C11A's test-only
+remediation is validated but remains `INCOMPLETE_CATALOG_DEFERRED`. Under the
+user-approved special exception, C11B is permitted but not started. The
+ADR-0002 implementation closeout is already PASS.
 
-Required order: C11A, then C11B
+Default order: C11A, then C11B. The 2026-08-31 user exception permits C11B to
+begin with six explicit C11A catalog-data gaps still deferred; it does not mark
+C11A fully complete or waive their later retests.
 
 Accepted C10B import evidence is rooted at
 `Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`; final
@@ -18,8 +21,8 @@ and C11A must begin from the UTF-8-without-BOM project SHA-256
 production catalog accepted for C11A has SHA-256
 `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
 C10B imported exactly seven approved Data Tables; type chart and runtime
-scenario remained byte-identical. C11A must begin in a fresh
-implementation-approval task and must not reinterpret C10B acceptance as C11
+scenario remained byte-identical. C11A began only after a separate
+implementation-approval task and did not reinterpret C10B acceptance as C11
 write authority.
 
 ## Objective
@@ -30,33 +33,43 @@ source and data hashes.
 
 ## C11A — Deterministic Integration Matrix
 
-Status: **PLANNED — NOT IMPLEMENTED OR APPROVED**.
+Status: **INCOMPLETE_CATALOG_DEFERRED**. The approved remediation scope is
+implemented and validated, but six production branches remain unverified
+because the accepted catalog lacks the required data.
 
-### Planned file map and ownership
+### Implemented file map and ownership
 
-C11A is expected to be test-only. It must use the production imported catalog
-accepted by C10B and the public Battle API; it must not add synthetic
-production definitions or private state mutation hooks.
+C11A is test-only. It uses the production imported catalog accepted by C10B
+and the public Battle API; it adds no synthetic production definition or
+private state-mutation hook.
 
-| Planned path | One responsibility |
+| Implemented path | One responsibility |
 |---|---|
 | new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalIntegrationTestSupport.h` | Shared declarations for loading the production catalog, deterministic scenario builders, scripted decisions/RNG, replay comparison, and invariant assertions. |
 | new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalIntegrationTestSupport.cpp` | The matching shared implementation; no test registration and no production ownership. |
-| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalSingleIntegrationTests.cpp` | Single-Battle baseline, status, switching, Bag, item/Ability, faint, replacement, and terminal flows. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalSingleCoreIntegrationTests.cpp` | Single-Battle baseline, full flow, obedience, and switching integration. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalSingleEffectsIntegrationTests.cpp` | Single-Battle move, status, volatile, Bag, Ability, and held-item integration. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalModifierIntegrationTests.cpp` | B00B ordered damage trace plus Mold Breaker and Levitate public-engine comparison. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalConditionIntegrationTests.cpp` | Field, side, hazard, grounding, removal, expiry, and end-turn integration. |
 | new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalDoubleIntegrationTests.cpp` | Double targeting, order, redirection, ally support, spread/friendly-fire, simultaneous faint, and modifier combinations. |
-| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalWildPartnerIntegrationTests.cpp` | Run, Capture, configured WildFlee, and Partner Double ownership/visibility/continuation flows. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalWildIntegrationTests.cpp` | Run, Capture, configured WildFlee, cancellation, and destination integration. |
+| new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalPartnerIntegrationTests.cpp` | Partner selection visibility, ownership, continuation, victory, and recovery integration. |
 | new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalReplayInvariantTests.cpp` | Deterministic replay, serialization, snapshot/event/RNG equality, bounds, terminal immutability, and hidden-information invariants. |
 
-The support pair is justified because four focused test families need the same
+The support pair is justified because the focused test families need the same
 production-catalog loader and deterministic assertion machinery. Each test
-source owns one scenario family. If any file reaches the 500-line review
-trigger, split only along the named behavior boundary; do not create one C11A
-test monolith.
+source owns one scenario family. The 1,190-line support implementation remains
+together under a task-specific organization exception: its fixture, selector,
+replay/twin, coverage-manifest, and invariant responsibilities form one shared
+integration-harness contract, while splitting would violate the exact-ten-file
+boundary or create an arbitrary ownership cut. Review a focused split if an
+independent responsibility is added, the ten-file constraint is lifted, or the
+file approaches 2,000 lines.
 
 No production C++, source JSON, Data Table, runtime scenario, display name,
-configuration, `.uproject`, UI, or visual asset change is expected. A discovered
-runtime capability gap must stop C11A and return to its owning package under a
-new implementation approval.
+configuration, `.uproject`, UI, or visual asset changed. Six catalog-data gaps
+are declared below under the user-approved exception; no runtime capability gap
+or second production owner was introduced.
 
 ### Execution sequence
 
@@ -72,7 +85,7 @@ new implementation approval.
 6. Run the full `PokemonSolarus.Battle.C11A` prefix only after all four focused
    families pass serially.
 
-Planned prefixes:
+Implemented prefixes:
 
 - `PokemonSolarus.Battle.C11A.Single`
 - `PokemonSolarus.Battle.C11A.Double`
@@ -172,10 +185,37 @@ Global invariants:
 - Terminal state is immutable.
 - Hidden information never appears in unauthorized snapshots/events.
 
+### Implemented evidence and declared catalog gaps
+
+The accepted remediation evidence is rooted at
+`Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`.
+
+- Exactly ten C11A files and 25 Automation identities are present.
+- The fresh forced-Unity build succeeded with linked DLL SHA-256
+  `9432EE8A929878E27BC0A6A027A2116ED810EEAC2A540694102ACEC3FBBB2272`.
+- Six serial filters passed exact success counts `4/10/4/6/5/25` with zero
+  warning, failure, not-run, in-process, or per-test issue counters.
+- Protected hashes matched `251/251` with zero mismatches.
+- `code-review` was `APPROVED_WITH_SUGGESTIONS` with no required
+  Critical/High/Medium change; `test-evidence-review` was `ADEQUATE` with zero
+  blocking items for the approved remediation scope.
+- `completion-audit.json` records the consolidated result, while
+  `deferred-catalog-gaps.json` is the persistent later-test register.
+
+C11A is not fully complete. The accepted catalog has no Ice species for Snow's
+Defense branch, no Rock species for Sandstorm's Special Defense branch, no
+damaging Water move for both weather branches, no damaging Dragon move for
+Misty Terrain, no damaging or status move with side-protection bypass, and no
+set-condition effect authored for an eight-turn duration. Each gap has a
+data-arrival guard and required public-engine retest. The guard fails when the
+needed data appears so the deferral cannot remain silent.
+
 ## C11B — Build, Automation, and Evidence Gate
 
-Status: **PLANNED — NOT STARTED**. C11B writes no battle behavior. It begins
-only after C11A is accepted against the imported C10B catalog.
+Status: **USER PERMITTED — NOT STARTED**. C11B writes no battle behavior. The
+user explicitly permits it to begin while C11A remains
+`INCOMPLETE_CATALOG_DEFERRED`. C11B must preserve the six-gap register and may
+not claim full C11 completion while any required deferred retest remains open.
 
 Before running Unreal:
 
@@ -288,6 +328,11 @@ The reusable Global Battle core is complete only when:
 - The independent review has no unresolved Critical or High findings.
 - Remaining omissions are explicitly outside the approved bounded catalog, not
   silently unimplemented parts of an approved mechanic.
+
+The special permission to implement C11B does not satisfy this definition by
+itself. Full C11 completion remains blocked until the six declared C11A catalog
+gaps are either exercised after accepted data arrives or are resolved by a new
+explicit acceptance decision.
 
 After acceptance, update only current roadmap/status documents with the final
 evidence identities. Publication, commit, and push remain separate user-owned

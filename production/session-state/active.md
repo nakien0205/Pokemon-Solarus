@@ -1,7 +1,7 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C11 full integration and release gate
-Task: Prepare a fresh C11A implementation-approval handoff
+Task: Continue to C11B under the approved C11A catalog-data exception
 <!-- /STATUS -->
 
 # Active Project State — 2026-08-31
@@ -9,8 +9,10 @@ Task: Prepare a fresh C11A implementation-approval handoff
 ## Current state
 
 - B00 through C10 are complete under their bounded validation. C10A source-row
-  authoring and C10B import/catalog acceptance are complete. The required
-  continuation is `C11A -> C11B`.
+  authoring and C10B import/catalog acceptance are complete. C11A's test-only
+  deterministic integration remediation is validated, but C11A is explicitly
+  **not fully complete**: its status is `INCOMPLETE_CATALOG_DEFERRED` because six
+  accepted-catalog branches cannot yet be exercised.
 - ADR-0002 is Accepted and its bounded implementation gate is **PASS** at
   `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`.
 - The BattleEngine and BattleEffectExecutor structural splits are complete.
@@ -26,8 +28,46 @@ Task: Prepare a fresh C11A implementation-approval handoff
   asset and ran no Automation.
 - C10B was accepted on 2026-08-31. Exactly seven approved production Data
   Tables changed after pure validation and seven transient conversions. The
-  type-chart and runtime-scenario assets remained byte-identical. C11A is next
-  and has not been implemented or approved.
+  type-chart and runtime-scenario assets remained byte-identical.
+
+## Current C11A result
+
+C11A added exactly ten test-only files and preserved exactly 25
+`PokemonSolarus.Battle.C11A` Automation identities. It changed no production
+C++, source JSON, Data Table, configuration, `.uproject`, UI, visual asset, or
+runtime ownership seam.
+
+The accepted remediation evidence is rooted at
+`Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`. A fresh
+forced-Unity build succeeded and produced linked DLL SHA-256
+`9432EE8A929878E27BC0A6A027A2116ED810EEAC2A540694102ACEC3FBBB2272`.
+The six serial filters passed exact success counts `4/10/4/6/5/25`; every
+warning, failure, not-run, in-process, and per-test issue counter was zero.
+Protected hashes matched `251/251` with zero mismatches. Final `code-review`
+was `APPROVED_WITH_SUGGESTIONS`; `test-evidence-review` was `ADEQUATE` with zero
+blocking items for the approved remediation scope.
+
+C11A remains `INCOMPLETE_CATALOG_DEFERRED`. The six declared gaps are:
+
+1. Snow's physical Defense boost for Ice defenders: no accepted Ice species.
+2. Sandstorm's Special Defense boost for Rock defenders: no accepted Rock
+   species.
+3. Sun/Rain modification of Water damage: no accepted damaging Water move.
+4. Misty Terrain's Dragon reduction: no accepted damaging Dragon move.
+5. Screen and Safeguard bypass branches: no accepted damaging or major-status
+   bypass move.
+6. Eight-turn field/side duration extension: no accepted qualifying
+   set-condition effect.
+
+Each gap is logged with its production symbol, missing data, current partial
+coverage, data-arrival guard, and required later retest in
+`deferred-catalog-gaps.json` under the evidence root. The guards fail when the
+required data appears so coverage cannot remain silently deferred.
+
+The user approved a special sequencing exception on 2026-08-31: C11B may be
+implemented while these six gaps remain declared. This does not mark C11A fully
+complete and does not waive the deferred retests. C11B status is
+`USER_PERMITTED_NOT_STARTED`.
 
 ## Accepted C10B result
 
@@ -68,7 +108,7 @@ allowlist was:
 validate-only and byte-identical. The existing reflected rows,
 `FBattleDataTableAdapter`, `FBattleDefinitionCatalog`, and runtime loader remain
 the production owners; C10B added validation/import coordination and tests only.
-C10B acceptance does not authorize C11A or C11B implementation.
+C10B acceptance by itself did not authorize C11A or C11B implementation.
 
 ## Current evidence
 
@@ -105,6 +145,10 @@ C10B acceptance does not authorize C11A or C11B implementation.
   ADEQUATE/COMPLETE. Source and two independent production catalog summaries
   retained SHA-256
   `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+- C11A deterministic integration remediation evidence:
+  `Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`.
+  The consolidated result is `completion-audit.json`; the six explicit data
+  gaps and later retests are in `deferred-catalog-gaps.json`.
 - Live C10 and C11 contracts:
   `plan/battle_mechanics/11-canonical-proof-content.md` and
   `plan/battle_mechanics/12-integration-and-release-gate.md`.
@@ -115,7 +159,8 @@ C10B acceptance does not authorize C11A or C11B implementation.
   byte. Do not stage, commit, or otherwise change them without separate
   approval.
 - No Git stage, unstage, commit, push, branch, reset, checkout, or history
-  change is authorized by this state document.
+  change is authorized by this state document; Git publication requires a
+  separate explicit user request.
 - Preserve one authoritative battle state, transactional RNG ownership, event
   and replay ordering, stale-identity checks, and exact-once publication.
 - Do not claim the executor six-helper declaration seam is remediated without a
@@ -130,6 +175,8 @@ C10B acceptance does not authorize C11A or C11B implementation.
 
 ## Next
 
-1. Start a fresh C11A implementation-approval task against the live C11 plan.
-2. Implement and accept C11A before starting C11B.
-3. Preserve the required order `C11A -> C11B`.
+1. Start C11B in a fresh task under the explicit catalog-data exception.
+2. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED`; do not reinterpret C11B
+   permission as full C11A acceptance.
+3. Run the six deferred retests when their required accepted catalog data
+   arrives, then perform the independent final C11 acceptance gate.

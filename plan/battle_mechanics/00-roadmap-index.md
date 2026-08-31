@@ -4,13 +4,14 @@ Status date: 2026-08-31
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
 complete under focused validation; C10A source-row authoring and C10B
-import/catalog acceptance are complete, while C11 remains.
+import/catalog acceptance are complete. C11A's test-only remediation is
+validated but remains `INCOMPLETE_CATALOG_DEFERRED`; C11 remains open.
 Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides.
-Next lane: a fresh C11A implementation-approval task for the deterministic
-integration matrix; C11B remains after accepted C11A
+Next lane: C11B under the user's special catalog-data exception. C11A remains
+not fully complete with six declared catalog-dependent retests.
 
 ## Current Truth
 
@@ -176,7 +177,10 @@ already existed, so it cannot explain or restore those missing files.
   reproducible pinned-source extraction are complete. C10A populated the exact
   six approved source JSON files and passed bounded static validation. C10B
   imported exactly seven approved Data Tables and passed its final acceptance
-  gate. C11A is next; C11B remains blocked behind accepted C11A.
+  gate. C11A added exactly ten test-only files and 25 Automation identities;
+  its remediation evidence passed, but six accepted-catalog branches remain
+  declared and guarded under `INCOMPLETE_CATALOG_DEFERRED`. The user explicitly
+  permits C11B to begin without treating C11A as fully complete.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1275,8 +1279,14 @@ B00B accepted evidence:
   matrix passed 187/187, the battle-owned catalog isolation proof passed,
   final `code-review` was APPROVED, and `test-evidence-review` was
   ADEQUATE/COMPLETE.
-- Required continuation is `C11A -> C11B`. C11A requires a fresh
-  implementation-approval task; no C11 work was included in C10B.
+- C11A remediation evidence is rooted at
+  `Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`.
+  Exactly ten test-only files and 25 identities were preserved; the forced-
+  Unity build and serial `4/10/4/6/5/25` filters passed with zero issue
+  counters, and protected hashes matched `251/251`. C11A remains
+  `INCOMPLETE_CATALOG_DEFERRED` for six logged catalog-data gaps. The user
+  permits C11B to proceed under this special exception; no C11B implementation
+  has started.
 
 ## Goal
 

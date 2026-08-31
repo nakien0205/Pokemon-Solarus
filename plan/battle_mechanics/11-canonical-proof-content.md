@@ -3,7 +3,9 @@
 Priority: P3  
 Status: **COMPLETE — C10A source rows and C10B import/catalog accepted**
 
-Required continuation: C11A, then C11B
+Current continuation: C11B is user-permitted under a special exception; C11A
+remains `INCOMPLETE_CATALOG_DEFERRED` until six accepted-catalog retests become
+possible
 Entry gate: Satisfied — ADR-0002 implementation PASS at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0` with fresh affected-filter and
 full-Battle evidence
@@ -399,6 +401,9 @@ C10B is complete only when:
 All listed conditions were satisfied and the user accepted the evidence on
 2026-08-31. This status reconciliation occurred only after that acceptance.
 
-Full integration scenarios remain C11A. Full build/suite and independent final
-acceptance remain C11B. Required continuation is `C11A -> C11B`; C11A requires
-a fresh implementation-approval task.
+C11A's test-only integration remediation is implemented and validated at
+`Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`, but C11A
+is not fully complete because six accepted-catalog branches remain explicitly
+deferred. The user permits C11B to proceed under that special exception. Full
+build/suite and independent final acceptance remain C11B, and the deferred
+C11A retests remain required when their catalog data arrives.
