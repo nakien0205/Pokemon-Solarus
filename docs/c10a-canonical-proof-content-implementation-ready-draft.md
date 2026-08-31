@@ -1,6 +1,6 @@
 # C10A Canonical Proof Content — Historical Draft and Gate Register
 
-Status: **C10A SOURCE JSON COMPLETE; STATIC VALIDATION PASS**
+Status: **C10A SOURCE JSON COMPLETE; C10B IMPORT/CATALOG ACCEPTED**
 
 Current planning authority: `plan/battle_mechanics/11-canonical-proof-content.md`.
 This document preserves the detailed R0–R7/C10A implementation and evidence
@@ -8,11 +8,11 @@ history; it no longer owns the live C10B boundary.
 
 Date: 2026-08-30
 
-Primary verdict: **C10A COMPLETE; C10B IS NEXT**
+Primary verdict: **C10A AND C10B COMPLETE; C11A IS NEXT**
 
 R0 source/scope decision gate: **PASS — accepted 2026-08-28**
 
-Remediation status: **R1 through R7 and C10A COMPLETE; C10B is next**
+Remediation status: **R1 through R7, C10A, and C10B COMPLETE; C11A is next**
 
 Direct C10A row authoring is complete. R1 through
 R6 provide reusable typed implementations for B02 through B12. A separate
@@ -26,7 +26,7 @@ extraction manifest now exists. The completed sequence was:
 3. preserve the completed independent blocker gate and source manifest;
 4. obtain exact approval for the six-file C10A data-only write;
 5. author and statically validate the complete C10A source-JSON slice; and
-6. perform C10B import and integration in its own later session.
+6. perform and accept C10B import and integration in its own session.
 
 The original R0 session authorized documentation changes only in this document
 and the accepted B00B modern-rules snapshot. Each later remediation lane had its
@@ -106,10 +106,11 @@ Current remediation state:
 | R7 independent blocker gate | COMPLETE | Independent code review APPROVED and test-evidence review ADEQUATE/COMPLETE; 22 clean serial reports, 390/390 full-Battle successes, and no source-hash mismatch on 2026-08-30 |
 | C10A source extraction | COMPLETE | Reproducible pinned-source recipe and manifest passed exact counts and source hashes on 2026-08-30 |
 | C10A source rows | COMPLETE | Six approved JSON files passed bounded static validation on 2026-08-30 |
-| Next lane | C10B | Import, asset mutation, and integration require their own approval |
+| C10B import/catalog | COMPLETE | Seven-table import, catalog/runtime equivalence, forced-Unity build, 21 Python tests, and 187/187 serial Automation successes accepted on 2026-08-31 |
+| Next lane | C11A | Requires a fresh implementation-approval task |
 
-C10A source-row authoring is complete. R7, source extraction, and bounded static
-validation passed. Required continuation: `C10B -> C11A -> C11B`.
+C10A source-row authoring and C10B import/catalog acceptance are complete.
+Required continuation: `C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
@@ -178,7 +179,7 @@ Every non-ready finding uses one of these labels:
 | Solar Beam and Thunder weather behavior must be exact | R4B implemented and validated reusable authored weather charge, power, and accuracy rules | RESOLVED | Author the rows only in C10A; never inspect either move ID |
 | Item-changing moves must reach the held-item ledger | R5 implemented and validated generic remove-current, exchange-current, transfer-current, and restore-last-consumed intents through the existing ledger, staged mirrors, hooks, reveal tracker, and public events | RESOLVED | Author the rows only in C10A; never inspect move or item IDs |
 | Removal moves must tolerate absent conditions | R6 implemented and validated typed `OptionalIfAbsent` removal while preserving legacy absence failure and effect ordering | RESOLVED | Author the rows only in C10A; never inspect a move or condition ID for optional behavior |
-| C10B must validate before asset mutation | The importer checks JSON array shape, non-empty Name, and duplicates, then mutates all nine tables; semantic catalog validation is later | SEQUENCING OVERLAP | Add pure preflight and an explicit family allowlist before the C10B import |
+| C10B must validate before asset mutation | C10B added pure all-source preflight, an exact seven-family allowlist, and seven transient no-package conversions before any production-table load | RESOLVED | Preserve this import boundary; type chart and runtime scenario remain validate-only |
 | Later Ability/item/condition rows should scale | Their definitions contain only identity or family; approved behavior is currently mapped through exact canonical IDs | ADDITIVE GAP | Accept that new mechanics need owning-package work, or separately approve typed behavior payloads later |
 
 ## 6. Complete 62-move expressibility matrix
@@ -186,7 +187,7 @@ Every non-ready finding uses one of these labels:
 Status meanings:
 
 - **READY** — current typed capabilities can express the selected C10 behavior;
-  the row still requires C10B import and behavior evidence.
+  C10B subsequently imported and proved every selected row.
 - **BLOCKED** — a confirmed generic capability is absent.
 
 | # | Move | Generic encoding or missing seam | Status | Finding |
@@ -256,8 +257,8 @@ Status meanings:
 
 Totals: 62 READY and 0 BLOCKED, with no unresolved decision rows.
 
-The READY label does not claim that a row is already tested through imported
-Data Tables. That is C10B work.
+The READY label records the C10A expressibility decision. Accepted C10B
+evidence subsequently proved the rows through imported Data Tables.
 
 ## 7. Non-move family matrix
 
@@ -469,11 +470,12 @@ Data Tables. That is C10B work.
   damage, through Substitute, but remain blocked by Protect. The existing
   BreaksProtection flag must not be reused; that flag breaks Protect itself.
 
-### B13 — The current importer exceeds a narrow C10B mutation boundary
+### B13 — Historical importer boundary resolved by C10B
 
-- Classification: **SEQUENCING OVERLAP**
-- Gate: C10B only; it does not authorize earlier implementation.
-- Evidence: import_initial_battle_data.py preloads JSON syntax/name checks, then
+- Classification: **RESOLVED**
+- Gate: completed and accepted in C10B on 2026-08-31.
+- Historical evidence: import_initial_battle_data.py preloaded JSON
+  syntax/name checks, then
   imports and saves all nine tables, including display names and runtime
   scenario. It does not perform complete schema/cross-reference/catalog
   validation before asset mutation.
@@ -486,6 +488,12 @@ Data Tables. That is C10B work.
 - Required proof: any syntax, reflected-row, missing reference, wrong family,
   duplicate ID, bad range, or incomplete catalog error leaves all loaded
   assets and the already-frozen catalog unchanged.
+- Implemented disposition: the importer now runs a pure nine-document
+  validation and stages all seven mutable families in transient no-package Data
+  Tables before loading a production table. Fake-service tests prove preflight,
+  staging, live-fill rollback, save and post-save failures, and exact seven-file
+  binary restoration. Accepted evidence is rooted at
+  `Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`.
 
 ### B14 — Ability, item, and condition rows do not carry behavior payloads
 
@@ -1024,22 +1032,36 @@ C10A exclusions:
 - roadmap/status documents before acceptance
 - Git stage, commit, push, branch, reset, checkout, or history changes
 
-## 12. C10B boundary moved to the canonical package plan
+## 12. Accepted C10B boundary and canonical package owner
 
-The current implementation-ready C10B plan is now maintained only in
+The accepted C10B record is maintained in
 `plan/battle_mechanics/11-canonical-proof-content.md`. Live inspection after
 C10A found that the runtime display-name resolver requires a name for every
-catalog species. Because the existing display-name source and asset contain
-only Charizard and Venusaur, future C10B approval must narrowly include the six
-missing display-name rows and the display-name Data Table as a seventh asset.
-The older six-asset expectation in this draft is superseded. The type chart and
-runtime scenario remain validate-only in the current plan.
+catalog species. C10B therefore added the six missing species display-name rows
+and imported the display-name Data Table as the seventh approved asset. The
+older six-asset expectation in this draft is superseded. The type chart and
+runtime scenario remained validate-only and byte-identical.
 
-## 13. Validation contract for future implementation
+C10B added only the pure validator, two Python test files, the importer
+coordinator change, the display-name source change, one focused C++ test file,
+and the narrow runtime-test update. The existing reflected row structs,
+`FBattleDataTableAdapter`, `FBattleDefinitionCatalog`, and runtime loader remain
+the production owners. The accepted import evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`. A later
+approved encoding-only correction converted `Game/PokemonSolarus.uproject` to
+semantically identical UTF-8 without BOM, with provenance at
+`Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`.
+Final rebuilt validation and review evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`; the
+catalog SHA-256 is
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
 
-This section preserves the remediation-era validation contract. The live C10B
-and C11A/C11B validation plans in `plan/battle_mechanics/11-canonical-proof-content.md`
-and `plan/battle_mechanics/12-integration-and-release-gate.md` supersede any
+## 13. Preserved C10B validation contract
+
+This section preserves the remediation-era validation contract that C10B later
+satisfied. The live C10 and C11 records in
+`plan/battle_mechanics/11-canonical-proof-content.md` and
+`plan/battle_mechanics/12-integration-and-release-gate.md` supersede any
 future-lane wording below.
 
 No build or Automation run belongs to this documentation-only session.
@@ -1138,7 +1160,7 @@ and Data Table behavior require Editor/Automation evidence. Blueprint lifecycle
 or visual acceptance belongs only to a later package that explicitly claims
 it, with the user's visual ownership preserved.
 
-## 14. C10A completion and C10B boundary
+## 14. C10A completion and accepted C10B result
 
 The technical preconditions for C10A are now satisfied:
 
@@ -1158,7 +1180,22 @@ passed the validation defined in section 13 at
 counts, pinned-source comparisons, unique IDs, references, ordered descriptors,
 and the selected complex effect sequences all passed with zero errors. This is
 source-data acceptance only; it does not claim imported Data Tables, Automation,
-PIE, Blueprint lifecycle, or visual acceptance. Those remain C10B work.
+PIE, Blueprint lifecycle, or visual acceptance.
+
+C10B subsequently supplied the imported-data proof at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`. Exactly
+seven approved Data Tables changed, both validate-only assets retained their
+baseline hashes, Python passed 21/21, the forced-Unity Editor build succeeded,
+and 12 serial Automation reports passed 187/187 with zero issue counters.
+Source and two independent production loads produced the same catalog SHA-256:
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+The accepted final state additionally records the semantic-only `.uproject`
+UTF-8 conversion at
+`Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`
+and the final 150/150-action clean rebuild, battle-owned catalog-isolation
+remediation, 187/187 matrix, and clean reviews at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`.
+No PIE, Blueprint lifecycle, visual acceptance, or C11 work is claimed.
 
 ## 15. Historical R0 session stop line
 
@@ -1167,6 +1204,7 @@ not implement, build, run Automation, import, stage, commit, or approve any
 remediation or C10 content.
 
 This section records only the historical R0 stop boundary. It is superseded for
-current status by sections 2, 10, and 14. R1 through R7 and the source extraction
-gate and C10A source-row authoring are complete. Current continuation is
-`C10B -> C11A -> C11B`, with C10B requiring separate approval.
+current status by sections 2, 10, and 14. R1 through R7, the source-extraction
+gate, C10A source-row authoring, and C10B import/catalog acceptance are
+complete. Current continuation is `C11A -> C11B`; C11A requires a fresh
+implementation-approval task.

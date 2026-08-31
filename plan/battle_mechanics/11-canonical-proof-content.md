@@ -1,10 +1,9 @@
 # C10 — Canonical Proof Content
 
 Priority: P3  
-Status: C10A source-row authoring complete under bounded static validation;
-C10B import and integration is next
+Status: **COMPLETE — C10A source rows and C10B import/catalog accepted**
 
-Required order: C10B, C11A, then C11B
+Required continuation: C11A, then C11B
 Entry gate: Satisfied — ADR-0002 implementation PASS at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0` with fresh affected-filter and
 full-Battle evidence
@@ -45,7 +44,22 @@ manifest and descriptor/reference validation passed with zero errors. No Unreal
 asset, importer, C++, or automated test was included. Git publication remains a
 separate user-owned action.
 
-## Completed R1–C10A implementation record
+C10B was accepted on 2026-08-31. Seven-asset import evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`. Pure
+validation, seven transient no-package conversions, exact seven-table import,
+and binary backup/restore boundaries passed. The approved encoding-only
+`.uproject` correction is rooted at
+`Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`.
+Final rebuilt validation and review evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`:
+21 Python tests, a 150/150-action clean forced-Unity rebuild, and 187/187 serial
+Automation successes passed with zero issue counters. The battle-owned catalog
+isolation proof passed. The accepted source/production catalog SHA-256 is
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+Final `code-review` was APPROVED and `test-evidence-review` was
+ADEQUATE/COMPLETE.
+
+## Completed R1–C10B implementation record
 
 R1–R6 were remediation lanes for C10A, not replacements for C01–C09. Each
 extended the earlier package that already owned the relevant contract. R7 was
@@ -62,6 +76,7 @@ an independent acceptance gate and changed no implementation.
 | R6 | `74b1c1b` | Added typed optional-absence removal for Rapid Spin, Defog, and Brick Break while preserving legacy failure and exact effect order. | C02B, C05B, C07C/D |
 | R7 | no implementation commit | Independently accepted live source and exported evidence: 22 clean reports and full Battle 390/390. | C10 acceptance gate |
 | C10A | `C10A-Implementation-20260830-172323` | Authored exactly six source JSON families and passed pinned-source/static validation with counts `8/25/62/8/14/40`. | C10A source content |
+| C10B | `C10B-ImportAndCatalog-20260831-090312`; final `C10B-ReviewRemediationFinal-20260831-110350` | Added pure preflight/import coordination and focused tests, imported exactly seven Data Tables, normalized the `.uproject` encoding without semantic change, and proved source/production catalog equivalence, battle-copy isolation, and runtime behavior. | Source validator/importer tests plus existing C02B adapter/catalog and runtime loader |
 
 The detailed historical file lists and per-lane evidence hashes remain in
 `docs/c10a-canonical-proof-content-implementation-ready-draft.md`. The current
@@ -227,43 +242,38 @@ the proof scenarios. Do not add full Pokédex content.
 
 ## C10B — Import, Cross-Reference, and Behavior Validation
 
-Status: **PLANNED — NOT IMPLEMENTED OR APPROVED**.
+Status: **COMPLETE — ACCEPTED 2026-08-31**.
 
 ### Goal and discovered live dependency
 
-C10B converts the accepted source rows into production Data Tables and proves
+C10B converted the accepted source rows into production Data Tables and proved
 that the reflected rows build the same immutable catalog. It must not add new
 battle mechanics.
 
 The live runtime source requires a display name for every catalog species.
-`display_names.json` currently has only Charizard and Venusaur, while C10A now
-has eight species. Therefore the future C10B approval boundary must include the
-six missing display-name rows and `DT_InitialBattleDisplayNames.uasset`; a
-six-asset-only import cannot pass
-`PokemonSolarus.Battle.Runtime.DataSource.ProductionAssets`.
+C10B added only the six missing species display names to the existing two and
+imported `DT_InitialBattleDisplayNames.uasset` as the seventh approved asset.
+The final source and reflected table contain exactly eight species names.
 
-### Planned hand-authored file map
+### Accepted hand-authored file map
 
 | Path | One responsibility |
 |---|---|
 | new `Game/SourceData/Battle/battle_source_validation.py` | Pure, deterministic validation of all source families, stable IDs, enum names, ranges, references, effect shapes, counts, and the explicit import allowlist. It performs no Unreal mutation. |
+| new `Game/SourceData/Battle/tests/test_battle_source_validation.py` | Pure-validator success, diagnostic, count, hash/manifest, semantic-shape, and allowlist coverage. |
+| new `Game/SourceData/Battle/tests/test_import_initial_battle_data.py` | Fake-service transaction, rollback, save/post-save failure, exact save set, and binary-restore coverage. |
 | `Game/SourceData/Battle/import_initial_battle_data.py` | Two-phase Unreal import coordinator: complete preflight first, then mutate/save only the approved table allowlist, with in-memory rollback on failure. |
 | `Game/SourceData/Battle/Initial/display_names.json` | Add only Gyarados, Rotom, Pelipper, Espathra, Clefable, and Excadrill display names required by the live runtime resolver. |
 | new `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalContentTests.cpp` | Focused imported-catalog inventory, source-equivalence, descriptor, diagnostics, frozen-catalog, and deterministic-summary evidence. |
 | `Game/Source/PokemonSolarus/Private/Tests/BattleRuntimeDataSourceTests.cpp` | Replace the obsolete two-species/two-move catalog expectations with the complete imported catalog while retaining the existing runtime bundle, deterministic RNG, and fail-closed tests. |
 
-No production C++ change is expected. If source preflight, reflected import,
-the existing adapter/catalog, or runtime loader cannot support the approved
-rows, C10B must stop and return to the owning package with a separately
-approved implementation draft.
+No production C++ changed. The existing adapter/catalog and runtime loader
+supported the approved rows without a new production helper or catalog owner.
 
-The new focused C++ test must remain one canonical-content family. If it grows
-past the 500-line review trigger, split inventory/equivalence from invalid-input
-and frozen-catalog tests rather than creating a mixed monolith. Shared helpers
-belong in one focused private test-support pair only if at least two test files
-need them.
+The focused C++ test remains one 452-line canonical-content family, below the
+500-line review trigger. No additional test-support file was required.
 
-### Planned source and asset boundary
+### Accepted source and asset boundary
 
 Source JSON read/validate inputs:
 
@@ -271,7 +281,7 @@ Source JSON read/validate inputs:
 - existing `type_chart.json` and `runtime_scenario.json`; and
 - the narrowly expanded `display_names.json`.
 
-Approved future asset writes after complete preflight:
+Approved asset writes after complete preflight:
 
 - `DT_InitialBattleSpeciesForms.uasset`
 - `DT_InitialBattleNatures.uasset`
@@ -286,12 +296,11 @@ Validate-only assets:
 - `DT_InitialBattleTypeChart.uasset`
 - `DT_BattleRuntimeScenario.uasset`
 
-The importer must accept an explicit family allowlist. It may not silently
-reimport all entries in its global `TABLES` tuple. The type chart and runtime
-scenario bytes must remain unchanged unless a later approved draft expands
-scope.
+The importer accepts the exact seven-family allowlist and never defaults to all
+nine source families. Type chart and runtime scenario remained validate-only
+and byte-identical.
 
-### Two-phase import contract
+### Implemented two-phase import contract
 
 1. Record HEAD, dirty inventory, source JSON hashes, all nine Data Table hashes,
    `.uproject`, configuration, importer, and test hashes.
@@ -312,11 +321,11 @@ scope.
    runtime bundle, and run focused tests. A failure is not C10B acceptance and
    must not be hidden by process exit status.
 
-Context7 did not expose detailed UE 5.8 Python Data Table APIs during this plan
-update, so the future implementation draft must verify the exact temporary or
-rollback API against the installed UE 5.8.1 Python stubs before writing code.
+The installed UE 5.8.1 headers and shipped Python example confirmed the live
+bindings. A live probe then proved that `unreal.new_object` can create and fill
+all seven transient Data Tables without creating or saving a package asset.
 
-### Required focused evidence
+### Accepted focused evidence
 
 New prefix: `PokemonSolarus.Battle.C10B.ImportAndCatalog`.
 
@@ -344,6 +353,33 @@ Judge every run from exported `index.json`: discovered paths must match the
 requested prefix exactly; succeeded must equal performed; warnings, failures,
 not-run, in-process, and per-test issues must all be zero.
 
+The seven-asset import evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`; final
+rebuild/review evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`:
+
+- the pure validator passed exact counts and the accepted pinned-manifest hash
+  with zero diagnostics;
+- Python passed 21/21 and the clean forced-Unity Editor rebuild completed
+  150/150 actions with zero compiler warnings or errors;
+- exactly seven approved Data Tables changed; both validate-only assets and all
+  excluded source/config/protected paths retained their hashes;
+- `Game/PokemonSolarus.uproject` was converted from UTF-16 LE with BOM to
+  semantically identical UTF-8 without BOM at final SHA-256
+  `1F8CD7D128EDE4F1FA2B6D3D4E17DC0C748A7AC8C7C5B467234DF0C441BCCB17`,
+  with exact encoding provenance rooted at
+  `Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`;
+- the rebuilt 12-filter exact-path matrix passed 187/187 with every warning,
+  failure, not-run, in-process, and per-test issue counter at zero;
+- the battle-owned catalog retained original Flamethrower behavior after its
+  transient source row was mutated and the external catalog was discarded;
+- source and two independent production loads produced byte-identical summaries
+  and SHA-256
+  `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`;
+  and
+- final `code-review` was APPROVED and `test-evidence-review` was
+  ADEQUATE/COMPLETE.
+
 ### C10B completion gate
 
 C10B is complete only when:
@@ -352,11 +388,17 @@ C10B is complete only when:
 - exactly seven approved assets changed and both validate-only assets retain
   their baseline hashes;
 - imported catalog/runtime tests pass with no warning or invalid reference;
-- protected source, config, project, and unrelated dirty paths retain hashes;
+- protected source, config, and unrelated dirty paths retain hashes, while the
+  approved `.uproject` encoding-only conversion retains exact decoded text and
+  valid JSON;
 - `code-review` is APPROVED and `test-evidence-review` is ADEQUATE/COMPLETE;
 - no move/species/Ability/item/condition ID branch or second catalog owner was
   introduced; and
 - the status documents are updated only after the evidence is accepted.
 
+All listed conditions were satisfied and the user accepted the evidence on
+2026-08-31. This status reconciliation occurred only after that acceptance.
+
 Full integration scenarios remain C11A. Full build/suite and independent final
-acceptance remain C11B.
+acceptance remain C11B. Required continuation is `C11A -> C11B`; C11A requires
+a fresh implementation-approval task.

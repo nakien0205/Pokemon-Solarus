@@ -1,16 +1,16 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-30
+Status date: 2026-08-31
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
-complete under focused validation; C10A source-row authoring is complete, while
-C10B and C11 remain.
+complete under focused validation; C10A source-row authoring and C10B
+import/catalog acceptance are complete, while C11 remains.
 Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides.
-Next lane: exact C10B implementation approval for preflight, seven-table
-import, catalog/runtime validation, and focused evidence
+Next lane: a fresh C11A implementation-approval task for the deterministic
+integration matrix; C11B remains after accepted C11A
 
 ## Current Truth
 
@@ -133,6 +133,12 @@ The live battle source now contains:
   typed Partner Team Victory recovery, core-only persistent EXP/EV
   ineligibility facts, replay schema 6, and six
   `PokemonSolarus.Battle.C09C.*` Automation tests.
+- C10B's pure nine-document preflight, exact seven-family importer transaction,
+  transient no-package conversion gate, seven imported production Data Tables,
+  source/imported catalog equivalence, deterministic catalog SHA-256, and three
+  `PokemonSolarus.Battle.C10B.ImportAndCatalog.*` Automation tests. The three
+  existing runtime DataSource tests now prove the complete catalog and all
+  eight species display names.
 - Cry for Help and wild reinforcement are **Freeze until call by user**. Their
   existing code, setup, state, snapshot, replay, policy, and test scaffolding
   remains unchanged. They are not part of C09 acceptance and do not block C10.
@@ -168,8 +174,9 @@ already existed, so it cannot explain or restore those missing files.
   closeout passed, and the later behavior-preserving Battle Engine and executor
   structural splits were validated and published. C10A remediation R1-R7 and
   reproducible pinned-source extraction are complete. C10A populated the exact
-  six approved source JSON files and passed bounded static validation. C10B is
-  next. C11 remains blocked behind C10.
+  six approved source JSON files and passed bounded static validation. C10B
+  imported exactly seven approved Data Tables and passed its final acceptance
+  gate. C11A is next; C11B remains blocked behind accepted C11A.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1225,13 +1232,51 @@ B00B accepted evidence:
   `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323` with exact
   family counts and zero source-fact, reference, or descriptor errors. No
   Unreal asset, C++, automated test, or visual change was included. Git
-  publication remains separate. C10B import and integration is the next gate.
+  publication remains separate. C10B later imported and accepted this source.
 - The canonical package plans now carry the later R1–R6 implementation records
   under their actual C01–C09 owners. R7 remains a C10-wide independent gate,
-  not an earlier-package implementation. Live C10B planning also records the
-  required display-name dependency: eight imported species require eight
-  display names, so the narrow future import boundary is seven changed Data
-  Tables; type chart and runtime scenario remain validate-only.
+  not an earlier-package implementation. C10B resolved the display-name
+  dependency: eight imported species now have eight display names. Its narrow
+  import boundary changed seven Data Tables; type chart and runtime scenario
+  remained validate-only and byte-identical.
+
+## C10B Import and Catalog Status
+
+- C10B was accepted on 2026-08-31. Its final evidence root is
+  `Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`.
+- Hand-authored ownership is limited to the pure source validator, its Python
+  tests, the seven-family importer coordinator and its tests, the six added
+  display-name rows, one focused canonical-content C++ test family, and the
+  narrow runtime DataSource test update. The existing reflected row structs,
+  Data Table adapter, immutable catalog, and runtime loader remain the
+  production owners; no production C++ changed.
+- Exactly these production Data Tables changed: species/forms, natures, moves,
+  Abilities, items, conditions, and display names. The type-chart and runtime-
+  scenario assets retained their baseline SHA-256 values.
+- Pure validation passed exact counts `8/25/62/8/14/40`, 18 types, 324 type
+  pairs, eight display names, and one runtime scenario. Seven transient
+  no-package conversions passed before any production table load. The final
+  Python suite passed 21/21 and the forced-Unity Editor build succeeded.
+- The rebuilt exact-path Automation manifest passed 187/187 across C10B,
+  Runtime DataSource, C02B, C04B, C05B, C07B/C/D, C08B/C, and C09B/C. Warning,
+  failure, not-run, in-process, and per-test issue counters were all zero.
+- Source, production load 1, and production load 2 produced byte-identical
+  catalog summaries with SHA-256
+  `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+- The approved final project state converts `Game/PokemonSolarus.uproject`
+  from UTF-16 LE with BOM to semantically identical UTF-8 without BOM. Encoding
+  provenance is rooted at
+  `Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`;
+  the final project SHA-256 is
+  `1F8CD7D128EDE4F1FA2B6D3D4E17DC0C748A7AC8C7C5B467234DF0C441BCCB17`.
+- Final rebuilt evidence is rooted at
+  `Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`.
+  The clean forced-Unity rebuild completed 150/150 actions, the exact-path
+  matrix passed 187/187, the battle-owned catalog isolation proof passed,
+  final `code-review` was APPROVED, and `test-evidence-review` was
+  ADEQUATE/COMPLETE.
+- Required continuation is `C11A -> C11B`. C11A requires a fresh
+  implementation-approval task; no C11 work was included in C10B.
 
 ## Goal
 

@@ -230,11 +230,20 @@ namespace BattleRuntimeDataSourceTests
 
 	void TestAbilities(FAutomationTestBase& Test, const FBattleDefinitionCatalog& Catalog)
 	{
-		Test.TestEqual(TEXT("The approved catalog has two Abilities"), Catalog.GetAbilities().Num(), 2);
-		Test.TestNotNull(TEXT("Blaze exists"),
-			Catalog.FindAbility(MakeDefinitionId<FAbilityId>(TEXT("Ability.Blaze"))));
-		Test.TestNotNull(TEXT("Overgrow exists"),
-			Catalog.FindAbility(MakeDefinitionId<FAbilityId>(TEXT("Ability.Overgrow"))));
+		static const TCHAR* Expected[] =
+		{
+			TEXT("Ability.Blaze"), TEXT("Ability.Overgrow"),
+			TEXT("Ability.Intimidate"), TEXT("Ability.Levitate"),
+			TEXT("Ability.Drizzle"), TEXT("Ability.SpeedBoost"),
+			TEXT("Ability.MagicGuard"), TEXT("Ability.MoldBreaker")
+		};
+		Test.TestEqual(TEXT("The approved catalog has eight Abilities"), Catalog.GetAbilities().Num(), 8);
+		for (const TCHAR* AbilityName : Expected)
+		{
+			Test.TestNotNull(
+				FString::Printf(TEXT("%s exists"), AbilityName),
+				Catalog.FindAbility(MakeDefinitionId<FAbilityId>(AbilityName)));
+		}
 	}
 
 	void TestMoveCore(
@@ -429,15 +438,29 @@ bool FBattleRuntimeProductionDataSourceTest::RunTest(const FString& Parameters)
 	TestMove(*this, TEXT("Venusaur"), *Venusaur,
 		MakeDefinitionId<FMoveId>(TEXT("Move.VineWhip")), 25);
 
-	FText DisplayName;
-	TestTrue(TEXT("Charizard display name resolves"),
-		Bundle.DisplayNames->TryResolveSpeciesName(
-			MakeDefinitionId<FSpeciesFormId>(TEXT("Species.Charizard")), DisplayName));
-	TestEqual(TEXT("Charizard display text is copied"), DisplayName.ToString(), FString(TEXT("Charizard")));
-	TestTrue(TEXT("Venusaur display name resolves"),
-		Bundle.DisplayNames->TryResolveSpeciesName(
-			MakeDefinitionId<FSpeciesFormId>(TEXT("Species.Venusaur")), DisplayName));
-	TestEqual(TEXT("Venusaur display text is copied"), DisplayName.ToString(), FString(TEXT("Venusaur")));
+	static const TPair<const TCHAR*, const TCHAR*> ExpectedDisplayNames[] =
+	{
+		{TEXT("Species.Charizard"), TEXT("Charizard")},
+		{TEXT("Species.Venusaur"), TEXT("Venusaur")},
+		{TEXT("Species.Gyarados"), TEXT("Gyarados")},
+		{TEXT("Species.Rotom"), TEXT("Rotom")},
+		{TEXT("Species.Pelipper"), TEXT("Pelipper")},
+		{TEXT("Species.Espathra"), TEXT("Espathra")},
+		{TEXT("Species.Clefable"), TEXT("Clefable")},
+		{TEXT("Species.Excadrill"), TEXT("Excadrill")}
+	};
+	for (const auto& Expected : ExpectedDisplayNames)
+	{
+		FText DisplayName;
+		TestTrue(
+			FString::Printf(TEXT("%s display name resolves"), Expected.Key),
+			Bundle.DisplayNames->TryResolveSpeciesName(
+				MakeDefinitionId<FSpeciesFormId>(Expected.Key), DisplayName));
+		TestEqual(
+			FString::Printf(TEXT("%s display text is copied"), Expected.Key),
+			DisplayName.ToString(),
+			FString(Expected.Value));
+	}
 
 	TestPolicies(*this, Bundle.Engine->ExportReplayInputs().Setup);
 	TestTrue(TEXT("The first move consumes deterministic seeded randomness"),
@@ -469,11 +492,11 @@ bool FBattleRuntimeProductionCatalogEquivalenceTest::RunTest(const FString& Para
 	}
 
 	TestTrue(TEXT("The imported catalog is valid"), Catalog.IsValid());
-	TestEqual(TEXT("The approved catalog has two species"), Catalog.GetSpeciesForms().Num(), 2);
-	TestEqual(TEXT("The approved catalog has two moves"), Catalog.GetMoves().Num(), 2);
-	TestEqual(TEXT("The approved catalog has one neutral nature"), Catalog.GetNatures().Num(), 1);
-	TestEqual(TEXT("The approved catalog has no item definitions"), Catalog.GetItems().Num(), 0);
-	TestEqual(TEXT("The approved catalog has one condition"), Catalog.GetConditions().Num(), 1);
+	TestEqual(TEXT("The approved catalog has eight species"), Catalog.GetSpeciesForms().Num(), 8);
+	TestEqual(TEXT("The approved catalog has sixty-two moves"), Catalog.GetMoves().Num(), 62);
+	TestEqual(TEXT("The approved catalog has twenty-five natures"), Catalog.GetNatures().Num(), 25);
+	TestEqual(TEXT("The approved catalog has fourteen items"), Catalog.GetItems().Num(), 14);
+	TestEqual(TEXT("The approved catalog has forty conditions"), Catalog.GetConditions().Num(), 40);
 	TestAbilities(*this, Catalog);
 	TestSpecies(*this, Catalog, TEXT("Species.Charizard"),
 		EPokemonType::Fire, EPokemonType::Flying, {78, 84, 78, 109, 85, 100},

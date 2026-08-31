@@ -1,10 +1,26 @@
 # C11 — Full Integration and Release Gate
 
 Priority: Mandatory completion gate  
-Status: Planned; C10A is complete and C11 remains blocked only by C10B; the
-ADR-0002 implementation closeout is already PASS
+Status: Planned; C10A and C10B are complete and accepted; C11A is next but is
+not implemented or approved; the ADR-0002 implementation closeout is already
+PASS
 
 Required order: C11A, then C11B
+
+Accepted C10B import evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`; final
+rebuild/review evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`.
+The approved project-encoding conversion provenance is rooted at
+`Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`,
+and C11A must begin from the UTF-8-without-BOM project SHA-256
+`1F8CD7D128EDE4F1FA2B6D3D4E17DC0C748A7AC8C7C5B467234DF0C441BCCB17`. The
+production catalog accepted for C11A has SHA-256
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+C10B imported exactly seven approved Data Tables; type chart and runtime
+scenario remained byte-identical. C11A must begin in a fresh
+implementation-approval task and must not reinterpret C10B acceptance as C11
+write authority.
 
 ## Objective
 

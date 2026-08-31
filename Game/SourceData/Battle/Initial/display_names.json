@@ -6,5 +6,29 @@
   {
     "Name": "Species.Venusaur",
     "DisplayName": "Venusaur"
+  },
+  {
+    "Name": "Species.Gyarados",
+    "DisplayName": "Gyarados"
+  },
+  {
+    "Name": "Species.Rotom",
+    "DisplayName": "Rotom"
+  },
+  {
+    "Name": "Species.Pelipper",
+    "DisplayName": "Pelipper"
+  },
+  {
+    "Name": "Species.Espathra",
+    "DisplayName": "Espathra"
+  },
+  {
+    "Name": "Species.Clefable",
+    "DisplayName": "Clefable"
+  },
+  {
+    "Name": "Species.Excadrill",
+    "DisplayName": "Excadrill"
   }
 ]

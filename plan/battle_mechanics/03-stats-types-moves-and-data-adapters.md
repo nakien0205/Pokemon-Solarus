@@ -1,7 +1,8 @@
 # C02 — Stats, Types, Moves, and Data Adapters
 
 Priority: P0  
-Status: C02 complete under user-limited focused validation  
+Status: C02 complete under user-limited focused validation; C10B imported-
+catalog proof accepted 2026-08-31 without changing C02 production ownership
 Hard dependency: C01B complete  
 Session shape: C02A and C02B are logically parallel
 
@@ -382,5 +383,33 @@ bounded C10 catalog. They did not reopen C02 or weaken its fail-closed rules:
 
 The accepted C10A JSON uses these append-only values. Unknown names,
 incompatible flag/effect combinations, bad references, and malformed ranges
-remain catalog errors. C10B must prove the imported reflected rows produce the
-same immutable definitions; it must not add another definition owner.
+remain catalog errors.
+
+## C10B imported-catalog proof — 2026-08-31
+
+C10B proved that source JSON converted through the live reflected row structs
+and the seven imported production Data Tables produces the same complete
+immutable catalog through `FBattleDataTableAdapter`. It added no second catalog
+owner and changed no C02 production header or source file.
+
+The pure validator and importer coordinator are owned by
+`Game/SourceData/Battle`; focused import/catalog proof is owned by
+`BattleCanonicalContentTests.cpp`; and the existing runtime DataSource tests
+retain runtime-bundle ownership. `BattleDataTableRows.h`,
+`BattleDataTableAdapter.*`, `BattleDefinitionCatalog.*`, and
+`BattleDataTableRuntimeSource.cpp` remain the production schema, adapter,
+catalog, and loader owners.
+
+Accepted evidence is rooted at
+`Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`. The
+source and two independent production summaries matched at SHA-256
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+The final C10B/Runtime/affected matrix passed 187/187 with zero issue counters.
+The final accepted project state also includes a semantic-only `.uproject`
+conversion to UTF-8 without BOM, recorded at
+`Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`,
+and final rebuilt validation/remediation evidence at
+`Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`.
+That final root proves a 150/150-action clean build, battle-owned catalog
+isolation, the same 187/187 matrix, and clean code/evidence reviews.
+Required continuation is `C11A -> C11B`; this record authorizes no C11 work.
