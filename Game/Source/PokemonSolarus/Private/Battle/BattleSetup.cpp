@@ -2,7 +2,7 @@
 
 #include "Battle/BattleEncounterPolicy.h"
 
-namespace
+namespace BattleSetupPrivate
 {
 	bool IsKnownBattleSetupEncounterKind(const EBattleEncounterKind Value)
 	{
@@ -232,6 +232,8 @@ bool FBattleSetup::TryCreate(
 	FBattleSetup& OutSetup,
 	EBattleSetupValidationError& OutError)
 {
+	using namespace BattleSetupPrivate;
+
 	OutSetup = FBattleSetup();
 	OutError = EBattleSetupValidationError::None;
 

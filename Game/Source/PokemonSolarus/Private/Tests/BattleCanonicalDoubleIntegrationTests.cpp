@@ -166,9 +166,6 @@ int32 MovePP(
 		[MoveId](const FBattleMoveSlotSetup& Value) { return Value.MoveId == MoveId; });
 	return Move == nullptr ? INDEX_NONE : Move->CurrentPP;
 }
-} // namespace BattleCanonicalDoubleIntegrationPrivate
-
-using namespace BattleCanonicalDoubleIntegrationPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FC11ADoubleOrder, "PokemonSolarus.Battle.C11A.Double.Order.PrioritySpeedTiesTrickRoomQuickClawAndLockedStability", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FC11ADoubleOrder::RunTest(const FString& Parameters)
@@ -757,5 +754,7 @@ bool FC11ADoubleSwitching::RunTest(const FString& Parameters)
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, DuplicateEvidence, TEXT("duplicate reserve"))
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, Evidence, TEXT("distinct double switches"));
 }
+
+} // namespace BattleCanonicalDoubleIntegrationPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

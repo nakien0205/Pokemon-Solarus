@@ -1,10 +1,9 @@
 # C11 — Full Integration and Release Gate
 
 Priority: Mandatory completion gate  
-Status: In progress; C10A and C10B are complete and accepted. C11A's test-only
-remediation is validated but remains `INCOMPLETE_CATALOG_DEFERRED`. Under the
-user-approved special exception, C11B is permitted but not started. The
-ADR-0002 implementation closeout is already PASS.
+Status: In progress; C10A, C10B, and C11B are complete and accepted. C11A's
+test-only remediation is validated but remains `INCOMPLETE_CATALOG_DEFERRED`,
+so full C11 remains open. The ADR-0002 implementation closeout is already PASS.
 
 Default order: C11A, then C11B. The 2026-08-31 user exception permits C11B to
 begin with six explicit C11A catalog-data gaps still deferred; it does not mark
@@ -212,10 +211,34 @@ needed data appears so the deferral cannot remain silent.
 
 ## C11B — Build, Automation, and Evidence Gate
 
-Status: **USER PERMITTED — NOT STARTED**. C11B writes no battle behavior. The
-user explicitly permits it to begin while C11A remains
-`INCOMPLETE_CATALOG_DEFERRED`. C11B must preserve the six-gap register and may
-not claim full C11 completion while any required deferred retest remains open.
+Status: **COMPLETE — INDEPENDENT FINAL REVIEW PASS**. C11B writes no battle
+behavior. The user explicitly permitted it to proceed while C11A remained
+`INCOMPLETE_CATALOG_DEFERRED`. C11B preserved the six-gap register and does not
+claim full C11 completion while any required deferred retest remains open.
+
+Canonical C11B evidence is rooted at
+`Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
+
+- Exactly 14 approved tracked C++ files changed. The remediation contains
+  file-private helpers and test bodies in unique named namespaces and changes no
+  battle behavior, public API, Automation identity, data, asset, configuration,
+  RNG ownership, event order, or replay schema.
+- The normal Editor build and exact forced-Unity build with
+  `-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` both linked
+  fresh DLLs. Final DLL SHA-256 is
+  `906EA5B045F31677DE8015AB1FAB5D15B59D255B5CBA22F4C787A24A6092AA56`.
+- Rebuilt source and binary identity discovery matched exactly at `418/418`
+  with zero duplicates.
+- All 29 serial reports were accepted at `836/836` aggregate, including
+  `418/418` for the full `PokemonSolarus.Battle` prefix. Every exported warning,
+  failure, error, not-run, in-process, and per-test issue counter was zero.
+- Fresh C10B digest proof matched
+  `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+  Fresh C11A proof passed all 25 identities, six declared gap messages, and
+  seven data-arrival guards while preserving `INCOMPLETE_CATALOG_DEFERRED`.
+- Protected hashes matched `303/303` with exactly the approved 14 changes and
+  zero unapproved changes. The canonical evidence index contains 86 files with
+  verified hashes.
 
 Before running Unreal:
 
@@ -317,6 +340,14 @@ Run `code-review` and `test-evidence-review` in a fresh read-only session after
 the final build/reports exist. Fix every validated in-scope finding, then
 regenerate affected build and Automation evidence before acceptance. This
 review is not replaced by green counters.
+
+The required independent read-only Final Review completed on 2026-09-01. It
+inspected the actual 14-file diff and canonical evidence, verified every C11B
+claim above, found no unresolved Critical or High findings, and returned final
+C11B verdict **PASS**. No missing in-scope mechanic, hidden untested branch,
+stale canonical evidence, hidden coupling, nondeterminism, content-specific
+branch, or scope creep was found. `C11A-DATA-001` through `C11A-DATA-006` remain
+the explicit catalog-data exceptions and continue to block full C11 completion.
 
 ## Definition of Complete
 

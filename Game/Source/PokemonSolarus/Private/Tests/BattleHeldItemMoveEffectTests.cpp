@@ -838,9 +838,6 @@ namespace BattleHeldItemMoveEffectTestsPrivate
 		State.TriggerFramework.DrainLifecycleFacts(IgnoredFacts);
 		return true;
 	}
-}
-
-using namespace BattleHeldItemMoveEffectTestsPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC10HeldItemMovesKnockOffMutationTest,
@@ -2808,5 +2805,7 @@ bool FBattleC10HeldItemMovesAtomicRollbackTest::RunTest(
 	}
 	return bValid;
 }
+
+} // namespace BattleHeldItemMoveEffectTestsPrivate
 
 #endif

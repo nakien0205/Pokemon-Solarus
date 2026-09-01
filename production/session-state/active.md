@@ -1,10 +1,10 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C11 full integration and release gate
-Task: Continue to C11B under the approved C11A catalog-data exception
+Task: C11B accepted; full C11 remains open on six C11A catalog-data gaps
 <!-- /STATUS -->
 
-# Active Project State — 2026-08-31
+# Active Project State — 2026-09-01
 
 ## Current state
 
@@ -29,6 +29,10 @@ Task: Continue to C11B under the approved C11A catalog-data exception
 - C10B was accepted on 2026-08-31. Exactly seven approved production Data
   Tables changed after pure validation and seven transient conversions. The
   type-chart and runtime-scenario assets remained byte-identical.
+- C11B's normal-Unity compatibility remediation, build/full-suite evidence
+  gate, and independent Final Review are complete and accepted as **PASS**.
+  Full C11 remains open because `C11A-DATA-001` through `C11A-DATA-006` are
+  still deferred.
 
 ## Current C11A result
 
@@ -66,8 +70,35 @@ required data appears so coverage cannot remain silently deferred.
 
 The user approved a special sequencing exception on 2026-08-31: C11B may be
 implemented while these six gaps remain declared. This does not mark C11A fully
-complete and does not waive the deferred retests. C11B status is
-`USER_PERMITTED_NOT_STARTED`.
+complete and does not waive the deferred retests. C11B used that exception and
+is now complete; the exception does not permit a full C11 completion claim.
+
+## Accepted C11B result
+
+C11B is independently accepted as **PASS**. Its canonical evidence is rooted at
+`Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
+The approved remediation changed exactly 14 tracked C++ files to contain
+file-private helpers and test bodies in unique named namespaces. It changed no
+battle behavior, public API, Automation identity, data, asset, configuration,
+RNG ownership, event order, or replay schema.
+
+The normal Editor build and the exact forced-Unity build with
+`-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` both produced
+fresh DLL links. The final accepted DLL SHA-256 is
+`906EA5B045F31677DE8015AB1FAB5D15B59D255B5CBA22F4C787A24A6092AA56`.
+Source and rebuilt-binary discovery matched exactly at `418/418` with zero
+duplicates. All 29 serial reports were accepted: `836/836` aggregate and
+`418/418` for the complete `PokemonSolarus.Battle` prefix, with every exported
+test issue counter zero.
+
+Fresh C10B digest proof retained
+`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
+Fresh C11A proof passed all 25 identities, the six declared gap messages, and
+seven data-arrival guards while preserving `INCOMPLETE_CATALOG_DEFERRED`.
+Protected hashes matched `303/303` with exactly the approved 14 changes and no
+unapproved changes. The canonical evidence index contains 86 verified files.
+The fresh independent `code-review` and `test-evidence-review` found no
+unresolved Critical or High findings and returned final C11B verdict **PASS**.
 
 ## Accepted C10B result
 
@@ -149,6 +180,11 @@ C10B acceptance by itself did not authorize C11A or C11B implementation.
   `Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`.
   The consolidated result is `completion-audit.json`; the six explicit data
   gaps and later retests are in `deferred-catalog-gaps.json`.
+- Accepted C11B normal-Unity remediation and release-gate evidence:
+  `Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
+  The canonical inventory is `evidence-index.json`; `completion-audit.json`
+  records the pre-review validation closeout, and the subsequent independent
+  read-only Final Review accepted C11B as **PASS**.
 - Live C10 and C11 contracts:
   `plan/battle_mechanics/11-canonical-proof-content.md` and
   `plan/battle_mechanics/12-integration-and-release-gate.md`.
@@ -175,8 +211,8 @@ C10B acceptance by itself did not authorize C11A or C11B implementation.
 
 ## Next
 
-1. Start C11B in a fresh task under the explicit catalog-data exception.
-2. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED`; do not reinterpret C11B
-   permission as full C11A acceptance.
-3. Run the six deferred retests when their required accepted catalog data
+1. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED` and full C11 open.
+2. Run the six deferred retests when their required accepted catalog data
    arrives, then perform the independent final C11 acceptance gate.
+3. Do not begin Cry for Help/reinforcement or later presentation lanes without
+   a separate user call and their own approval workflow.

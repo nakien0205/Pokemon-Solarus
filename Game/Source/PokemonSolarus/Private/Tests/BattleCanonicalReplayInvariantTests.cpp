@@ -194,9 +194,6 @@ bool RejectDecisionWithoutMutation(
 	}
 	return true;
 }
-} // namespace BattleCanonicalReplayInvariantPrivate
-
-using namespace BattleCanonicalReplayInvariantPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FC11AReplayTwins, "PokemonSolarus.Battle.C11A.ReplayInvariants.Twins.EventsRngSnapshotsOutcomeCaptureItemsAndBytes", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FC11AReplayTwins::RunTest(const FString& Parameters)
@@ -618,5 +615,7 @@ bool FC11AReplayObservers::RunTest(const FString& Parameters)
 	return bTwins
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, Evidence, TEXT("observer reveal evolution"));
 }
+
+} // namespace BattleCanonicalReplayInvariantPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

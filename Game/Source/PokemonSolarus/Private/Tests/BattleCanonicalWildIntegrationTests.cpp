@@ -136,9 +136,6 @@ bool RejectWithoutMutation(
 	}
 	return true;
 }
-} // namespace BattleCanonicalWildIntegrationPrivate
-
-using namespace BattleCanonicalWildIntegrationPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FC11AWildRun, "PokemonSolarus.Battle.C11A.WildPartner.Run.TrainerBlockedWildFailureSuccessCounterAndRng", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FC11AWildRun::RunTest(const FString& Parameters)
@@ -616,5 +613,7 @@ bool FC11AWildFlee::RunTest(const FString& Parameters)
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, Succeeded, TEXT("nonterminal WildFlee"))
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, Terminal, TEXT("terminal WildFlee"));
 }
+
+} // namespace BattleCanonicalWildIntegrationPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

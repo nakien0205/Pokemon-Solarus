@@ -1,17 +1,19 @@
 # Global Battle Mechanics Roadmap
 
-Status date: 2026-08-31
+Status date: 2026-09-01
 Roadmap status: Approved and materialized; B00 through C09 package delivery,
 the ADR-0002 closeout, and the behavior-preserving Battle structural splits are
 complete under focused validation; C10A source-row authoring and C10B
-import/catalog acceptance are complete. C11A's test-only remediation is
-validated but remains `INCOMPLETE_CATALOG_DEFERRED`; C11 remains open.
+import/catalog acceptance and C11B's build/full-suite/evidence gate are
+complete. C11A's test-only remediation is validated but remains
+`INCOMPLETE_CATALOG_DEFERRED`; C11 remains open.
 Current implementation state: ADR-0002 passed at
 `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`, and the required
 behavior-preservation validation is complete. A non-runtime executor
 helper-declaration follow-up is documented in the structural guides.
-Next lane: C11B under the user's special catalog-data exception. C11A remains
-not fully complete with six declared catalog-dependent retests.
+Current gate: C11B is independently accepted as **PASS** under the user's
+special catalog-data exception. C11A remains not fully complete with six
+declared catalog-dependent retests, so full C11 completion is prohibited.
 
 ## Current Truth
 
@@ -180,7 +182,10 @@ already existed, so it cannot explain or restore those missing files.
   gate. C11A added exactly ten test-only files and 25 Automation identities;
   its remediation evidence passed, but six accepted-catalog branches remain
   declared and guarded under `INCOMPLETE_CATALOG_DEFERRED`. The user explicitly
-  permits C11B to begin without treating C11A as fully complete.
+  permitted C11B to proceed without treating C11A as fully complete. C11B's
+  normal and exact forced-Unity builds, rebuilt identity discovery, 29 serial
+  Automation reports, protected-hash closeout, and independent Final Review all
+  passed. C11B is complete; full C11 is not.
 - B00A verified installed UE 5.8.1, changelist `56057345`, and a successful
   `PokemonSolarusEditor Win64 Development` target evaluation.
 - The focused calculator run discovered and passed exactly four tests: 4
@@ -1285,8 +1290,22 @@ B00B accepted evidence:
   Unity build and serial `4/10/4/6/5/25` filters passed with zero issue
   counters, and protected hashes matched `251/251`. C11A remains
   `INCOMPLETE_CATALOG_DEFERRED` for six logged catalog-data gaps. The user
-  permits C11B to proceed under this special exception; no C11B implementation
-  has started.
+  permitted C11B to proceed under this special exception without waiving those
+  gaps.
+- C11B is complete and independently accepted as **PASS**. Canonical evidence
+  is rooted at
+  `Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
+  The approved 14-file normal-Unity remediation changed no battle behavior or
+  public API. Normal and exact forced-Unity builds linked fresh DLLs; the final
+  DLL SHA-256 is
+  `906EA5B045F31677DE8015AB1FAB5D15B59D255B5CBA22F4C787A24A6092AA56`.
+  Source and binary discovery matched `418/418` with zero duplicates. All 29
+  serial reports were accepted at `836/836` aggregate, including `418/418` for
+  the full Battle prefix. Fresh C10B digest and C11A exception proofs passed,
+  protected hashes matched `303/303` with exactly 14 approved changes, and the
+  86-file canonical evidence index verified. The independent Final Review found
+  no unresolved Critical or High findings. Full C11 remains open on
+  `C11A-DATA-001` through `C11A-DATA-006`.
 
 ## Goal
 

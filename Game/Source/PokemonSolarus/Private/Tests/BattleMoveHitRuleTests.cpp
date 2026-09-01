@@ -497,9 +497,6 @@ namespace BattleMoveHitRuleTestsPrivate
 			OutBytes,
 			Rejection);
 	}
-}
-
-using namespace BattleMoveHitRuleTestsPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC10HitRulesContractTest,
@@ -1112,5 +1109,7 @@ bool FBattleC10HitRulesAtomicRollbackTest::RunTest(const FString& Parameters)
 		HasNoMajorStatus(Engine.Get()));
 	return bValid;
 }
+
+} // namespace BattleMoveHitRuleTestsPrivate
 
 #endif

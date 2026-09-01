@@ -791,9 +791,6 @@ namespace BattleCanonicalSingleEffectsPrivate
 		bValid &= ValidateGlobalInvariants(Test, Fixture.Catalog, RecycleEvidence, TEXT("Move.Recycle"));
 		return bValid;
 	}
-}
-
-using namespace BattleCanonicalSingleEffectsPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FC11AStatusVolatileCrossInteractions,
@@ -922,5 +919,7 @@ bool FC11ABagAbilityItemIntegration::RunTest(const FString& Parameters)
 		&& RunAbilityItemBehaviorMatrix(*this, Fixture)
 		&& RunHeldItemMoveMatrix(*this, Fixture);
 }
+
+} // namespace BattleCanonicalSingleEffectsPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

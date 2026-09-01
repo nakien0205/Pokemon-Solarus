@@ -154,9 +154,6 @@ bool RejectWithoutMutation(
 	}
 	return true;
 }
-} // namespace BattleCanonicalPartnerIntegrationPrivate
-
-using namespace BattleCanonicalPartnerIntegrationPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FC11APartnerSelection, "PokemonSolarus.Battle.C11A.WildPartner.Partner.SelectionOrderVisibilityAndAllyTargeting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FC11APartnerSelection::RunTest(const FString& Parameters)
@@ -443,5 +440,7 @@ bool FC11APartnerContinuation::RunTest(const FString& Parameters)
 		&& Facts[0].BattlerId == MakeNumericId<FBattlerId>(31));
 	return bTwins && ValidateGlobalInvariants(*this, Fixture.Catalog, Evidence, TEXT("partner victory"));
 }
+
+} // namespace BattleCanonicalPartnerIntegrationPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -513,9 +513,6 @@ namespace BattleMoveWeatherRuleTestsPrivate
 		return FBattleDataTableAdapter::BuildCatalog(
 			Tables, OutCatalog, OutDiagnostics);
 	}
-}
-
-using namespace BattleMoveWeatherRuleTestsPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC10WeatherMoveRulesContractTest,
@@ -1744,5 +1741,7 @@ bool FBattleC10WeatherMoveRulesAtomicTest::RunTest(const FString& Parameters)
 		IsReturnedResolutionAppendedExactlyOnce(*LateFailure, Rejected));
 	return bValid;
 }
+
+} // namespace BattleMoveWeatherRuleTestsPrivate
 
 #endif

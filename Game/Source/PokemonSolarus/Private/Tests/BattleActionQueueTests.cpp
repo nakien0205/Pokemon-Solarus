@@ -6,7 +6,7 @@
 #include "BattleTestRandom.h"
 #include "Misc/AutomationTest.h"
 
-namespace
+namespace BattleActionQueueTestsPrivate
 {
 	using BattleTest::MakeActiveSlotId;
 	using BattleTest::MakeDefinitionId;
@@ -525,7 +525,6 @@ namespace
 		Spec.Candidates = MoveTemp(Candidates);
 		return Spec;
 	}
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC04ASelectionLegalityTest,
@@ -1084,5 +1083,7 @@ bool FBattleC04AReplayTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Identical setup, decisions, and RNG produce identical canonical bytes"), FirstBytes == SecondBytes);
 	return true;
 }
+
+} // namespace BattleActionQueueTestsPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

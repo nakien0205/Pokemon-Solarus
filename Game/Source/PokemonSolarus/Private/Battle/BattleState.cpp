@@ -3,7 +3,7 @@
 #include "Battle/BattleWildFlow.h"
 
 #include "Battle/BattleFieldSideConditions.h"
-namespace
+namespace BattleStatePrivate
 {
 	bool IsKnownSide(const EBattleSide Value)
 	{
@@ -435,6 +435,8 @@ bool FBattleEngineState::TryCreate(
 	TUniquePtr<FBattleEngineState>& OutState,
 	EBattleStateValidationError& OutError)
 {
+	using namespace BattleStatePrivate;
+
 	OutState.Reset();
 	OutError = EBattleStateValidationError::None;
 	if (!Setup.IsValid() || !Random.IsValid())
@@ -655,6 +657,8 @@ bool FBattleEngineState::TryCreate(
 
 bool FBattleEngineState::ValidateInvariants(EBattleStateValidationError& OutError) const
 {
+	using namespace BattleStatePrivate;
+
 	OutError = EBattleStateValidationError::None;
 	auto Fail = [&OutError](const EBattleStateValidationError Error)
 	{

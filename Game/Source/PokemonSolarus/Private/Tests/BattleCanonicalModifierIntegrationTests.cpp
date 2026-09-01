@@ -156,9 +156,6 @@ namespace BattleCanonicalModifierPrivate
 		}
 		return bValid;
 	}
-}
-
-using namespace BattleCanonicalModifierPrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FC11AB00BModifierOrderTrace,
@@ -440,5 +437,7 @@ bool FC11AB00BModifierOrderTrace::RunTest(const FString& Parameters)
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, LevitateControl, TEXT("Levitate Ground control"))
 		&& ValidateGlobalInvariants(*this, Fixture.Catalog, MoldBreaker, TEXT("Mold Breaker Levitate bypass"));
 }
+
+} // namespace BattleCanonicalModifierPrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS

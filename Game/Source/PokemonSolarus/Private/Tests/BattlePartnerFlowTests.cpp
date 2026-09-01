@@ -506,9 +506,6 @@ namespace BattlePartnerFlowTests
 		check(bSerialized);
 		return Evidence;
 	}
-}
-
-using namespace BattlePartnerFlowTests;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FBattleC09CControlVisibilityTest,
@@ -831,5 +828,7 @@ bool FBattleADR00023E6PartnerRecoveryOwnedPlanTest::RunTest(
 			&& !Player->MajorStatusId.IsValid());
 	return bValid;
 }
+
+} // namespace BattlePartnerFlowTests
 
 #endif // WITH_DEV_AUTOMATION_TESTS

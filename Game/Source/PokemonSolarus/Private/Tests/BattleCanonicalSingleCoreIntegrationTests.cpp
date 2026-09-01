@@ -356,9 +356,6 @@ namespace BattleCanonicalSingleCorePrivate
 		}
 		return bValid;
 	}
-}
-
-using namespace BattleCanonicalSingleCorePrivate;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FC11AProductionCatalogAndCalculatorFixtures,
@@ -608,5 +605,7 @@ bool FC11ASwitchingMatrix::RunTest(const FString& Parameters)
 		&& RunForcedScenarios(*this, Fixture)
 		&& RunShiftScenarios(*this, Fixture);
 }
+
+} // namespace BattleCanonicalSingleCorePrivate
 
 #endif // WITH_DEV_AUTOMATION_TESTS
