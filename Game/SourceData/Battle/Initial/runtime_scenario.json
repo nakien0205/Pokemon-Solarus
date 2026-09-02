@@ -79,7 +79,7 @@
         "Moves": [
           {
             "SlotIndex": 0,
-            "MoveId": "Move.Flamethrower",
+            "MoveId": "Move.QuickAttack",
             "PPUps": 0
           }
         ]

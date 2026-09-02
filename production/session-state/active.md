@@ -1,12 +1,18 @@
 <!-- STATUS -->
 Epic: Battle System
 Feature: C11 full integration and release gate
-Task: C11B accepted; full C11 remains open on six C11A catalog-data gaps
+Task: One-Pokemon playable prototype accepted; full C11 remains open on six C11A catalog-data gaps
 <!-- /STATUS -->
 
-# Active Project State — 2026-09-01
+# Active Project State — 2026-09-02
 
 ## Current state
+
+- The reusable one-Pokemon playable battle prototype is accepted complete as of
+  2026-09-02. A normal `PokemonSolarusEditor Win64 Development` build
+  succeeded (target already up to date), and the project owner reported one
+  complete FoundationMap PIE battle. This closes only the bounded prototype;
+  it does not close C11A or change C11B.
 
 - B00 through C10 are complete under their bounded validation. C10A source-row
   authoring and C10B import/catalog acceptance are complete. C11A's test-only
@@ -210,8 +216,9 @@ C10B acceptance by itself did not authorize C11A or C11B implementation.
 
 ## Next
 
-1. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED` and full C11 open.
-2. Run the six deferred retests when their required accepted catalog data
-   arrives, then perform the independent final C11 acceptance gate.
+1. Create and approve a narrow design for the next playable milestone: four
+   damage-only moves for each Pokemon and player move selection.
+2. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED` and full C11 open; run the
+   six deferred retests only when their required accepted catalog data arrives.
 3. Do not begin Cry for Help/reinforcement or later presentation lanes without
    a separate user call and their own approval workflow.

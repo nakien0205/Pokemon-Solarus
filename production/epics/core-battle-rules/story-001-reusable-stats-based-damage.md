@@ -135,7 +135,7 @@ calculator.
   for the selected move, calls the generic calculator, and applies damage only
   after a successful calculation. The first resolved turn applies 44 to
   Venusaur and 22 to Charizard, leaving Venusaur at 111 HP and Charizard at 131
-  HP. Fixed damage constants 80 and 50 and `GetDamage()` are removed.
+  HP. BattleEngine is the sole producer of the applied damage result.
 - [ ] **AC-6 — Complete battle regression:** The deterministic sequence ends
   after four accepted Attack requests at Charizard 87 HP, Venusaur 0 HP, and
   `CharizardVictory`. The fourth turn contains only Charizard's action, applies
@@ -143,9 +143,8 @@ calculator.
   post-victory request rejection.
 - [ ] **AC-7 — Presentation regression:** Presenter and runtime views display
   initial HP as 153 of 153 and 155 of 155 and propagate the new damage sequence.
-  The widget no longer initializes either participant to hard-coded 200 of 200;
-  it continues receiving HP through battle view state. No UI layout or styling
-  changes are made.
+  The widget receives authoritative HP through battle view state. No UI layout
+  or styling changes are made.
 - [ ] **AC-8 — Verification:** `PokemonSolarusEditor` Win64 Development builds
   successfully. Focused calculator tests and the complete
   `PokemonSolarus.Battle` automation suite pass without warnings. Test or Editor
@@ -168,10 +167,10 @@ calculator.
    the resolver. Do not add move data assets or a general move database.
 6. Invoke `ApplyDamage()` only when `TryCalculateDamage()` succeeds. A failed
    calculation leaves target HP unchanged and reports zero applied damage.
-7. Remove only the widget's hard-coded 200-of-200 initialization. Do not alter
-   its hierarchy, dimensions, colors, input, labels, or command layout.
-8. Update every stale 200/80/50 and three-turn expectation in the scoped battle
-   tests. Preserve unrelated runtime-stage and input assertions.
+7. Keep the widget bound to authoritative HP. Do not alter its hierarchy,
+   dimensions, colors, input, labels, or command layout.
+8. Update calculator and full-battle expectations in the scoped battle tests.
+   Preserve unrelated runtime-stage and input assertions.
 
 ## Exact Changeset
 
@@ -260,8 +259,8 @@ dependency. No broader performance budget exists for this plain-C++ logic.
 - **Then** Charizard acts first for 44 applied damage, Venusaur acts second for
   22, and HP becomes Charizard 131 and Venusaur 111.
 - **Edge cases**: A deliberately invalid calculated-damage input applies zero
-  damage and leaves target HP unchanged; the resolver source contains neither
-  fixed damage constants nor `GetDamage()`.
+  damage and leaves target HP unchanged; BattleEngine remains the sole damage
+  authority.
 
 ### AC-6 — Four-turn victory and terminal state
 
@@ -280,8 +279,8 @@ dependency. No broader performance budget exists for this plain-C++ logic.
 - **Then** initial text and numeric HP are 153 of 153 and 155 of 155, HP bars
   start full, each action propagates its calculated damage, and the final faint
   and victory presentation remains intact.
-- **Edge cases**: Source inspection confirms the widget contains no hard-coded
-  200-of-200 initialization and unrelated layout assertions remain unchanged.
+- **Edge cases**: Source inspection confirms the widget reads authoritative HP
+  and unrelated layout assertions remain unchanged.
 
 ### AC-8 — Build and complete regression suite
 

@@ -88,9 +88,13 @@ public:
 	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI|Command")
 	bool TryGetFocusedCommand(EBattleUICommand& OutFocusedCommand) const;
 
-	/** Returns the command widget's current prompt or unavailable reason. */
+	/** Returns terminal/failure text, or the command widget's current prompt/reason. */
 	UFUNCTION(BlueprintPure, BlueprintCosmetic, Category = "Battle|UI|Command")
 	bool TryGetCurrentBattleText(FText& OutBattleText) const;
+
+	/** Keeps the current health presentation, disables commands, and emits status text. */
+	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI")
+	bool PresentBattleStatusText(const FText& BattleText);
 
 	/** Initializes both health panels from authoritative battle presentation data. */
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = "Battle|UI|Health")
@@ -179,6 +183,7 @@ private:
 	[[nodiscard]] bool TryAdvanceNativeConstructionSerial();
 
 	FBattleHUDDisplayState LastValidatedDisplayState;
+	FText PresentedBattleStatusText;
 	uint64 NativeConstructionSerial = 0;
 	bool bNativeConstructed = false;
 	bool bHasValidatedDisplayState = false;

@@ -8,8 +8,8 @@
 
 ## Change Summary
 
-Replace Flamethrower's fixed 80 damage and Vine Whip's fixed 50 damage
-with one generic, deterministic damage calculator.
+Make BattleEngine the sole damage authority through one generic, deterministic
+damage calculator.
 
 "Reusable for all Pokemon" means the calculator accepts any Pokemon's level
 and calculated stats. It contains no Charizard, Venusaur, or species-specific
@@ -27,16 +27,10 @@ move while remaining small enough to validate with focused tests.
 
 ## Design Delta
 
-Current GDD says in design/gdd/game-concept.md, MVP Definition:
-
-> Charizard and Venusaur with 200 HP each.
->
-> Charizard using Flamethrower for 80 fixed damage.
->
-> Venusaur using Vine Whip for 50 pure damage.
-
-The initial fixed-damage milestone remains historical evidence, but the current
-playable prototype advances to calculated damage.
+The approved Game Concept requires BattleEngine to own current HP and damage
+using the authoritative scenario, catalog, calculated stats, deterministic RNG,
+and transactional resolution. No presentation or runtime-orchestration layer
+supplies a separate result.
 
 ## New Rules and Values
 
@@ -145,12 +139,12 @@ battle now lasts four turns rather than three.
 | System | Impact | Action Required |
 |---|---|---|
 | Battle stats/state | Store and expose combatant level alongside calculated stats | Update state constructors and current prototype fixture |
-| Move resolution | Replace fixed damage selection with category, power, and calculator input | Update resolver |
+| Move resolution | Use category, power, and calculator input owned by BattleEngine | Update resolver |
 | Coordinator | Consumes the revised current prototype through the existing state factory | Update stale comments only if needed |
 | Presenter/runtime | Receives new HP and damage values through existing resolution data | No production presenter logic change expected |
-| Battle widget | Remove hard-coded 200 / 200 initialization | Continue binding HP from battle view state |
-| Automated tests | Existing fixed-value expectations become stale | Add focused calculator tests and update full battle regression expectations |
-| Game concept GDD | Current runtime behavior advances beyond the completed fixed placeholder | Add a Global Base Damage Rule section after separate approval |
+| Battle widget | Bind authoritative HP from battle view state | Continue binding HP from battle view state |
+| Automated tests | Calculator behavior needs direct and full-battle proof | Add focused calculator tests and update full battle regression expectations |
+| Game concept GDD | BattleEngine owns the current damage contract | Add a Global Base Damage Rule section after separate approval |
 
 ## Exact Changeset
 
@@ -172,8 +166,8 @@ Modify:
 - Game/Source/PokemonSolarus/Private/Tests/PlaceholderBattlePresenterTests.cpp
 - Game/Source/PokemonSolarus/Private/Tests/PlaceholderBattleRuntimeTests.cpp
 
-The widget change only removes its hard-coded 200 / 200 initialization. It
-continues reading HP from battle view state; no layout changes are included.
+The widget continues reading authoritative HP from battle view state; no layout
+changes are included.
 
 ## Acceptance Criteria
 
@@ -188,7 +182,7 @@ continues reading HP from battle view state; no layout changes are included.
 - [ ] The deterministic four-turn sequence ends at Charizard 87 and Venusaur 0.
 - [ ] Charizard-first ordering, fainting, victory, and post-victory rejection
       remain intact.
-- [ ] The resolver no longer contains fixed 80 or 50 damage constants.
+- [ ] BattleEngine is the sole producer of the applied damage result.
 - [ ] The PokemonSolarusEditor Win64 Development build succeeds.
 - [ ] Focused damage tests and the complete PokemonSolarus.Battle suite pass
       without warnings.

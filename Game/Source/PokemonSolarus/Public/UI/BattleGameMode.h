@@ -5,15 +5,18 @@
 #include "Battle/BattleIdentifiers.h"
 #include "Battle/BattleRuntimeSource.h"
 #include "GameFramework/GameModeBase.h"
+#include "UI/BattleCommandWidget.h"
 #include "BattleGameMode.generated.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 class FBattleRuntimePresentationTestFixture;
 #endif
 class ABattlePlayerController;
+class FBattleDecision;
 class FBattleDecisionRequest;
 class FBattleSnapshot;
 class UDataTable;
+class UBattleHUDWidget;
 struct FBattleHUDDisplayState;
 
 /** Minimal GameMode for isolated battle levels. */
@@ -48,6 +51,23 @@ private:
 	void AttachToBattlePlayerController(ABattlePlayerController& PlayerController);
 	void DetachFromBattlePlayerController();
 	void HandleBattleHUDAvailable(ABattlePlayerController& PlayerController);
+	void BindBattleHUDCommandRequest(ABattlePlayerController& PlayerController);
+	void UnbindBattleHUDCommandRequest();
+
+	UFUNCTION()
+	void HandleBattleCommandRequested(EBattleUICommand RequestedCommand);
+	[[nodiscard]] bool TryResolveRequestedTurn(FString& OutError);
+	[[nodiscard]] bool TryCreateSoleFightDecision(
+		const FBattleDecisionRequest& Request,
+		FBattleDecision& OutDecision,
+		FString& OutError) const;
+	[[nodiscard]] bool TrySubmitSoleOpponentFightDecision(FString& OutError);
+	[[nodiscard]] bool TryAdvanceLockedFightTurn(FString& OutError);
+	[[nodiscard]] bool TryPresentPostTurnState(FString& OutError);
+	[[nodiscard]] bool TryPresentTerminalState(
+		const FBattleSnapshot& Snapshot,
+		FString& OutError);
+	void FailBattleRuntime(const FString& Error);
 	bool RefreshBattleHUDPresentation();
 	/** Compatibility seam retained for focused native presentation tests. */
 	bool RefreshCommandSelectionPresentation();
@@ -63,6 +83,12 @@ private:
 		ABattlePlayerController& PlayerController,
 		const FBattleSnapshot& Snapshot,
 		const FBattleDecisionRequest& Request,
+		FString& OutError);
+	[[nodiscard]] bool TryResolveDisplayedBattlers(
+		const FBattleSnapshot& Snapshot,
+		const FBattleDecisionRequest& Request,
+		FBattlerId& OutPlayerBattlerId,
+		FBattlerId& OutOpponentBattlerId,
 		FString& OutError) const;
 	void DisableInvalidPresentation(ABattlePlayerController& PlayerController);
 	[[nodiscard]] bool RejectPresentationUpdate(
@@ -87,8 +113,13 @@ private:
 	FTrainerId LocalTrainerId;
 	TSharedPtr<const IBattleDisplayNameResolver> BattleDisplayNames;
 	TWeakObjectPtr<ABattlePlayerController> BattlePlayerController;
+	TWeakObjectPtr<UBattleHUDWidget> BoundBattleHUD;
 	FDelegateHandle BattleHUDAvailableHandle;
 
+	FBattlerId DisplayedPlayerBattlerId;
+	FBattlerId DisplayedOpponentBattlerId;
+	bool bBattleTurnInProgress = false;
+	bool bBattleRuntimeFailed = false;
 	bool bHasPresentedRequest = false;
 	uint64 PresentedHUDGeneration = 0;
 	uint64 PresentedStateVersion = 0;

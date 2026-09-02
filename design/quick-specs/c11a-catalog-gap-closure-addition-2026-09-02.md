@@ -1,337 +1,344 @@
-# Quick Design Spec: C11A Catalog-Gap Closure
+# Quick Design Spec: Reusable Playable Two-Pokemon Battle
 
-**Type:** Addition  
-**System:** Canonical battle proof content and C11A integration coverage  
-**GDD Reference:** `design/gdd/game-concept.md` — Game Pillars  
-**Date:** 2026-09-02  
-**Status:** Approved as a design package on 2026-09-02; implementation is not yet authorized
+**Type:** Addition
+**System:** Battle runtime orchestration and Battle HUD
+**GDD Reference:** `design/gdd/game-concept.md` — Flow-State Design,
+Game Pillars, and MVP Definition
+**Date:** 2026-09-02
+**Status:** Accepted complete — 2026-09-02
+
+## Replacement Notice
+
+This document completely replaces the earlier C11A catalog-gap closure proposal
+that occupied this file.
+
+The immediate goal is no longer to close the six deferred C11A catalog gaps.
+Those gaps remain deferred, C11A remains incomplete, and C11B remains unchanged.
+This document neither implements nor closes either package.
+
+The existing filename is retained because the user asked to rewrite the named
+document rather than delete or relocate it. The title and contents are the
+current authority for this proposed prototype.
 
 ## Change Summary
 
-Close the six remaining C11A catalog gaps by adding the smallest verified set
-of proof content: Cryogonal, Rampardos, Dragapult, Waterfall, Breaking Swipe,
-Infiltrator, and Icy Rock.
+Turn the existing FoundationMap battle presentation into the smallest complete
+playable battle:
 
-This package supplies real test subjects for existing Solarus battle rules. It
-does not redesign those rules, add the full Pokedex, or reopen completed C11B
-work.
+- one player-controlled Pokemon;
+- one opponent Pokemon;
+- one ordinary damage-only move for each Pokemon;
+- Fight as the only functional command;
+- automatic opponent action selection;
+- real turn resolution and HP changes;
+- fainting and a visible battle result; and
+- a clean restart when PIE starts again.
+
+The implementation must reuse the existing battle engine, runtime scenario,
+Battle HUD, input, and FoundationMap. It must not create a second battle state
+owner or a level-only scripted damage system.
 
 ## Motivation
 
-C11A's existing tests are validated, but C11A remains incomplete because its
-accepted catalog cannot exercise six required battle effects:
+Before this addition, the project could open FoundationMap, construct the Battle
+HUD, display the two active Pokemon, and navigate the command menu. Confirming
+Fight stopped at a UI request because no runtime owner converted that request
+into a battle decision and drove the engine through a turn.
 
-1. Snow's physical Defense increase for an Ice-type defender.
-2. Sandstorm's Special Defense increase for a Rock-type defender.
-3. Sun and Rain changing Water-type damage.
-4. Misty Terrain reducing Dragon-type damage against a grounded target.
-5. Bypassing Substitute and opposing side protections.
-6. An approved condition lasting eight turns instead of five.
-
-Adding arbitrary test-only subjects would not prove the real catalog works.
-The package therefore adds a small set of official Pokemon Showdown content
-that can exercise all six effects through ordinary battle behavior.
+Adding more catalog content does not solve that missing playable connection.
+The fastest useful milestone is therefore to finish one complete battle before
+adding more Pokemon, moves, commands, items, or mechanics.
 
 ## Design Delta
 
-The approved Game Concept says:
+The approved Game Concept already says:
 
-> Battles should feel recognizably like modern Pokemon while documenting every
-> intentional Solarus exception.
+> Onboarding: Begin with one move per Pokemon and one functional command.
 
 It also says:
 
 > Build the smallest reusable boundary needed by the current milestone,
 > without implementing speculative future systems.
 
-This package does not change either rule. It expands the canonical proof
-catalog only enough to close the six named gaps using verified modern Pokemon
-behavior.
+This spec implements those rules. It does not expand the full battle design.
 
-## Source Authority
+Flamethrower remains Charizard's intended default move. The accepted catalog
+authors it with a Burn secondary effect, while this prototype deliberately
+excludes moves with special or side effects. Quick Attack is therefore a
+temporary damage-only substitute. It must not become the permanent default,
+and Flamethrower's authored Burn behavior must not be removed or silently
+ignored to make it fit this milestone.
 
-All Pokemon types, base stats, Ability choices, move details, learnsets, and
-battle-effect details in this package come from the official Pokemon Showdown
-website snapshot fetched on 2026-09-02:
+## Prototype Content
 
-- [Pokemon data](https://play.pokemonshowdown.com/data/pokedex.json)
-- [Move data](https://play.pokemonshowdown.com/data/moves.json)
-- [Ability data](https://play.pokemonshowdown.com/data/abilities.js)
-- [Item data](https://play.pokemonshowdown.com/data/items.js)
-- [Learnset data](https://play.pokemonshowdown.com/data/learnsets.json)
-
-Pokemon Showdown does not publish catch rates. Under the user's explicit
-2026-09-02 approval, the existing project-approved PokeAPI source may be used
-for the three new `capture_rate` values only:
-
-- Commit: `7af36d9f3424366ffc46e90d94c8bc120df39cd0`
-- File: `data/v2/csv/pokemon_species.csv`
-- File fingerprint:
-  `9878F19C0637095CDD9A4134B4AAC8FB2B64776D3BDC599AA68F15C3A011B87C`
-
-No other fact may be taken from PokeAPI for this package. If an official source
-changes, the difference must be reviewed; it must not be silently accepted.
-
-## Approved Content
-
-### Pokemon
-
-The six base-stat columns below are HP, Attack, Defense, Special Attack,
-Special Defense, and Speed.
-
-| Pokemon | Type | Base stats | Selected Ability | Catch rate | Purpose |
-|---|---|---|---|---:|---|
-| Cryogonal | Ice | 80 / 50 / 50 / 95 / 135 / 105 | Levitate | 25 | Proves Snow's Ice-type Defense increase and provides an airborne Misty Terrain comparison |
-| Rampardos | Rock | 97 / 165 / 60 / 65 / 50 / 58 | Mold Breaker | 45 | Proves Sandstorm's Rock-type Special Defense increase and supplies a grounded Misty Terrain target |
-| Dragapult | Dragon / Ghost | 88 / 120 / 75 / 100 / 75 / 142 | Infiltrator | 45 | Proves Dragon damage and Infiltrator behavior |
-
-Cryogonal officially learns Snowscape. Dragapult officially learns Breaking
-Swipe, Flamethrower, and Will-O-Wisp. The existing Gyarados officially learns
-Waterfall.
-
-Only the selected Ability shown above is required for each proof record. This
-does not approve every Ability that each species can normally have.
-
-### Moves
-
-| Move | Official details | Official effect | Purpose |
+| Side | Pokemon | Move | Current move behavior |
 |---|---|---|---|
-| Waterfall | Water, physical, 80 power, 100% accuracy, 15 uses, contact, one selected target | 20% chance to make the target flinch | Proves Water damage in Sun and Rain using the existing Gyarados |
-| Breaking Swipe | Dragon, physical, 60 power, 100% accuracy, 15 uses, contact, all adjacent opponents | Always lowers the Attack of every opponent it hits by one stage | Proves Misty Terrain's Dragon reduction and Mist bypass through Infiltrator |
+| Player | Charizard | `Move.QuickAttack` (Quick Attack), temporary | Selected-opponent physical damage, normal accuracy, contact, priority +1, and no secondary effect |
+| Opponent | Venusaur | `Move.VineWhip` (Vine Whip) | Selected-opponent physical damage, normal accuracy, contact, priority 0, and no secondary effect |
 
-Official reference pages:
+Both move definitions already exist in the accepted catalog. Each contains one
+Damage descriptor and no status, weather, terrain, stat-stage, volatile, field,
+side-condition, item, or other secondary descriptor.
 
-- [Waterfall](https://dex.pokemonshowdown.com/moves/waterfall)
-- [Breaking Swipe](https://dex.pokemonshowdown.com/moves/breakingswipe)
+The existing reusable stat, damage, type, accuracy, PP, priority, targeting,
+fainting, and outcome rules remain authoritative. This prototype must not
+hardcode damage values, HP values, move outcomes, or a winner in the runtime
+orchestration.
 
-### Ability
+The current scenario may still naturally favor Charizard. The reusable loop
+must nevertheless handle either side winning if later data changes.
 
-**Infiltrator:** The user's moves ignore Substitute and the opposing side's
-Reflect, Light Screen, Safeguard, Mist, and Aurora Veil.
+## Player Flow
 
-This is an Ability belonging to Dragapult. The package must not invent a
-special bypass property for Waterfall, Breaking Swipe, or any other move.
+1. The user opens FoundationMap and starts PIE.
+2. The existing Battle HUD shows Charizard, Venusaur, and their authoritative
+   current and maximum HP.
+3. Fight is available. Bag, Pokemon, and Run remain visible but unavailable.
+4. The user confirms Fight.
+5. Command input is disabled while the turn resolves, preventing a duplicate
+   submission.
+6. The player selection policy converts the current observer-safe request into
+   a Fight decision using its one legal move and one legal target.
+7. The temporary opponent policy answers the opponent request using its one
+   legal move and one legal target. This is automatic selection, not strategic
+   AI.
+8. The runtime driver advances the existing BattleEngine through the locked
+   actions, move commitment, target resolution, move effects, and end-turn
+   boundary.
+9. The HUD immediately presents the authoritative HP after the completed turn.
+10. If the battle is still active, the next valid command request is presented
+    and Fight becomes available again.
+11. If one side has won, the final HP remains visible, command input stays
+    disabled, and the existing battle text area shows a short result:
+    `You won.` or `You lost.`
+12. Stopping and restarting PIE creates a fresh battle from the runtime
+    scenario.
 
-Official reference: [Infiltrator](https://dex.pokemonshowdown.com/abilities/infiltrator)
+There is no separate move-selection screen in this prototype because each
+Pokemon has exactly one legal move.
 
-### Held Item
+## Reusable Runtime Boundary
 
-**Icy Rock:** When its holder uses Snowscape, Snow lasts eight turns instead
-of five.
+The implementation is reusable only if all of the following remain true:
 
-The package must not make every use of Snowscape last eight turns. Without an
-active Icy Rock, Snow still lasts five turns.
+- The runtime driver receives battle decisions and advances BattleEngine
+  phases; it does not know Charizard, Venusaur, Quick Attack, or Vine Whip.
+- Pokemon, stats, moves, PP, and starting active slots continue to come from the
+  runtime scenario and accepted catalog.
+- The one-move player and opponent policies read legal options from the current
+  `FBattleDecisionRequest`. They do not manufacture move or target IDs.
+- The one-move policies are kept separate from the generic runtime driver.
+  Later move-selection UI, random opponent selection, and strategic AI can
+  replace those policies without replacing the driver.
+- If a request exposes zero or more than one legal move or target, the current
+  one-move policy stops with a visible error instead of silently choosing an
+  arbitrary option. Four-move selection belongs to the next roadmap step.
+- `FBattleEngine` remains the only battle-state, transaction, RNG, event, and
+  outcome owner.
+- The HUD receives observer-safe snapshots and display-ready values. It never
+  reads or mutates private battle state.
+- No species-specific, move-specific, or match-specific branch is added to the
+  generic driver.
 
-Official reference: [Pokemon Showdown item data](https://play.pokemonshowdown.com/data/items.js)
+This boundary lets future single battles reuse the same loop by changing
+scenario data and selection policies.
 
-## Existing Rules Exercised by the Package
+## Failure Behavior
 
-- Snow causes no end-of-turn damage. While Snow is active, an Ice-type
-  Pokemon's Defense is multiplied by 1.5 when taking a physical attack.
-- Sandstorm multiplies a Rock-type Pokemon's Special Defense by 1.5 and does
-  not damage Rock-type Pokemon at the end of the turn.
-- Rain multiplies Water-type attack damage by 1.5.
-- Sun multiplies Water-type attack damage by 0.5.
-- Misty Terrain multiplies Dragon-type attack power by 0.5 against grounded
-  Pokemon. Airborne Pokemon do not receive this protection.
-- Magic Room temporarily turns off held-item effects. If Magic Room is already
-  active when the holder uses Snowscape, Icy Rock does not extend Snow.
+If a decision cannot be created, a submission is rejected, a required engine
+phase fails, or the runtime cannot reach the next request or terminal outcome:
 
-This package uses Snow, not Hail. Hail is outside the approved modern proof
-rules, and the package must not add it as a substitute.
+- stop advancing immediately;
+- keep command input disabled;
+- keep the last valid Battle HUD state visible;
+- show `Battle error.` in the existing battle text area; and
+- log the exact rejected step and reason.
 
-## Plain-Language Test Plan
-
-### Test A — Official data
-
-Confirm that every new Pokemon, move, Ability, and item matches the approved
-source snapshot. Confirm that no unrelated catalog entry changes.
-
-### Test B — Snow
-
-Use the same physical attack against Cryogonal once without Snow and once
-during Snow, with every other input kept the same. Confirm Snow gives
-Cryogonal 50% more physical Defense. Also confirm Snow itself causes no
-end-of-turn damage.
-
-### Test C — Sandstorm
-
-Use the same special attack against Rampardos once without Sandstorm and once
-during Sandstorm, with every other input kept the same. Confirm Sandstorm gives
-Rampardos 50% more Special Defense. Also confirm Rampardos takes no Sandstorm
-damage at the end of the turn.
-
-### Test D — Water damage in weather
-
-Have the existing Gyarados use Waterfall under three otherwise identical
-conditions:
-
-1. Without weather, it deals normal Water damage.
-2. During Sun, it deals half the normal Water damage.
-3. During Rain, it deals 50% more Water damage.
-
-### Test E — Waterfall
-
-Confirm Waterfall has 80 power, 100% accuracy, 15 uses, makes contact, and
-targets one opponent. Confirm its 20% flinch chance succeeds when the official
-chance says it should and fails when it should not.
-
-### Test F — Misty Terrain
-
-Have Dragapult use Breaking Swipe against grounded Rampardos with and without
-Misty Terrain, keeping every other input the same. Confirm Misty Terrain halves
-the Dragon-type damage.
-
-Repeat against Cryogonal. Because Levitate makes Cryogonal airborne, confirm
-Misty Terrain does not reduce the Dragon-type damage against it.
-
-### Test G — Breaking Swipe
-
-In a Double Battle, confirm Breaking Swipe hits every adjacent opponent, never
-hits Dragapult's ally, and always lowers the Attack of each opponent it hits by
-one stage. Also confirm its official power, accuracy, uses, type, and contact
-behavior.
-
-### Test H — Infiltrator and damage protection
-
-Confirm Dragapult's physical attack ignores Reflect. Confirm its special
-attack ignores Light Screen and Aurora Veil. Repeat each situation with
-Infiltrator temporarily turned off and confirm the protection works normally.
-
-### Test I — Infiltrator and effect protection
-
-Confirm Dragapult's Will-O-Wisp can burn an opponent through Safeguard. Confirm
-Breaking Swipe can lower an opponent's Attack through Mist. Repeat both
-situations with Infiltrator temporarily turned off and confirm Safeguard and
-Mist block the effects normally.
-
-### Test J — Infiltrator and Substitute
-
-Confirm Dragapult's damaging and status moves reach the real opponent through
-Substitute. Repeat with Infiltrator temporarily turned off and confirm
-Substitute protects the opponent normally.
-
-### Test K — Icy Rock
-
-Have Cryogonal use Snowscape:
-
-1. With Icy Rock active, confirm Snow lasts exactly eight turns.
-2. Without Icy Rock, confirm Snow lasts exactly five turns.
-3. Activate Magic Room before Snowscape and confirm the held Icy Rock has no
-   effect, so Snow lasts exactly five turns.
-
-In every case, confirm the remaining duration counts down and expires at the
-correct time.
-
-### Test L — Final closure
-
-Confirm all six former catalog gaps now have real passing tests. Confirm all
-previously completed battle behavior still passes. C11A may be marked complete
-only after the complete validation and independent acceptance checks pass.
-C11B remains complete and unchanged.
-
-## Catalog Boundary
-
-| Catalog family | Before | After |
-|---|---:|---:|
-| Pokemon species/forms | 8 | 11 |
-| Moves | 62 | 64 |
-| Abilities | 8 | 9 |
-| Held items | 14 | 15 |
-| Conditions | 40 | 40 |
-
-No nature, type-chart, condition, display-name policy, or unrelated catalog
-expansion is approved by this package.
+The driver must use a small phase-advance guard so an unexpected state cannot
+create an infinite loop in PIE.
 
 ## Affected Systems
 
 | Area | Impact | Required result |
 |---|---|---|
-| Canonical proof catalog | Adds three Pokemon, two moves, one Ability, and one held item | Only the approved entries and display names are added |
-| Ability behavior | Adds the official Infiltrator interaction | It works generically for its holder, not only for Dragapult or particular moves |
-| Held-item and weather behavior | Adds Icy Rock's official Snowscape extension | It works generically for its holder and respects Magic Room |
-| C11A checks | Replaces the six catalog deferrals with active proofs | Existing accepted checks remain present and continue passing |
-| Earlier completed checks | The approved Ability, item, and catalog sets grow | Rerun the affected earlier checks before claiming no regression |
-| Project status records | C11A may eventually change from incomplete to complete | Update status only after fresh validation and independent acceptance |
+| Runtime scenario | Replace Charizard's effect-bearing move with an existing damage-only move | The playable scenario has exactly one damage-only move per Pokemon |
+| Battle GameMode | Bind the HUD request, create the one-move decisions, drive the turn, and refresh presentation | Fight completes a real reusable BattleEngine turn |
+| Battle HUD code-behind | Present terminal or error text while retaining final HP and disabling input | Victory, defeat, and failure are readable without a new layout |
+| Existing BattleEngine | Used as-is | No new state owner, damage shortcut, or duplicate rules |
+| FoundationMap and Blueprint visuals | Reused as-is | No visual or asset-layout change |
 
-## Required Work Order
+## Proposed Implementation File Map
 
-1. Lock and verify the approved source facts.
-2. Add the generic Infiltrator and Icy Rock behavior through the existing
-   battle-rule paths.
-3. Add only the approved catalog records and display names.
-4. Add Tests A through L inside the existing C11A test groups.
-5. Run the affected earlier Ability, held-item, catalog, and battle checks.
-6. Run the complete C11A and Battle validation.
-7. Obtain a fresh independent acceptance review before changing C11A's status.
+This is the expected implementation write set. It is not authorization to edit
+these files yet.
 
-Implementation must stop and return for a new decision if any approved fact
-cannot be represented without broadening this package.
+### Source scenario
+
+- `Game/SourceData/Battle/Initial/runtime_scenario.json`
+  - Temporarily uses `Move.QuickAttack` until Flamethrower's complete authored
+    behavior is allowed in the playable milestone.
+- `Game/Content/Data/Battle/Initial/DT_BattleRuntimeScenario.uasset`
+  - Mirrors the approved source scenario for PIE.
+
+### Runtime orchestration
+
+- `Game/Source/PokemonSolarus/Public/UI/BattleGameMode.h`
+  - Declares command binding, one-move selection, guarded runtime advancement,
+    and terminal presentation ownership.
+- `Game/Source/PokemonSolarus/Private/UI/BattleGameMode.cpp`
+  - Implements the reusable decision-to-turn loop without identity-specific
+    branches.
+
+### Existing HUD facade
+
+- `Game/Source/PokemonSolarus/Public/UI/BattleHUDWidget.h`
+  - Exposes one code-behind method for terminal or failure text.
+- `Game/Source/PokemonSolarus/Private/UI/BattleHUDWidget.cpp`
+  - Reuses the existing Battle text signal and disables command input without
+    changing layout or styling.
+
+No BattleEngine, executor, controller, input asset, Widget Blueprint, map,
+sprite, material, texture, animation, or audio file is expected to change.
+If implementation proves another path is required, stop and return with the
+exact reason before editing it.
+
+## Validation
+
+Only validation needed to prove this prototype playable is included:
+
+1. Build `PokemonSolarusEditor Win64 Development` once.
+2. Open FoundationMap and run one real PIE battle.
+3. Confirm the starting names and HP are visible.
+4. Confirm only Fight is functional.
+5. Confirm each Fight press resolves exactly one complete turn.
+6. Confirm both Pokemon use their one authored move and HP changes match the
+   authoritative runtime state.
+7. Confirm input cannot submit twice during resolution.
+8. Continue until one Pokemon faints.
+9. Confirm final HP, fainted state, and the correct result text remain visible,
+   with command input disabled.
+10. Stop and restart PIE; confirm the initial battle starts cleanly again.
+11. Check the PIE log for Battle errors, rejected transitions, binding errors,
+    or crashes.
+
+No full Battle Automation suite, forced-Unity build, evidence root, hash
+manifest, independent review, or publication gate is required for this
+prototype. A successful build without the manual PIE flow is not sufficient to
+call it playable.
 
 ## Acceptance Criteria
 
-- [ ] Cryogonal, Rampardos, and Dragapult match the approved source facts.
-- [ ] Waterfall and Breaking Swipe match every approved move fact and effect.
-- [ ] Infiltrator ignores exactly the approved protections through ordinary
-      Ability behavior; no move receives an invented bypass property.
-- [ ] Icy Rock extends only its holder's use of Snowscape from five turns to
-      eight and is disabled by Magic Room.
-- [ ] Tests A through L pass through normal battle behavior.
-- [ ] Every former C11A catalog deferral is replaced by an active proof.
-- [ ] Existing battle checks continue to pass.
-- [ ] C11A remains incomplete until fresh complete validation and independent
-      acceptance both pass.
-- [ ] C11B remains complete and unchanged.
-- [ ] No unrelated content, visuals, audio, user interface, or game systems
-      change.
-- [ ] No Git staging, commit, push, branch, or history change occurs without
-      separate explicit approval.
+- [x] FoundationMap starts a visible Charizard-versus-Venusaur battle.
+- [x] Each Pokemon has exactly one legal move with Damage as its only effect
+      descriptor.
+- [x] Fight confirmation submits a real player decision.
+- [x] The opponent automatically submits its sole legal move.
+- [x] The existing BattleEngine resolves ordering, PP, targeting, accuracy,
+      damage, fainting, and outcome.
+- [x] Both HP panels show authoritative post-turn values.
+- [x] The next Fight request appears after every non-terminal turn.
+- [x] Victory or defeat leaves final HP visible, disables input, and shows the
+      correct short result text.
+- [x] Restarting PIE starts a clean battle.
+- [x] The runtime driver contains no Pokemon, move, damage, HP, or winner
+      special case.
+- [x] Future selection policies can replace the one-move policies without
+      replacing the runtime driver.
+- [x] A normal Editor build and one complete manual PIE battle pass.
+- [x] No unrelated file changes.
 
-## Explicitly Excluded
+## Acceptance Record
 
-- Hail.
-- The full Pokedex or any Pokemon beyond the three approved subjects.
-- Moves beyond Waterfall and Breaking Swipe.
-- Abilities beyond Infiltrator.
-- Light Clay, Damp Rock, Heat Rock, Smooth Rock, Terrain Extender, or any held
-  item beyond Icy Rock.
-- New condition types or changes to the type chart.
-- Cry for Help, wild reinforcement, or later roadmap work.
-- New battle presentation, visual assets, sprites, textures, animation, audio,
-  user-interface design, or layout.
-- A new replay format or unrelated battle-engine cleanup.
-- Changes to completed C11B evidence.
-- Git operations.
+- **Owner decision:** Accepted complete by the project owner on 2026-09-02.
+- **Normal Editor build:** `PokemonSolarusEditor Win64 Development` succeeded
+  on 2026-09-02; UnrealBuildTool reported the target was already up to date.
+- **Manual playable proof:** The project owner reported one complete
+  FoundationMap PIE battle on 2026-09-02.
+- **Scope:** This acceptance closes only this one-Pokemon playable prototype.
+  It does not close any C11A catalog gap or change C11B.
 
-## GDD Update Required?
+## Explicitly Excluded From This Prototype
 
-No. This package adds proof content for already-approved battle rules; it does
-not change the Game Concept or establish a new game-wide rule.
+- Closing any C11A catalog gap or changing C11A/C11B completion status.
+- Cryogonal, Rampardos, Dragapult, Waterfall, Breaking Swipe, Infiltrator, or
+  Icy Rock.
+- A four-move player selector.
+- Functional Bag, Pokemon, or Run commands.
+- Bag items.
+- Party switching or reserve Pokemon.
+- Additional Pokemon or move pools.
+- Weather, terrain, major status, volatile status, stat-stage, Ability, held
+  item, or other special-effect presentation work.
+- Strategic opponent AI.
+- New UI layout, styling, Blueprint visual logic, sprites, textures, animation,
+  audio, camera work, or map edits.
+- Broad engine cleanup, refactoring, new public BattleEngine APIs, or replay
+  changes.
+- Full production validation, release evidence, roadmap-status changes, or Git
+  operations.
 
-Roadmap and session-status documents will require reconciliation only after
-implementation, fresh validation, independent acceptance, and separate
-approval to write those status changes.
+## GDD Reconciliation
 
-## Source Snapshot Fingerprints
+Completed on 2026-09-02. The GDD and its settled-requirements handoff now state
+that Flamethrower remains Charizard's intended default, Quick Attack is a
+temporary damage-only substitute, and BattleEngine is the sole authority for
+damage, HP, fainting, and outcome.
 
-These fingerprints prove which official Pokemon Showdown files supplied this
-package. They are recorded so later source changes cannot be mistaken for the
-approved 2026-09-02 snapshot.
+## Approval Boundary
 
-| Official file | Bytes | SHA-256 fingerprint |
-|---|---:|---|
-| `pokedex.json` | 523823 | `D9A21FCAEFCBBCC1CC2FE8CD2923CF29F190A42D1B024897B5102A075436345C` |
-| `moves.json` | 490603 | `2F15B2BA099D1DDBCEAC95F594971C1747B9FBC690EDA4CB977721198860E9B3` |
-| `abilities.js` | 107941 | `9FD639D3AC2DD8F65213D6393AFF46B53BB162A1716919DF82C53C62160DBA70` |
-| `items.js` | 155675 | `1CADD51D7B00858820BC50B5E0F66C7719B8E59C185DD2A2B9161BB99C099A0B` |
-| `learnsets.json` | 3190987 | `AAF035402D0455CEC88A5FB9363A43446419E3E71C575E4674D86ACC2A499058` |
+The original design-only authorization was later followed by the scoped
+implementation and this explicit owner acceptance. It did not authorize Git
+operations.
 
-## Approval and Implementation Boundary
+## Roadmap After This Prototype
 
-The user approved this package and the catch-rate exception on 2026-09-02.
-That approval authorizes this design document only. It does not authorize
-source, test, catalog, asset, configuration, roadmap-status, or Git changes.
+Each step begins only after the previous step is playable. Each step needs its
+own exact scope and approval; this roadmap does not authorize automatic
+implementation.
 
-Implementation should begin in a fresh session with a separate exact-scope
-approval because it changes shared Ability and held-item behavior and requires
-substantial validation.
+1. **Give both Pokemon four moves.**
+   - Add a player move-selection flow.
+   - Give Charizard and Venusaur four usable move slots each.
+   - Every selected move must perform all behavior it claims.
+   - Start with damage-only moves so unsupported special effects are not
+     silently ignored.
+   - Until strategic AI exists, the opponent uniformly selects one legal move
+     slot from indices `0` through `3`.
+
+2. **Make Bag, Pokemon, and Run functional.**
+   - Bag opens and can return safely even before it contains usable items.
+   - Pokemon opens the party/switching flow.
+   - Run follows the encounter's legal or blocked result.
+
+3. **Add the first simple Bag item.**
+   - Start with one ordinary item, such as a basic HP-restoring item.
+   - Prove inventory count, target selection, application, and consumption
+     before adding more item families.
+
+4. **Add more Pokemon for switching.**
+   - Select 50 Pokemon.
+   - Add them first as reusable template records sufficient for party setup,
+     display, stats, and switching.
+   - Do not pretend their complete move pools or special behaviors exist yet.
+
+5. **Add move pools for the 50 selected Pokemon.**
+   - Decide explicitly whether “move pool” means four equipped battle moves or
+     a larger learnset before implementation.
+   - Only expose moves whose currently claimed behavior works.
+   - Keep unsupported special-effect moves unavailable until the next step.
+
+6. **Add special effects.**
+   - Expand in small playable groups: weather, terrain, major status, volatile
+     status, stat changes, Abilities, held items, and other move effects.
+   - Each effect must be readable in the playable battle, not merely present in
+     backend tests.
+
+7. **Add a strategic AI opponent.**
+   - Replace the temporary random legal move-slot selection.
+   - AI must use the same legal requests and battle information available under
+     its controller policy; it must not bypass BattleEngine rules.
+
+8. **Choose what comes next from the playable game.**
+   - Reassess the actual prototype after the AI battle works.
+   - Select the next milestone from observed player needs rather than guessing
+     it now.

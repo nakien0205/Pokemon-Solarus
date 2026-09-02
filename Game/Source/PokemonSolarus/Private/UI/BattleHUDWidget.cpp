@@ -30,6 +30,7 @@ bool UBattleHUDWidget::ApplyHUDDisplayState(
 	}
 
 	LastValidatedDisplayState = DisplayState;
+	PresentedBattleStatusText = FText::GetEmpty();
 	bHasValidatedDisplayState = true;
 	bPresentationVisible = true;
 	bCommandInputEnabled = true;
@@ -264,6 +265,7 @@ bool UBattleHUDWidget::ApplyCommandDisplayState(
 	if (bHasValidatedDisplayState)
 	{
 		LastValidatedDisplayState.Command = DisplayState;
+		PresentedBattleStatusText = FText::GetEmpty();
 		bCommandInputEnabled = IsPresentationVisible();
 	}
 	return true;
@@ -319,8 +321,33 @@ bool UBattleHUDWidget::TryGetFocusedCommand(
 
 bool UBattleHUDWidget::TryGetCurrentBattleText(FText& OutBattleText) const
 {
+	if (!PresentedBattleStatusText.IsEmptyOrWhitespace())
+	{
+		OutBattleText = PresentedBattleStatusText;
+		return true;
+	}
+
 	return CommandUI
 		&& CommandUI->TryGetCurrentBattleText(OutBattleText);
+}
+
+bool UBattleHUDWidget::PresentBattleStatusText(const FText& BattleText)
+{
+	if (!IsStructurallyReady()
+		|| !IsPresentationVisible()
+		|| BattleText.IsEmptyOrWhitespace())
+	{
+		DisableCommandInputPreservingPresentation();
+		UE_LOG(LogBattleHUDWidget, Error,
+			TEXT("Cannot present Battle status text without a visible, structurally ready HUD and non-empty text."));
+		return false;
+	}
+
+	DisableCommandInputPreservingPresentation();
+	CommandUI->DeactivateCommandMenu();
+	PresentedBattleStatusText = BattleText;
+	OnCommandBattleTextChanged.Broadcast(PresentedBattleStatusText);
+	return true;
 }
 
 bool UBattleHUDWidget::InitializeHealthPanels(

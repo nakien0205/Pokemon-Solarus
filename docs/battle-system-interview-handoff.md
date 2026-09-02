@@ -2,6 +2,7 @@
 
 **Status:** Pre-GDD battle requirements interview complete  
 **Last updated:** 2026-08-19  
+**Current-prototype reconciliation:** 2026-09-02
 **Last completed answer:** 394  
 **Exact continuation point:** The user explicitly closed the interview at
 question 394. There is no pending question 395.  
@@ -107,27 +108,28 @@ and the four-move version as the showcase target. Do not silently rewrite the
 approved engine documents; present a proposed reconciliation and obtain the
 user's approval before changing them.
 
-### Initial One-Week Placeholder
+### Current One-Move Playable Prototype
 
-This is the first implementation target, not the finished battle sequence.
+The approved 2026-09-02 reconciliation defines the current first implementation
+target without changing the intended two-Pokemon showcase:
 
-- One simple 3D arena and one fixed camera.
-- Two placeholder Pokemon: Charizard and Venusaur.
-- Both have hard-coded **200 HP**.
-- Only HP exists. Attack, Special Attack, Defense, Special Defense, and Speed
-  are not part of this placeholder.
-- `Attack` is the only functional command.
-- Bag, Pokemon, and Run are visible disabled placeholders.
-- Charizard has only Flamethrower, dealing a fixed **80 damage**.
-- Venusaur has only Vine Whip, dealing a fixed **50 pure damage**.
-- Both moves always hit in this placeholder.
-- Include HP bars, fainting, victory, and a battle result.
-- Charizard must always win. A reachable player-loss path is intentionally
-  deferred until fuller move pools exist.
-- Use only the current Flamethrower and Vine Whip presentations. Do not pretend
-  the other showcase moves exist yet.
-- Although tiny, build the battle loop through reusable seams rather than a
-  throwaway level-only script.
+- Reuse FoundationMap, its Battle HUD, and the existing runtime scenario and
+  catalog for Charizard versus Venusaur.
+- Flamethrower remains Charizard's intended default move.
+- Quick Attack is only a temporary damage-only substitute while special and
+  side effects are excluded. It must not become the permanent default.
+- Flamethrower's accepted catalog behavior, including its Burn side effect,
+  must not be removed or silently ignored to make it fit the prototype.
+- Vine Whip remains Venusaur's current one-move choice.
+- BattleEngine owns move legality, PP, priority, targeting, accuracy,
+  stats-based damage, fainting, and outcome. No other layer supplies those
+  gameplay results.
+- Fight is the current functional command; Bag, Pokemon, and Run remain visible
+  but unavailable.
+- The reusable loop supports either victory or defeat from authoritative battle
+  state.
+- Include authoritative HP bars, turn resolution, fainting, and a battle result
+  through reusable seams rather than a level-only script.
 
 ### Final Two-Pokemon Showcase
 
@@ -523,8 +525,8 @@ Reward sequence:
 ## Bag, Battle Items, and Held Items
 
 - Full command menu: Fight, Bag, Pokemon, Run.
-- The initial placeholder exposes only Attack and shows the other three as
-  disabled placeholders.
+- The current one-move playable prototype exposes only Fight and shows the other
+  three as unavailable.
 - Battle Bag shows usable battle categories. Hide unrelated Key Items unless a
   specific battle explicitly enables one.
 - Hyper Potion heals 120 HP.

@@ -1,6 +1,7 @@
 # Game Concept: Pokemon Solarus
 
 *Created: 2026-08-19*  
+*Reconciled: 2026-09-02*
 *Status: Approved*
 
 ## 1. Overview
@@ -129,8 +130,9 @@ not the project's stated goal.
 - **Feedback clarity:** Every meaningful battle result must have readable state
   and synchronized feedback.
 - **Difficulty scaling:** Future full-game scaling remains undecided.
-- **Failure recovery:** The reusable system supports defeat, but the initial
-  placeholder intentionally has no reachable loss path.
+- **Failure recovery:** The current one-move battle supports authoritative
+  Victory or Defeat. Later wild-battle flows may also end through Capture or
+  Escape when those commands are enabled.
 
 ### Target Player Profile
 
@@ -179,8 +181,24 @@ updated battle state; then make the next decision.
 Complete an encounter while managing HP, status, move availability, targeting,
 switching, and items when those systems are enabled.
 
-The initial placeholder intentionally reduces this to selecting `Attack` and
+The current one-move playable prototype reduces this to selecting `Fight` and
 observing a complete battle result.
+
+#### Player-Facing Battle Results
+
+| Result | Meaning | Current FoundationMap support |
+| --- | --- | --- |
+| Victory | The opposing side has no usable Pokemon. | Supported |
+| Defeat | The player's side has no usable Pokemon. A future supported forfeit may also resolve as Defeat. | Supported for party exhaustion |
+| Capture | A wild Pokemon was successfully caught. | Not exposed by the current Trainer prototype |
+| Escape | The battle ended through a successful flee. | Not exposed by the current Trainer prototype |
+
+Capture is a player-facing result category. BattleEngine continues to represent
+capture of the final wild opponent as `Victory` with a `Capture` cause; this
+document does not create a second engine outcome.
+
+There is no normal Draw or No Winner outcome. If both sides' final usable
+Pokemon faint during the same resolution, the player receives Defeat.
 
 #### Session Level
 
@@ -266,24 +284,37 @@ than online or competitive-service goals.
 Pokemon in a 3D arena can feel good enough to justify developing the rest of
 Pokemon Solarus.
 
-#### Required for the Initial Placeholder
+#### Initial Placeholder History
 
-1. One simple 3D arena and one fixed camera.
-2. Charizard and Venusaur with 200 HP each.
-3. `Attack` as the only functional command.
-4. Disabled visible placeholders for Bag, Pokemon, and Run.
-5. Charizard using Flamethrower for 80 fixed damage.
-6. Venusaur using Vine Whip for 50 pure damage.
-7. Both moves always hitting.
-8. HP bars, action resolution, fainting, victory, and a battle result.
-9. Charizard always winning.
-10. Reusable battle seams rather than one level-only script.
+The 2026-08-19 concept began with a smaller one-week target. The reusable
+BattleEngine is the current and only gameplay authority for the playable
+battle.
 
-#### Explicitly Outside the Initial Placeholder
+#### Current One-Move Playable Prototype
 
-- Full official damage calculations.
-- A reachable player-loss path.
-- The other six showcase moves.
+1. Reuse FoundationMap, the existing Battle HUD, and the approved runtime
+   scenario and catalog.
+2. Present one player-controlled Charizard and one opponent Venusaur.
+3. Use Fight as the only functional command. Bag, Pokemon, and Run remain
+   visible but unavailable.
+4. Give each active Pokemon exactly one legal move and one legal target.
+5. Flamethrower remains Charizard's intended default move. Quick Attack is a
+   temporary damage-only substitute while moves with special or side effects
+   are excluded from the prototype. Do not permanently replace Flamethrower or
+   remove its authored Burn behavior.
+6. Venusaur uses Vine Whip as its one current move.
+7. BattleEngine resolves move commitment, targeting, PP, accuracy, priority,
+   stats-based damage, fainting, and battle outcome. No runtime layer hardcodes
+   HP loss or a winner.
+8. Either side may win from authoritative battle state.
+9. Show authoritative HP after each turn, then either present the next Fight
+   request or retain final HP and show the battle result.
+10. Keep the battle loop reusable rather than implementing a level-only script.
+
+#### Explicitly Outside the Current One-Move Prototype
+
+- Flamethrower's Burn side effect or any other special or side effect.
+- The four-move selection flow and the other showcase moves.
 - Strategic opponent AI.
 - Dynamic cameras.
 - The overworld, region, quests, story, saving, and broader progression.
@@ -293,29 +324,16 @@ Pokemon Solarus.
 
 | Tier | Content | Features | Timeline |
 | --- | --- | --- | --- |
-| Initial MVP | One arena, Charizard, Venusaur, and two move presentations | One functional command and complete victory flow | One-week target recorded in the handoff |
+| Initial MVP | One arena, Charizard, Venusaur, and one currently legal move each | One functional command, BattleEngine-driven turns, and complete victory or defeat flow | Implemented and manually verified by the user on 2026-09-02 |
 | Battle Vertical Slice | The four-move Charizard-versus-Venusaur showcase | Full command menu, one Hyper Potion, party view, blocked Run, richer rules and presentation | Not estimated |
 | Full-Game Alpha | Entire planned journey in unfinished form | Not sufficiently defined | Not estimated |
 | Full Vision | Region, story, quests, progression, League, and final content | Complete polished single-player fangame | Not estimated |
 
 ## 4. Formulas
 
-The initial placeholder formula is retained as milestone history. The current
-global base-damage rule follows it.
-
-For the initial placeholder:
-
-```text
-HP After Damage = max(0, HP Before Damage - Fixed Damage)
-```
-
-Approved values:
-
-- Charizard maximum HP: `200`
-- Venusaur maximum HP: `200`
-- Flamethrower fixed damage: `80`
-- Vine Whip pure damage: `50`
-- Placeholder accuracy: always hits
+BattleEngine owns current HP, move accuracy, damage, fainting, and outcome using
+the authoritative scenario and catalog. No presentation, runtime orchestration,
+scenario-specific code, or document may supply a separate damage result.
 
 ### Global Base Damage Rule
 
@@ -357,12 +375,11 @@ related code remains unchanged.
 
 ### Known Boundaries
 
-- The one-move placeholder comes before the four-move showcase.
+- The one-move playable prototype comes before the four-move showcase.
 - The full game exists as a vision, but its world and story are not yet
   designed.
-- The initial placeholder cannot produce player defeat.
-- The reusable battle system must eventually support defeat even though the
-  placeholder cannot reach it.
+- The reusable one-move battle can produce victory or defeat from authoritative
+  BattleEngine state; neither result is hardcoded.
 - The exact official effectiveness-label unlock trigger is unproven; Solarus
   uses its documented project-specific rule.
 - Battle Info layout and save timing remain deferred. Cry for Help and wild
@@ -460,9 +477,8 @@ concept:
 - EXP distribution: Party-Wide or Participant-Only.
 - Partner control: AI, player-controlled, or ask before the battle.
 
-The placeholder's 200 HP, 80 damage, 50 damage, always-hit behavior, and
-command availability remain recorded as fixed historical milestone decisions,
-not current global battle values or tuning knobs.
+Current HP, accuracy, damage, fainting, and outcome are BattleEngine results,
+not tuning knobs for the presentation or runtime orchestration layers.
 
 Full-game content quantity, difficulty curve, and progression pacing are not
 yet defined.
@@ -473,7 +489,7 @@ This concept is approved when:
 
 - Pokemon Solarus is presented as a future full single-player game.
 - One good battle is clearly the current milestone.
-- The one-move placeholder clearly precedes the four-move showcase.
+- The one-move playable prototype clearly precedes the four-move showcase.
 - No settled battle decision is contradicted.
 - Unknown world, story, roster, and scope decisions remain unknown.
 - The hybrid 2D-in-3D battle direction is preserved.
@@ -484,14 +500,15 @@ This concept is approved when:
 
 ### Deferred Next Steps
 
-These are not authorized or started by this document:
+The reusable one-move battle has been implemented and manually verified by the
+user. That report does not by itself create independent build or test evidence.
 
-1. Finish approval and write this concept document.
-2. In a separate session, obtain explicit approval before creating the real
-   `.uproject`.
-3. Build the initial one-move battle placeholder.
-4. Validate the placeholder before expanding to the four-move showcase.
-5. Leave art-bible, map-systems, design-system, architecture, and later
-   production workflows for separately approved work.
+These later steps remain separately scoped and are not authorized by this
+document:
 
-Engine setup is already complete and must not be repeated.
+1. Restore Flamethrower as Charizard's default only when the playable slice is
+   allowed to execute and present its authored Burn side effect. Quick Attack
+   remains the temporary damage-only substitute until then.
+2. Design and approve the four-move selection milestone before implementation.
+3. Add Bag, Pokemon, Run, items, switching, broader content, and strategic AI
+   only through their later approved milestones.

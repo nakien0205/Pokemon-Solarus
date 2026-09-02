@@ -526,7 +526,7 @@ evidence subsequently proved the rows through imported Data Tables.
 - Species/forms do not yet model learnsets, evolution, breeding, gender,
   weight-based move inputs, encounter tables, held-item tables, growth, or
   non-battle Pokédex data.
-- Moves do not yet model every variable/fixed-damage family, dynamic
+- Moves do not yet model every variable-power or alternate-damage-rule family, dynamic
   type/power, OHKO rules, copying/calling, transformation, every multi-turn
   family, or every modern special rule.
 - Disposition: those systems need approved packages and typed generic
