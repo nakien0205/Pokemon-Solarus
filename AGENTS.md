@@ -26,6 +26,14 @@
   adapters, validation, and automated tests. Do not alter visual assets without
   a task-specific exception.
 
+## Workflow routing
+
+Read `workflow-guide.md` when the user asks what to do next, which workflow or
+skill to use, or how to add, change, review, or remove project work. Use it only
+to select the workflow. Before acting, read the selected skill's complete
+`SKILL.md` and all task-specific authorities. Never auto-run the next workflow
+or treat the guide as implementation authorization.
+
 ## Battle package work
 
 - Read the user-named authorities in their stated order and use the live roadmap
