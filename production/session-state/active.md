@@ -191,9 +191,8 @@ C10B acceptance by itself did not authorize C11A or C11B implementation.
 
 ## Invariants and protected scope
 
-- Preserve the pre-existing untracked ADR-0003 and ADR-0004 documents byte for
-  byte. Do not stage, commit, or otherwise change them without separate
-  approval.
+- Preserve unrelated dirty documents byte for byte. Do not stage, commit, or
+  otherwise change them without separate approval.
 - No Git stage, unstage, commit, push, branch, reset, checkout, or history
   change is authorized by this state document; Git publication requires a
   separate explicit user request.

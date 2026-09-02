@@ -218,7 +218,7 @@ Do not touch unless new live evidence proves a direct dependency and the user
 approves a revised write set:
 
 - `docs/registry/architecture.yaml`;
-- ADR-0003 or ADR-0004;
+- absent follow-up architecture records;
 - `docs/battle-engine-structural-split-handoff.md`;
 - other Battle production or test files;
 - replay schema, enum ordinals, encounter policies, or selector contracts;
@@ -271,7 +271,7 @@ Other stale authorities were:
 - `plan/battle_mechanics/12-integration-and-release-gate.md`, whose C11 status
   was too broad to show the real remaining order;
 - the top status lines in B00, C04, and C06 package documents;
-- ADR-0004, which still named an already-fixed Capture ordering defect; and
+- a historical follow-up architecture draft, which still named an already-fixed Capture ordering defect; and
 - the structural-split handoff, which still called target and effect checkpoint
   work outstanding.
 

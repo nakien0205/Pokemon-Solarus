@@ -114,8 +114,7 @@ Required continuation: `C11A -> C11B`.
 
 Pre-existing dirty inventory that every later session must preserve:
 
-- docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
-- docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md
+- No follow-up architecture records are part of this historical C10A draft.
 
 Both paths are untracked. No tracked dirty path was present before this
 document was created.

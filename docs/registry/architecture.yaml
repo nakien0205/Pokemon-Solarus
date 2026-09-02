@@ -52,8 +52,6 @@ state_ownership:
     write_access: battle-core-only
     referenced_by:
       - docs/registry/architecture/adr-0001-data-driven-battle-runtime-and-fail-closed-hud.md
-      - docs/registry/architecture/adr-0004-production-action-orchestration-and-observer-safe-resolution-projection.md
-      - docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
     added: 2026-08-24
     revised: ""
 
@@ -68,7 +66,6 @@ state_ownership:
 #     write_access: health-system-only   # only owner can write; others read
 #     referenced_by:
 #       - docs/registry/architecture/adr-0001-health-system.md
-#       - docs/registry/architecture/adr-0003-combat-system.md   # reads to apply damage
 #       - docs/registry/architecture/adr-0007-ui-system.md       # reads to display HUD
 #     added: 2026-03-26
 #     revised: ""
@@ -121,10 +118,8 @@ interfaces:
 #       - health-system        # receives damage_dealt signal, applies to health
 #       - ui-system            # receives damage_dealt signal, shows damage number
 #       - audio-system         # receives damage_dealt signal, plays SFX
-#     adr: docs/registry/architecture/adr-0003-combat-system.md
 #     signal_signature: "damage_dealt(amount: float, target: Node, is_crit: bool)"
 #     referenced_by:
-#       - docs/registry/architecture/adr-0003-combat-system.md
 #       - docs/registry/architecture/adr-0001-health-system.md
 #     added: 2026-03-26
 #     revised: ""
@@ -152,10 +147,8 @@ performance_budgets: []
 #   - system: combat
 #     status: active
 #     budget_ms: 2.0
-#     adr: docs/registry/architecture/adr-0003-combat-system.md
 #     notes: "Includes physics queries, hitbox evaluation, and damage calculation"
 #     referenced_by:
-#       - docs/registry/architecture/adr-0003-combat-system.md
 #     added: 2026-03-26
 #     revised: ""
 
@@ -184,10 +177,7 @@ api_decisions:
     status: active
     api: "Cooked Unreal UMovePresentationDefinition and USoundWave assets created by an Editor-only exact-source import pipeline with versioned audio profiles"
     not: "Runtime source-manifest/file loading, directory-wide imports, filename-derived destination identity, implicit source precedence, or automatic cross-source fallback"
-    adr: docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
     reason: "Keeps third-party conversion and import outside packaged runtime while preserving deterministic per-file provenance, cooking, destination identity, and audio loading behavior"
-    referenced_by:
-      - docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
     added: 2026-08-26
     revised: ""
 
@@ -202,7 +192,6 @@ api_decisions:
 #     reason: "Direct server calls avoid per-frame node overhead; 3× faster in profiling"
 #     referenced_by:
 #       - docs/registry/architecture/adr-0002-physics-architecture.md
-#       - docs/registry/architecture/adr-0003-combat-system.md
 #     added: 2026-03-26
 #     revised: ""
 
@@ -241,7 +230,6 @@ forbidden_patterns:
     status: active
     description: "Battle move audio must not be bulk-imported or resolved from acquired source directories by filename matching, implicit source precedence, automatic cross-package fallback, machine-specific absolute paths, or runtime loose manifests."
     why: "Implicit resolution can silently select or overwrite the wrong copyrighted source, break deterministic provenance and cooking, and make rights review unverifiable."
-    adr: docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md
     added: 2026-08-26
 
 # Example:

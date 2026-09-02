@@ -181,7 +181,7 @@ State Ownership:
   → If this ADR reads or writes player health, it must use this interface.
 
 Interface Contracts:
-  damage_delivery → signal pattern (ADR-0003)
+  damage_delivery → signal pattern
   Signal: damage_dealt(amount, target, is_crit)
   → If this ADR delivers or receives damage events, it must use this signal.
 

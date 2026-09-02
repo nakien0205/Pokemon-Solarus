@@ -135,7 +135,7 @@ and resolution history, and replay-visible facts before and after rejection.
 - Authored validation changes are limited to this PASS report, the live session
   state, and the historical FAIL report's superseded notice.
 - The pre-existing modification to `docs/registry/architecture.yaml` and the
-  pre-existing untracked ADR-0003 and ADR-0004 documents remain preserved.
+  unrelated untracked documents remain preserved.
 - No production source, test, asset, Blueprint, map, configuration, `.uproject`,
   module-rule, replay-schema, enum, encounter-policy, or C10 content file changed
   during this validation session.

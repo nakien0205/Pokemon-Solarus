@@ -42,10 +42,9 @@ assets:
   - id: pokemon_sun_moon_attack_move_sfx_tsr
     name: "Pokemon Sun/Moon Attack Move Sound Effects"
     status: proposed
-    use_scope: "Exact allowlisted battle move cues under ADR-0003 only."
-    authorization: "No import or use until ADR-0003 is independently reviewed and Accepted; each file and cue placement also requires explicit project-owner approval."
-    decision_refs:
-      - "docs/registry/architecture/adr-0003-pokemon-essentials-move-animation-conversion-and-battle-presentation.md"
+    use_scope: "Exact allowlisted battle move cues only."
+    authorization: "No import or use until each file and cue placement receives explicit project-owner approval."
+    decision_refs: []
     local_folder_label: "Gen 7 Moves SFX"
     local_inventory:
       audio_file_count: 993
@@ -89,7 +88,7 @@ assets:
   - id: pokemon_black_white_general_sfx_tsr
     name: "Pokemon Black/White Sound Effects"
     status: deferred
-    use_scope: "None. Recorded for future discovery only; broad SFX are outside ADR-0003."
+    use_scope: "None. Recorded for future discovery only; broad SFX are outside the current approved move-cue scope."
     authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
     decision_refs: []
     local_folder_label: "Gen 5 SFX"
@@ -116,7 +115,7 @@ assets:
   - id: pokemon_ultra_sun_ultra_moon_cries_tsr
     name: "Pokemon Ultra Sun/Ultra Moon Pokemon Cries, Generations 1–7"
     status: deferred
-    use_scope: "None. Recorded for future discovery only; cries are outside ADR-0003."
+    use_scope: "None. Recorded for future discovery only; cries are outside the current approved move-cue scope."
     authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
     decision_refs: []
     local_folder_label: "Gen 7 Cry SFX"
@@ -148,7 +147,7 @@ assets:
   - id: pokemon_sun_moon_jingles_tsr
     name: "Pokemon Sun/Moon Jingles"
     status: deferred
-    use_scope: "None. Recorded for future discovery only; jingles are outside ADR-0003."
+    use_scope: "None. Recorded for future discovery only; jingles are outside the current approved move-cue scope."
     authorization: "Not approved for import, cook, playback, repository inclusion, or distribution."
     decision_refs: []
     local_folder_label: "Gen 7 Mics SFX"

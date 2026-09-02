@@ -287,7 +287,7 @@ or decision text covers it:
 
 | Req ID | Requirement | ADR Coverage | Status |
 |--------|-------------|--------------|--------|
-| TR-combat-001 | Hitbox detection per-frame | ADR-0003 | ✅ |
+| TR-combat-001 | Hitbox detection per-frame | architecture record | ✅ |
 | TR-combat-002 | Combo state machine | — | ❌ GAP |
 
 Count: X covered, Y gaps. For each gap, it becomes a **Required New ADR**.
