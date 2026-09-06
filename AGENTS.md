@@ -13,6 +13,8 @@
   assets. Source files represented by `deferred` entries are provenance
   references only and are not approved for import, use, repository inclusion,
   or distribution.
+- Do not read everything but refer to `docs/index.md` to get a summary of
+  what needed to be read.
 
 ## Collaboration and ownership
 
@@ -20,11 +22,26 @@
 - Preserve unrelated dirty work. Do not rewrite or delete user changes.
 - Do not commit, push, stage, create branches, or alter Git history unless the
   user explicitly asks.
-- The user owns frontend/UI/UX visual design and visual assets: layout, styling,
-  art, materials, textures, composition, and motion appearance.
+- The user exclusively owns and approves all frontend/UI/UX design, visual
+  design, art, layout, styling, materials, textures, composition, motion
+  appearance, audio treatment, and related reference assets. Any skills or
+  documents that takes art as a blocking gate won't be consider as the user
+  is the only truth to art.
+- Agents must not reopen, question, assess, redesign, or modify those decisions
+  unless the user explicitly asks for that exact work or the agent have a valid
+  reason. Do not read user-owned UI/UX or art reference material merely to review it.
+- Do not call art, UX-design, UI-design, audio-design, technical-art, or other
+  presentation-design subagents. Functional UI code-behind is not art: agents
+  may inspect only the mechanics, state, input, data, adapter, validation, and
+  automated-test contracts needed for their assigned implementation work.
 - Codex owns code-behind, mechanics, state, input routing, data contracts,
   adapters, validation, and automated tests. Do not alter visual assets without
   a task-specific exception.
+- The current Battle keyboard mapping is a closed owner decision: Arrow keys
+  navigate, `C` is Confirm, `X` is Cancel, and `V` is Battle Info. A "tap" is a
+  press and release of `C` before the approved hold threshold. Do not reopen or
+  ask review questions about these buttons unless the user explicitly reopens
+  the decision.
 
 ## Workflow routing
 
@@ -52,3 +69,28 @@ or treat the guide as implementation authorization.
 - Use `apply_patch` for hand-authored file edits.
 - Do not modify generated Unreal folders such as `Game/Intermediate`,
   `Game/Binaries`, or `Game/Saved` except when running approved validation.
+
+## Model and reasoning recommendation
+
+Before beginning substantial work, recommend the model and reasoning level best suited to the task. Do not choose a stronger model or higher reasoning level merely because it is available.
+
+Use this default ladder:
+
+* **Luna / Light** — repository search, file discovery, simple questions, mechanical or repetitive edits, formatting, straightforward documentation, and simple test/log inspection.
+* **Terra / Medium** — default for normal implementation, routine debugging, tests, refactoring, and moderately complex multi-file work.
+* **Sol / High** — difficult implementation, complex debugging, cross-subsystem changes, architecture-sensitive work, correctness-critical reasoning, and substantial code review.
+* **Astra / Max** — reserve for the hardest or most ambiguous end-to-end tasks, major architectural decisions, problems that remain unresolved after a serious Sol attempt, or critical independent review of high-impact changes.
+
+Reasoning may be adjusted independently when appropriate:
+
+* **Light** for obvious or mechanical work.
+* **Medium** for normal multi-step work.
+* **High** for complex dependencies, uncertainty, or difficult debugging.
+* **Extra High** if High isn't enough.
+* **Max** only when the task genuinely requires maximum reasoning.
+
+When recommending a configuration, state it briefly before substantive work as:
+
+`Recommended: <Model> / <Reasoning>`
+
+The recommendation is advisory only. Do not switch models, restart the task, or stop work unless the user asks to change configuration.
