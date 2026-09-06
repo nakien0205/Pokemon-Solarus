@@ -1,237 +1,209 @@
 <!-- STATUS -->
+
+Mode: PLAYABLE
 Epic: Battle System
-Feature: Fast reusable Battle roadmap through strategic opponent AI
-Task: Four-Move Battle Selection GDD accepted; required architecture decisions are next
+Roadmap: Fast reusable Battle roadmap through strategic opponent AI
+Milestone: Step 1 — Four-Move Battle Selection
+State: Design accepted; implementation not started
+
 <!-- /STATUS -->
 
-# Active Project State — 2026-09-03
+# Active Project State
 
-## Current roadmap
+**Updated:** 2026-09-06
 
-- **Task:** Four-Move Battle Selection GDD.
-- **Status:** Independent design review completed and accepted by the project
-  owner on 2026-09-03. That review produced no separate review artifact.
-- **File:** `design/gdd/four-move-battle-selection.md`.
-- **Scope:** Only the ordered playable Battle steps from four-move selection
-  through strategic opponent AI. Full-game systems remain outside this index.
-- **Next:** Create and approve the separate opponent-policy and presentation-
-  composition ADRs required by the accepted GDD. Acceptance of the GDD does
-  not authorize implementation.
+## Current Goal
 
-## Current state
+Make **Four-Move Battle Selection** playable on top of the existing accepted
+one-Pokemon battle.
 
-- The reusable one-Pokemon playable battle prototype is accepted complete as of
-  2026-09-02. A normal `PokemonSolarusEditor Win64 Development` build
-  succeeded (target already up to date), and the project owner reported one
-  complete FoundationMap PIE battle. This closes only the bounded prototype;
-  it does not close C11A or change C11B.
+The current milestone is Step 1 only.
 
-- B00 through C10 are complete under their bounded validation. C10A source-row
-  authoring and C10B import/catalog acceptance are complete. C11A's test-only
-  deterministic integration remediation is validated, but C11A is explicitly
-  **not fully complete**: its status is `INCOMPLETE_CATALOG_DEFERRED` because six
-  accepted-catalog branches cannot yet be exercised.
-- ADR-0002 is Accepted and its bounded implementation gate is **PASS** at
-  `b5db3e440d7c6eb5ba6ddbcc01a92a3c9b8756c0`.
-- The BattleEngine and BattleEffectExecutor structural splits are complete.
-  `docs/battle-engine-structural-split-handoff.md` records their current source
-  map, invariants, accepted evidence, and one remaining non-runtime concern:
-  three focused executor sources manually redeclare six helpers whose
-  definitions remain in `BattleEffectExecutor.cpp`.
-- R1 through R6 supplied the reusable typed mechanics required by C10A. The
-  independent R7 gate passed against live source and exported evidence.
-- The completed C10A source slice contains exactly 8 species/forms, 25 natures,
-  62 moves, 8 Abilities, 14 items, and 40 conditions. Static validation passed
-  with zero source-fact, reference, or descriptor errors. C10A changed no Unreal
-  asset and ran no Automation.
-- C10B was accepted on 2026-08-31. Exactly seven approved production Data
-  Tables changed after pure validation and seven transient conversions. The
-  type-chart and runtime-scenario assets remained byte-identical.
-- C11B's normal-Unity compatibility remediation, build/full-suite evidence
-  gate, and independent Final Review are complete and accepted as **PASS**.
-  Full C11 remains open because `C11A-DATA-001` through `C11A-DATA-006` are
-  still deferred.
+Long-term Solarus scope and later Battle roadmap steps remain valid, but they do
+not create current implementation work.
 
-## Current C11A result
+## Current Authorities
 
-C11A added exactly ten test-only files and preserved exactly 25
-`PokemonSolarus.Battle.C11A` Automation identities. It changed no production
-C++, source JSON, Data Table, configuration, `.uproject`, UI, visual asset, or
-runtime ownership seam.
+Primary current design:
 
-The accepted remediation evidence is rooted at
-`Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`. A fresh
-forced-Unity build succeeded and produced linked DLL SHA-256
-`9432EE8A929878E27BC0A6A027A2116ED810EEAC2A540694102ACEC3FBBB2272`.
-The six serial filters passed exact success counts `4/10/4/6/5/25`; every
-warning, failure, not-run, in-process, and per-test issue counter was zero.
-Protected hashes matched `251/251` with zero mismatches. Final `code-review`
-was `APPROVED_WITH_SUGGESTIONS`; `test-evidence-review` was `ADEQUATE` with zero
-blocking items for the approved remediation scope.
+* `design/gdd/four-move-battle-selection.md`
 
-C11A remains `INCOMPLETE_CATALOG_DEFERRED`. The six declared gaps are:
+Roadmap:
 
-1. Snow's physical Defense boost for Ice defenders: no accepted Ice species.
-2. Sandstorm's Special Defense boost for Rock defenders: no accepted Rock
-   species.
-3. Sun/Rain modification of Water damage: no accepted damaging Water move.
-4. Misty Terrain's Dragon reduction: no accepted damaging Dragon move.
-5. Screen and Safeguard bypass branches: no accepted damaging or major-status
-   bypass move.
-6. Eight-turn field/side duration extension: no accepted qualifying
-   set-condition effect.
+* `design/gdd/systems-index.md`
 
-Each gap is logged with its production symbol, missing data, current partial
-coverage, data-arrival guard, and required later retest in
-`deferred-catalog-gaps.json` under the evidence root. The guards fail when the
-required data appears so coverage cannot remain silently deferred.
+Functional presentation/input authorities when relevant:
 
-The user approved a special sequencing exception on 2026-08-31: C11B may be
-implemented while these six gaps remain declared. This does not mark C11A fully
-complete and does not waive the deferred retests. C11B used that exception and
-is now complete; the exception does not permit a full C11 completion claim.
+* `design/ux/battle-hud.md`
+* `docs/engine-reference/unreal/modules/input.md`
 
-## Accepted C11B result
+Repository routing:
 
-C11B is independently accepted as **PASS**. Its canonical evidence is rooted at
-`Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
-The approved remediation changed exactly 14 tracked C++ files to contain
-file-private helpers and test bodies in unique named namespaces. It changed no
-battle behavior, public API, Automation identity, data, asset, configuration,
-RNG ownership, event order, or replay schema.
+* `index.md`
 
-The normal Editor build and the exact forced-Unity build with
-`-ForceUnity -DisableAdaptiveUnity -BytesPerUnityCPP=1 -NoUBA` both produced
-fresh DLL links. The final accepted DLL SHA-256 is
-`906EA5B045F31677DE8015AB1FAB5D15B59D255B5CBA22F4C787A24A6092AA56`.
-Source and rebuilt-binary discovery matched exactly at `418/418` with zero
-duplicates. All 29 serial reports were accepted: `836/836` aggregate and
-`418/418` for the complete `PokemonSolarus.Battle` prefix, with every exported
-test issue counter zero.
+Do not load older Battle plans, unrelated ADRs, or historical
+reports unless the current task specifically depends on them.
 
-Fresh C10B digest proof retained
-`94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
-Fresh C11A proof passed all 25 identities, the six declared gap messages, and
-seven data-arrival guards while preserving `INCOMPLETE_CATALOG_DEFERRED`.
-Protected hashes matched `303/303` with exactly the approved 14 changes and no
-unapproved changes. The canonical evidence index contains 86 verified files.
-The fresh independent `code-review` and `test-evidence-review` found no
-unresolved Critical or High findings and returned final C11B verdict **PASS**.
+## Implemented Baseline
 
-## Accepted C10B result
+The reusable one-Pokemon playable battle was accepted on 2026-09-02.
 
-C10B converted the accepted source rows into production Data Tables and proved
-that source and reflected rows build the same immutable catalog. It added no
-battle mechanic or production C++ owner.
+It already proves:
 
-The accepted hand-authored paths are:
+* Charizard versus Venusaur in FoundationMap;
+* authoritative BattleEngine turn resolution;
+* one legal player Fight action;
+* automatic opponent action;
+* PP, targeting, accuracy, damage, HP, fainting, and outcome;
+* HUD refresh;
+* victory/defeat;
+* clean PIE restart.
 
-- new `Game/SourceData/Battle/battle_source_validation.py`;
-- new
-  `Game/SourceData/Battle/tests/test_battle_source_validation.py`;
-- new
-  `Game/SourceData/Battle/tests/test_import_initial_battle_data.py`;
-- `Game/SourceData/Battle/import_initial_battle_data.py`;
-- `Game/SourceData/Battle/Initial/display_names.json`, adding only Gyarados,
-  Rotom, Pelipper, Espathra, Clefable, and Excadrill;
-- new
-  `Game/Source/PokemonSolarus/Private/Tests/BattleCanonicalContentTests.cpp`;
-  and
-- `Game/Source/PokemonSolarus/Private/Tests/BattleRuntimeDataSourceTests.cpp`.
-- `Game/PokemonSolarus.uproject`, converted from UTF-16 LE with BOM to
-  semantically identical UTF-8 without BOM so UE 5.8.1 UnrealBuildTool can
-  parse the project during a clean rebuild.
+Treat the existing BattleEngine and completed Battle mechanics as a stable
+foundation.
 
-After complete preflight and transient conversion, the accepted asset write
-allowlist was:
+Do not redesign or improve that foundation unless Step 1 proves a specific gap.
 
-- `DT_InitialBattleSpeciesForms.uasset`;
-- `DT_InitialBattleNatures.uasset`;
-- `DT_InitialBattleMoves.uasset`;
-- `DT_InitialBattleAbilities.uasset`;
-- `DT_InitialBattleItems.uasset`;
-- `DT_InitialBattleConditions.uasset`; and
-- `DT_InitialBattleDisplayNames.uasset`.
+## Current Step 1 Scope
 
-`DT_InitialBattleTypeChart.uasset` and `DT_BattleRuntimeScenario.uasset` remained
-validate-only and byte-identical. The existing reflected rows,
-`FBattleDataTableAdapter`, `FBattleDefinitionCatalog`, and runtime loader remain
-the production owners; C10B added validation/import coordination and tests only.
-C10B acceptance by itself did not authorize C11A or C11B implementation.
+The accepted Four-Move Battle Selection design currently requires:
 
-## Current evidence
+* a four-slot move-selector capacity;
+* the approved temporary assignments:
 
-- ADR-0002 implementation gate:
-  `production/gate-checks/2026-08-27-adr-0002-implementation-pass.md`.
-- Structural record:
-  `docs/battle-engine-structural-split-handoff.md`.
-- Executor split evidence:
-  `Game/Saved/AutomationReports/BattleEffectExecutorSplit-20260828-091837`.
-- Independent R7 evidence:
-  `Game/Saved/AutomationReports/R7-IndependentGate-20260830-164042`.
-- Reproducible C10A source evidence:
-  `Game/Saved/AutomationReports/C10A-SourceContent-20260830-170739`.
-- C10A implementation evidence:
-  `Game/Saved/AutomationReports/C10A-Implementation-20260830-172323`.
-- Accepted C10B seven-table implementation/import evidence:
-  `Game/Saved/AutomationReports/C10B-ImportAndCatalog-20260831-090312`.
-  It records the pure preflight, seven transient conversions, exact seven-asset
-  import, binary backups, and unchanged validate-only assets.
-- Accepted project-encoding evidence:
-  `Game/Saved/AutomationReports/C10B-UProjectUtf8Normalization-20260831-095635`.
-  The decoded project text and JSON remained identical while the file changed
-  from UTF-16 LE SHA-256
-  `D67F6C440219884BA3EA65623A9DCB30F5245B25F07379A7AD1D17080FD59518`
-  to UTF-8-without-BOM SHA-256
-  `1F8CD7D128EDE4F1FA2B6D3D4E17DC0C748A7AC8C7C5B467234DF0C441BCCB17`.
-- Final accepted C10B remediation evidence:
-  `Game/Saved/AutomationReports/C10B-ReviewRemediationFinal-20260831-110350`.
-  Python passed 21/21, the clean forced-Unity rebuild completed 150/150 actions
-  with zero compiler warnings or errors, and the 12 serial Automation reports
-  passed 187/187 with zero warning, failure, not-run, in-process, or per-test
-  issue counters. The battle-owned catalog isolation proof passed, final
-  `code-review` was APPROVED, and `test-evidence-review` was
-  ADEQUATE/COMPLETE. Source and two independent production catalog summaries
-  retained SHA-256
-  `94CDB260DD1129C61E80CF4087389F1DC0265E3DCEDF95E0E254EBBC6A7F3CBA`.
-- C11A deterministic integration remediation evidence:
-  `Game/Saved/AutomationReports/C11A-ReviewRemediation-20260831-221346`.
-  The consolidated result is `completion-audit.json`; the six explicit data
-  gaps and later retests are in `deferred-catalog-gaps.json`.
-- Accepted C11B normal-Unity remediation and release-gate evidence:
-  `Game/Saved/AutomationReports/C11B-NormalUnityRemediation-20260901-081133`.
-  The canonical inventory is `evidence-index.json`; `completion-audit.json`
-  records the pre-review validation closeout, and the subsequent independent
-  read-only Final Review accepted C11B as **PASS**.
-- Live C10 and C11 contracts:
-  `plan/battle_mechanics/11-canonical-proof-content.md` and
-  `plan/battle_mechanics/12-integration-and-release-gate.md`.
+  * Charizard: Swift, Earthquake, blank, blank;
+  * Venusaur: Vine Whip, Earthquake, blank, blank;
+* authored move order and blank-slot behavior;
+* player selection from legal current BattleEngine decisions;
+* unavailable move information;
+* PP and effectiveness presentation;
+* Struggle fallback;
+* Move Details behavior;
+* Battle Info functional behavior;
+* the temporary uniform opponent policy;
+* real BattleEngine turn resolution after both decisions;
+* the presentation data required by this milestone.
 
-## Invariants and protected scope
+The temporary loadout is a selector proof, not the final strategic move set.
 
-- Preserve unrelated dirty documents byte for byte. Do not stage, commit, or
-  otherwise change them without separate approval.
-- No Git stage, unstage, commit, push, branch, reset, checkout, or history
-  change is authorized by this state document; Git publication requires a
-  separate explicit user request.
-- Preserve one authoritative battle state, transactional RNG ownership, event
-  and replay ordering, stale-identity checks, and exact-once publication.
-- Do not claim the executor six-helper declaration seam is remediated without a
-  separately approved source change and fresh validation.
-- Cry for Help, wild reinforcement, and `CallReinforcement` remain **Freeze
-  until call by user**.
-- Battle HUD visuals and Blueprint assets remain user-owned. Do not change
-  layout, styling, art, materials, textures, composition, or motion appearance.
-- Do not modify production source, tests, source data, assets, Blueprints,
-  configuration, `.uproject` data, modules, or generated Unreal output without
-  a new task-specific approval.
+## Required Architecture Work
+
+The accepted Step 1 GDD explicitly requires two architecture decisions before
+the affected implementation:
+
+1. **Opponent-policy ADR**
+
+   * Only define the reusable boundary required for the current temporary
+     opponent policy.
+   * Preserve current BattleEngine ownership and deterministic/replay
+     guarantees required by the accepted GDD.
+   * Do not design strategic AI or later multi-request systems.
+
+2. **Presentation-composition ADR**
+
+   * Only define the storage/composition/projection boundary required for Step 1
+     move presentation and observer-safe selector information.
+   * Do not design a general future presentation framework.
+
+These ADRs are required because the accepted GDD currently requires them, not
+because all PLAYABLE work normally requires architecture review.
+
+Use the lean review rule from `AGENTS.md`:
+
+**one review -> correction if required -> one confirmation**
+
+Do not continue architecture-review loops for advisory future concerns.
+
+## User-Owned Decision Still Needed
+
+Before Confirm-hold behavior is implemented, the user must provide the positive
+`T_hold` threshold required by the accepted GDD.
+
+The key mapping itself is already closed:
+
+* Arrow keys — navigation;
+* `C` — Confirm;
+* `X` — Cancel;
+* `V` — Battle Info.
+
+Do not reopen those bindings.
+
+## Explicitly Out of Scope
+
+Do not begin these while Step 1 is active:
+
+* Command Child Flows / roadmap Step 2;
+* First Battle Item / Step 3;
+* Fifty-Pokemon Switching Set / Step 4;
+* broader Move Pools / Step 5;
+* Special-Effect Expansion / Step 6;
+* Strategic Opponent AI / Step 7;
+* a general learnset or TM database;
+* additional unsupported move-effect behavior;
+* C11A deferred catalog-gap closure;
+* Cry for Help or wild reinforcement;
+* unrelated BattleEngine refactoring;
+* replay or transaction improvement not required by Step 1;
+* unrelated test expansion;
+* visual redesign or user-owned art changes.
+
+Future requirements may be noted as technical debt or future work. They must not
+expand Step 1.
+
+## Existing Deferred State
+
+C11A remains:
+
+`INCOMPLETE_CATALOG_DEFERRED`
+
+Its six catalog gaps remain deferred until their required accepted data arrives.
+
+C11B is accepted complete.
+
+Neither state is part of the current Step 1 implementation unless new accepted
+catalog data directly triggers one of the existing deferred guards.
+
+Do not rerun C11 release-gate work merely because Step 1 is active.
+
+## Validation Policy
+
+Use validation appropriate to Step 1.
+
+During implementation:
+
+* run focused selector/policy/presentation tests for the responsibility changed;
+* run a normal `PokemonSolarusEditor Win64 Development` build when C++ changes;
+* rerun older Battle filters only when shared Battle code changed in a way that
+  can affect them;
+* compile affected Blueprint/widget assets when relevant;
+* verify the player-facing flow in actual PIE.
+
+Do not run the complete C11 production evidence process.
+
+At Step 1 completion, perform the accepted GDD's milestone validation and one
+broader regression/review appropriate to the shared code actually changed.
+
+## Current Development Rule
+
+For Step 1:
+
+> Build only what is necessary to make Four-Move Battle Selection playable.
+
+The full game vision remains valid.
+
+The later Battle roadmap remains valid.
+
+Neither is permission to implement later systems now.
 
 ## Next
 
-1. Create and approve the separate opponent-policy and presentation-composition
-   ADRs required by the accepted Four-Move Battle Selection GDD. Do not begin
-   implementation from the accepted GDD alone.
-2. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED` and full C11 open; run the
-   six deferred retests only when their required accepted catalog data arrives.
-3. Do not begin Cry for Help/reinforcement or later presentation lanes without
-   a separate user call and their own approval workflow.
+1. Complete the bounded opponent-policy ADR required by the accepted Step 1 GDD.
+2. Complete the bounded presentation-composition ADR required by the accepted
+   Step 1 GDD.
+3. Obtain the user's `T_hold` value before implementing hold behavior.
+4. Implement Step 1 in PLAYABLE mode.
+5. Run focused validation and a complete Step 1 PIE battle.
+6. Stop and obtain Step 1 acceptance before beginning roadmap Step 2.
+
+Historical Battle implementation/evidence remains available in the repository
+and Git history. It is not active-session context unless a current task needs it.

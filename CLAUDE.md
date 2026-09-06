@@ -38,14 +38,39 @@ Automation reports override historical status notes.
 
 ## Collaboration protocol
 
-Work is user-driven. Meaningful edits follow:
-**Question -> Options -> Decision -> Draft -> Approval**.
+Work is user-driven. Follow the development mode and active milestone recorded
+in `production/session-state/active.md`.
 
-- Identify the exact write set, exclusions, and validation before editing.
-- Show the draft or proposed change and obtain explicit approval.
+For ordinary `PLAYABLE` work, use:
+
+**Goal -> Decision if needed -> Implement -> Focused Validation -> PIE -> Accept or Fix**
+
+- If an accepted design already settles the behavior, do not reopen it.
+- If the user directly requests implementation of an already-approved bounded
+  scope, that request authorizes implementation of that scope.
+- Do not require a separate implementation-draft or independent-approval cycle
+  unless the active authority explicitly requires one or a genuine architecture
+  trigger is discovered.
+- Identify the expected write set, exclusions, and relevant validation before
+  editing, but keep this proportional to the task.
 - Preserve unrelated dirty and untracked work.
-- A completed review, build, or test run does not grant implementation or Git
-  authorization.
+- Reviews, builds, and tests provide evidence; they do not authorize Git
+  operations.
+- Do not stage, commit, push, branch, reset, checkout, or alter Git history
+  without explicit task-specific user authorization.
+
+## Context discipline
+
+Do not read the whole repository before beginning work.
+
+Start with:
+
+1. `AGENTS.md`
+2. `production/session-state/active.md`
+3. `index.md`
+
+Historical plans, ADRs, reports, and evidence are read only when the current
+task depends on them.
 
 ## Mandatory code-file organization
 

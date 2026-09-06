@@ -2,557 +2,492 @@
 
 ## Purpose
 
-This guide helps the user and Codex select the right workflow for project work.
-It is a routing guide, not implementation authority. It does not grant
-permission to edit files, assets, tests, configuration, documentation, or Git
-history.
+This file routes project work without turning every change into a production
+process.
 
-Every meaningful change follows:
+It does not authorize edits, assets, Git operations, or future roadmap work.
 
-**Question -> Options -> Decision -> Draft -> Approval -> Implementation ->
-Validation -> Review -> Acceptance**
+The governing rule is:
 
-Tests, builds, and reviews are evidence. They do not replace owner approval.
+> **The final vision decides where Solarus is going. The current playable
+> milestone decides what Solarus builds now.**
 
-## Agent usage contract
+Future requirements may shape a clean extension point. They do not create
+current work.
 
-Read this guide when the user:
+---
 
-- does not know what to do next;
-- asks which workflow or skill to use;
-- proposes adding, upgrading, reviewing, or removing a feature;
-- requests work spanning multiple disciplines; or
-- asks whether the project is ready to advance.
+## Development Modes
 
-This guide selects a workflow. Before using a selected skill, read its complete
-`.codex/skills/<skill-name>/SKILL.md`. Do not infer a skill's current behavior
-from this summary alone.
+| Mode           | Purpose                                                  | Default rigor                                  |
+| -------------- | -------------------------------------------------------- | ---------------------------------------------- |
+| **SPIKE**      | Answer one uncertain question                            | Fast, disposable, minimal validation           |
+| **PLAYABLE**   | Deliver the next player-visible result                   | Small implementation, focused tests, real PIE  |
+| **PRODUCTION** | Harden proven systems or prepare production/release work | Formal approval, broader regression and review |
 
-## Authority order
+`production/session-state/active.md` records the current mode.
 
-When instructions conflict, follow this order:
+If no mode is recorded, use **PLAYABLE**.
 
-1. Higher-priority system, developer, and current user instructions.
+Do not choose Production simply because the task could theoretically benefit
+from more rigor.
+
+---
+
+## Authority Order
+
+Use the smallest relevant authority set.
+
+1. Higher-priority instructions and the user's current request.
 2. `AGENTS.md`.
-3. User-named current authorities, in the order the user names them.
-4. The live roadmap package for package work.
-5. Live source, tests, worktree state, and fresh exported evidence.
-6. `production/session-state/active.md`.
-7. Accepted design and architecture documents.
-8. This workflow guide.
-9. Generic skill defaults.
-10. Historical reports and prior-session notes.
-
-If current authorities genuinely conflict, stop and show the conflict. Do not
-guess which behavior should win.
-
-## Agent read order
-
-Before recommending or starting work:
-
-1. Read `AGENTS.md`.
-2. Read `production/session-state/active.md`.
-3. Inspect `git status --short` and protect unrelated dirty work.
-4. Read user-named authorities in their stated order.
-5. Read the live roadmap package when applicable.
-6. Use this guide to select one primary workflow.
-7. Read the selected skill's complete `SKILL.md`.
-8. Read directly relevant source, tests, and fresh evidence.
-9. Read `docs/code-file-organization.md` before planning or changing
-   hand-authored code or automated tests.
-10. Read `docs/registry/external-assets.yaml` before proposing third-party
-    asset use or import.
-
-## Workflow selection algorithm
-
-The agent must:
-
-1. Establish the requested outcome and current project state.
-2. Determine the task type and whether it is prototype or production work.
-3. Select exactly one primary workflow from this guide.
-4. State the first action only; show later steps as brief context.
-5. Identify required decisions, approvals, evidence, and exclusions.
-6. Never auto-run the next skill merely because another skill recommends it.
-7. Say what is unknown when evidence is insufficient.
-8. Stop when a user-owned decision or new authorization is required.
-
-When several workflows overlap, begin with the earliest unresolved decision.
-For example, do not start implementation planning while game behavior remains
-undecided, and do not schedule an unapproved implementation draft.
-
-## Standard agent response when the user is unsure
-
-Use this compact form:
-
-```text
-Current situation:
-[Verified project state]
-
-Recommended next action:
-[Exactly one action or skill]
-
-Not yet authorized:
-[Implementation, assets, Git operations, or later work]
-
-After that:
-[Short preview of later steps]
-
-Unknowns:
-[Anything the available evidence cannot establish]
-```
-
-Do not overwhelm the user with every possible later skill. Give one primary
-recommendation.
-
-## Universal Solarus implementation path
-
-Any task that may change hand-authored code, automated tests, source data,
-Unreal assets, or configuration must eventually use this path:
-
-1. Reach a clear design decision.
-2. Run `/solarus-implementation-draft`.
-3. Explicitly select `prototype` or `production` mode. Do not infer the mode.
-4. Run an independent `/solarus-implementation-approval` review.
-5. Resolve every `REVISE` or `BLOCK` verdict.
-6. Present the exact write set, exclusions, validation, dirty paths, and stop
-   conditions.
-7. Obtain explicit implementation authorization.
-8. Implement only the approved scope.
-9. Run the approved validation.
-10. Run `/code-review` and `/test-evidence-review` when required.
-11. Obtain separate final acceptance.
+3. Current user-named accepted design/ADR/task authority.
+4. `production/session-state/active.md`.
+5. Live source, tests, runtime state, and fresh evidence.
+6. Current roadmap/index documents.
+7. Historical documents and reports.
 
-Draft approval does not authorize implementation. Implementation approval does
-not authorize staging, committing, pushing, branching, or altering history.
+When an accepted current authority explicitly requires a stronger process, such
+as an ADR, follow that requirement. Keep it bounded to the current milestone.
 
-## Quick router
+Do not allow historical requirements to create new work unless the active task
+depends on them.
 
-| The user wants to... | Start with |
-|---|---|
-| Find the next project task | `/help` |
-| Audit the whole project stage | `/project-stage-detect` |
-| Start using the workflow in an existing project | `/adopt` |
-| Recover missing documents from implementation | `/reverse-document` |
-| Add a small mechanic or adjustment | `/quick-design` |
-| Add a large feature or system | `/design-system` |
-| Upgrade an existing feature | Update its design, then `/propagate-design-change` |
-| Test a risky idea quickly | `/prototype --spike` |
-| Add or audit gameplay content | `/content-audit` |
-| Fix a bug | `/bug-report` |
-| Make or import art | `/asset-spec` |
-| Design UI or HUD behavior | `/ux-design` |
-| Improve measured performance | `/perf-profile` |
-| Review security | `/security-audit` |
-| Prepare a release | `/release-checklist` |
-| Continue efficiently in another session | `/new-session` |
+---
 
-## Feature workflows
+## Context Rule
 
-### Small feature or tuning change
+Do not begin by reading the entire repository.
 
-**Use when:** The change is a narrow addition, number adjustment, or existing
-rule change that does not require a full system GDD.
+Start with:
 
-**Sequence:**
+`AGENTS.md -> active.md -> docs/index.md -> current authority -> relevant code/tests`
 
-`/quick-design` -> optional `/design-review` -> Solarus implementation path ->
-focused validation -> final acceptance
+Search before opening broad directories.
 
-If balance is affected, finish with `/balance-check` and focused playtesting.
+Follow links only when they can materially affect the current task.
 
-### Major new feature
+Historical reports, old plans, evidence roots, unrelated GDDs, and unrelated
+Battle subsystems are not default reading.
 
-**Use when:** The feature introduces substantial game behavior, a new system,
-or several connected responsibilities.
+---
 
-**Sequence:**
+# Default PLAYABLE Workflow
 
-`/design-system` -> `/design-review` -> architecture work when required ->
-epic/story or live roadmap package -> `/story-readiness` -> Solarus
-implementation path -> `/story-done`
+Most Solarus development should currently use this path:
 
-Use `/architecture-decision` when the feature changes state ownership, public
-or reflected contracts, persistence, modules, transactions, RNG, lifecycle, or
-event/snapshot/replay order.
+**Goal -> Decide only what is unclear -> Implement -> Focused Validation -> PIE -> Accept/Fix -> Stop**
 
-### Upgrade an existing feature
+## 1. Goal
 
-1. Determine whether the existing GDD authorizes the changed behavior.
-2. Use `/quick-design` for a narrow extension or revise the system GDD for a
-   rule change.
-3. Run `/design-review`.
-4. Run `/propagate-design-change` after changing a GDD.
-5. Review affected ADRs, epics, stories, tests, and consumers.
-6. Enter the Solarus implementation path.
-7. Rerun affected older and new regression tests.
-8. Obtain final acceptance.
+Define one player-visible or directly enabling outcome.
 
-### Risky experiment or spike
+Examples:
 
-**Use when:** One uncertain design or technical question should be answered
-before committing to maintained implementation.
+* the player can choose one of the currently assigned moves;
+* the Bag child flow opens and safely returns;
+* one Potion can restore HP;
+* two Pokemon can be switched;
+* a move's result becomes visible in battle.
 
-**Sequence:**
+Do not turn one goal into an entire future subsystem.
 
-`/prototype --spike` -> define one question -> bound the experiment -> observe
-the result -> decide to abandon, investigate, or enter a normal feature workflow
+## 2. Decide Only What Is Unclear
 
-For changes inside the Solarus project, use
-`/solarus-implementation-draft` in `prototype` mode before modifying files. A
-spike must not silently become production code.
+If an accepted design already settles the behavior, use it.
 
-### Production-quality vertical slice
+Do not run another design workflow to reconsider settled decisions.
 
-**Use when:** Approved GDDs, architecture, and UX specifications exist, but the
-complete game loop still needs an end-to-end production-quality feasibility
-check before full production commitment.
+If one small behavior remains unclear, resolve only that behavior through a
+small decision or `/quick-design`.
 
-**Sequence:**
+Use `/design-system` only when a genuinely new major system lacks an accepted
+design.
 
-define the slice and success criteria -> `/vertical-slice` -> implement only
-the approved end-to-end slice -> playtest -> record `PROCEED`, `PIVOT`, or
-`KILL` evidence -> owner decision -> `/gate-check`
+## 3. Implement
 
-A vertical slice is not the same as a throwaway prototype. It tests whether the
-designed production pipeline and complete loop can work together.
+Before mutation, identify the small expected write set and exclusions.
 
-## Battle package workflow
+If the user directly requested implementation of an approved bounded task, that
+request authorizes implementation of that scope.
 
-For Battle work, the live roadmap package is the implementation contract:
+Do not require a separate Solarus implementation draft and independent approval
+for normal PLAYABLE work.
 
-roadmap package -> Solarus implementation draft -> independent approval ->
-implementation authorization -> named package filter -> affected older package
-filters -> exported `index.json` inspection -> reviews -> independent final
-acceptance
+Do not expand the write set to unrelated cleanup, future-proofing, catalog
+closure, refactoring, or architecture improvement.
 
-Preserve:
+If the implementation proves that a larger boundary must change, stop the
+expansion and identify the exact reason.
 
-- one authoritative Battle state, transaction, and RNG owner;
-- legality, targeting, resource, damage, event, snapshot, replay, and
-  publication order;
-- observer-safe information and stale-identity checks;
-- generic systems without Pokemon-, move-, match-, or scenario-specific
-  branches; and
-- existing public and reflected contracts unless a change is explicitly
-  designed and approved.
+## 4. Focused Validation
 
-Run only the named package filter unless the user expands scope. After a shared
-BattleEngine or executor change, rerun affected older package filters. Judge
-Automation through exported `index.json`, not the process exit code alone.
+Validate what changed.
 
-## Content and data workflow
+Typical PLAYABLE validation is:
 
-**Use for:** Pokemon, moves, Abilities, items, conditions, encounters, and other
-authored gameplay content.
+* relevant focused automated tests;
+* one normal Editor build when C++ changed;
+* Blueprint/widget compilation when relevant;
+* actual PIE testing for player-facing behavior.
 
-**Sequence:**
+Do not automatically run the complete Battle suite.
 
-`/content-audit` -> confirm design authority -> `/quick-design` if new rules are
-needed -> Solarus implementation path -> pure source validation -> approved
-import -> catalog/runtime equivalence -> affected mechanic tests ->
-`/balance-check` -> acceptance
+## 5. PIE
 
-Validate source data before mutating Unreal assets. Do not import or use a
-third-party asset unless `docs/registry/external-assets.yaml` approves it.
+A player-facing feature is not complete merely because native tests pass.
 
-## Art and presentation workflows
+Verify the intended interaction in Unreal.
 
-### Art assets
+The user owns visual judgment.
 
-`/art-bible` -> `/asset-spec` inventory and per-asset specification -> visual
-approval -> production/import -> `/asset-audit` -> in-engine verification
+## 6. Accept or Fix
 
-The user owns layout, styling, artwork, materials, textures, composition, and
-motion appearance. Codex may handle contracts, loading, state, bindings,
-validation, and code integration unless the user grants a task-specific visual
-exception.
+Fix concrete defects found by validation or PIE.
 
-### UI and HUD
+Once the approved outcome works, stop.
 
-`/ux-design` -> `/ux-review` -> define state/events/input/bindings -> Solarus
-implementation path -> code-behind -> user-created or user-approved visuals ->
-Blueprint compilation -> actual-size PIE -> review and acceptance
+Do not continue into cleanup, polish, generalization, or the next roadmap step
+without a new task.
 
-Native tests do not prove real Blueprint delivery. `/team-ui` must preserve the
-user's ownership of visual decisions.
+---
 
-### Audio
+# SPIKE Workflow
 
-approved direction -> `/team-audio` -> audio asset requirements -> production
--> gameplay integration -> validation -> asset audit
+Use a spike when one uncertain question blocks a decision.
 
-### Levels and areas
+Path:
 
-requirements -> `/team-level` -> level specification -> asset and mechanic
-plans -> implementation -> user visual approval -> playtesting -> QA
+**Question -> Small experiment -> Observe -> Decide -> Discard or promote**
 
-### Narrative
+A spike should:
 
-narrative requirements -> `/team-narrative` -> `/design-review` -> stories ->
-implementation -> consistency review -> localization
+* answer one question;
+* use the smallest test environment possible;
+* avoid production architecture;
+* avoid broad test suites;
+* avoid permanent documentation unless the result changes a real project
+  decision.
 
-## Bug and maintenance workflows
+A successful spike is not automatically production code.
 
-### Normal bug
+---
 
-`/bug-report create` or `analyze` -> reproduce -> establish root cause -> minimal
-Solarus implementation path -> regression test -> reviews ->
-`/bug-report verify` -> `/bug-report close`
+# PRODUCTION Workflow
 
-Use `/bug-triage` when multiple bugs compete for attention.
+Use Production mode when the user explicitly chooses it, when preparing
+production/release work, or when a current accepted authority genuinely
+requires production-level guarantees.
 
-### Emergency hotfix
+A Production task may use:
 
-**Use only for:** A serious released-build problem that requires expedited work.
+**Design -> Implementation Draft -> Independent Approval -> Implementation ->
+Broader Validation -> Code Review -> Test-Evidence Review -> Acceptance**
 
-`/bug-report` -> `/hotfix` -> rollback plan -> minimum fix -> smoke or focused
-QA -> deployment approval -> production verification -> `/retrospective hotfix`
+Use this process selectively.
 
-The hotfix skill may propose a Git branch. It cannot create one without explicit
-Git authorization.
+It is not the default path for ordinary gameplay development.
 
-### Day-one patch
+Production rigor is appropriate for examples such as:
 
-gold master -> select safe P1/P2 fixes -> `/day-one-patch` -> rollback plan ->
-minimal fixes -> targeted QA -> `/patch-notes` -> deployment verification ->
-retrospective
+* changing persistent save formats;
+* changing fundamental state ownership;
+* changing a widely consumed public/reflected API;
+* replay-schema or deterministic-RNG migration;
+* release gates;
+* risky data migration;
+* high-impact shared architecture already proven necessary.
 
-Do not add features or refactor during a day-one patch.
+---
 
-### Technical debt or refactoring
+# Architecture Decisions
 
-`/tech-debt scan` -> prioritize -> schedule -> architecture decision if
-ownership changes -> Solarus implementation path -> regression validation
+Use `/architecture-decision` only when:
 
-Separate mechanical relocation from behavior changes. Follow
-`docs/code-file-organization.md`.
+1. the current accepted design explicitly requires an ADR; or
+2. the current task changes a fundamental architecture boundary.
 
-## QA workflows
+Examples of real architecture triggers:
 
-### Test infrastructure
+* authoritative state ownership;
+* persistence;
+* module boundaries;
+* broadly consumed public/reflected contracts;
+* transaction ownership;
+* RNG ownership;
+* replay/event publication;
+* lifecycle/atomicity guarantees that materially affect current correctness.
 
-Use only when genuinely missing:
+An ADR must solve the current problem.
 
-`/test-setup` -> `/test-helpers`
+It must not design future roadmap systems merely because they may eventually
+touch the same boundary.
 
-Solarus already has Unreal Automation infrastructure. Do not replace it with a
-generic test scaffold without a separately approved plan.
+Do **not** require an ADR for ordinary:
 
-### Feature or sprint QA
+* UI code-behind;
+* adding authored content;
+* wiring an already-supported decision;
+* local bug fixes;
+* move-selector behavior;
+* isolated presentation data;
+* mechanical refactoring that preserves ownership and contracts.
 
-`/qa-plan` -> automated and manual tests -> `/smoke-check` ->
-`/regression-suite` -> `/test-evidence-review` -> `/team-qa`
+Unless a current authority explicitly says otherwise.
 
-Use `/test-flakiness` only when repeated test history exists. Use `/soak-test`
-for long-session stability. Native tests do not replace required real Blueprint
-or actual-size PIE acceptance.
+---
 
-## Quality improvement workflows
+# Review Rules
 
-### Balance
+Reviews exist to catch real problems, not generate infinite work.
 
-`/quick-design` -> approve the intended result -> implement ->
-`/balance-check` -> playtest -> adjust through a new approval cycle
+Classify findings as:
 
-### Performance
+### BLOCKER
 
-`/perf-profile` -> record a baseline -> identify a measured bottleneck ->
-`/scope-check` -> `/estimate` -> Solarus implementation path -> remeasure under
-the same conditions -> regression validation
+A finding may block when it demonstrates:
 
-Do not optimize without a reproducible baseline.
+* incorrect current behavior;
+* violation of an accepted current requirement;
+* data corruption/loss risk;
+* security or serious stability risk;
+* an architecture defect preventing the current or immediately next milestone.
 
-### Security
+### DEBT / ADVISORY
 
-`/security-audit` -> classify findings -> bugs or stories -> Solarus
-implementation path -> security retest -> release or gate review
+Examples:
 
-### Localization
+* future scaling concerns;
+* future extensibility opportunities;
+* cleaner abstractions not currently needed;
+* speculative interactions with later roadmap systems;
+* optional refactoring;
+* additional test coverage beyond the current risk.
 
-`/localize scan` -> `extract` -> `freeze` -> `brief` -> translation ->
-`validate` -> cultural review -> RTL/VO checks when applicable -> localization
-QA
+These must not block PLAYABLE work.
 
-The generic localization skill contains non-Unreal path assumptions. Adapt it
-to the project's current Unreal localization structure through an approved
-draft before allowing mutation.
+Record useful findings as technical debt and continue.
 
-## Production management workflows
+## Review Loop Limit
 
-### Sprint cycle
+Default:
 
-`/retrospective` -> `/sprint-plan` -> `/scope-check` -> `/story-readiness` ->
-implementation cycles -> `/sprint-status` -> `/smoke-check` -> retrospective
+**Review -> one correction pass -> one confirmation**
 
-Use `/estimate` before accepting unusually risky stories.
+Do not start another review/fix cycle unless a concrete unresolved BLOCKER
+remains.
 
-### Milestone review
+A new reviewer discovering a different speculative issue is not, by itself, a
+reason to restart the cycle.
 
-`/sprint-status` -> `/content-audit` -> `/milestone-review` -> resolve blockers
--> `/gate-check`
+---
 
-A gate verdict is evidence and advice. The user decides whether to advance.
+# Validation Ladder
 
-### Polish
+## Local PLAYABLE Change
 
-`/perf-profile` -> `/balance-check` -> `/asset-audit` -> multiple
-`/playtest-report` sessions -> `/tech-debt` decision -> `/soak-test` ->
-`/team-polish` -> gate review
+Use:
 
-### Release
+**focused tests -> relevant build -> PIE if player-facing**
 
-`/release-checklist` -> security and localization clearance ->
-`/launch-checklist` -> explicit GO/NO-GO -> `/team-release` -> `/patch-notes`
-and `/changelog` -> deployment -> monitoring -> retrospective
+## Shared-Core Change
 
-### Live operations
+If BattleEngine or another widely shared owner changes:
 
-`/team-live-ops` -> event design -> economy and analytics plans -> narrative and
-content -> design review -> sprint plan -> implementation and QA -> release
-workflow
+**new focused tests -> affected older filters -> relevant build -> PIE**
 
-## Project and session workflows
+Run only the regressions that can reasonably be affected.
 
-### Existing project recovery
+## Playable Milestone Completion
 
-`/start` -> `/project-stage-detect` -> `/adopt` -> `/reverse-document` where
-needed -> `/gate-check`
+At milestone completion:
 
-### Contributor onboarding
+* run the milestone's acceptance validation;
+* run broader Battle regression if shared systems changed materially;
+* perform one broader code/architecture review if useful;
+* perform a complete manual playable pass.
 
-Use `/onboard [role or area]` to prepare focused project context for a new
-contributor or agent.
+## PRODUCTION / Release
 
-### Fresh session
+Use whatever full evidence, suite, compatibility proof, review, and publication
+gates the production task explicitly requires.
 
-Use `/new-session` to create one verified, paste-ready continuation prompt with
-one bounded objective. Prefer it over the older temporary `/handoff` workflow.
+Do not use release-level validation for every feature.
 
-### Live Unreal Editor
+---
 
-Use `/unreal-engine-mcp-codex` for Blueprint or asset inspection, Content
-Browser operations, level and actor work, live editor state, and PIE-specific
-inspection.
+# Documentation Rule
 
-Use command-line builds and Automation for compilation and tests. Serialize
-live-editor calls, inspect every result, and save only assets owned by the task.
+Documentation should reduce future reading, not create more required reading.
 
-### Skill maintenance
+For ordinary PLAYABLE work, update only:
 
-`/skill-test static` -> `/skill-test spec` -> `/skill-test audit` ->
-`/skill-improve` -> rerun the same validation
+* the directly affected accepted design if its approved behavior changed;
+* `production/session-state/active.md`;
+* a necessary architecture authority if a real architecture decision changed.
 
-This maintains the workflow system, not game features.
+Do not create duplicate:
 
-## Supporting decision and review skills
+* status documents;
+* implementation summaries;
+* acceptance reports;
+* evidence narratives;
+* handoff documents;
 
-These assist other workflows but usually do not define a complete lifecycle:
+unless they solve an actual continuity problem or Production mode requires them.
 
-- `/help` selects one next action from current evidence.
-- `/gate-check` assesses phase-transition readiness.
-- `/estimate` estimates bounded work and uncertainty.
-- `/scope-check` detects growth beyond an approved boundary.
-- `/sprint-status` reports current sprint state.
-- `/milestone-review` reports milestone state and risk.
-- `/content-audit` compares planned and implemented content.
-- `/consistency-check` finds contradictions between design authorities.
-- `/review-all-gdds` reviews the design set as a whole.
-- `/code-review` reviews implemented code quality and architecture.
-- `/test-evidence-review` reviews test and evidence quality.
-- `/playtest-report` structures observed playtest results.
+Generated test/build evidence may exist without becoming mandatory future
+reading.
 
-## Skill families
+`active.md` is a current-state pointer, not a historical archive.
 
-### Navigation, recovery, and continuity
+---
 
-`/start`, `/help`, `/project-stage-detect`, `/adopt`, `/reverse-document`,
-`/onboard`, `/new-session`, `/handoff`
+# Battle Workflow
 
-### Concept and design
+For current Battle development:
 
-`/brainstorm`, `/art-bible`, `/map-systems`, `/prototype`, `/design-system`,
-`/quick-design`, `/design-review`, `/consistency-check`, `/review-all-gdds`,
-`/propagate-design-change`, `/vertical-slice`
+1. Read the active milestone.
+2. Read its accepted design.
+3. Use `index.md` to locate only the relevant Battle files.
+4. Treat the existing BattleEngine and completed mechanics as a stable
+   foundation.
+5. Change shared Battle core only when the active milestone proves a concrete
+   gap.
+6. Preserve generic runtime behavior; do not add species-, move-, or
+   showcase-specific branches.
+7. Validate the changed path.
+8. Prove the result in PIE.
+9. Stop when the active milestone is playable.
 
-### Architecture
+Do not automatically:
 
-`/setup-engine`, `/create-architecture`, `/architecture-decision`,
-`/architecture-review`, `/create-control-manifest`
+* close C11A deferred catalog gaps;
+* revisit completed C10/C11 work;
+* improve replay;
+* improve transactional semantics;
+* refactor the BattleEngine;
+* add future effects;
+* add strategic AI;
+* implement later roadmap steps;
 
-### Planning and production
+unless the current task explicitly requires one of them.
 
-`/create-epics`, `/create-stories`, `/story-readiness`, `/estimate`,
-`/sprint-plan`, `/sprint-status`, `/scope-check`, `/dev-story`, `/story-done`,
-`/retrospective`, `/milestone-review`
+---
 
-### Solarus implementation gates and review
+# Compact Workflow Router
 
-`/solarus-implementation-draft`, `/solarus-implementation-approval`,
-`/code-review`, `/test-evidence-review`
+| Need                                   | Use                                             |
+| -------------------------------------- | ----------------------------------------------- |
+| Approved playable feature              | Default PLAYABLE path                           |
+| One small unresolved behavior          | `/quick-design`                                 |
+| Large undesigned system                | `/design-system`                                |
+| Genuine architecture trigger           | `/architecture-decision`                        |
+| Reproducible bug                       | `/bug-report` then minimal PLAYABLE fix         |
+| Live Unreal asset/Blueprint inspection | `/unreal-engine-mcp-codex`                      |
+| Major milestone review                 | One bounded review after the playable milestone |
+| Production/release hardening           | PRODUCTION path                                 |
+| Fresh-session continuity               | `/handoff`                                      |
 
-### Content, presentation, and domain teams
+Do not chain skills automatically.
 
-`/content-audit`, `/asset-spec`, `/asset-audit`, `/ux-design`, `/ux-review`,
-`/team-combat`, `/team-ui`, `/team-audio`, `/team-level`, `/team-narrative`,
-`/team-live-ops`
+Select only the workflow needed for the unresolved phase.
 
-### Bugs, QA, and maintenance
+---
 
-`/bug-report`, `/bug-triage`, `/hotfix`, `/day-one-patch`, `/test-setup`,
-`/test-helpers`, `/qa-plan`, `/smoke-check`, `/regression-suite`,
-`/test-flakiness`, `/soak-test`, `/team-qa`, `/tech-debt`
+# User-Owned Presentation
 
-### Quality, polish, and release
+The user owns UI/UX appearance, art, layout, styling, motion appearance, audio
+treatment, and visual references.
 
-`/balance-check`, `/perf-profile`, `/security-audit`, `/localize`,
-`/playtest-report`, `/team-polish`, `/release-checklist`, `/launch-checklist`,
-`/team-release`, `/patch-notes`, `/changelog`
+Do not route ordinary implementation through art/UX review gates.
 
-### Tooling and workflow maintenance
+Functional presentation contracts may still be implemented and validated:
 
-`/unreal-engine-mcp-codex`, `/skill-test`, `/skill-improve`, `/gate-check`
+* state;
+* input;
+* bindings;
+* data;
+* adapters;
+* error handling;
+* code-behind;
+* Blueprint plumbing.
 
-## Stop conditions
+Visual approval comes from the user.
 
-Stop and ask the user when:
+---
 
-- the requested behavior is materially unclear;
-- required authorities conflict or are missing;
-- prototype versus production mode is not explicitly selected;
-- the task crosses the user's visual ownership boundary;
-- the proposed write or validation scope expands;
-- dirty work overlaps the proposed change and cannot be safely preserved;
-- required evidence is unavailable;
-- a destructive, external, asset, or Git action lacks authorization; or
-- continuing requires a separate design, scheduling, implementation,
-  publication, or acceptance decision.
+# Content and Data
 
-If the work has become too large or context-heavy to complete reliably in the
-current session, recommend `/new-session` with one bounded objective.
+Add only the content needed by the active playable milestone.
 
-## Known workflow-system limitations
+Do not create a complete content database because later systems will need one.
 
-Check every generic skill against live Solarus authority before using it:
+For third-party assets, follow `docs/registry/external-assets.yaml`.
 
-- Some skills still reference `.claude`, `CLAUDE.md`, generic `src/`, or
-  non-Unreal asset paths.
-- The main workflow catalog does not list every installed skill.
-- Some catalog artifact checks do not match this Unreal repository layout.
-- Generic prototype rules do not always match the Solarus prototype boundary.
-- Team skills may attempt visual decisions owned by the user.
-- Git-oriented skills cannot override the prohibition on unauthorized Git
-  operations.
+A later roadmap requirement may be recorded without implementing its data now.
 
-Do not treat a generic skill's assumptions as current project facts. Live
-source, current roadmap packages, repository instructions, dirty work, and
-fresh exported evidence take precedence.
+---
 
-## Completion rule for workflow advice
+# Bugs and Maintenance
 
-Workflow guidance is complete when the user knows:
+For a normal bug:
 
-1. the verified current situation;
-2. exactly one recommended next action;
-3. what is not yet authorized;
-4. what follows after that action; and
-5. which facts remain unknown.
+**Reproduce -> identify cause -> smallest fix -> focused regression -> PIE if
+relevant -> stop**
+
+Do not use a bug as an excuse for unrelated cleanup.
+
+Technical debt is scheduled separately unless it blocks the active milestone.
+
+---
+
+# Performance
+
+Do not optimize based on speculation.
+
+Use:
+
+**measure -> identify a real bottleneck -> smallest fix -> remeasure**
+
+Future scale is not a current performance bug.
+
+---
+
+# Git
+
+Implementation authorization is not Git authorization.
+
+Do not stage, commit, push, branch, reset, checkout, or alter history unless the
+user explicitly requests that Git operation.
+
+---
+
+# Stop / Escalation Conditions
+
+Pause expansion of the task when:
+
+* the requested implementation would exceed the active milestone;
+* a current accepted authority genuinely conflicts with another;
+* a real architecture trigger appears that was not approved;
+* the change crosses the user's visual ownership boundary;
+* unrelated dirty work would be overwritten;
+* a required external/destructive/Git action lacks authorization.
+
+When the issue is only a speculative future concern, do **not** stop the current
+milestone. Record it as advisory technical debt.
+
+---
+
+# Completion Rule
+
+A PLAYABLE task is complete when:
+
+1. the approved current outcome works;
+2. relevant focused tests pass;
+3. the necessary build succeeds;
+4. required PIE behavior is verified;
+5. no concrete current blocker remains.
+
+Then stop.
+
+The next roadmap step requires a new task.
