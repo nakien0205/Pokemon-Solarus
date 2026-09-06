@@ -108,7 +108,7 @@ Relevant families include:
 * `BattleFieldSideConditions*`
 * `BattleTriggerFramework.cpp`
 
-Use `BattleEngineTriggerRuntime.cpp` when the issue concerns how BattleEngine integrates trigger registration, lifecycle, cleanup, or dispatch.
+Use `BattleEngineTriggerRuntime.*` when the issue concerns how BattleEngine integrates trigger registration, lifecycle, cleanup, or dispatch.
 
 Do not load trigger runtime for an isolated condition-rule change unless lifecycle integration is involved.
 
