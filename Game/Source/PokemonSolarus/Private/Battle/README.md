@@ -1,12 +1,12 @@
-# Public Battle Contracts
+# Battle Implementation
 
-This folder contains the public contracts and reusable types for the Battle system.
+This folder contains the private implementation of the Battle system.
 
 Use it to answer:
 
-> Which Battle contract or type should I understand before changing this subsystem?
+> Which Battle implementation file or file family owns this behavior?
 
-Do not read every header in this folder. Start with the smallest contract group that owns the behavior, then inspect its implementation and matching tests.
+Do not read every Battle source file. Start from the relevant public contract under `Public/Battle/`, then use the routing below to identify the smallest private implementation family and matching focused tests.
 
 ## Agent routing rule
 
@@ -15,128 +15,227 @@ For a Battle change:
 ```text
 Public/Battle contract
     ↓
-Private/Battle implementation
+smallest matching Private/Battle implementation family
     ↓
 Private/Tests matching subsystem tests
 ```
 
 If intended behavior is unclear, consult the matching package under `plan/battle_mechanics/` after identifying the owning subsystem.
 
+Do not load replay, checkpoint, atomic, or broad BattleEngine infrastructure unless the task actually crosses those boundaries.
+
 ## Major responsibility groups
 
-### Core engine, setup, state, and decisions
+### BattleEngine orchestration
 
-Start here for battle lifecycle, mutable-state ownership, setup, snapshots, decisions, or public events.
+`BattleEngine.cpp` is the main engine construction/facade implementation, but Battle operations are split across focused `BattleEngine*` files.
 
-* `BattleEngine.h` — main mutable Battle-core owner and public operation boundary.
-* `BattleSetup.h`
-* `BattleSetupTypes.h`
-* `BattleSnapshot.h`
-* `BattleDecision.h`
-* `BattleEvent.h`
-* `BattleIdentifiers.h`
+Do not assume all Battle behavior belongs in `BattleEngine.cpp`.
 
-Use `BattleEngine.h` when changing how a Battle operation is entered or exposed. Use the more specific setup/snapshot/decision/event contracts when changing the shape of data crossing that boundary.
+Important focused engine files include:
 
-### Definitions, catalogs, and runtime data
+* `BattleEngineMoveTargets.cpp` — engine-side target-resolution checkpoint.
+* `BattleEngineMoveEffects.cpp` — move-effect resolution orchestration.
+* `BattleEngineVoluntarySwitch.cpp` — voluntary-switch execution/checkpoint.
+* `BattleEngineBagActions.cpp` — Bag-item and Capture action execution.
+* `BattleEngineReplay.cpp` — BattleEngine replay export.
+* `BattleEngineCheckpointState.cpp` — checkpoint/stale-identity support.
+* `BattleResolutionCommit.cpp` — atomic resolution commit support.
 
-Start here for authored Battle definitions, DataTable loading, catalogs, or runtime-source construction.
+Search `BattleEngine*` for the operation being changed instead of opening the whole family.
 
-* `BattleDefinitions.h`
-* `BattleDefinitionCatalog.h`
-* `BattleDataTableAdapter.h`
-* `BattleDataTableRows.h`
-* `BattleRuntimeDataTableRows.h`
-* `BattleRuntimeSource.h`
-* `BattleDisplayNameResolver.h`
+### Effect execution
 
-For source-data authoring or importer problems, route first to `Game/SourceData/` rather than treating these headers as the data source.
+Start with the `BattleEffectExecutor*` family when the task concerns applying move effects or effect-driven state changes.
 
-### Actions, ordering, and targeting
+The implementation is intentionally split.
 
-Start here for action selection, queue ordering, or legal target calculation.
+Important files include:
 
-* `BattleActionQueue.h`
-* `BattleActionSelector.h`
-* `BattleTargeting.h`
+* `BattleEffectExecutor.cpp` — core executor behavior and coordination.
+* `BattleEffectExecutorState.cpp` — staged execution-state/context behavior.
+* `BattleEffectExecutorConditions.cpp` — condition-related effect execution.
+* `BattleEffectExecutorItemMoves.cpp` — held-item move operations.
+* `BattleEffectExecutorSwitching.cpp` — forced-switch and switch-related effect execution.
+* `BattleEffectExecutorActionModifiers.cpp` — action-power modifier execution.
 
-Do not begin in damage or effect execution when the problem is actually action legality, ordering, or target selection.
+Do not read every executor file unless the effect crosses those responsibilities.
+
+### Actions, ordering, targeting, and redirection
+
+Start here when the problem concerns action selection, queue ordering, target legality, or redirection:
+
+* `BattleActionQueue.cpp`
+* `BattleActionSelector.cpp`
+* `BattleTargeting.cpp`
+* `BattleMoveRedirection.cpp`
+
+For engine integration of move target resolution, also inspect:
+
+* `BattleEngineMoveTargets.cpp`
+
+`BattleTargeting.cpp` owns reusable targeting rules; `BattleEngineMoveTargets.cpp` owns their BattleEngine checkpoint integration.
 
 ### Hit, damage, stats, and types
 
-Start here for move hit rules, damage math, stat calculation, type effectiveness, or related move-rule inputs.
+Start with the narrowest matching implementation:
 
-* `BattleHitResolver.h`
-* `BattleDamageCalculator.h`
-* `BattleFinalDamageCalculator.h`
-* `BattleStatCalculator.h`
-* `BattleStats.h`
-* `BattleStatStages.h`
-* `BattleTypeChart.h`
-* `BattleMoveCategory.h`
-* `BattleMoveHitRules.h`
-* `BattleMoveWeatherRules.h`
+* `BattleHitResolver.cpp`
+* `BattleDamageCalculator.cpp`
+* `BattleFinalDamageCalculator.cpp`
+* `BattleStatCalculator.cpp`
+* `BattleStatStages.cpp`
+* `BattleTypeChart.cpp`
+* `BattleMoveHitRules.cpp`
+* `BattleMoveWeatherRules.cpp`
 
-Pick the narrowest contract first. For example, a type-effectiveness change should normally begin with `BattleTypeChart.h`, not the entire damage stack.
+For a basic damage-formula bug, do not begin in `BattleEngine*`.
 
-### Status, volatile state, field/side conditions, and triggers
+For final damage modifiers, inspect `BattleFinalDamageCalculator.cpp` rather than assuming `BattleDamageCalculator.cpp` owns the full damage pipeline.
 
-Start here for persistent Battle conditions and their lifecycle integration.
+### Conditions and triggers
 
-* `BattleMajorStatus.h`
-* `BattleVolatile.h`
-* `BattleFieldSideConditions.h`
-* `BattleTriggerFramework.h`
+Start with the matching condition implementation for isolated rules.
 
-Use `BattleTriggerFramework.h` when the change concerns when or how a condition, Ability, or item participates in Battle lifecycle phases rather than the condition's isolated rule itself.
+Relevant families include:
+
+* `BattleMajorStatus*`
+* `BattleVolatile*`
+* `BattleFieldSideConditions*`
+* `BattleTriggerFramework.cpp`
+
+Use `BattleEngineTriggerRuntime.cpp` when the issue concerns how BattleEngine integrates trigger registration, lifecycle, cleanup, or dispatch.
+
+Do not load trigger runtime for an isolated condition-rule change unless lifecycle integration is involved.
 
 ### Abilities and items
 
-Start here for Ability behavior, held-item interaction, or Bag-item rules.
+Start with the matching behavior family:
 
-* `BattleAbility.h`
-* `BattleAbilityItemContracts.h`
-* `BattleItem.h`
-* `BattleBagItem.h`
+* `BattleAbility*`
+* `BattleAbilityItemContracts*`
+* `BattleItem*`
+* `BattleBagItem*`
+* `BattleHeldItemMoveEffects*`
 
-Then route to the matching private implementation family and focused tests.
+Then follow into `BattleEffectExecutor*` or `BattleEngine*` only when the behavior requires lifecycle/effect/action integration.
 
-### Switching, encounters, capture, and wild flow
+For example:
 
-Start here for party switching, replacement-related contracts, encounter restrictions, capture, or wild Battle flow.
+```text
+Ability definition/rule
+    → BattleAbility*
+    → trigger integration if needed
+    → matching executor/engine seam if needed
+```
 
-* `BattleSwitching.h`
-* `BattleCapture.h`
-* `BattleWildFlow.h`
-* `BattleEncounterPolicy.h`
-* `BattleEncounterPolicyTypes.h`
+Do not treat every Ability or item change as a BattleEngine change.
 
-### RNG and replay
+### Switching, fainting, and partner behavior
 
-Start here when deterministic randomness, transactional RNG, replay inputs, replay records, or canonical serialization are part of the change.
+These responsibilities are separate.
 
-* `BattleRandom.h`
-* `BattleReplay.h`
+Start with:
 
-Ordinary deterministic rule changes do not require reading the entire RNG/replay infrastructure unless they alter RNG ownership, transactional behavior, trace semantics, or replay-visible state.
+* `BattleSwitching*` — reusable switching legality/resolution rules.
+* `BattleEngineVoluntarySwitch.cpp` — voluntary-switch engine checkpoint.
+* `BattleEngineSwitchPipeline.cpp` — shared switch-application pipeline.
+* `BattleFaintOutcomeResolver.cpp` — faint transitions, replacements, and outcome resolution.
+* `BattlePartnerFlow.cpp` — partner-specific Battle flow.
+
+Use the smallest owner matching the problem instead of opening the entire switching/fainting stack.
+
+### Encounters, Capture, and wild flow
+
+Start with:
+
+* `BattleEncounterPolicy.cpp` — compiled encounter-policy behavior.
+* `BattleCapture.cpp` — Capture calculations and rules.
+* `BattleWildFlow.cpp` — Run and configured wild-flow rules.
+
+Capture action execution also crosses:
+
+* `BattleEngineBagActions.cpp`
+
+When changing encounter legality or Capture transaction behavior, consult ADR-0002 because compiled encounter policy and atomic resolution behavior are architecture-governed.
+
+### RNG, replay, checkpoints, and atomicity
+
+Start here only when the task actually involves deterministic RNG, replay-visible behavior, stale checkpoints, transactional mutation, or publication ordering.
+
+Relevant files include:
+
+* `BattleReplay.cpp`
+* `BattleEngineReplay.cpp`
+* `BattleResolutionCommit.cpp`
+* `BattleEngineCheckpointState.cpp`
+
+Also route through the relevant `BattleEngine*` checkpoint being changed.
+
+Do not read this infrastructure for an ordinary deterministic rule bug.
+
+If the change affects state/RNG/event publication atomicity, stale-plan behavior, replay semantics, or resolution commit guarantees, consult:
+
+`docs/registry/architecture/adr-0002-battle-encounter-runtime-authority-and-atomic-resolution-commit.md`
+
+### Definitions, catalogs, and runtime data
+
+Start with:
+
+* `BattleDefinitionCatalog.cpp` — validated runtime definition catalog.
+* `BattleDataTableAdapter.cpp` — reflected DataTable rows → Battle definitions.
+* `BattleDataTableRuntimeSource.cpp` — production DataTable-backed runtime source.
+
+For editable Battle content, do **not** begin here.
+
+Route instead to:
+
+`Game/SourceData/Battle/`
+
+The editable source data is authored there and imported into Unreal DataTables.
+
+## Tests
+
+Matching Battle tests are under:
+
+`Game/Source/PokemonSolarus/Private/Tests/`
+
+Use `../Tests/README.md` to select the smallest relevant test family.
+
+Typical routing:
+
+```text
+private implementation being changed
+    ↓
+matching focused unit/contract test
+    ↓
+lifecycle/canonical test only if the boundary is affected
+    ↓
+BattleAtomic* only if transactional/checkpoint behavior is affected
+```
+
+Do not read or run the complete Battle test suite by default.
 
 ## Related directories
 
-* `Game/Source/PokemonSolarus/Private/Battle/` — implementations of these Battle contracts.
-* `Game/Source/PokemonSolarus/Private/Tests/` — focused unit, contract, atomic, integration, and presentation tests.
-* `Game/SourceData/Battle/` — canonical editable Battle source data and import/validation tooling.
-* `plan/battle_mechanics/` — detailed Battle requirements and package boundaries.
-* `Game/Source/PokemonSolarus/Public/UI/` — presentation contracts that consume Battle state; UI is not Battle-mechanics authority.
+* `Game/Source/PokemonSolarus/Public/Battle/` — public Battle contracts.
+* `Game/Source/PokemonSolarus/Private/Tests/` — focused Battle tests.
+* `Game/SourceData/Battle/` — editable Battle source data and import/validation tooling.
+* `plan/battle_mechanics/` — detailed Battle requirement packages.
+* `docs/registry/architecture.yaml` — compact architecture registry.
+* `Game/Source/PokemonSolarus/Private/UI/` — presentation implementation; not Battle-mechanics authority.
 
 ## Do not read by default
 
 Do not automatically read:
 
-* all 42 headers in this directory;
-* every file under `Private/Battle/`;
+* every `BattleEngine*` file;
+* every `BattleEffectExecutor*` file;
+* every Battle implementation file;
 * the complete Battle test suite;
-* all Battle plan packages;
-* Unreal DataTable assets;
-* UI or presentation code for a mechanics-only change.
+* every Battle plan package;
+* replay/atomic infrastructure for an ordinary rule change;
+* UI/presentation code for a mechanics-only change;
+* imported Unreal DataTables when editable source data is the actual concern.
 
-Identify the owning subsystem first, read its public contract, then follow only the directly relevant implementation and tests.
+Identify the owning public contract, choose the smallest private implementation family, inspect its focused tests, and expand context only when the behavior crosses another boundary.

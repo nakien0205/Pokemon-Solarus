@@ -23,7 +23,7 @@ Only read these for Unreal/project-configuration work.
 
 Authoritative C++ implementation.
 
-- `Public/Battle/` — public Battle contracts.
+- `Public/Battle/` — public Battle contracts. See `Public/Battle/README.md`.
 - `Private/Battle/` — Battle implementation. See `Private/Battle/README.md`.
 - `Private/Tests/` — Battle automated tests. See `Private/Tests/README.md`.
 - `Public/UI/` — public Battle presentation contracts. See `Public/UI/README.md`.

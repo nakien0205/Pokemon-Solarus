@@ -142,7 +142,7 @@ For most changes:
 
 Do not automatically:
 
-* read all ~80 test/support files;
+* read every test/support file;
 * run every Battle test because one rule changed;
 * load every `BattleAtomic*` test for a non-atomic change;
 * load every canonical integration test before identifying the affected scenario.

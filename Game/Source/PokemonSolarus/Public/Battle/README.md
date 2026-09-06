@@ -50,7 +50,7 @@ Start here for authored Battle definitions, DataTable loading, catalogs, or runt
 * `BattleRuntimeSource.h`
 * `BattleDisplayNameResolver.h`
 
-For source-data authoring or importer problems, route first to `Game/SourceData/` rather than treating these headers as the data source.
+For Battle source-data authoring or importer problems, route first to `Game/SourceData/Battle/` rather than treating these headers as the data source.
 
 ### Actions, ordering, and targeting
 
@@ -132,7 +132,7 @@ Ordinary deterministic rule changes do not require reading the entire RNG/replay
 
 Do not automatically read:
 
-* all 42 headers in this directory;
+* every header in this directory;
 * every file under `Private/Battle/`;
 * the complete Battle test suite;
 * all Battle plan packages;
