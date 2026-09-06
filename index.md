@@ -23,24 +23,21 @@ Only read these for Unreal/project-configuration work.
 
 Authoritative C++ implementation.
 
-- `Public/Battle/` — public battle contracts, types, setup, snapshots, decisions, rules, and reusable APIs.
-- `Private/Battle/` — battle implementation.
-  - `BattleEngine*` — orchestration.
-  - `BattleEffectExecutor*` — reusable effect execution.
-  - Other files cover targeting, damage, status, abilities, items, switching, encounters, capture, replay, etc.
-- `Private/Tests/` — battle automated tests.
-- `Public/UI/`, `Private/UI/` — battle HUD, command UI, controller, GameMode, and presentation.
+- `Public/Battle/` — public Battle contracts.
+- `Private/Battle/` — Battle implementation. See `Private/Battle/README.md`.
+- `Private/Tests/` — Battle automated tests. See `Private/Tests/README.md`.
+- `Public/UI/` — public Battle presentation contracts. See `Public/UI/README.md`.
+- `Private/UI/` — Battle presentation implementation. See `Private/UI/README.md`.
 - module/target files — build and module configuration.
 
-**Rule:** Search the relevant subsystem first. Do not scan all Battle or Test files.
+**Rule:** Route to the owning folder first, then use its README to narrow the search.
 
 ## Battle data
 
-- `Game/SourceData/Battle/Initial/` — authoritative editable battle JSON.
-- `Game/SourceData/Battle/` — validation and DataTable import tooling.
+- `Game/SourceData/Battle/` — editable Battle source data, validation, and import tooling. See `Game/SourceData/Battle/README.md`.
 - `Game/Content/Data/Battle/` — imported Unreal DataTables.
 
-Prefer `Game/SourceData/` for reasoning and edits. Do not inspect generated/imported DataTables unless the task concerns Unreal import/runtime assets.
+Prefer editable source data over generated/imported assets.
 
 ## Unreal content
 
@@ -70,21 +67,11 @@ Read only the design document relevant to the task.
 
 ## Battle plans
 
-- `plan/battle_mechanics/00-roadmap-index.md` — high-level battle roadmap/status.
-- `02-*` — core contracts/events/RNG.
-- `03-*` — stats/types/moves/data.
-- `04-*` — state/snapshots/decisions.
-- `05-*` — actions/order/targeting.
-- `06-*` — hit/damage/effects/outcomes.
-- `07-*` — parties/switching/replacements.
-- `08-*` — status/volatile/field/side conditions.
-- `09-*` — abilities/items.
-- `10-*` — encounters/capture/escape/partner.
-- `11-*` — canonical proof content.
-- `12-*` — integration/release gate.
-- `reference/modern-rules-snapshot.md` — large frozen modern-Pokemon rules reference.
+- `plan/battle_mechanics/` — detailed Battle roadmap and implementation packages. See `plan/battle_mechanics/README.md`.
+- `plan/battle_mechanics/00-roadmap-index.md` — high-level Battle roadmap/status.
+- `plan/battle_mechanics/reference/modern-rules-snapshot.md` — frozen modern-Pokémon rules reference.
 
-Do not read packages sequentially. Read only the package that owns the task.
+Do not read packages sequentially. Use the folder README to identify the owning package.
 
 ## Architecture and technical docs
 

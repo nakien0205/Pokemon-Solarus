@@ -60,7 +60,7 @@ Do not begin by reading the entire repository.
 
 Start with:
 
-`AGENTS.md -> active.md -> docs/index.md -> current authority -> relevant code/tests`
+`AGENTS.md -> active.md -> index.md -> current authority -> relevant code/tests`
 
 Search before opening broad directories.
 

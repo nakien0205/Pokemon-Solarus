@@ -207,7 +207,7 @@ scheduled by this index.
 | Total roadmap systems | 7 |
 | Design docs started | 1 |
 | Design docs reviewed | 1 |
-| Design docs approved | 0 |
+| Design docs approved | 1 |
 | New MVP systems | 0 |
 | Battle Vertical Slice systems designed | 1 / 3 |
 | Alpha systems designed | 0 / 4 |
