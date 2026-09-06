@@ -1,10 +1,22 @@
 <!-- STATUS -->
 Epic: Battle System
-Feature: C11 full integration and release gate
-Task: One-Pokemon playable prototype accepted; full C11 remains open on six C11A catalog-data gaps
+Feature: Fast reusable Battle roadmap through strategic opponent AI
+Task: Four-Move Battle Selection GDD accepted; required architecture decisions are next
 <!-- /STATUS -->
 
-# Active Project State — 2026-09-02
+# Active Project State — 2026-09-03
+
+## Current roadmap
+
+- **Task:** Four-Move Battle Selection GDD.
+- **Status:** Independent design review completed and accepted by the project
+  owner on 2026-09-03. That review produced no separate review artifact.
+- **File:** `design/gdd/four-move-battle-selection.md`.
+- **Scope:** Only the ordered playable Battle steps from four-move selection
+  through strategic opponent AI. Full-game systems remain outside this index.
+- **Next:** Create and approve the separate opponent-policy and presentation-
+  composition ADRs required by the accepted GDD. Acceptance of the GDD does
+  not authorize implementation.
 
 ## Current state
 
@@ -216,8 +228,9 @@ C10B acceptance by itself did not authorize C11A or C11B implementation.
 
 ## Next
 
-1. Create and approve a narrow design for the next playable milestone: four
-   damage-only moves for each Pokemon and player move selection.
+1. Create and approve the separate opponent-policy and presentation-composition
+   ADRs required by the accepted Four-Move Battle Selection GDD. Do not begin
+   implementation from the accepted GDD alone.
 2. Keep C11A marked `INCOMPLETE_CATALOG_DEFERRED` and full C11 open; run the
    six deferred retests only when their required accepted catalog data arrives.
 3. Do not begin Cry for Help/reinforcement or later presentation lanes without

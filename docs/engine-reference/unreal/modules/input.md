@@ -18,6 +18,7 @@
 | Confirm/interact | C | A | Cross | A |
 | Cancel/back/menu | X | B | Circle | B |
 | Sprint | Z | X | Square | Y |
+| Battle Info | V | Menu | Options | Plus |
 | Registered Items | D | Menu | Options | Plus |
 
 These are native-label mappings. Nintendo Confirm and Cancel therefore occupy
@@ -55,7 +56,8 @@ The current two-Pokémon battle prototype implements only:
 
 - navigation;
 - Confirm;
-- Cancel.
+- Cancel;
+- Battle Info on `V`.
 
 Overworld movement, Sprint, Bag, the main menu, and Registered Items are future
 scope. Automatic registration of Key Items belongs in a future Bag/Registered

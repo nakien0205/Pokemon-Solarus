@@ -534,7 +534,7 @@ hold-for-details behavior.
 | Confirm available Run | Approved compression and release animation | Immediately submit the typed Run decision |
 | Focus unavailable command | Full focus rim remains and the text box shows its typed reason | Local presentation update only |
 | Confirm unavailable command | The text box immediately reaffirms the reason; no motion or sound | No navigation or Battle event |
-| `D` or controller Menu | Battle Info appears | Open read-only Battle Info without consuming an action |
+| `V` or controller Menu | Battle Info appears | Open read-only Battle Info without consuming an action |
 | Close Battle Info | Command menu returns | Restore the exact previous command focus |
 | Cancel at top level | Nothing changes | No event |
 
@@ -567,7 +567,7 @@ secondary design targets with full gameplay parity.
 | Navigate | Arrow keys | D-pad or left stick |
 | Confirm | C | Native Confirm button |
 | Cancel | X | Native Cancel button |
-| Battle Info | D | Menu, Options, or Plus as appropriate for the recognized controller |
+| Battle Info | V | Menu, Options, or Plus as appropriate for the recognized controller |
 
 Navigation resolves to cardinal directions only; diagonal focus movement is not
 used. The HUD does not respond to mouse hover, mouse clicks, or touch. At
@@ -667,7 +667,7 @@ project-wide accessibility certification.
   using the approved adjacency map and clamp at every outer edge.
 - [ ] Fight opens Move Selection, Bag opens Battle Bag, Pokémon opens Party
   Selection, and available Run submits the typed Run decision.
-- [ ] `D` or the controller Menu button opens Battle Info without consuming an
+- [ ] `V` or the controller Menu button opens Battle Info without consuming an
   action, and closing it restores the exact previous focus.
 - [ ] Top-level Cancel changes nothing and produces no sound, animation,
   navigation, or Battle event.
