@@ -6,14 +6,15 @@ Use it to answer:
 
 > Which Battle implementation file or file family owns this behavior?
 
-Do not read every Battle source file. Start from the relevant public contract under `Public/Battle/`, then use the routing below to identify the smallest private implementation family and matching focused tests.
+Do not read every Battle source file. Start from the narrowest owning contract or behavior family. Use `Public/Battle/` first when a relevant public contract exists; otherwise begin with the private owner named below. Then identify the smallest matching private implementation family and focused tests.
 
 ## Agent routing rule
 
 For a Battle change:
 
 ```text
-Public/Battle contract
+narrowest owning contract or behavior family
+(Public/Battle when applicable)
     ↓
 smallest matching Private/Battle implementation family
     ↓
@@ -54,7 +55,10 @@ Important files include:
 
 * `BattleEffectExecutor.cpp` — core executor behavior and coordination.
 * `BattleEffectExecutorState.cpp` — staged execution-state/context behavior.
+* `BattleEffectExecutorDamage.cpp` — hit/damage and damage-rule integration.
 * `BattleEffectExecutorConditions.cpp` — condition-related effect execution.
+* `BattleEffectExecutorAbilityItems.cpp` — Ability/item behavior during effect execution.
+* `BattleEffectExecutorTriggers.cpp` — executor-side trigger registration, dispatch, and cleanup.
 * `BattleEffectExecutorItemMoves.cpp` — held-item move operations.
 * `BattleEffectExecutorSwitching.cpp` — forced-switch and switch-related effect execution.
 * `BattleEffectExecutorActionModifiers.cpp` — action-power modifier execution.
@@ -151,13 +155,14 @@ Start with:
 
 * `BattleEncounterPolicy.cpp` — compiled encounter-policy behavior.
 * `BattleCapture.cpp` — Capture calculations and rules.
-* `BattleWildFlow.cpp` — Run and configured wild-flow rules.
+* `BattleWildFlow.cpp` — reusable Run and configured WildFlee rules.
+* `BattleEngineWildActions.cpp` — BattleEngine execution/checkpoint for Run and configured WildFlee actions.
 
 Capture action execution also crosses:
 
 * `BattleEngineBagActions.cpp`
 
-When changing encounter legality or Capture transaction behavior, consult ADR-0002 because compiled encounter policy and atomic resolution behavior are architecture-governed.
+Use `BattleWildFlow.cpp` for reusable Run/WildFlee rules; use `BattleEngineWildActions.cpp` when the problem concerns execution, checkpointing, cleanup, or BattleEngine integration.
 
 ### RNG, replay, checkpoints, and atomicity
 
@@ -165,6 +170,7 @@ Start here only when the task actually involves deterministic RNG, replay-visibl
 
 Relevant files include:
 
+* `BattleRandom.cpp`
 * `BattleReplay.cpp`
 * `BattleEngineReplay.cpp`
 * `BattleResolutionCommit.cpp`

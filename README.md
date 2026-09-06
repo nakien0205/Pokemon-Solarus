@@ -19,7 +19,7 @@ Current package status and the next approved boundary are recorded in
 
 - `Game/` — Unreal project, C++ source, tests, source data, configuration, and
   content assets.
-- `plan/battle_mechanics/` — canonical battle roadmap and package contracts.
+- `plan/battle_mechanics/` — detailed Battle mechanics packages and completed implementation requirements; consult only when the current task depends on them.
 - `docs/registry/architecture/` — current Architecture Decision Records.
 - `docs/engine-reference/unreal/` — project-scoped Unreal Engine 5.8.1 notes.
 - `design/` — game-design documents and approved quick specifications.
@@ -77,10 +77,3 @@ roadmap package rather than a generic command copied from older evidence.
 - Codex owns functional code-behind, mechanics, state, input routing, data
   contracts, adapters, validation, and automated tests unless a task grants an
   exception.
-- Do not stage, commit, push, create branches, or alter Git history without
-  explicit task-specific authorization.
-- Preserve unrelated dirty and untracked work.
-- The project owner controls visual layout, styling, art, materials, textures,
-  composition, and motion appearance.
-- Codex owns code-behind, mechanics, state, input routing, data contracts,
-  adapters, validation, and automated tests unless a task grants an exception.

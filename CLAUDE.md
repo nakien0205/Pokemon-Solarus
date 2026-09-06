@@ -18,7 +18,7 @@ Pokémon Solarus is an Unreal Engine battle project. The authoritative project i
 - `Game/Source/PokemonSolarus/` — production C++ and native Automation tests.
 - `Game/SourceData/Battle/` — authored battle source data and import tooling.
 - `Game/Content/` — Unreal assets and user-owned visual content.
-- `plan/battle_mechanics/` — canonical battle roadmap and package contracts.
+- `plan/battle_mechanics/` — detailed Battle mechanics packages and completed implementation requirements; consult only when the current task depends on them.
 - `docs/registry/architecture/` — current architecture decisions.
 - `production/session-state/active.md` — current work and protected scope.
 
