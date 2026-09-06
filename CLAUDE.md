@@ -23,8 +23,8 @@ Pokémon Solarus is an Unreal Engine battle project. The authoritative project i
 - `production/session-state/active.md` — current work and protected scope.
 
 Read `production/session-state/active.md` before continuing ongoing work.
-Live source, the active roadmap package, the worktree, and exported Unreal
-Automation reports override historical status notes.
+Live source, the active milestone and its current accepted authority, the
+worktree, and exported Unreal Automation reports override historical status notes.
 
 ## Engine and technical references
 

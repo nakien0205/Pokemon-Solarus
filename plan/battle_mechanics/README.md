@@ -1,6 +1,6 @@
 # Battle Mechanics Plan Routing
 
-This directory contains the detailed Battle-system roadmap packages.
+This directory contains the completed Battle-mechanics implementation packages for the existing Battle foundation. It is not the current playable roadmap or current project-status authority. Start from `production/session-state/active.md` and consult these packages only when the current task depends on them.
 
 Do **not** read the packages sequentially and do not load the entire Battle plan set. Identify the package that owns the requested behavior and read only that package plus direct dependencies when necessary.
 
@@ -28,7 +28,7 @@ README.md
     = quick package routing
 
 00-roadmap-index.md
-    = overall roadmap and status
+    = completed mechanics roadmap/status for this package set
 
 01–12 package files
     = detailed requirements / implementation packages

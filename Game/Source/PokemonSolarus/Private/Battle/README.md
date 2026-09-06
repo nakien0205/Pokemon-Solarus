@@ -21,7 +21,7 @@ smallest matching Private/Battle implementation family
 Private/Tests matching subsystem tests
 ```
 
-If intended behavior is unclear, consult the matching package under `plan/battle_mechanics/` after identifying the owning subsystem.
+If intended behavior is unclear, use `production/session-state/active.md` to identify the current accepted authority. Consult `plan/battle_mechanics/` only when the current task specifically depends on the completed Battle mechanics packages.
 
 Do not load replay, checkpoint, atomic, or broad BattleEngine infrastructure unless the task actually crosses those boundaries.
 
@@ -227,7 +227,7 @@ Do not read or run the complete Battle test suite by default.
 * `Game/Source/PokemonSolarus/Public/Battle/` — public Battle contracts.
 * `Game/Source/PokemonSolarus/Private/Tests/` — focused Battle tests.
 * `Game/SourceData/Battle/` — editable Battle source data and import/validation tooling.
-* `plan/battle_mechanics/` — detailed Battle requirement packages.
+* `plan/battle_mechanics/` — completed Battle mechanics implementation packages; consult only when the current task depends on them.
 * `docs/registry/architecture.yaml` — compact architecture registry.
 * `Game/Source/PokemonSolarus/Private/UI/` — presentation implementation; not Battle-mechanics authority.
 

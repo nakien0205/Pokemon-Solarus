@@ -112,7 +112,7 @@ Start with:
 Battle/Initial/<relevant-family>.json
 ```
 
-Then run or inspect the validation/import path required by the owning Battle package.
+Then run or inspect the validation/import path required by the current accepted authority and affected data family.
 
 ### Validation failure
 

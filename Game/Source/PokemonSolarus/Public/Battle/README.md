@@ -20,7 +20,7 @@ Private/Battle implementation
 Private/Tests matching subsystem tests
 ```
 
-If intended behavior is unclear, consult the matching package under `plan/battle_mechanics/` after identifying the owning subsystem.
+If intended behavior is unclear, use `production/session-state/active.md` to identify the current accepted authority. Consult `plan/battle_mechanics/` only when the current task specifically depends on the completed Battle mechanics packages.
 
 ## Major responsibility groups
 

@@ -65,13 +65,13 @@ Do not broadly scan `.uasset` or `.umap` files.
 
 Read only the design document relevant to the task.
 
-## Battle plans
+## Battle roadmap and completed mechanics
 
-- `plan/battle_mechanics/` — detailed Battle roadmap and implementation packages. See `plan/battle_mechanics/README.md`.
-- `plan/battle_mechanics/00-roadmap-index.md` — high-level Battle roadmap/status.
+- `design/gdd/systems-index.md` — current approved playable Battle roadmap.
+- `plan/battle_mechanics/` — completed Battle mechanics implementation packages for the existing foundation. Consult only when the current task depends on them. See `plan/battle_mechanics/README.md`.
 - `plan/battle_mechanics/reference/modern-rules-snapshot.md` — frozen modern-Pokémon rules reference.
 
-Do not read packages sequentially. Use the folder README to identify the owning package.
+Use `production/session-state/active.md` to identify the current milestone and accepted design. Do not treat `plan/battle_mechanics/00-roadmap-index.md` as current project status.
 
 ## Architecture and technical docs
 
